@@ -5,27 +5,52 @@
     box-sizing: border-box;
 }
 
-html, body {
+html {
     width: 100%;
     height: 100%;
     margin: 0;
     padding: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
-html.login-page,
+body {
+    width: 100%;
+    min-height: 100vh;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+html.login-page {
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
+}
+
 body.login-page {
-    overflow: hidden;
-    height: 100vh;
-    max-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 100vh;
+    height: auto;
 }
 
 body {
     font-family: Arial, Helvetica, sans-serif;
     background-color: #fffdf5;
     min-height: 100vh;
+    height: auto;
     display: flex;
     flex-direction: column;
     padding-top: 3vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+body.login-page {
+    padding-top: 0;
 }
 
 /* Header Section */
@@ -51,11 +76,13 @@ body {
     align-items: center;
     padding: 5vh 2vw;
     width: 100%;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 body.login-page .main-content {
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 2vh 2vw;
     flex: 1 1 auto;
     min-height: 0;
@@ -134,8 +161,8 @@ body.login-page .main-content {
 }
 
 body.login-page .login-container {
-    max-height: 100%;
-    overflow: hidden;
+    max-height: none;
+    overflow: visible;
 }
 
 .login-icon {
@@ -351,6 +378,10 @@ body.login-page .login-links {
     margin-top: auto;
     padding: 0;
     position: relative;
+}
+
+body.login-page .footer-section {
+    margin-top: 0;
 }
 
 .footer-image {
@@ -790,5 +821,27 @@ body.login-page .organization-selector-button {
     .organization-divider-label {
         padding: 1vh 3vw;
         font-size: clamp(12px, 2.8vw, 15px);
+    }
+}
+
+/* Landscape orientation for mobile devices */
+@media (max-width: 768px) and (orientation: landscape) {
+    .icon-blocks {
+        flex-direction: row;
+        gap: 2vw;
+        justify-content: space-around;
+    }
+
+    .icon-image {
+        width: min(120px, 15vw);
+        height: min(120px, 15vw);
+    }
+
+    .icon-label {
+        font-size: clamp(11px, 2vw, 14px);
+    }
+
+    .main-content {
+        padding: 2vh 2vw;
     }
 }
