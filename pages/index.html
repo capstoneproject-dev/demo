@@ -16,7 +16,7 @@
     <main class="main-content">
         <div class="icon-blocks">
             <!-- Student Block -->
-            <a href="#" class="icon-block" data-type="student">
+            <a href="sLogin.html" class="icon-block" data-type="student">
                 <img src="../assets/photos/indexphotos/student.png" alt="Student" class="icon-image">
                 <p class="icon-label">Student</p>
             </a>
@@ -47,21 +47,32 @@
         // Add click animation to icon blocks
         document.querySelectorAll('.icon-block').forEach(block => {
             block.addEventListener('click', function(e) {
-                // Prevent default link behavior (you can change href later)
-                e.preventDefault();
-                
-                // Add clicked class for animation
-                this.classList.add('clicked');
-                
-                // Remove class after animation completes
-                setTimeout(() => {
-                    this.classList.remove('clicked');
-                }, 300);
-                
-                // You can add navigation logic here based on data-type
                 const type = this.getAttribute('data-type');
-                console.log('Clicked:', type);
-                // Example: window.location.href = 'pages/' + type + '.html';
+                const href = this.getAttribute('href');
+                
+                // If there's a valid href (not just '#'), allow navigation after animation
+                if (href && href !== '#') {
+                    // Add clicked class for animation
+                    this.classList.add('clicked');
+                    
+                    // Navigate after animation completes
+                    setTimeout(() => {
+                        window.location.href = href;
+                    }, 300);
+                } else {
+                    // Prevent default link behavior for blocks without navigation
+                    e.preventDefault();
+                    
+                    // Add clicked class for animation
+                    this.classList.add('clicked');
+                    
+                    // Remove class after animation completes
+                    setTimeout(() => {
+                        this.classList.remove('clicked');
+                    }, 300);
+                    
+                    console.log('Clicked:', type);
+                }
             });
         });
     </script>
