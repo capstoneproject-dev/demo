@@ -17,7 +17,7 @@
         <div class="login-container">
             <img src="../assets/photos/sLoginphotos/oLoginOrganization.png" alt="Organization Login Icon" class="login-icon">
             <h1 class="login-title">LOG IN</h1>
-            <form class="login-form">
+            <form class="login-form" id="loginForm">
                 <div class="input-wrapper">
                     <input type="text" placeholder="Student Number" class="login-input" required>
                 </div>
@@ -61,6 +61,14 @@
                 passwordInput.type = 'password';
                 eyeIcon.innerHTML = eyeOpenSVG;
             }
+        });
+
+        // Handle form submission
+        const loginForm = document.getElementById('loginForm');
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Navigate to index page (or appropriate landing page)
+            window.location.href = 'index.html';
         });
     </script>
 </body>

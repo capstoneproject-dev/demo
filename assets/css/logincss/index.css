@@ -845,3 +845,100 @@ body.login-page .organization-selector-button {
         padding: 2vh 2vw;
     }
 }
+
+/* Institute Blocks Styles (Student Landing Page) */
+.institute-blocks {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 1400px;
+    gap: 2vw;
+    margin: 0 auto;
+    flex-wrap: wrap;
+}
+
+.institute-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 200px;
+    max-width: 300px;
+    text-align: center;
+}
+
+.institute-image {
+    width: min(250px, 20vw);
+    height: auto;
+    object-fit: contain;
+    margin-bottom: 2vh;
+    display: block;
+    transition: transform 0.3s ease, filter 0.3s ease;
+}
+
+.institute-image:hover {
+    transform: scale(1.05);
+    filter: brightness(1.1);
+}
+
+.institute-label {
+    color: #001b51;
+    font-size: clamp(14px, 1.5vw, 18px);
+    font-weight: bold;
+    text-align: center;
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* Responsive styles for institute blocks */
+@media (max-width: 1024px) {
+    .institute-blocks {
+        gap: 3vw;
+    }
+
+    .institute-image {
+        width: min(200px, 18vw);
+    }
+
+    .institute-label {
+        font-size: clamp(12px, 1.8vw, 16px);
+    }
+}
+
+@media (max-width: 768px) {
+    .institute-blocks {
+        flex-direction: column;
+        gap: 5vh;
+        align-items: center;
+    }
+
+    .institute-block {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .institute-image {
+        width: min(180px, 40vw);
+    }
+
+    .institute-label {
+        font-size: clamp(14px, 4vw, 18px);
+    }
+}
+
+@media (max-width: 768px) and (orientation: landscape) {
+    .institute-blocks {
+        flex-direction: row;
+        gap: 2vw;
+        justify-content: space-around;
+    }
+
+    .institute-image {
+        width: min(120px, 15vw);
+    }
+
+    .institute-label {
+        font-size: clamp(11px, 2vw, 14px);
+    }
+}
