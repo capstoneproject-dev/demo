@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Capstone Project</title>
+    <link rel="stylesheet" href="../assets/css/dashboard.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Capstone</h2>
+                <span class="sidebar-subtitle">Management System</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="nav-item active">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+                <a href="admin.html" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">Admin Panel</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">Users</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">📈</span>
+                    <span class="nav-text">Analytics</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">Settings</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <h1>Dashboard</h1>
+                    <p class="breadcrumb">Home / Dashboard</p>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <div class="user-avatar">U</div>
+                        <div class="user-details">
+                            <span class="user-name">Demo User</span>
+                            <span class="user-role">Administrator</span>
+                        </div>
+                    </div>
+                    <a href="login.html" class="logout-btn" onclick="handleLogout(event)">Logout</a>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Stats Cards -->
+                <div class="stats-grid" id="statsContainer">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+
+                <!-- Recent Users Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Recent Users</h2>
+                        <button class="btn-primary">View All</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Name</th>
+                                        <th>Created At</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Load data loader and dashboard scripts -->
+    <script src="../js/dataLoader.js"></script>
+    <script src="../js/dashboard.js"></script>
+    <script>
+        // Check authentication (simulating PHP session check)
+        const userId = localStorage.getItem('user_id');
+        const username = localStorage.getItem('username');
+        
+        if (!userId || !username) {
+            // Not logged in, redirect to login
+            window.location.href = 'login.html';
+        } else {
+            // Update user info in header
+            const userAvatar = document.querySelector('.user-avatar');
+            const userName = document.querySelector('.user-name');
+            if (userAvatar) {
+                userAvatar.textContent = username.charAt(0).toUpperCase();
+            }
+            if (userName) {
+                userName.textContent = username;
+            }
+        }
+        
+        // Handle logout (simulating PHP session_destroy())
+        function handleLogout(event) {
+            event.preventDefault();
+            // Clear session (simulating PHP: session_destroy())
+            localStorage.removeItem('user_id');
+            localStorage.removeItem('username');
+            // Redirect to login
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>

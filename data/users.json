@@ -1,0 +1,214 @@
+{
+  "stats": {
+    "totalUsers": 25,
+    "activeSessions": 1,
+    "totalRecords": 25,
+    "growthRate": 24,
+    "activeUsers": 25,
+    "pending": 0
+  },
+  "recentUsers": [
+    {
+      "id": 1,
+      "username": "john_doe",
+      "email": "john.doe@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "created_at": "2024-01-15 10:30:00"
+    },
+    {
+      "id": 2,
+      "username": "jane_smith",
+      "email": "jane.smith@example.com",
+      "first_name": "Jane",
+      "last_name": "Smith",
+      "created_at": "2024-01-14 14:20:00"
+    },
+    {
+      "id": 3,
+      "username": "bob_wilson",
+      "email": "bob.wilson@example.com",
+      "first_name": "Bob",
+      "last_name": "Wilson",
+      "created_at": "2024-01-13 09:15:00"
+    },
+    {
+      "id": 4,
+      "username": "alice_brown",
+      "email": "alice.brown@example.com",
+      "first_name": "Alice",
+      "last_name": "Brown",
+      "created_at": "2024-01-12 16:45:00"
+    },
+    {
+      "id": 5,
+      "username": "charlie_davis",
+      "email": "charlie.davis@example.com",
+      "first_name": "Charlie",
+      "last_name": "Davis",
+      "created_at": "2024-01-11 11:20:00"
+    },
+    {
+      "id": 6,
+      "username": "diana_miller",
+      "email": "diana.miller@example.com",
+      "first_name": "Diana",
+      "last_name": "Miller",
+      "created_at": "2024-01-10 13:30:00"
+    },
+    {
+      "id": 7,
+      "username": "edward_garcia",
+      "email": "edward.garcia@example.com",
+      "first_name": "Edward",
+      "last_name": "Garcia",
+      "created_at": "2024-01-09 08:15:00"
+    },
+    {
+      "id": 8,
+      "username": "fiona_rodriguez",
+      "email": "fiona.rodriguez@example.com",
+      "first_name": "Fiona",
+      "last_name": "Rodriguez",
+      "created_at": "2024-01-08 15:00:00"
+    },
+    {
+      "id": 9,
+      "username": "george_martinez",
+      "email": "george.martinez@example.com",
+      "first_name": "George",
+      "last_name": "Martinez",
+      "created_at": "2024-01-07 10:45:00"
+    },
+    {
+      "id": 10,
+      "username": "helen_anderson",
+      "email": "helen.anderson@example.com",
+      "first_name": "Helen",
+      "last_name": "Anderson",
+      "created_at": "2024-01-06 12:20:00"
+    }
+  ],
+  "allUsers": [
+    {
+      "id": 1,
+      "username": "john_doe",
+      "email": "john.doe@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "created_at": "2024-01-15 10:30:00"
+    },
+    {
+      "id": 2,
+      "username": "jane_smith",
+      "email": "jane.smith@example.com",
+      "first_name": "Jane",
+      "last_name": "Smith",
+      "created_at": "2024-01-14 14:20:00"
+    },
+    {
+      "id": 3,
+      "username": "bob_wilson",
+      "email": "bob.wilson@example.com",
+      "first_name": "Bob",
+      "last_name": "Wilson",
+      "created_at": "2024-01-13 09:15:00"
+    },
+    {
+      "id": 4,
+      "username": "alice_brown",
+      "email": "alice.brown@example.com",
+      "first_name": "Alice",
+      "last_name": "Brown",
+      "created_at": "2024-01-12 16:45:00"
+    },
+    {
+      "id": 5,
+      "username": "charlie_davis",
+      "email": "charlie.davis@example.com",
+      "first_name": "Charlie",
+      "last_name": "Davis",
+      "created_at": "2024-01-11 11:20:00"
+    },
+    {
+      "id": 6,
+      "username": "diana_miller",
+      "email": "diana.miller@example.com",
+      "first_name": "Diana",
+      "last_name": "Miller",
+      "created_at": "2024-01-10 13:30:00"
+    },
+    {
+      "id": 7,
+      "username": "edward_garcia",
+      "email": "edward.garcia@example.com",
+      "first_name": "Edward",
+      "last_name": "Garcia",
+      "created_at": "2024-01-09 08:15:00"
+    },
+    {
+      "id": 8,
+      "username": "fiona_rodriguez",
+      "email": "fiona.rodriguez@example.com",
+      "first_name": "Fiona",
+      "last_name": "Rodriguez",
+      "created_at": "2024-01-08 15:00:00"
+    },
+    {
+      "id": 9,
+      "username": "george_martinez",
+      "email": "george.martinez@example.com",
+      "first_name": "George",
+      "last_name": "Martinez",
+      "created_at": "2024-01-07 10:45:00"
+    },
+    {
+      "id": 10,
+      "username": "helen_anderson",
+      "email": "helen.anderson@example.com",
+      "first_name": "Helen",
+      "last_name": "Anderson",
+      "created_at": "2024-01-06 12:20:00"
+    },
+    {
+      "id": 11,
+      "username": "ivan_thomas",
+      "email": "ivan.thomas@example.com",
+      "first_name": "Ivan",
+      "last_name": "Thomas",
+      "created_at": "2024-01-05 09:30:00"
+    },
+    {
+      "id": 12,
+      "username": "julia_jackson",
+      "email": "julia.jackson@example.com",
+      "first_name": "Julia",
+      "last_name": "Jackson",
+      "created_at": "2024-01-04 14:15:00"
+    },
+    {
+      "id": 13,
+      "username": "kevin_white",
+      "email": "kevin.white@example.com",
+      "first_name": "Kevin",
+      "last_name": "White",
+      "created_at": "2024-01-03 11:00:00"
+    },
+    {
+      "id": 14,
+      "username": "lisa_harris",
+      "email": "lisa.harris@example.com",
+      "first_name": "Lisa",
+      "last_name": "Harris",
+      "created_at": "2024-01-02 16:30:00"
+    },
+    {
+      "id": 15,
+      "username": "michael_clark",
+      "email": "michael.clark@example.com",
+      "first_name": "Michael",
+      "last_name": "Clark",
+      "created_at": "2024-01-01 10:00:00"
+    }
+  ]
+}
