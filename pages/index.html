@@ -22,13 +22,13 @@
             </a>
 
             <!-- Student Organization Block -->
-            <a href="#" class="icon-block" data-type="studentorg">
+            <a href="orgLogin.html" class="icon-block" data-type="studentorg">
                 <img src="../assets/photos/indexphotos/studentorg.png" alt="Student Organization" class="icon-image">
                 <p class="icon-label">Student Organization</p>
             </a>
 
             <!-- Office of Student Affairs Block -->
-            <a href="#" class="icon-block" data-type="osa">
+            <a href="osaLogin.html" class="icon-block" data-type="osa">
                 <img src="../assets/photos/indexphotos/OSA.png" alt="Office of Student Affairs" class="icon-image">
                 <p class="icon-label">
                     <span>Office of</span>
@@ -52,12 +52,18 @@
                 
                 // If there's a valid href (not just '#'), allow navigation after animation
                 if (href && href !== '#') {
+                    // Store the href for navigation
+                    const targetUrl = href;
+                    
+                    // Prevent default to add animation first
+                    e.preventDefault();
+                    
                     // Add clicked class for animation
                     this.classList.add('clicked');
                     
-                    // Navigate after animation completes
+                    // Navigate after animation completes - use window.location.assign for proper history
                     setTimeout(() => {
-                        window.location.href = href;
+                        window.location.assign(targetUrl);
                     }, 300);
                 } else {
                     // Prevent default link behavior for blocks without navigation
