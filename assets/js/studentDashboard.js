@@ -1,5 +1,4 @@
 // --- DATA SIMULATION ---
-
 const servicesData = [
     { name: "Shoe Rag", org: "AISERS", icon: "fa-shoe-prints", color: "#f59e0b" },
     { name: "Calculator", org: "AISERS", icon: "fa-calculator", color: "#f59e0b" },
@@ -26,9 +25,9 @@ const eventsData = [
 ];
 
 const announcementsData = [
-    { title: "Enrollment for 2nd Sem", date: "Today", content: "Please settle your balance before the 25th." },
+    { title: "Enrollment for 2nd Sem", date: "Today", content: "Please settle your balance before 25th." },
     { title: "Office Hours", date: "Yesterday", content: "Org offices will be closed on holidays." },
-    { title: "Job Fair", date: "2 days ago", content: "Prepare your resumes for the upcoming fair." }
+    { title: "Job Fair", date: "2 days ago", content: "Prepare your resumes for upcoming fair." }
 ];
 
 const transactionsData = [
@@ -39,7 +38,6 @@ const transactionsData = [
 ];
 
 // --- CORE NAVIGATION LOGIC ---
-
 function navigate(viewId, element) {
     // Update Active Link
     if (element) {
@@ -78,12 +76,11 @@ function navigate(viewId, element) {
 }
 
 // --- ORGANIZATION TABS LOGIC ---
-
 const orgTabsContent = {
     'about': `
         <div style="text-align:center; padding: 40px;">
             <i class="fa-solid fa-building-columns" style="font-size: 3rem; color: var(--primary); margin-bottom: 20px;"></i>
-            <h2 style="margin-bottom: 10px;">About the Organization Council</h2>
+            <h2 style="margin-bottom: 10px;">About Organization Council</h2>
             <p style="max-width: 600px; margin: 0 auto; color: var(--muted); line-height: 1.6;">
                 We are a unified body representing various college organizations. Our goal is to foster leadership, 
                 provide essential services, and create a vibrant academic community for all students.
@@ -94,7 +91,7 @@ const orgTabsContent = {
         <div style="padding: 20px;">
             <h3 style="margin-bottom: 15px;">Apply for Officer Membership</h3>
             <p style="color: var(--muted); margin-bottom: 20px;">
-                Aspiring to lead? Fill out the form below to apply for officer roles in our partner organizations.
+                Aspiring to lead? Fill out form below to apply for officer roles in our partner organizations.
             </p>
             <form onsubmit="event.preventDefault(); alert('Application Submitted Successfully!');" style="display: grid; gap: 15px; max-width: 500px;">
                 <div>
@@ -172,7 +169,6 @@ function switchOrgTab(tabName, btn) {
 }
 
 // --- RENDER FUNCTIONS ---
-
 function renderServices(filter = "") {
     const grid = document.getElementById('servicesGrid');
     grid.innerHTML = "";
@@ -248,32 +244,64 @@ function setDate() {
     document.getElementById('current-date').innerText = today.toLocaleDateString('en-US', options);
 }
 
-// Theme Toggling (Using .dark class)
-const themeBtn = document.getElementById('themeBtn');
-const body = document.body;
-const icon = themeBtn.querySelector('i');
-const text = themeBtn.querySelector('span');
-
-themeBtn.addEventListener('click', () => {
-    body.classList.toggle('dark');
-    const isDark = body.classList.contains('dark');
+// Helper to switch the actual theme logic
+function switchThemeLogic() {
+    document.body.classList.toggle('dark');
+    const isDark = document.body.classList.contains('dark');
     
-    if (isDark) {
-        icon.className = 'fa-solid fa-sun nav-icon';
-        text.innerText = 'Light Mode';
-        localStorage.setItem('theme', 'dark');
-    } else {
-        icon.className = 'fa-solid fa-moon nav-icon';
-        text.innerText = 'Dark Mode';
-        localStorage.setItem('theme', 'light');
+    // Update Sidebar Footer Button
+    const sbIcon = document.querySelector('#themeBtn .nav-icon');
+    const sbText = document.querySelector('#themeBtn .nav-label');
+    
+    if (sbIcon && sbText) {
+        if (isDark) {
+            sbIcon.className = 'fa-solid fa-sun nav-icon';
+            sbText.innerText = 'Light Mode';
+        } else {
+            sbIcon.className = 'fa-solid fa-moon nav-icon';
+            sbText.innerText = 'Dark Mode';
+        }
     }
-});
 
-// Check saved theme
+    // Update Mobile Header Button
+    const mobIcon = document.getElementById('mobile-theme-icon');
+    if (mobIcon) {
+        mobIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    }
+
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
+// Event Listener for Sidebar Button
+const themeBtn = document.getElementById('themeBtn');
+if (themeBtn) {
+    themeBtn.addEventListener('click', switchThemeLogic);
+}
+
+// Function for Mobile Header Button
+function toggleThemeMobile() {
+    switchThemeLogic();
+}
+
+// Logout Handler
+function handleLogout(e) {
+    e.preventDefault();
+    if(confirm('Are you sure you want to logout?')) {
+          window.location.href = '../pages/login.html';
+    }
+}
+
+// Check saved theme on load
 if (localStorage.getItem('theme') === 'dark') {
-    body.classList.add('dark');
-    icon.className = 'fa-solid fa-sun nav-icon';
-    text.innerText = 'Light Mode';
+    document.body.classList.add('dark');
+    // Update icons manually on load
+    const sbIcon = document.querySelector('#themeBtn .nav-icon');
+    const sbText = document.querySelector('#themeBtn .nav-label');
+    const mobIcon = document.getElementById('mobile-theme-icon');
+    
+    if(sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
+    if(sbText) sbText.innerText = 'Light Mode';
+    if(mobIcon) mobIcon.className = 'fa-solid fa-sun';
 }
 
 // --- INITIALIZATION ---

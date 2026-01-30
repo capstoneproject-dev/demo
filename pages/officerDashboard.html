@@ -8,7 +8,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Custom CSS Reference -->
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="../assets/css/officerDashboard.css">
 </head>
 <body>
@@ -54,12 +54,14 @@
         </ul>
 
         <div class="sidebar-footer">
+            <!-- Desktop Theme Toggle -->
             <button class="theme-toggle" id="themeBtn">
                 <i class="fa-solid fa-moon nav-icon"></i>
                 <span class="nav-label">Dark Mode</span>
             </button>
             <div class="nav-item">
-                <a href="#" class="logout-btn" id="logoutBtnOfficer">
+                <!-- Desktop Logout -->
+                <a href="#" class="logout-btn" onclick="handleLogout(event)">
                     <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
                     <span class="nav-label">Logout</span>
                 </a>
@@ -72,12 +74,27 @@
         
         <!-- Top Header -->
         <header>
-            <div class="header-title">
-                <h1 id="page-title">Dashboard</h1>
-                <p id="current-date">Fetching date...</p>
+            <!-- Left: Page Title -->
+            <div style="flex: 1;">
+                <div class="header-title">
+                    <h1 id="page-title">Dashboard</h1>
+                    <p id="current-date">Fetching date...</p>
+                </div>
             </div>
-            <div class="header-actions">
-                <!-- Notifications -->
+
+            <!-- Right: Controls -->
+            <div class="header-controls">
+                <!-- Mobile Theme Toggle -->
+                <button class="icon-btn mobile-only" onclick="toggleThemeMobile()">
+                    <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
+                </button>
+                
+                <!-- Mobile Logout -->
+                <a href="#" class="icon-btn mobile-only logout-icon" onclick="handleLogout(event)">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </a>
+
+                <!-- Desktop Notifications -->
                 <div class="notif-wrapper" onclick="toggleNotifs()">
                     <div class="notif-btn">
                         <i class="fa-regular fa-bell"></i>
@@ -99,13 +116,14 @@
                     </div>
                 </div>
 
-                <div class="user-profile">
+                <!-- User Profile -->
+                <a href="profile.html" class="user-profile">
                     <img src="https://picsum.photos/seed/officer1/100/100" alt="Officer" class="avatar">
                     <div class="user-info">
                         <span>Admin Officer</span>
                         <small>Head of Operations</small>
                     </div>
-                </div>
+                </a>
             </div>
         </header>
 
@@ -347,7 +365,8 @@
                     <div class="card-header">
                         <div class="card-title">Event Participation</div>
                     </div>
-                    <table class="table-container">
+                        <div class="table-container">
+                        <table class="table-container">
                         <thead>
                             <tr>
                                 <th>Event Name</th>
@@ -376,7 +395,8 @@
                                 <td style="color: #059669;">98%</td>
                             </tr>
                         </tbody>
-                    </table>
+                        </table>
+                        </div>
                 </div>
                 <div class="card">
                     <div class="card-header">
@@ -453,19 +473,7 @@
 
     </main>
 
-        <script>
-        // Logout button navigates to login.html
-        document.addEventListener('DOMContentLoaded', function() {
-            var logoutBtn = document.getElementById('logoutBtnOfficer');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    window.location.href = 'login.html';
-                });
-            }
-        });
-        </script>
-        <!-- JS Reference -->
-        <script src="../assets/js/officerDashboard.js"></script>
+    <!-- Custom JS -->
+    <script src="../assets/js/officerDashboard.js"></script>
 </body>
 </html>

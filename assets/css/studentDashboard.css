@@ -1,3 +1,4 @@
+/* --- VARIABLES & THEME --- */
 :root {
     /* Provided Palette */
     --bg: #f3f6fb;
@@ -58,7 +59,7 @@ body {
     overflow-x: hidden;
 }
 
-/* --- Sidebar --- */
+/* --- SIDEBAR --- */
 .sidebar {
     width: var(--sidebar-collapsed);
     height: 100vh;
@@ -186,7 +187,45 @@ body {
     color: var(--primary);
 }
 
-/* --- Main Content --- */
+/* --- HEADER CONTROLS --- */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: var(--text);
+    padding: 8px;
+    border-radius: 50%;
+    transition: background 0.2s;
+    display: none; /* Hidden by default (Desktop) */
+    text-decoration: none;
+}
+
+.icon-btn:hover {
+    background-color: var(--panel-2);
+    color: var(--primary);
+}
+
+.icon-btn.logout-icon:hover {
+    background-color: #fef2f2;
+    color: #ef4444;
+}
+
+.user-profile {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.user-profile:hover {
+    transform: translateY(-2px);
+}
+
+/* --- MAIN CONTENT --- */
 .main-content {
     margin-left: var(--sidebar-collapsed);
     width: calc(100% - var(--sidebar-collapsed));
@@ -214,7 +253,7 @@ header {
     margin-top: 4px;
 }
 
-.user-profile {
+.user-profile-box {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -245,7 +284,7 @@ header {
     font-size: 0.75rem;
 }
 
-/* --- Sections --- */
+/* --- SECTIONS --- */
 .section-view {
     display: none;
     animation: fadeIn 0.4s ease;
@@ -329,17 +368,6 @@ header {
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--text);
-}
-
-.link-cta {
-    color: var(--primary);
-    text-decoration: none;
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-
-.link-cta:hover {
-    text-decoration: underline;
 }
 
 /* List Items (Generic) */
@@ -497,55 +525,6 @@ header {
     border-color: var(--primary);
 }
 
-/* --- Profile Section --- */
-.profile-header {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-
-.profile-img {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 4px solid var(--primary);
-}
-
-.profile-details h2 {
-    margin-bottom: 5px;
-    font-size: 1.5rem;
-}
-
-.profile-details p {
-    color: var(--muted);
-    font-size: 0.9rem;
-    margin-bottom: 4px;
-}
-
-.profile-actions {
-    margin-top: 10px;
-    display: flex;
-    gap: 10px;
-}
-
-.btn-outline {
-    padding: 8px 16px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--panel);
-    color: var(--text);
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-}
-
-.btn-outline:hover {
-    background: var(--panel-2);
-    border-color: var(--primary);
-}
-
 /* --- Profile Table --- */
 .table-container {
     overflow-x: auto;
@@ -582,36 +561,74 @@ td {
 .status-completed { background: rgba(16, 185, 129, 0.1); color: #059669; }
 .status-pending { background: rgba(245, 158, 11, 0.1); color: #d97706; }
 
-/* --- Responsive --- */
+/* --- RESPONSIVE MOBILE (UPDATED SPACING) --- */
 @media (max-width: 768px) {
-    .sidebar {
-        bottom: 0;
-        top: auto;
-        left: 0;
-        width: 100%;
-        height: 70px;
-        flex-direction: row;
-        border-right: none;
+    /* 1. FIX: Sidebar to Fixed Bottom */
+    .sidebar { 
+        bottom: 0; 
+        top: auto; 
+        width: 100%; 
+        height: 70px; 
+        flex-direction: row; 
+        border-right: none; 
         border-top: 1px solid var(--border);
+        z-index: 1000; /* Ensure it stays on top of content */
+        position: fixed; /* Explicitly fixed */
+        left: 0;
     }
+    
+    /* Disable sidebar hover expansion on mobile */
     .sidebar:hover { width: 100%; }
+    
     .logo-area, .sidebar-footer { display: none; }
-    .nav-menu {
-        display: flex;
-        flex-direction: row;
-        justify-content: space-around;
-        width: 100%;
-        padding: 0;
+    
+    .nav-menu { 
+        display: flex; 
+        flex-direction: row; 
+        justify-content: space-around; 
+        width: 100%; 
+        padding: 0; 
+        align-items: center;
     }
+    
     .nav-label { display: none; }
     .nav-icon { font-size: 1.4rem; margin: 0; }
     .nav-link { padding: 10px; flex-direction: column; gap: 4px; }
+    .nav-link span { font-size: 0.7rem; } 
     
-    .main-content {
-        margin-left: 0;
-        width: 100%;
-        margin-bottom: 80px;
-        padding: 20px;
+    /* 2. FIX: Main Content Overflow & Padding */
+    .main-content { 
+        margin-left: 0; 
+        width: 100%; 
+        margin-bottom: 100px; /* Increased to clear bottom nav */
+        padding: 20px; 
     }
-    .content-row { grid-template-columns: 1fr; }
+
+    /* 3. FIX: Stats Grid Layout */
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Smaller min-width for mobile */
+        gap: 12px;
+    }
+    .stat-card {
+        padding: 16px;
+        flex-direction: column; /* Stack text and icon vertically if space is tight */
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .stat-icon { align-self: flex-end; }
+
+    /* 4. FIX: Content Row Layout (Stack cards) */
+    .content-row { 
+        display: flex; 
+        flex-direction: column; /* Stack vertically to prevent breaking */
+        gap: 20px; 
+    }
+    .content-row > .card {
+        width: 100%; /* Ensure cards take full width */
+    }
+
+    /* Mobile Adjustments */
+    .mobile-only { display: block; }
+    .user-info { display: none; }
+    .user-profile-box { padding: 5px; }
 }

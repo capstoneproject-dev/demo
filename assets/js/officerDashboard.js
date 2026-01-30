@@ -17,6 +17,66 @@ let announcementsData = [
     { title: "Office Closure", date: "Yesterday", content: "Office will be closed due to University Holiday." }
 ];
 
+// --- LOGOUT HANDLER ---
+function handleLogout(e) {
+    e.preventDefault();
+    if(confirm('Are you sure you want to logout?')) {
+        window.location.href = '../pages/login.html'; // Updated path per user code
+    }
+}
+
+// --- THEME LOGIC ---
+function switchThemeLogic() {
+    document.body.classList.toggle('dark');
+    const isDark = document.body.classList.contains('dark');
+    
+    // Update Mobile Icon
+    const mobIcon = document.getElementById('mobile-theme-icon');
+    if (mobIcon) {
+        mobIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    }
+
+    // Update Sidebar Icon
+    const sbIcon = document.querySelector('#themeBtn .nav-icon');
+    const sbText = document.querySelector('#themeBtn .nav-label');
+    
+    if (sbIcon && sbText) {
+        if (isDark) {
+            sbIcon.className = 'fa-solid fa-sun nav-icon';
+            sbText.innerText = 'Light Mode';
+        } else {
+            sbIcon.className = 'fa-solid fa-moon nav-icon';
+            sbText.innerText = 'Dark Mode';
+        }
+    }
+
+    // Save preference
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
+// Click handler for mobile button
+function toggleThemeMobile() {
+    switchThemeLogic();
+}
+
+// Initialize Theme on Load
+document.addEventListener('DOMContentLoaded', () => {
+    // Check if user previously selected dark mode
+    if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark');
+        
+        // Set icons to Sun immediately
+        const mobIcon = document.getElementById('mobile-theme-icon');
+        if(mobIcon) mobIcon.className = 'fa-solid fa-sun';
+
+        // If sidebar exists
+        const sbIcon = document.querySelector('#themeBtn .nav-icon');
+        const sbText = document.querySelector('#themeBtn .nav-label');
+        if(sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
+        if(sbText) sbText.innerText = 'Light Mode';
+    }
+});
+
 // --- NAVIGATION LOGIC ---
 function navigate(viewId, element) {
     // Sidebar active state
@@ -49,7 +109,7 @@ function navigate(viewId, element) {
 }
 
 // --- RENDER FUNCTIONS ---
-        
+
 function renderRentals() {
     // Dashboard preview (top 3)
     const dashTable = document.getElementById('dashboard-rentals-table');
@@ -116,7 +176,7 @@ function renderAnnouncements() {
 function toggleNotifs() {
     document.getElementById('notif-dropdown').classList.toggle('show');
 }
-        
+
 // Close dropdown if clicked outside
 window.onclick = function(event) {
     if (!event.target.closest('.notif-wrapper')) {
@@ -135,7 +195,7 @@ function handleDocSubmit(e) {
     // Simulate adding to list
     const type = e.target.querySelector('select').value;
     const title = e.target.querySelector('input').value;
-        
+    
     docsData.unshift({
         title: title,
         type: type,
@@ -151,7 +211,7 @@ function postAnnouncement(e) {
     e.preventDefault();
     const title = document.getElementById('ann-title').value;
     const content = document.getElementById('ann-content').value;
-        
+    
     announcementsData.unshift({
         title: title,
         content: content,
@@ -175,30 +235,10 @@ function setDate() {
     document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-US', options);
 }
 
-// Theme Toggling
+// Attach sidebar theme event listener
 const themeBtn = document.getElementById('themeBtn');
-const icon = themeBtn.querySelector('i');
-const text = themeBtn.querySelector('span');
-
-themeBtn.addEventListener('click', () => {
-    document.body.classList.toggle('dark');
-    const isDark = document.body.classList.contains('dark');
-    if (isDark) {
-        icon.className = 'fa-solid fa-sun nav-icon';
-        text.innerText = 'Light Mode';
-        localStorage.setItem('theme', 'dark');
-    } else {
-        icon.className = 'fa-solid fa-moon nav-icon';
-        text.innerText = 'Dark Mode';
-        localStorage.setItem('theme', 'light');
-    }
-});
-
-// Check saved theme
-if (localStorage.getItem('theme') === 'dark') {
-    document.body.classList.add('dark');
-    icon.className = 'fa-solid fa-sun nav-icon';
-    text.innerText = 'Light Mode';
+if(themeBtn) {
+    themeBtn.addEventListener('click', switchThemeLogic);
 }
 
 // Init

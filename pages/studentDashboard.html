@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Organization Dashboard</title>
     
-    <!-- CSS Reference -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css">
-    
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- STYLESHEET REFERENCE -->
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css">
 </head>
 <body>
 
@@ -53,7 +53,7 @@
                 <span class="nav-label">Dark Mode</span>
             </button>
             <div class="nav-item">
-                <a href="#" class="logout-btn" id="logoutBtnStudent">
+                    <a href="#" class="logout-btn" onclick="handleLogout(event)">
                     <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
                     <span class="nav-label">Logout</span>
                 </a>
@@ -70,12 +70,27 @@
                 <h1 id="page-title">Dashboard</h1>
                 <p id="current-date">Fetching date...</p>
             </div>
-            <div class="user-profile">
-                <!-- Random Avatar Seed -->
-                <img src="https://picsum.photos/seed/student1/100/100" alt="Student" class="avatar">
-                <div class="user-info">
-                    <span>Juan Dela Cruz</span>
-                    <small>BSCS - Year 3</small>
+
+            <div class="header-controls">
+                <!-- Mobile Theme Toggle -->
+                <button class="icon-btn mobile-only" onclick="toggleThemeMobile()">
+                    <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
+                </button>
+                
+                <!-- Mobile Logout -->
+                <a href="#" class="icon-btn mobile-only logout-icon" onclick="handleLogout(event)">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </a>
+
+                <!-- User Profile -->
+                <div class="user-profile" onclick="navigate('profile')">
+                    <div class="user-profile-box">
+                        <img src="https://picsum.photos/seed/student1/100/100" alt="Student" class="avatar">
+                        <div class="user-info">
+                            <span>Juan Dela Cruz</span>
+                            <small>BSCS - Year 3</small>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>
@@ -119,7 +134,7 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">Latest Announcements</div>
-                        <a href="#" class="link-cta" onclick="navigate('organizations')">View All</a>
+                        <a href="#" style="color:var(--primary); text-decoration:none; font-size:0.85rem;" onclick="navigate('organizations')">View All</a>
                     </div>
                     <div id="announcements-list">
                         <!-- Populated by JS -->
@@ -190,15 +205,15 @@
         <!-- PROFILE VIEW -->
         <div id="profile" class="section-view">
             <div class="card" style="margin-bottom: 24px;">
-                <div class="profile-header">
-                    <img src="https://picsum.photos/seed/student1/150/150" alt="Profile" class="profile-img">
-                    <div class="profile-details">
-                        <h2>Juan Dela Cruz</h2>
-                        <p>Student ID: 2021-12345</p>
-                        <p>Course: BS Computer Science</p>
-                        <div class="profile-actions">
-                            <button class="btn-outline">Edit Profile</button>
-                            <button class="btn-outline">Change Password</button>
+                <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                    <img src="https://picsum.photos/seed/student1/150/150" alt="Profile" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid var(--primary);">
+                    <div>
+                        <h2 style="margin-bottom: 5px;">Juan Dela Cruz</h2>
+                        <p style="color: var(--muted);">Student ID: 2021-12345</p>
+                        <p style="color: var(--muted);">Course: BS Computer Science</p>
+                        <div style="margin-top: 10px; display: flex; gap: 10px;">
+                            <button style="padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;">Edit Profile</button>
+                            <button style="padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;">Change Password</button>
                         </div>
                     </div>
                 </div>
@@ -228,19 +243,7 @@
 
     </main>
 
-        <script>
-        // Logout button navigates to login.html
-        document.addEventListener('DOMContentLoaded', function() {
-            var logoutBtn = document.getElementById('logoutBtnStudent');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    window.location.href = 'login.html';
-                });
-            }
-        });
-        </script>
-        <!-- JS Reference -->
-        <script src="../assets/js/studentDashboard.js"></script>
+    <!-- JAVASCRIPT REFERENCE -->
+    <script src="../assets/js/studentDashboard.js"></script>
 </body>
 </html>

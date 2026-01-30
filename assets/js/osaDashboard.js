@@ -1,3 +1,69 @@
+// --- INTEGRATED THEME LOGIC ---
+
+// Helper function to switch the theme
+function switchThemeLogic() {
+    document.body.classList.toggle('dark');
+    const isDark = document.body.classList.contains('dark');
+    
+    // Update Mobile Icon
+    const mobIcon = document.getElementById('mobile-theme-icon');
+    if (mobIcon) {
+        mobIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    }
+
+    // Update Sidebar Icon
+    const sbIcon = document.querySelector('#themeBtn .nav-icon');
+    const sbText = document.querySelector('#themeBtn .nav-label');
+    
+    if (sbIcon && sbText) {
+        if (isDark) {
+            sbIcon.className = 'fa-solid fa-sun nav-icon';
+            sbText.innerText = 'Light Mode';
+        } else {
+            sbIcon.className = 'fa-solid fa-moon nav-icon';
+            sbText.innerText = 'Dark Mode';
+        }
+    }
+
+    // Save preference
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
+// Logout handler
+function handleLogout(e) {
+    e.preventDefault();
+    if(confirm('Are you sure you want to logout?')) {
+        showToast('Logging out...', 'info');
+        setTimeout(() => {
+            window.location.href = '../pages/login.html'; // Change to your login page
+        }, 1000);
+    }
+}
+
+// Initialize Theme on Load
+document.addEventListener('DOMContentLoaded', () => {
+    // Check if user previously selected dark mode
+    if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark');
+        
+        // Set icons to Sun immediately
+        const mobIcon = document.getElementById('mobile-theme-icon');
+        if(mobIcon) mobIcon.className = 'fa-solid fa-sun';
+
+        // If sidebar exists
+        const sbIcon = document.querySelector('#themeBtn .nav-icon');
+        const sbText = document.querySelector('#themeBtn .nav-label');
+        if(sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
+        if(sbText) sbText.innerText = 'Light Mode';
+    }
+    
+    // Initialize Sidebar Theme Button Click Event
+    const sidebarThemeBtn = document.getElementById('themeBtn');
+    if(sidebarThemeBtn) {
+        sidebarThemeBtn.onclick = switchThemeLogic;
+    }
+});
+
 // --- DATA SIMULATION ---
 const organizations = [
     { id: 1, name: "Computer Science Society", category: "Academic", president: "Juan Dela Cruz", members: 120, status: "Active" },
@@ -30,7 +96,7 @@ function navigate(viewId, element) {
     } else {
         // Handling manual navigation (like back button)
         document.querySelectorAll('.nav-link').forEach(link => {
-            if (link.getAttribute('onclick').includes(viewId)) link.classList.add('active');
+            if(link.getAttribute('onclick').includes(viewId)) link.classList.add('active');
             else link.classList.remove('active');
         });
     }
@@ -75,7 +141,7 @@ function renderOrgs() {
 function renderRequests(filter = 'all') {
     const tbody = document.getElementById('requests-table');
     const filtered = filter === 'all' ? requests : requests.filter(r => r.type.includes(filter));
-
+    
     tbody.innerHTML = filtered.map(req => `
         <tr>
             <td><span class="status-badge status-submitted">${req.type}</span></td>
@@ -104,13 +170,14 @@ function renderDocs() {
 }
 
 // --- ACTIONS ---
+
 function openMonitoring(orgId) {
     currentOrgId = orgId;
     const org = organizations.find(o => o.id === orgId);
-    if (org) {
+    if(org) {
         document.getElementById('monitoring-org-name').innerText = org.name;
         document.getElementById('monitoring-org-details').innerText = `${org.category} • President: ${org.president}`;
-
+        
         // Mock event history for this org
         const eventTable = document.getElementById('monitoring-events-table');
         eventTable.innerHTML = `
@@ -133,18 +200,13 @@ function openMonitoring(orgId) {
 
 function handleRequest(id, action) {
     const index = requests.findIndex(r => r.id === id);
-    if (index > -1) {
+    if(index > -1) {
         const req = requests[index];
         showToast(`Request "${req.title}" has been ${action}`, action === 'Approved' ? 'success' : 'error');
-
+        
         // Remove from pending list to simulate DB update
         requests.splice(index, 1);
         renderRequests(document.getElementById('request-filter').value);
-
-        // Update badge count
-        const badge = document.querySelector('.notif-badge');
-        const count = parseInt(badge.innerText, 10);
-        badge.innerText = Math.max(0, count - 1);
     }
 }
 
@@ -159,7 +221,7 @@ function verifyStudent() {
     const nameInput = document.getElementById('verify-name').value;
     const resultArea = document.getElementById('verify-result-area');
 
-    if (!idInput || !nameInput) {
+    if(!idInput || !nameInput) {
         showToast('Please enter both ID and Name', 'error');
         return;
     }
@@ -170,8 +232,8 @@ function verifyStudent() {
     setTimeout(() => {
         // Logic: Mock validation. If ID starts with 2023, assume enrolled.
         const isEnrolled = idInput.startsWith("2023") || idInput.startsWith("2022");
-
-        if (isEnrolled) {
+        
+        if(isEnrolled) {
             resultArea.innerHTML = `
                 <div class="verification-box" style="background: rgba(16, 185, 129, 0.1); border-color: #10b981; border-style: solid;">
                     <i class="fa-solid fa-circle-check" style="font-size: 3rem; color: #059669; margin-bottom: 15px;"></i>
@@ -209,7 +271,7 @@ function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-
+    
     let icon = 'fa-circle-info';
     if (type === 'success') icon = 'fa-circle-check';
     if (type === 'error') icon = 'fa-circle-exclamation';
@@ -221,7 +283,7 @@ function showToast(message, type = 'info') {
         </div>
         <i class="fa-solid fa-xmark" style="cursor:pointer; opacity:0.5;" onclick="this.parentElement.remove()"></i>
     `;
-
+    
     container.appendChild(toast);
 
     // Auto remove
@@ -229,32 +291,6 @@ function showToast(message, type = 'info') {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
     }, 3000);
-}
-
-// Theme Toggling
-const themeBtn = document.getElementById('themeBtn');
-const icon = themeBtn.querySelector('i');
-const text = themeBtn.querySelector('span');
-
-themeBtn.addEventListener('click', () => {
-    document.body.classList.toggle('dark');
-    const isDark = document.body.classList.contains('dark');
-    if (isDark) {
-        icon.className = 'fa-solid fa-sun nav-icon';
-        text.innerText = 'Light Mode';
-        localStorage.setItem('theme', 'dark');
-    } else {
-        icon.className = 'fa-solid fa-moon nav-icon';
-        text.innerText = 'Dark Mode';
-        localStorage.setItem('theme', 'light');
-    }
-});
-
-// Check saved theme
-if (localStorage.getItem('theme') === 'dark') {
-    document.body.classList.add('dark');
-    icon.className = 'fa-solid fa-sun nav-icon';
-    text.innerText = 'Light Mode';
 }
 
 // Init

@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OSA Management System</title>
-
+    
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Your separated CSS -->
+    <!-- CSS Reference -->
     <link rel="stylesheet" href="../assets/css/osaDashboard.css">
 </head>
 <body>
@@ -62,7 +62,7 @@
                 <span class="nav-label">Dark Mode</span>
             </button>
             <div class="nav-item">
-                <a href="#" class="logout-btn" id="logoutBtnOsa">
+                <a href="#" class="logout-btn" onclick="handleLogout(event)">
                     <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
                     <span class="nav-label">Logout</span>
                 </a>
@@ -72,28 +72,35 @@
 
     <!-- Main Content -->
     <main class="main-content">
-
-        <!-- Top Header -->
+        
+        <!-- Top Header (Integrated with Prompt Code) -->
         <header>
+            <!-- Left: Page Title -->
             <div class="header-title">
                 <h1 id="page-title">OSA Dashboard</h1>
                 <p id="current-date">Fetching date...</p>
             </div>
-            <div class="header-actions">
-                <div class="notif-wrapper" onclick="showToast('No new notifications', 'info')">
-                    <div class="notif-btn">
-                        <i class="fa-regular fa-bell"></i>
-                        <span class="notif-badge">0</span>
-                    </div>
-                </div>
 
-                <div class="user-profile">
-                    <img src="https://picsum.photos/seed/osaadmin/100/100" alt="OSA Head" class="avatar">
+            <!-- Right: Controls (From Prompt) -->
+            <div class="header-controls">
+                <!-- Mobile Theme Toggle -->
+                <button class="icon-btn mobile-only" onclick="switchThemeLogic()">
+                    <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
+                </button>
+                
+                <!-- Mobile Logout -->
+                <a href="#" class="icon-btn mobile-only logout-icon" onclick="handleLogout(event)">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </a>
+
+                <!-- User Profile -->
+                <a href="#" class="user-profile" onclick="showToast('Navigate to Profile (Demo)', 'info')"> 
+                    <img src="https://picsum.photos/seed/osaadmin/100/100" alt="Student" class="avatar">
                     <div class="user-info">
-                        <span>Dir. Maria Santos</span>
-                        <small>OSA Head</small>
+                        <span style="display: block; font-size: 0.85rem; font-weight: 600;">Dir. Maria Santos</span>
+                        <small style="color: var(--muted); font-size: 0.75rem;">OSA Head</small>
                     </div>
-                </div>
+                </a>
             </div>
         </header>
 
@@ -221,7 +228,7 @@
             <button class="btn btn-outline btn-sm" onclick="navigate('organizations')" style="margin-bottom: 20px;">
                 <i class="fa-solid fa-arrow-left"></i> Back to List
             </button>
-
+            
             <div class="card" style="margin-bottom: 24px; border-left: 5px solid var(--primary);">
                 <div class="card-header">
                     <div>
@@ -230,7 +237,7 @@
                     </div>
                     <div class="status-badge status-completed">Good Standing</div>
                 </div>
-
+                
                 <!-- Financial Report Section -->
                 <h3 style="font-size: 1.1rem; margin-bottom: 15px;">Financial Report Status</h3>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
@@ -353,12 +360,12 @@
                 <div class="card-header">
                     <div class="card-title">Student Enrollment Verification</div>
                 </div>
-
+                
                 <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 300px;">
                         <label>Student ID Number</label>
                         <input type="text" id="verify-input" placeholder="e.g., 2021-12345">
-
+                        
                         <label>OR Full Name</label>
                         <input type="text" id="verify-name" placeholder="Last Name, First Name">
 
@@ -380,19 +387,7 @@
 
     </main>
 
-        <script>
-        // Logout button navigates to login.html
-        document.addEventListener('DOMContentLoaded', function() {
-            var logoutBtn = document.getElementById('logoutBtnOsa');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    window.location.href = 'login.html';
-                });
-            }
-        });
-        </script>
-        <!-- Your separated JS -->
-        <script src="../assets/js/osaDashboard.js"></script>
+    <!-- JS Reference -->
+    <script src="../assets/js/osaDashboard.js"></script>
 </body>
 </html>
