@@ -1,0 +1,286 @@
+// --- DATA SIMULATION ---
+
+const servicesData = [
+    { name: "Shoe Rag", org: "AISERS", icon: "fa-shoe-prints", color: "#f59e0b" },
+    { name: "Calculator", org: "AISERS", icon: "fa-calculator", color: "#f59e0b" },
+    { name: "Business Calculator", org: "AISERS", icon: "fa-calculator", color: "#f59e0b" },
+    { name: "Scientific Calculator", org: "SSC, AERO-ATSO", icon: "fa-square-root-variable", color: "#ef4444" },
+    { name: "Arnis Equipment", org: "AISERS", icon: "fa-hand-fist", color: "#f59e0b" },
+    { name: "Printing", org: "SSC, CYC, AMTSO, AET", icon: "fa-print", color: "#ef4444" },
+    { name: "Crimping Tools", org: "ELITECH", icon: "fa-pliers", color: "#6366f1" },
+    { name: "Mini Fan", org: "ELITECH", icon: "fa-fan", color: "#6366f1" },
+    { name: "Tester", org: "ELITECH", icon: "fa-bolt", color: "#6366f1" },
+    { name: "Rulers", org: "General", icon: "fa-ruler", color: "#64748b" },
+    { name: "T-Square", org: "General", icon: "fa-ruler-combined", color: "#64748b" },
+    { name: "Triangle Ruler", org: "General", icon: "fa-shapes", color: "#64748b" },
+    { name: "Protractor", org: "General", icon: "fa-rotate", color: "#64748b" },
+    { name: "1x1 Photo Processing", org: "SSC", icon: "fa-camera", color: "#ef4444" },
+    { name: "Locker Rental", org: "SSC", icon: "fa-box-archive", color: "#ef4444" },
+    { name: "Others", org: "Various", icon: "fa-plus", color: "#64748b" }
+];
+
+const eventsData = [
+    { title: "Annual Tech Summit", date: "Oct 25", org: "AISERS", desc: "A gathering of tech enthusiasts." },
+    { title: "Sports Fest 2023", date: "Nov 02", org: "SSC", desc: "Inter-department sports league." },
+    { title: "Aero Workshop", date: "Nov 10", org: "AERO-ATSO", desc: "Drone flying basics." }
+];
+
+const announcementsData = [
+    { title: "Enrollment for 2nd Sem", date: "Today", content: "Please settle your balance before the 25th." },
+    { title: "Office Hours", date: "Yesterday", content: "Org offices will be closed on holidays." },
+    { title: "Job Fair", date: "2 days ago", content: "Prepare your resumes for the upcoming fair." }
+];
+
+const transactionsData = [
+    { date: "Oct 20, 2023", item: "Locker Rental (Sem 1)", org: "SSC", status: "Completed" },
+    { date: "Oct 18, 2023", item: "Printing (5 pages)", org: "SSC", status: "Completed" },
+    { date: "Oct 15, 2023", item: "Calculator Borrowing", org: "AISERS", status: "Returned" },
+    { date: "Oct 10, 2023", item: "Membership Application", org: "ELITECH", status: "Pending" }
+];
+
+// --- CORE NAVIGATION LOGIC ---
+
+function navigate(viewId, element) {
+    // Update Active Link
+    if (element) {
+        document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+        element.classList.add('active');
+    } else {
+        const links = document.querySelectorAll('.nav-link');
+        links.forEach(l => {
+            if(l.getAttribute('onclick').includes(viewId)) l.classList.add('active');
+            else l.classList.remove('active');
+        });
+    }
+
+    // Hide all sections
+    document.querySelectorAll('.section-view').forEach(section => {
+        section.classList.remove('active');
+    });
+
+    // Show target section
+    const target = document.getElementById(viewId);
+    if (target) {
+        target.classList.add('active');
+    }
+
+    // Update Page Title
+    const titleMap = {
+        'dashboard': 'Dashboard',
+        'organizations': 'Organizations',
+        'services': 'Services',
+        'profile': 'My Profile'
+    };
+    document.getElementById('page-title').innerText = titleMap[viewId] || 'Student Hub';
+
+    // Scroll to top
+    window.scrollTo(0, 0);
+}
+
+// --- ORGANIZATION TABS LOGIC ---
+
+const orgTabsContent = {
+    'about': `
+        <div style="text-align:center; padding: 40px;">
+            <i class="fa-solid fa-building-columns" style="font-size: 3rem; color: var(--primary); margin-bottom: 20px;"></i>
+            <h2 style="margin-bottom: 10px;">About the Organization Council</h2>
+            <p style="max-width: 600px; margin: 0 auto; color: var(--muted); line-height: 1.6;">
+                We are a unified body representing various college organizations. Our goal is to foster leadership, 
+                provide essential services, and create a vibrant academic community for all students.
+            </p>
+        </div>
+    `,
+    'membership': `
+        <div style="padding: 20px;">
+            <h3 style="margin-bottom: 15px;">Apply for Officer Membership</h3>
+            <p style="color: var(--muted); margin-bottom: 20px;">
+                Aspiring to lead? Fill out the form below to apply for officer roles in our partner organizations.
+            </p>
+            <form onsubmit="event.preventDefault(); alert('Application Submitted Successfully!');" style="display: grid; gap: 15px; max-width: 500px;">
+                <div>
+                    <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Full Name</label>
+                    <input type="text" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);" required>
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Desired Organization</label>
+                    <select style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);">
+                        <option>SSC</option>
+                        <option>AISERS</option>
+                        <option>ELITECH</option>
+                        <option>AERO-ATSO</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Position</label>
+                    <input type="text" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);" required>
+                </div>
+                <button type="submit" style="background: var(--primary); color: white; padding: 12px; border-radius: var(--radius-md); border: none; cursor: pointer; font-weight: 600;">Submit Application</button>
+            </form>
+        </div>
+    `,
+    'events': `
+        <div style="display: grid; gap: 15px;">
+            ${eventsData.map(ev => `
+                <div class="list-item" style="border:1px solid var(--border); border-radius:var(--radius-md); padding:15px; background: var(--panel-2);">
+                    <div class="item-icon"><i class="fa-regular fa-calendar"></i></div>
+                    <div class="item-content">
+                        <h4>${ev.title} <span style="font-size:0.75rem; background:var(--primary); color:white; padding:2px 6px; border-radius:4px;">${ev.org}</span></h4>
+                        <p>${ev.desc}</p>
+                    </div>
+                    <div class="date-badge" style="background:var(--accent); color:var(--primary);">${ev.date}</div>
+                </div>
+            `).join('')}
+        </div>
+    `,
+    'contacts': `
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
+            <div style="text-align: center; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md);">
+                <div style="width: 60px; height: 60px; background: var(--panel-2); border-radius: 50%; margin: 0 auto 10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--text);">JD</div>
+                <h4>John Doe</h4>
+                <p style="color:var(--muted); font-size:0.85rem;">President, SSC</p>
+                <p style="margin-top:5px; font-size:0.85rem;"><i class="fa-solid fa-phone"></i> 0912-345-6789</p>
+            </div>
+            <div style="text-align: center; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md);">
+                <div style="width: 60px; height: 60px; background: var(--panel-2); border-radius: 50%; margin: 0 auto 10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--text);">AS</div>
+                <h4>Alice Smith</h4>
+                <p style="color:var(--muted); font-size:0.85rem;">Head, AISERS</p>
+                <p style="margin-top:5px; font-size:0.85rem;"><i class="fa-solid fa-phone"></i> 0998-765-4321</p>
+            </div>
+            <div style="text-align: center; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md);">
+                <div style="width: 60px; height: 60px; background: var(--panel-2); border-radius: 50%; margin: 0 auto 10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--text);">BR</div>
+                <h4>Bob Ross</h4>
+                <p style="color:var(--muted); font-size:0.85rem;">Rep, ELITECH</p>
+                <p style="margin-top:5px; font-size:0.85rem;"><i class="fa-solid fa-phone"></i> 0917-123-4567</p>
+            </div>
+        </div>
+    `
+};
+
+function switchOrgTab(tabName, btn) {
+    // Update Buttons
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Update Content
+    const contentDiv = document.getElementById('tab-content');
+    contentDiv.innerHTML = orgTabsContent[tabName];
+    
+    // Add fade animation
+    contentDiv.style.animation = 'none';
+    contentDiv.offsetHeight; /* trigger reflow */
+    contentDiv.style.animation = 'fadeIn 0.4s ease';
+}
+
+// --- RENDER FUNCTIONS ---
+
+function renderServices(filter = "") {
+    const grid = document.getElementById('servicesGrid');
+    grid.innerHTML = "";
+    
+    servicesData.forEach(service => {
+        if (service.name.toLowerCase().includes(filter.toLowerCase()) || service.org.toLowerCase().includes(filter.toLowerCase())) {
+            const card = document.createElement('div');
+            card.className = 'service-card';
+            card.innerHTML = `
+                <div class="service-icon">
+                    <i class="fa-solid ${service.icon}"></i>
+                </div>
+                <div>
+                    <div class="service-name">${service.name}</div>
+                    <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
+                </div>
+            `;
+            grid.appendChild(card);
+        }
+    });
+}
+
+function renderDashboard() {
+    // Render Announcements
+    const annList = document.getElementById('announcements-list');
+    annList.innerHTML = announcementsData.map(item => `
+        <div class="list-item">
+            <div class="item-icon"><i class="fa-solid fa-bullhorn"></i></div>
+            <div class="item-content">
+                <h4>${item.title}</h4>
+                <p>${item.content}</p>
+            </div>
+            <span class="date-badge">${item.date}</span>
+        </div>
+    `).join('');
+
+    // Render Event Cards (Preview)
+    const eventContainer = document.getElementById('events-preview-container');
+    eventContainer.innerHTML = eventsData.map(ev => `
+        <div style="background: var(--panel-2); padding: 15px; border-radius: var(--radius-md); flex: 1;">
+            <div style="font-size: 0.8rem; color: var(--primary); font-weight: 600; margin-bottom: 5px;">${ev.date}</div>
+            <h4 style="margin-bottom: 5px;">${ev.title}</h4>
+            <p style="font-size: 0.85rem; color: var(--muted);">${ev.org}</p>
+        </div>
+    `).join('');
+}
+
+function renderProfile() {
+    const tableBody = document.getElementById('transaction-table');
+    tableBody.innerHTML = transactionsData.map(t => {
+        let statusClass = t.status === 'Completed' ? 'status-completed' : (t.status === 'Returned' ? 'status-completed' : 'status-pending');
+        return `
+            <tr>
+                <td>${t.date}</td>
+                <td>${t.item}</td>
+                <td>${t.org}</td>
+                <td><span class="status-badge ${statusClass}">${t.status}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterServices() {
+    const input = document.getElementById('serviceSearch');
+    renderServices(input.value);
+}
+
+// --- UTILS ---
+
+function setDate() {
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const today = new Date();
+    document.getElementById('current-date').innerText = today.toLocaleDateString('en-US', options);
+}
+
+// Theme Toggling (Using .dark class)
+const themeBtn = document.getElementById('themeBtn');
+const body = document.body;
+const icon = themeBtn.querySelector('i');
+const text = themeBtn.querySelector('span');
+
+themeBtn.addEventListener('click', () => {
+    body.classList.toggle('dark');
+    const isDark = body.classList.contains('dark');
+    
+    if (isDark) {
+        icon.className = 'fa-solid fa-sun nav-icon';
+        text.innerText = 'Light Mode';
+        localStorage.setItem('theme', 'dark');
+    } else {
+        icon.className = 'fa-solid fa-moon nav-icon';
+        text.innerText = 'Dark Mode';
+        localStorage.setItem('theme', 'light');
+    }
+});
+
+// Check saved theme
+if (localStorage.getItem('theme') === 'dark') {
+    body.classList.add('dark');
+    icon.className = 'fa-solid fa-sun nav-icon';
+    text.innerText = 'Light Mode';
+}
+
+// --- INITIALIZATION ---
+window.addEventListener('DOMContentLoaded', () => {
+    setDate();
+    renderDashboard();
+    renderServices();
+    renderProfile();
+    switchOrgTab('about', document.querySelector('.tab-btn')); // Init tab
+});

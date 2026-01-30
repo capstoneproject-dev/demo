@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSA Management System</title>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Your separated CSS -->
+    <link rel="stylesheet" href="../assets/css/osaDashboard.css">
+</head>
+<body>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo-area">
+            <i class="fa-solid fa-building-columns logo-icon"></i>
+            <span class="logo-text">OSA Portal</span>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="#" class="nav-link active" onclick="navigate('dashboard', this)">
+                    <i class="fa-solid fa-chart-pie nav-icon"></i>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('organizations', this)">
+                    <i class="fa-solid fa-users nav-icon"></i>
+                    <span class="nav-label">Organizations</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('requests', this)">
+                    <i class="fa-solid fa-file-signature nav-icon"></i>
+                    <span class="nav-label">Requests & Approval</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('documents', this)">
+                    <i class="fa-solid fa-folder-open nav-icon"></i>
+                    <span class="nav-label">Documents</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('verification', this)">
+                    <i class="fa-solid fa-user-graduate nav-icon"></i>
+                    <span class="nav-label">Student Verification</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <button class="theme-toggle" id="themeBtn">
+                <i class="fa-solid fa-moon nav-icon"></i>
+                <span class="nav-label">Dark Mode</span>
+            </button>
+            <div class="nav-item">
+                <a href="#" class="logout-btn" id="logoutBtnOsa">
+                    <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
+                    <span class="nav-label">Logout</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Top Header -->
+        <header>
+            <div class="header-title">
+                <h1 id="page-title">OSA Dashboard</h1>
+                <p id="current-date">Fetching date...</p>
+            </div>
+            <div class="header-actions">
+                <div class="notif-wrapper" onclick="showToast('No new notifications', 'info')">
+                    <div class="notif-btn">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notif-badge">0</span>
+                    </div>
+                </div>
+
+                <div class="user-profile">
+                    <img src="https://picsum.photos/seed/osaadmin/100/100" alt="OSA Head" class="avatar">
+                    <div class="user-info">
+                        <span>Dir. Maria Santos</span>
+                        <small>OSA Head</small>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- DASHBOARD VIEW -->
+        <div id="dashboard" class="section-view active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>24</h3>
+                        <p>Active Organizations</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-users-rectangle"></i></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>12</h3>
+                        <p>Pending Requests</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>85%</h3>
+                        <p>Engagement Rate</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-bolt"></i></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>450</h3>
+                        <p>Total Active Members</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-user-check"></i></div>
+                </div>
+            </div>
+
+            <div class="content-row">
+                <!-- Analytics Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Overall Engagement Analytics</div>
+                        <select style="width: auto; margin: 0;">
+                            <option>This Semester</option>
+                            <option>Last Semester</option>
+                        </select>
+                    </div>
+                    <div class="chart-container">
+                        <div class="bar-group">
+                            <div class="bar" style="height: 40%;"></div>
+                            <span class="bar-label">Acads</span>
+                        </div>
+                        <div class="bar-group">
+                            <div class="bar" style="height: 75%; background-color: var(--accent);"></div>
+                            <span class="bar-label">Socials</span>
+                        </div>
+                        <div class="bar-group">
+                            <div class="bar" style="height: 60%;"></div>
+                            <span class="bar-label">Sports</span>
+                        </div>
+                        <div class="bar-group">
+                            <div class="bar" style="height: 30%;"></div>
+                            <span class="bar-label">Arts</span>
+                        </div>
+                        <div class="bar-group">
+                            <div class="bar" style="height: 90%;"></div>
+                            <span class="bar-label">Community</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pending Tasks -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Priority Actions</div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div style="padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.9rem;">Event Proposal: "Tech Summit"</div>
+                                <div style="font-size: 0.75rem; color: var(--muted);">Computer Science Society</div>
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="navigate('requests')">Review</button>
+                        </div>
+                        <div style="padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.9rem;">Post Approval: General Assembly</div>
+                                <div style="font-size: 0.75rem; color: var(--muted);">Student Council</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" onclick="navigate('requests')">Check</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ORGANIZATIONS LIST VIEW -->
+        <div id="organizations" class="section-view">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Accredited Student Organizations</div>
+                    <input type="text" placeholder="Search Orgs..." style="margin-bottom: 0; width: 250px;">
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Organization Name</th>
+                                <th>Category</th>
+                                <th>President</th>
+                                <th>Members</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="org-list-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- MONITORING PANEL (Sub-view of Orgs) -->
+        <div id="monitoring" class="section-view">
+            <button class="btn btn-outline btn-sm" onclick="navigate('organizations')" style="margin-bottom: 20px;">
+                <i class="fa-solid fa-arrow-left"></i> Back to List
+            </button>
+
+            <div class="card" style="margin-bottom: 24px; border-left: 5px solid var(--primary);">
+                <div class="card-header">
+                    <div>
+                        <h2 id="monitoring-org-name" style="font-size: 1.5rem; margin-bottom: 5px;">Organization Name</h2>
+                        <p id="monitoring-org-details" style="color: var(--muted);">Details here</p>
+                    </div>
+                    <div class="status-badge status-completed">Good Standing</div>
+                </div>
+
+                <!-- Financial Report Section -->
+                <h3 style="font-size: 1.1rem; margin-bottom: 15px;">Financial Report Status</h3>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
+                    <div style="background: var(--panel-2); padding: 15px; border-radius: var(--radius-md);">
+                        <small>Current Balance</small>
+                        <div style="font-size: 1.2rem; font-weight: 700;">₱ 15,400.00</div>
+                    </div>
+                    <div style="background: var(--panel-2); padding: 15px; border-radius: var(--radius-md);">
+                        <small>Last Audit</small>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: #059669;">Passed</div>
+                    </div>
+                    <div style="background: var(--panel-2); padding: 15px; border-radius: var(--radius-md);">
+                        <small>Pending Dues</small>
+                        <div style="font-size: 1.2rem; font-weight: 700;">₱ 500.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-row">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Event History</div>
+                    </div>
+                    <table class="table-container">
+                        <thead>
+                            <tr>
+                                <th>Event Name</th>
+                                <th>Date</th>
+                                <th>Attendance</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monitoring-events-table">
+                            <!-- JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Quick Actions</div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button class="btn btn-outline" onclick="showToast('Audit Request Sent to Treasurer')">
+                            <i class="fa-solid fa-file-invoice-dollar"></i> Request Financial Audit
+                        </button>
+                        <button class="btn btn-outline" onclick="navigate('documents')">
+                            <i class="fa-solid fa-file-shield"></i> View Submitted Documents
+                        </button>
+                        <button class="btn btn-danger" onclick="showToast('Warning sent to Organization President', 'error')">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Issue Sanction
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- REQUESTS & APPROVAL VIEW -->
+        <div id="requests" class="section-view">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Pending Requests</div>
+                    <select style="width: 200px; margin: 0;" id="request-filter" onchange="filterRequests()">
+                        <option value="all">All Requests</option>
+                        <option value="Event Proposal">Event Proposals</option>
+                        <option value="Posting">Posting Approval</option>
+                        <option value="Document">Document Submissions</option>
+                    </select>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Organization</th>
+                                <th>Subject/Title</th>
+                                <th>Date Submitted</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="requests-table">
+                            <!-- JS Populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- DOCUMENTS VIEW -->
+        <div id="documents" class="section-view">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Document Repository</div>
+                    <button class="btn btn-primary btn-sm">
+                        <i class="fa-solid fa-download"></i> Export Report
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Doc Name</th>
+                                <th>Organization</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>View</th>
+                            </tr>
+                        </thead>
+                        <tbody id="docs-table">
+                            <!-- JS Populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- VERIFICATION VIEW -->
+        <div id="verification" class="section-view">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Student Enrollment Verification</div>
+                </div>
+
+                <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 300px;">
+                        <label>Student ID Number</label>
+                        <input type="text" id="verify-input" placeholder="e.g., 2021-12345">
+
+                        <label>OR Full Name</label>
+                        <input type="text" id="verify-name" placeholder="Last Name, First Name">
+
+                        <button class="btn btn-primary" style="width: 100%;" onclick="verifyStudent()">
+                            <i class="fa-solid fa-magnifying-glass"></i> Verify Enrollment
+                        </button>
+                    </div>
+
+                    <div style="flex: 1; min-width: 300px;" id="verify-result-area">
+                        <div class="verification-box">
+                            <i class="fa-solid fa-id-card" style="font-size: 3rem; color: var(--muted); margin-bottom: 15px;"></i>
+                            <h3 style="color: var(--muted);">Enter details to verify</h3>
+                            <p style="font-size: 0.9rem; color: var(--muted);">Connects to University Registrar Database</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+        <script>
+        // Logout button navigates to login.html
+        document.addEventListener('DOMContentLoaded', function() {
+            var logoutBtn = document.getElementById('logoutBtnOsa');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    window.location.href = 'login.html';
+                });
+            }
+        });
+        </script>
+        <!-- Your separated JS -->
+        <script src="../assets/js/osaDashboard.js"></script>
+</body>
+</html>

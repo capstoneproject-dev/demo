@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Management Dashboard</title>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS Reference -->
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css">
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo-area">
+            <i class="fa-solid fa-sitemap logo-icon"></i>
+            <span class="logo-text">OrgManager</span>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="#" class="nav-link active" onclick="navigate('dashboard', this)">
+                    <i class="fa-solid fa-gauge-high nav-icon"></i>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('tracker', this)">
+                    <i class="fa-solid fa-list-check nav-icon"></i>
+                    <span class="nav-label">Services Tracker</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('documents', this)">
+                    <i class="fa-solid fa-file-contract nav-icon"></i>
+                    <span class="nav-label">Documents (OSA)</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('analytics', this)">
+                    <i class="fa-solid fa-chart-line nav-icon"></i>
+                    <span class="nav-label">Analytics</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('announcements', this)">
+                    <i class="fa-solid fa-bullhorn nav-icon"></i>
+                    <span class="nav-label">Announcements</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <button class="theme-toggle" id="themeBtn">
+                <i class="fa-solid fa-moon nav-icon"></i>
+                <span class="nav-label">Dark Mode</span>
+            </button>
+            <div class="nav-item">
+                <a href="#" class="logout-btn" id="logoutBtnOfficer">
+                    <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
+                    <span class="nav-label">Logout</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        
+        <!-- Top Header -->
+        <header>
+            <div class="header-title">
+                <h1 id="page-title">Dashboard</h1>
+                <p id="current-date">Fetching date...</p>
+            </div>
+            <div class="header-actions">
+                <!-- Notifications -->
+                <div class="notif-wrapper" onclick="toggleNotifs()">
+                    <div class="notif-btn">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notif-badge" id="notif-count">3</span>
+                    </div>
+                    <div class="notif-dropdown" id="notif-dropdown">
+                        <div class="notif-item">
+                            <strong>New Event Proposal</strong>
+                            <small>Submitted by Sports Club • 5m ago</small>
+                        </div>
+                        <div class="notif-item">
+                            <strong>OSA Reminder</strong>
+                            <small>Financial Statement due tomorrow</small>
+                        </div>
+                        <div class="notif-item">
+                            <strong>System Alert</strong>
+                            <small>Server backup completed</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="user-profile">
+                    <img src="https://picsum.photos/seed/officer1/100/100" alt="Officer" class="avatar">
+                    <div class="user-info">
+                        <span>Admin Officer</span>
+                        <small>Head of Operations</small>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- DASHBOARD VIEW -->
+        <div id="dashboard" class="section-view active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>₱12.5k</h3>
+                        <p>Total Revenue</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-wallet"></i></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>85%</h3>
+                        <p>Avg Attendance</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-chart-pie"></i></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>14</h3>
+                        <p>Active Rentals</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-box"></i></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>2</h3>
+                        <p>Pending OSA Docs</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-file-circle-check"></i></div>
+                </div>
+            </div>
+
+            <div class="content-row">
+                <!-- Recent Services/Rentals -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Active Rentals & Services</div>
+                        <button class="btn btn-outline btn-sm" onclick="navigate('tracker')">View All</button>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Item/Service</th>
+                                    <th>Borrower</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-rentals-table">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Quick Actions</div>
+                    </div>
+                    <div style="display: grid; gap: 10px;">
+                        <button class="btn btn-primary" onclick="navigate('announcements')">
+                            <i class="fa-solid fa-pen-to-square"></i> Post Announcement
+                        </button>
+                        <button class="btn btn-outline" onclick="navigate('documents')">
+                            <i class="fa-solid fa-file-export"></i> Compile Document
+                        </button>
+                        <button class="btn btn-outline" onclick="navigate('tracker')">
+                            <i class="fa-solid fa-qrcode"></i> Scan Attendance
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- System Status / Tools Integration -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">External Systems Integration</div>
+                </div>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px; padding: 15px; background: var(--panel-2); border-radius: var(--radius-md); border: 1px solid var(--border);">
+                        <h4 style="margin-bottom: 5px; color: var(--primary);">Rental System</h4>
+                        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Linked to Income Generating Product Database.</p>
+                        <button class="btn btn-sm btn-primary">Open System</button>
+                    </div>
+                    <div style="flex: 1; min-width: 200px; padding: 15px; background: var(--panel-2); border-radius: var(--radius-md); border: 1px solid var(--border);">
+                        <h4 style="margin-bottom: 5px; color: var(--primary);">Event Registration</h4>
+                        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Manage participants for upcoming events.</p>
+                        <button class="btn btn-sm btn-primary">Open System</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SERVICES TRACKER VIEW -->
+        <div id="tracker" class="section-view">
+            <div class="content-row">
+                <!-- Rentals Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Inventory & Rentals</div>
+                        <div>
+                            <input type="text" placeholder="Search..." style="margin-bottom: 0; width: 200px; padding: 6px 12px;">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Item Name</th>
+                                    <th>Renter</th>
+                                    <th>Due Date</th>
+                                    <th>Condition</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tracker-table">
+                                <!-- JS Populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- QR Attendance Tool -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Attendance Tool</div>
+                    </div>
+                    <div class="qr-placeholder">
+                        <i class="fa-solid fa-qrcode"></i>
+                        <h3>QR Scanner</h3>
+                        <p style="color: var(--muted); margin-bottom: 15px;">Click to activate camera for event check-in</p>
+                        <button class="btn btn-primary" onclick="alert('Opening Camera Module...')">
+                            <i class="fa-solid fa-camera"></i> Start Scan
+                        </button>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <h4>Today's Stats</h4>
+                        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                            <span>Present:</span> <strong>42</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Absent:</span> <strong>5</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DOCUMENTS VIEW -->
+        <div id="documents" class="section-view">
+            <div class="content-row">
+                <!-- Upload Form -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Compile Document for OSA</div>
+                    </div>
+                    <form id="doc-form" onsubmit="handleDocSubmit(event)">
+                        <label>Document Type</label>
+                        <select required>
+                            <option value="Activity Report">Activity Report</option>
+                            <option value="Financial Statement">Financial Statement</option>
+                            <option value="Proposal">Event Proposal</option>
+                            <option value="Roster">Updated Roster</option>
+                        </select>
+
+                        <label>Title</label>
+                        <input type="text" placeholder="e.g., Semestral Financial Report" required>
+
+                        <label>Description/Notes</label>
+                        <textarea rows="3" placeholder="Brief details..."></textarea>
+
+                        <label>Attach File</label>
+                        <div style="border: 2px dashed var(--border); padding: 20px; text-align: center; border-radius: var(--radius-md); margin-bottom: 20px; cursor: pointer; color: var(--muted);">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Click to upload PDF
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa-solid fa-paper-plane"></i> Send to OSA
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Submission History -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Submission History</div>
+                    </div>
+                    <div id="docs-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ANALYTICS VIEW -->
+        <div id="analytics" class="section-view">
+            <div class="card" style="margin-bottom: 24px;">
+                <div class="card-header">
+                    <div class="card-title">Revenue Analytics (Income Generating)</div>
+                    <select style="width: auto; margin: 0;">
+                        <option>This Semester</option>
+                        <option>Last Semester</option>
+                    </select>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="bar-group">
+                        <div class="bar" style="height: 40%;"></div>
+                        <span class="bar-label">Rentals</span>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar" style="height: 75%; background-color: var(--accent);"></div>
+                        <span class="bar-label">Printing</span>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar" style="height: 55%;"></div>
+                        <span class="bar-label">Food Sales</span>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar" style="height: 30%;"></div>
+                        <span class="bar-label">Merch</span>
+                    </div>
+                    <div class="bar-group">
+                        <div class="bar" style="height: 90%;"></div>
+                        <span class="bar-label">Tickets</span>
+                    </div>
+                </div>
+                <p style="text-align: center; color: var(--muted); font-size: 0.9rem;">Revenue comparison by service category</p>
+            </div>
+
+            <div class="content-row">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Event Participation</div>
+                    </div>
+                    <table class="table-container">
+                        <thead>
+                            <tr>
+                                <th>Event Name</th>
+                                <th>Target</th>
+                                <th>Actual</th>
+                                <th>%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Tech Summit</td>
+                                <td>150</td>
+                                <td>142</td>
+                                <td style="color: #059669;">94%</td>
+                            </tr>
+                            <tr>
+                                <td>Sports Fest</td>
+                                <td>300</td>
+                                <td>210</td>
+                                <td style="color: #d97706;">70%</td>
+                            </tr>
+                            <tr>
+                                <td>Seminar</td>
+                                <td>100</td>
+                                <td>98</td>
+                                <td style="color: #059669;">98%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Finances Snapshot</div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
+                                <span>Budget Used</span>
+                                <span>65%</span>
+                            </div>
+                            <div style="height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden;">
+                                <div style="width: 65%; background: var(--primary); height: 100%;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
+                                <span>Profit Margin</span>
+                                <span>22%</span>
+                            </div>
+                            <div style="height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden;">
+                                <div style="width: 22%; background: var(--accent); height: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ANNOUNCEMENTS VIEW -->
+        <div id="announcements" class="section-view">
+            <div class="content-row">
+                <!-- Create Post -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Create Announcement</div>
+                    </div>
+                    <form id="announcement-form" onsubmit="postAnnouncement(event)">
+                        <label>Target Audience</label>
+                        <select>
+                            <option>All Students</option>
+                            <option>Org Members Only</option>
+                            <option>Officers</option>
+                        </select>
+
+                        <label>Headline</label>
+                        <input type="text" id="ann-title" placeholder="Enter headline..." required>
+
+                        <label>Content</label>
+                        <textarea id="ann-content" rows="4" placeholder="Type details here..." required></textarea>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="margin: 0; font-weight: 400; font-size: 0.85rem;">
+                                <input type="checkbox" style="width: auto; margin-right: 5px;"> Mark as Urgent
+                            </label>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa-regular fa-paper-plane"></i> Publish
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Feed Preview -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Live Feed</div>
+                    </div>
+                    <div id="announcement-feed" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Populated JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+        <script>
+        // Logout button navigates to login.html
+        document.addEventListener('DOMContentLoaded', function() {
+            var logoutBtn = document.getElementById('logoutBtnOfficer');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    window.location.href = 'login.html';
+                });
+            }
+        });
+        </script>
+        <!-- JS Reference -->
+        <script src="../assets/js/officerDashboard.js"></script>
+</body>
+</html>

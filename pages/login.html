@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NAAP ORG - System Authentication</title>
+
+<!-- Link to your CSS file -->
+<link rel="stylesheet" href="../assets/css/login.css">
+
+</head>
+
+<body>
+
+<div class="container" id="container">
+
+  <!-- LOGIN / FORGOT CONTAINER (LEFT) -->
+  <div class="form-container sign-in-container" id="signInContainer">
+    
+    <!-- Wrapper to hold both panels. Login is relative (defines height), Forgot is absolute (overlay) -->
+    <div class="sign-in-content-wrapper">
+
+      <!-- LOGIN PANEL -->
+      <div id="panel-login">
+        <h1>LOGIN</h1>
+        <p class="subtitle">NAAP ORG - SYSTEM Organization Management System</p>
+        
+        <form id="loginForm">
+          <input type="text" id="loginType" placeholder="type student/org/osa" />
+          <input type="password" placeholder="Password" />
+          <button type="button" id="loginBtn">LOGIN</button>
+          
+          <div class="nav-links">
+            <!-- Added onclick event to trigger switch -->
+            <a onclick="toggleForgot(); return false;">Forgot Account?</a>
+          </div>
+        </form>
+        
+        <p class="mobile-toggle" onclick="toggleSlide()">Don't have an account? Register</p>
+      </div>
+
+      <!-- FORGOT PASSWORD PANEL -->
+      <div id="panel-forgot">
+        <h1>FORGOT PASSWORD</h1>
+        <p class="subtitle">Enter your details to reset your password</p>
+        
+        <form>
+          <input type="text" placeholder="Student Number" />
+          <input type="email" placeholder="Email" />
+          <button type="button">SEND LINK</button>
+        </form>
+
+        <!-- Back link to return to Login -->
+        <a class="back-link" onclick="toggleForgot(); return false;">Back to Login</a>
+
+        <p class="mobile-toggle" onclick="toggleSlide()">Don't have an account? Register</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- REGISTER FORM (RIGHT) -->
+  <div class="form-container sign-up-container">
+    <div style="width: 100%; max-width: 380px;">
+      <h1>Create Account</h1>
+      <p class="subtitle">NATIONAL AVIATION ACADEMY OF THE PHILIPPINES</p>
+
+      <!-- Registration Tabs -->
+      <div class="register-tabs">
+        <button class="tab-btn active" onclick="switchTab('student')">Student</button>
+        <button class="tab-btn" onclick="switchTab('org')">Organization</button>
+        <button class="tab-btn" onclick="switchTab('osa')">OSA</button>
+      </div>
+
+      <!-- Student Fields -->
+      <form id="form-student" class="reg-fields active">
+        <input type="text" placeholder="Student Number" />
+        <input type="text" placeholder="Name" />
+        <input type="text" placeholder="Course & Section" />
+        <input type="email" placeholder="Email" />
+        <input type="password" placeholder="Password" />
+        <input type="password" placeholder="Re-enter Password" />
+        <button type="button">REGISTER</button>
+      </form>
+
+      <!-- OSA Fields -->
+      <form id="form-osa" class="reg-fields">
+        <input type="text" placeholder="Employee Number" />
+        <input type="text" placeholder="Name" />
+        <input type="email" placeholder="Email" />
+        <input type="password" placeholder="Password" />
+        <input type="password" placeholder="Re-enter Password" />
+        <button type="button">REGISTER</button>
+      </form>
+
+      <!-- Organization Fields -->
+      <form id="form-org" class="reg-fields">
+        <input type="text" placeholder="Student Number" />
+        <input type="text" placeholder="Name" />
+        <input type="text" placeholder="Course & Section" />
+        <!-- Org Selector Trigger -->
+        <input type="text" id="org-input" placeholder="Select Organization" class="org-select-trigger" readonly onclick="openOrgModal()" />
+        <input type="email" placeholder="Email" />
+        <input type="password" placeholder="Password" />
+        <input type="password" placeholder="Re-enter Password" />
+        <button type="button">REGISTER</button>
+      </form>
+      
+      <p class="mobile-toggle" onclick="toggleSlide()">Already have an account? Sign In</p>
+    </div>
+  </div>
+
+  <!-- NAVY BLUE SLIDING PANEL (DISCONNECTED & ROUNDED) -->
+  <div class="overlay-container">
+    <div class="overlay">
+      
+      <!-- RIGHT PANEL (Visible when Login is Active - Overlay covers Register) -->
+      <div class="overlay-panel overlay-right active">
+        <div class="logo-area">NAAP</div>
+        <h1>Hello, Student!</h1>
+        <p>Enter your personal details and start your journey with National Aviation Academy</p>
+        <button class="ghost" id="signUp">Go to Register</button>
+      </div>
+      
+      <!-- LEFT PANEL (Visible when Register is Active - Overlay moves to cover Login) -->
+      <div class="overlay-panel overlay-left">
+        <div class="logo-area">NAAP</div>
+        <h1>Welcome Back!</h1>
+        <p>To keep connected with your organization please login with your personal info</p>
+        <button class="ghost" id="signIn">Go to Login</button>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- ORGANIZATION SELECTION MODAL -->
+<div class="modal-overlay" id="orgModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Select Organization</h3>
+      <button class="close-modal" onclick="closeOrgModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      
+      <div class="org-category">
+        <div class="org-category-title">Supreme Student Council</div>
+        <div class="org-list">
+          <div class="org-item" onclick="selectOrg('Supreme Student Council')">Supreme Student Council</div>
+        </div>
+      </div>
+
+      <div class="org-category">
+        <div class="org-category-title">ICS</div>
+        <div class="org-list">
+          <div class="org-item" onclick="selectOrg('ICS')">ICS</div>
+          <div class="org-item" onclick="selectOrg('AISERS')">AISERS</div>
+        </div>
+      </div>
+
+      <div class="org-category">
+        <div class="org-category-title">ILAS</div>
+        <div class="org-list">
+          <div class="org-item" onclick="selectOrg('ILAS')">ILAS</div>
+          <div class="org-item" onclick="selectOrg('ILASSO')">ILASSO</div>
+        </div>
+      </div>
+
+      <div class="org-category">
+        <div class="org-category-title">INET</div>
+        <div class="org-list">
+          <div class="org-item" onclick="selectOrg('INET')">INET</div>
+          <div class="org-item" onclick="selectOrg('ELITECH')">ELITECH</div>
+        </div>
+      </div>
+
+      <div class="org-category">
+        <div class="org-category-title">INET</div>
+        <div class="org-list">
+          <div class="org-item" onclick="selectOrg('AERO-ATSO')">AERO-ATSO</div>
+          <div class="org-item" onclick="selectOrg('AETSO')">AETSO</div>
+          <div class="org-item" onclick="selectOrg('AMTSO')">AMTSO</div>
+        </div>
+      </div>
+
+      <div class="org-category">
+        <div class="org-category-title">Interest Club</div>
+        <div class="org-list">
+          <div class="org-item" onclick="selectOrg('INTEREST CLUB')">INTEREST CLUB</div>
+          <div class="org-item" onclick="selectOrg('RCYC')">RCYC</div>
+          <div class="org-item" onclick="selectOrg('CYC')">CYC</div>
+          <div class="org-item" onclick="selectOrg('SCHOLAR\'S GUILD')">SCHOLAR'S GUILD</div>
+          <div class="org-item" onclick="selectOrg('AERONAUTICA')">AERONAUTICA</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<script>
+// Mock login process
+document.addEventListener('DOMContentLoaded', function() {
+  var loginBtn = document.getElementById('loginBtn');
+  if (loginBtn) {
+    loginBtn.addEventListener('click', function() {
+      var typeInput = document.getElementById('loginType');
+      var type = typeInput ? typeInput.value.trim().toLowerCase() : '';
+      if (type === 'student') {
+        window.location.href = 'studentDashboard.html';
+      } else if (type === 'org') {
+        window.location.href = 'officerDashboard.html';
+      } else if (type === 'osa') {
+        window.location.href = 'osaDashboard.html';
+      } else {
+        alert('Please enter a valid user type: student, org, or osa.');
+      }
+    });
+  }
+});
+</script>
+<!-- Link to your JS file -->
+<script src="../assets/js/login.js"></script>
+
+</body>
+</html>
