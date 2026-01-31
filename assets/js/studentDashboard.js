@@ -133,7 +133,6 @@ const orgTabsContent = {
                         background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 100%);
                         display: flex;
                         align-items: center;
-                        justify-content: center;
                         padding-bottom: 12px;
                     ">
                         <!-- Organization Name Text -->
