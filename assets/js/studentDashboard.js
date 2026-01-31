@@ -39,13 +39,18 @@ const transactionsData = [
 
 // Flattened Organization Data (Based on your provided list)
 const organizationData = [
+    // Supreme Student Council
     { name: "Supreme Student Council", category: "Council", imgSeed: "council", color: "#002147" },
+    // ICS
     { name: "AISERS", category: "ICS", imgSeed: "network", color: "#f59e0b" },
-    { name: "ELITECH", category: "ICS", imgSeed: "electronic", color: "#6366f1" },
+    // ILAS
     { name: "ILASSO", category: "ILAS", imgSeed: "book", color: "#ef4444" },
+    // INET
+    { name: "ELITECH", category: "INET", imgSeed: "electronic", color: "#6366f1" },
     { name: "AERO-ATSO", category: "INET", imgSeed: "plane", color: "#6366f1" },
     { name: "AETSO", category: "INET", imgSeed: "industry", color: "#6366f1" },
     { name: "AMTSO", category: "INET", imgSeed: "gear", color: "#6366f1" },
+    // Interest Club
     { name: "RCYC", category: "Interest Club", imgSeed: "bicycle", color: "#059669" },
     { name: "CYC", category: "Interest Club", imgSeed: "child", color: "#059669" },
     { name: "Scholar’s Guild", category: "Interest Club", imgSeed: "grad", color: "#059669" },
@@ -61,7 +66,7 @@ function navigate(viewId, element) {
     } else {
         const links = document.querySelectorAll('.nav-link');
         links.forEach(l => {
-            if(l.getAttribute('onclick').includes(viewId)) l.classList.add('active');
+            if (l.getAttribute('onclick').includes(viewId)) l.classList.add('active');
             else l.classList.remove('active');
         });
     }
@@ -91,161 +96,6 @@ function navigate(viewId, element) {
 }
 
 // --- ORGANIZATION TABS LOGIC ---
-const orgTabsContent = {
-    'about': `
-        <style>
-            /* Desktop: 4 columns */
-            .org-grid-layout {
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                gap: 20px;
-                margin-top: 10px;
-            }
-            /* Mobile: 1 column (Vertical Stack) */
-            @media (max-width: 768px) {
-                .org-grid-layout {
-                    grid-template-columns: 1fr;
-                }
-            }
-        </style>
-        <div class="org-grid-layout">
-            ${organizationData.map(org => `
-                <div style="
-                    aspect-ratio: 16/9;
-                    border-radius: 12px;
-                    position: relative;
-                    overflow: hidden;
-                    box-shadow: 0 10px 25px rgba(0,0,0,0.25);
-                    transition: transform 0.3s;
-                    cursor: pointer;
-                    background-color: #000;
-                ">
-                    <!-- Movie Poster Image -->
-                    <img src="https://picsum.photos/seed/${org.imgSeed}/400/225" style="width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0.9;" alt="${org.name}">
-                    
-                    <!-- Gradient Overlay -->
-                    <div style="
-                        position: absolute;
-                        bottom: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 60%;
-                        background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 100%);
-                        display: flex;
-                        align-items: center;
-                        padding-bottom: 12px;
-                    ">
-                        <!-- Organization Name Text -->
-                        <div style="
-                            color: white;
-                            font-weight: 800;
-                            font-size: 1.1rem;
-                            text-align: center;
-                            width: 100%;
-                            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-                            letter-spacing: 0.5px;
-                            line-height: 1.2;
-                        ">
-                            ${org.name}
-                        </div>
-                    </div>
-
-                    <!-- Category Badge (Top Left) -->
-                    <div style="
-                        position: absolute;
-                        top: 12px;
-                        left: 12px;
-                        background: var(--accent);
-                        color: var(--primary);
-                        padding: 5px 12px;
-                        border-radius: 4px;
-                        font-weight: 700;
-                        font-size: 0.8rem;
-                        text-transform: uppercase;
-                        letter-spacing: 0.05em;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                    ">
-                        ${org.category}
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `,
-    'my-organization': `
-        <div style="text-align:center; padding: 60px 20px; color: var(--muted);">
-            <i class="fa-solid fa-users-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;"></i>
-            <h3 style="margin-bottom: 10px; color: var(--text);">No Organizations Joined</h3>
-            <p style="max-width: 400px; margin: 0 auto; line-height: 1.5;">
-                You haven't joined any student organizations yet. Visit the "About" tab to explore and join!
-            </p>
-        </div>
-    `,
-    'membership': `
-        <div style="padding: 20px;">
-            <h3 style="margin-bottom: 15px;">Apply for Officer Membership</h3>
-            <p style="color: var(--muted); margin-bottom: 20px;">
-                Aspiring to lead? Fill out form below to apply for officer roles in our partner organizations.
-            </p>
-            <form onsubmit="event.preventDefault(); alert('Application Submitted Successfully!');" style="display: grid; gap: 15px; max-width: 500px;">
-                <div>
-                    <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Full Name</label>
-                    <input type="text" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);" required>
-                </div>
-                <div>
-                    <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Desired Organization</label>
-                    <select style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);">
-                        <option>SSC</option>
-                        <option>AISERS</option>
-                        <option>ELITECH</option>
-                        <option>AERO-ATSO</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Position</label>
-                    <input type="text" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);" required>
-                </div>
-                <button type="submit" style="background: var(--primary); color: white; padding: 12px; border-radius: var(--radius-md); border: none; cursor: pointer; font-weight: 600;">Submit Application</button>
-            </form>
-        </div>
-    `,
-    'events': `
-        <div style="display: grid; gap: 15px;">
-            ${eventsData.map(ev => `
-                <div class="list-item" style="border:1px solid var(--border); border-radius:var(--radius-md); padding:15px; background: var(--panel-2);">
-                    <div class="item-icon"><i class="fa-regular fa-calendar"></i></div>
-                    <div class="item-content">
-                        <h4>${ev.title} <span style="font-size:0.75rem; background:var(--primary); color:white; padding:2px 6px; border-radius:4px;">${ev.org}</span></h4>
-                        <p>${ev.desc}</p>
-                    </div>
-                    <div class="date-badge" style="background:var(--accent); color:var(--primary);">${ev.date}</div>
-                </div>
-            `).join('')}
-        </div>
-    `,
-    'contacts': `
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
-            <div style="text-align: center; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md);">
-                <div style="width: 60px; height: 60px; background: var(--panel-2); border-radius: 50%; margin: 0 auto 10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--text);">JD</div>
-                <h4>John Doe</h4>
-                <p style="color:var(--muted); font-size:0.85rem;">President, SSC</p>
-                <p style="margin-top:5px; font-size:0.85rem;"><i class="fa-solid fa-phone"></i> 0912-345-6789</p>
-            </div>
-            <div style="text-align: center; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md);">
-                <div style="width: 60px; height: 60px; background: var(--panel-2); border-radius: 50%; margin: 0 auto 10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--text);">AS</div>
-                <h4>Alice Smith</h4>
-                <p style="color:var(--muted); font-size:0.85rem;">Head, AISERS</p>
-                <p style="margin-top:5px; font-size:0.85rem;"><i class="fa-solid fa-phone"></i> 0998-765-4321</p>
-            </div>
-            <div style="text-align: center; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md);">
-                <div style="width: 60px; height: 60px; background: var(--panel-2); border-radius: 50%; margin: 0 auto 10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--text);">BR</div>
-                <h4>Bob Ross</h4>
-                <p style="color:var(--muted); font-size:0.85rem;">Rep, ELITECH</p>
-                <p style="margin-top:5px; font-size:0.85rem;"><i class="fa-solid fa-phone"></i> 0917-123-4567</p>
-            </div>
-        </div>
-    `
-};
-
 function switchOrgTab(tabName, btn) {
     // Update Buttons
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -253,8 +103,279 @@ function switchOrgTab(tabName, btn) {
 
     // Update Content
     const contentDiv = document.getElementById('tab-content');
-    contentDiv.innerHTML = orgTabsContent[tabName];
-    
+    contentDiv.innerHTML = ''; // Clear previous content
+
+    if (tabName === 'about') {
+        // --- FILTER BUTTONS ---
+        const filterBar = document.createElement('div');
+        filterBar.style.display = 'flex';
+        filterBar.style.gap = '12px';
+        filterBar.style.marginBottom = '24px';
+        filterBar.style.flexWrap = 'wrap';
+
+        // Category definitions
+        const categories = [
+            { key: 'all', label: 'All', icon: 'fa-layer-group' },
+            { key: 'Council', label: 'Council', icon: 'fa-university' },
+            { key: 'ICS', label: 'ICS', icon: 'fa-microchip' },
+            { key: 'ILAS', label: 'ILAS', icon: 'fa-book' },
+            { key: 'INET', label: 'INET', icon: 'fa-network-wired' },
+            { key: 'Interest Club', label: 'Interest Club', icon: 'fa-star' }
+        ];
+
+        // Create filter buttons
+        categories.forEach((cat, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'org-filter-btn';
+            btn.innerHTML = `<i class="fa-solid ${cat.icon}"></i> ${cat.label}`;
+            btn.setAttribute('data-category', cat.key);
+            btn.style.padding = '8px 18px';
+            btn.style.borderRadius = '20px';
+            btn.style.border = 'none';
+            btn.style.background = idx === 0 ? 'var(--primary)' : 'var(--panel-2)';
+            btn.style.color = idx === 0 ? '#fff' : 'var(--text)';
+            btn.style.fontWeight = '500';
+            btn.style.fontSize = '1rem';
+            btn.style.cursor = 'pointer';
+            btn.style.boxShadow = 'var(--shadow)';
+            btn.style.transition = 'background 0.2s, color 0.2s';
+            if (idx === 0) btn.classList.add('active');
+            filterBar.appendChild(btn);
+        });
+        contentDiv.appendChild(filterBar);
+
+        // --- ORG GRID CONTAINER ---
+        const grid = document.createElement('div');
+        grid.className = 'org-grid-layout';
+        contentDiv.appendChild(grid);
+
+        // --- FILTER LOGIC ---
+        function renderOrgs(categoryKey) {
+            grid.innerHTML = '';
+            let orgsToShow = [];
+            if (!categoryKey || categoryKey === 'all') {
+                orgsToShow = organizationData;
+            } else if (categoryKey === 'Council') {
+                orgsToShow = organizationData.filter(o => o.name === 'Supreme Student Council');
+            } else if (categoryKey === 'ICS') {
+                orgsToShow = organizationData.filter(o => o.name === 'AISERS' || o.name === 'ELITECH');
+            } else if (categoryKey === 'ILAS') {
+                orgsToShow = organizationData.filter(o => o.name === 'ILASSO');
+            } else if (categoryKey === 'INET') {
+                orgsToShow = organizationData.filter(o => ['AERO-ATSO', 'AETSO', 'AMTSO'].includes(o.name));
+            } else if (categoryKey === 'Interest Club') {
+                orgsToShow = organizationData.filter(o => [
+                    'RCYC', 'CYC', "Scholar’s Guild", 'Aeronautica'
+                ].includes(o.name));
+            }
+
+            if (orgsToShow.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted);">No organizations found for this category.</div>';
+                return;
+            }
+
+            orgsToShow.forEach(org => {
+                // Create Card
+                const card = document.createElement('div');
+                card.className = 'org-card';
+
+                // Image
+                const img = document.createElement('img');
+                img.src = `https://picsum.photos/seed/${org.imgSeed}/400/225`;
+                img.className = 'org-card-image';
+                img.alt = org.name;
+
+                // Overlay
+                const overlay = document.createElement('div');
+                overlay.className = 'org-overlay';
+
+                // Title
+                const title = document.createElement('div');
+                title.className = 'org-title';
+                title.innerText = org.name;
+
+                overlay.appendChild(title);
+
+                card.appendChild(img);
+                card.appendChild(overlay);
+                grid.appendChild(card);
+            });
+        }
+
+        // Initial render (All)
+        renderOrgs('all');
+
+        // Add event listeners to filter buttons
+        filterBar.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function () {
+                // Remove active from all
+                filterBar.querySelectorAll('button').forEach(b => {
+                    b.classList.remove('active');
+                    b.style.background = 'var(--panel-2)';
+                    b.style.color = 'var(--text)';
+                });
+                // Set active
+                this.classList.add('active');
+                this.style.background = 'var(--primary)';
+                this.style.color = '#fff';
+                renderOrgs(this.getAttribute('data-category'));
+            });
+        });
+    } else if (tabName === 'my-organization') {
+        contentDiv.innerHTML = `
+            <div style="text-align:center; padding: 60px 20px; color: var(--muted);">
+                <i class="fa-solid fa-users-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;"></i>
+                <h3 style="margin-bottom: 10px; color: var(--text);">No Organizations Joined</h3>
+                <p style="max-width: 400px; margin: 0 auto; line-height: 1.5;">
+                    You haven't joined any student organizations yet. Visit to "About" tab to explore and join!
+                </p>
+            </div>
+        `;
+    } else if (tabName === 'membership') {
+        contentDiv.innerHTML = `
+            <div style="padding: 20px;">
+                <h3 style="margin-bottom: 15px;">Apply for Officer Membership</h3>
+                <p style="color: var(--muted); margin-bottom: 20px;">
+                    Aspiring to lead? Fill out form below to apply for officer roles in our partner organizations.
+                </p>
+                <form onsubmit="event.preventDefault(); alert('Application Submitted Successfully!');" style="display: grid; gap: 15px; max-width: 500px;">
+                    <div>
+                        <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Full Name</label>
+                        <input type="text" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);" required>
+                    </div>
+                    <div>
+                        <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Desired Organization</label>
+                        <select style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);">
+                            <option>SSC</option>
+                            <option>AISERS</option>
+                            <option>ELITECH</option>
+                            <option>AERO-ATSO</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Position</label>
+                        <input type="text" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);" required>
+                    </div>
+                    <button type="submit" style="background: var(--primary); color: white; padding: 12px; border-radius: var(--radius-md); border: none; cursor: pointer; font-weight: 600;">Submit Application</button>
+                </form>
+            </div>
+        `;
+    } else if (tabName === 'events') {
+        const extendedEvents = [
+            { title: "The Summit 2024", date: "Nov. 11-24, 2024", org: "SSC", img: "https://picsum.photos/seed/summit/600/400" },
+            { title: "Collision Conference", date: "June 17-20, 2024", org: "AISERS", img: "https://picsum.photos/seed/collision/600/400" },
+            { title: "Web Summit 2024", date: "Feb. 26-29, 2024", org: "ELITECH", img: "https://picsum.photos/seed/websummit/600/400" },
+            { title: "Tech Expo 2024", date: "Dec. 05-10, 2024", org: "AERO-ATSO", img: "https://picsum.photos/seed/techexpo/600/400" },
+            { title: "Innovation Week", date: "Jan. 15-20, 2025", org: "AMTSO", img: "https://picsum.photos/seed/innovation/600/400" }
+        ];
+
+        // Filter Bar
+        const filterBar = document.createElement('div');
+        filterBar.className = 'events-filter-bar';
+        filterBar.innerHTML = `
+            <div class="filter-input-group">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="eventSearch" placeholder="Search by keywords">
+            </div>
+            <div class="filter-date-group">
+                <input type="date" id="eventDate">
+                <i class="fa-regular fa-calendar"></i>
+            </div>
+            <div class="reset-filter" id="resetEvents">
+                <i class="fa-solid fa-xmark"></i>
+                <span>Reset</span>
+            </div>
+        `;
+        contentDiv.appendChild(filterBar);
+
+        // Events Grid Container
+        const grid = document.createElement('div');
+        grid.className = 'events-grid-layout';
+        grid.id = 'eventsGridContainer';
+        contentDiv.appendChild(grid);
+
+        function renderEvents(filteredEvents) {
+            grid.innerHTML = '';
+            if (filteredEvents.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted);">No events found matching your criteria.</div>';
+                return;
+            }
+            filteredEvents.forEach(ev => {
+                const card = document.createElement('div');
+                card.className = 'event-card-ref';
+                card.innerHTML = `
+                    <img src="${ev.img}" class="event-card-thumb" alt="${ev.title}">
+                    <div class="event-card-body">
+                        <div class="event-card-header">
+                            <div class="event-org-icon">${ev.org.charAt(0)}</div>
+                            <div class="event-card-info">
+                                <h4>${ev.title}</h4>
+                                <p>${ev.date}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="event-card-footer">
+                        <div class="event-stat"><i class="fa-regular fa-heart"></i> 5</div>
+                        <div class="event-stat"><i class="fa-regular fa-comment"></i> 5</div>
+                        <div class="event-stat"><i class="fa-solid fa-users"></i> 500</div>
+                        <div class="event-stat"><i class="fa-regular fa-file-lines"></i> 20</div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterEvents() {
+            const searchTerm = document.getElementById('eventSearch').value.toLowerCase();
+            const dateTerm = document.getElementById('eventDate').value;
+
+            const filtered = extendedEvents.filter(ev => {
+                const matchesSearch = ev.title.toLowerCase().includes(searchTerm) || ev.org.toLowerCase().includes(searchTerm);
+                // Simple date match for simulation (checking if year matches if a date is picked)
+                const matchesDate = !dateTerm || ev.date.includes(dateTerm.split('-')[0]);
+                return matchesSearch && matchesDate;
+            });
+            renderEvents(filtered);
+        }
+
+        // Event Listeners
+        document.getElementById('eventSearch').addEventListener('input', filterEvents);
+        document.getElementById('eventDate').addEventListener('change', filterEvents);
+        document.getElementById('resetEvents').addEventListener('click', () => {
+            document.getElementById('eventSearch').value = '';
+            document.getElementById('eventDate').value = '';
+            renderEvents(extendedEvents);
+        });
+
+        // Initial Render
+        renderEvents(extendedEvents);
+    } else if (tabName === 'contacts') {
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+        grid.style.gap = '20px';
+
+        [
+            { name: "John Doe", role: "President, SSC", contact: "0912-345-6789" },
+            { name: "Alice Smith", role: "Head, AISERS", contact: "0998-765-4321" },
+            { name: "Bob Ross", role: "Rep, ELITECH", contact: "0917-123-4567" }
+        ].forEach(person => {
+            const card = document.createElement('div');
+            card.style.textAlign = 'center';
+            card.style.padding = '20px';
+            card.style.border = '1px solid var(--border)';
+            card.style.borderRadius = 'var(--radius-md)';
+
+            card.innerHTML = `
+                <div style="width: 60px; height: 60px; background: var(--panel-2); border-radius: 50%; margin: 0 auto 10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--text);">${person.name.charAt(0)}${person.name.split(' ')[1]}</div>
+                <h4>${person.role}</h4>
+                <p style="color:var(--muted); font-size:0.85rem;"><i class="fa-solid fa-phone"></i> ${person.contact}</p>
+            `;
+            grid.appendChild(card);
+        });
+        contentDiv.appendChild(grid);
+    }
+
     // Add fade animation
     contentDiv.style.animation = 'none';
     contentDiv.offsetHeight; /* trigger reflow */
@@ -265,7 +386,7 @@ function switchOrgTab(tabName, btn) {
 function renderServices(filter = "") {
     const grid = document.getElementById('servicesGrid');
     grid.innerHTML = "";
-    
+
     servicesData.forEach(service => {
         if (service.name.toLowerCase().includes(filter.toLowerCase()) || service.org.toLowerCase().includes(filter.toLowerCase())) {
             const card = document.createElement('div');
@@ -341,11 +462,11 @@ function setDate() {
 function switchThemeLogic() {
     document.body.classList.toggle('dark');
     const isDark = document.body.classList.contains('dark');
-    
+
     // Update Sidebar Footer Button
     const sbIcon = document.querySelector('#themeBtn .nav-icon');
     const sbText = document.querySelector('#themeBtn .nav-label');
-    
+
     if (sbIcon && sbText) {
         if (isDark) {
             sbIcon.className = 'fa-solid fa-sun nav-icon';
@@ -379,8 +500,8 @@ function toggleThemeMobile() {
 // Logout Handler
 function handleLogout(e) {
     e.preventDefault();
-    if(confirm('Are you sure you want to logout?')) {
-          window.location.href = '../pages/login.html';
+    if (confirm('Are you sure you want to logout?')) {
+        window.location.href = '../pages/login.html';
     }
 }
 
@@ -391,10 +512,10 @@ if (localStorage.getItem('theme') === 'dark') {
     const sbIcon = document.querySelector('#themeBtn .nav-icon');
     const sbText = document.querySelector('#themeBtn .nav-label');
     const mobIcon = document.getElementById('mobile-theme-icon');
-    
-    if(sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
-    if(sbText) sbText.innerText = 'Light Mode';
-    if(mobIcon) mobIcon.className = 'fa-solid fa-sun';
+
+    if (sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
+    if (sbText) sbText.innerText = 'Light Mode';
+    if (mobIcon) mobIcon.className = 'fa-solid fa-sun';
 }
 
 // --- INITIALIZATION ---

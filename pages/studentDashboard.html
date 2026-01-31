@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Organization Dashboard</title>
-    
+
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- STYLESHEET REFERENCE -->
     <link rel="stylesheet" href="../assets/css/studentDashboard.css">
 </head>
+
 <body>
 
     <!-- Sidebar Navigation -->
@@ -53,7 +55,7 @@
                 <span class="nav-label">Dark Mode</span>
             </button>
             <div class="nav-item">
-                    <a href="#" class="logout-btn" onclick="handleLogout(event)">
+                <a href="#" class="logout-btn" onclick="handleLogout(event)">
                     <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
                     <span class="nav-label">Logout</span>
                 </a>
@@ -63,7 +65,7 @@
 
     <!-- Main Content Area -->
     <main class="main-content">
-        
+
         <!-- Top Header -->
         <header>
             <div class="header-title">
@@ -76,7 +78,7 @@
                 <button class="icon-btn mobile-only" onclick="toggleThemeMobile()">
                     <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
                 </button>
-                
+
                 <!-- Mobile Logout -->
                 <a href="#" class="icon-btn mobile-only logout-icon" onclick="handleLogout(event)">
                     <i class="fa-solid fa-arrow-right-from-bracket"></i>
@@ -134,7 +136,8 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">Latest Announcements</div>
-                        <a href="#" style="color:var(--primary); text-decoration:none; font-size:0.85rem;" onclick="navigate('organizations')">View All</a>
+                        <a href="#" style="color:var(--primary); text-decoration:none; font-size:0.85rem;"
+                            onclick="navigate('organizations')">View All</a>
                     </div>
                     <div id="announcements-list">
                         <!-- Populated by JS -->
@@ -171,8 +174,8 @@
                     <div class="card-title">Upcoming Events</div>
                 </div>
                 <div class="content-row" style="margin-bottom: 0; gap: 20px;">
-                     <!-- Populated by JS -->
-                     <div id="events-preview-container" style="display: contents;"></div>
+                    <!-- Populated by JS -->
+                    <div id="events-preview-container" style="display: contents;"></div>
                 </div>
             </div>
         </div>
@@ -196,7 +199,9 @@
         <div id="services" class="section-view">
             <div class="services-search">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="serviceSearch" placeholder="Search for a service (e.g., Printing, Calculator, Locker)..." onkeyup="filterServices()">
+                <input type="text" id="serviceSearch"
+                    placeholder="Search for a service (e.g., Printing, Calculator, Locker)..."
+                    onkeyup="filterServices()">
             </div>
             <div class="services-grid" id="servicesGrid">
                 <!-- Populated by JS -->
@@ -207,14 +212,19 @@
         <div id="profile" class="section-view">
             <div class="card" style="margin-bottom: 24px;">
                 <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-                    <img src="https://picsum.photos/seed/student1/150/150" alt="Profile" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid var(--primary);">
+                    <img src="https://picsum.photos/seed/student1/150/150" alt="Profile"
+                        style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid var(--primary);">
                     <div>
                         <h2 style="margin-bottom: 5px;">Juan Dela Cruz</h2>
                         <p style="color: var(--muted);">Student ID: 2021-12345</p>
                         <p style="color: var(--muted);">Course: BS Computer Science</p>
                         <div style="margin-top: 10px; display: flex; gap: 10px;">
-                            <button style="padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;">Edit Profile</button>
-                            <button style="padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;">Change Password</button>
+                            <button
+                                style="padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;">Edit
+                                Profile</button>
+                            <button
+                                style="padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;">Change
+                                Password</button>
                         </div>
                     </div>
                 </div>
@@ -247,4 +257,5 @@
     <!-- JAVASCRIPT REFERENCE -->
     <script src="../assets/js/studentDashboard.js"></script>
 </body>
+
 </html>

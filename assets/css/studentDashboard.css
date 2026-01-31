@@ -9,9 +9,12 @@
     --border: rgba(15, 23, 42, 0.10);
     --shadow: 0 14px 40px rgba(2, 6, 23, 0.10);
 
-    --primary: #002147; /* navy */
-    --primary-2: #003366; /* hover navy */
-    --accent: #f4d03f; /* gold */
+    --primary: #002147;
+    /* navy */
+    --primary-2: #003366;
+    /* hover navy */
+    --accent: #f4d03f;
+    /* gold */
     --ring: rgba(0, 33, 71, 0.25);
 
     --sidebar-collapsed: 74px;
@@ -34,10 +37,11 @@ body.dark {
     --panel-2: #0c162b;
     --text: #e5e7eb;
     --muted: #9ca3af;
-    --border: rgba(255,255,255,0.10);
-    --shadow: 0 18px 48px rgba(0,0,0,0.40);
+    --border: rgba(255, 255, 255, 0.10);
+    --shadow: 0 18px 48px rgba(0, 0, 0, 0.40);
 
-    --primary: #7aa2ff; /* readable blue */
+    --primary: #7aa2ff;
+    /* readable blue */
     --primary-2: #9bb7ff;
     --accent: #f4d03f;
     --ring: rgba(122, 162, 255, 0.25);
@@ -164,7 +168,8 @@ body {
     padding: 20px 12px;
 }
 
-.theme-toggle, .logout-btn {
+.theme-toggle,
+.logout-btn {
     background: none;
     border: none;
     color: var(--muted);
@@ -203,7 +208,8 @@ body {
     padding: 8px;
     border-radius: 50%;
     transition: background 0.2s;
-    display: none; /* Hidden by default (Desktop) */
+    display: none;
+    /* Hidden by default (Desktop) */
     text-decoration: none;
 }
 
@@ -221,6 +227,7 @@ body {
     cursor: pointer;
     transition: transform 0.2s;
 }
+
 .user-profile:hover {
     transform: translateY(-2px);
 }
@@ -295,8 +302,15 @@ header {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Dashboard Stats Grid */
@@ -377,7 +391,10 @@ header {
     padding: 16px 0;
     border-bottom: 1px solid var(--border);
 }
-.list-item:last-child { border-bottom: none; }
+
+.list-item:last-child {
+    border-bottom: none;
+}
 
 .item-icon {
     margin-right: 15px;
@@ -414,7 +431,7 @@ header {
     font-weight: 600;
 }
 
-/* --- Services Grid --- */
+/* --- SERVICES GRID --- */
 .services-search {
     margin-bottom: 24px;
     position: relative;
@@ -498,7 +515,87 @@ header {
     background-color: var(--muted);
 }
 
-/* --- Org Tabs --- */
+/* --- ORGANIZATION CARD STYLES (MOVIE UI) --- */
+
+/* Grid Layout */
+.org-grid-layout {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    margin-top: 10px;
+}
+
+.org-card {
+    aspect-ratio: 16 / 9;
+    /* Wide Landscape Poster Ratio */
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+    transition: transform 0.3s;
+    cursor: pointer;
+    background-color: #000;
+}
+
+.org-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
+}
+
+/* Poster Image */
+.org-card-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0.9;
+}
+
+/* Gradient Overlay */
+.org-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.6) 100%);
+    display: flex;
+    align-items: center;
+    padding-bottom: 20px;
+    z-index: 1;
+}
+
+/* Organization Name Text */
+.org-title {
+    color: white;
+    font-weight: 800;
+    font-size: 1.1rem;
+    text-align: center;
+    width: 100%;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    letter-spacing: 0.5px;
+    line-height: 1.2;
+}
+
+/* Category Badge (Top Left) */
+.org-badge-overlay {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: var(--accent);
+    color: var(--primary);
+    /* Navy text on Gold */
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    z-index: 2;
+}
+
+/* --- ORG TABS --- */
 .tabs {
     display: flex;
     gap: 10px;
@@ -519,13 +616,14 @@ header {
     transition: all 0.2s;
 }
 
-.tab-btn.active, .tab-btn:hover {
+.tab-btn.active,
+.tab-btn:hover {
     background: var(--primary);
     color: #fff;
     border-color: var(--primary);
 }
 
-/* --- Profile Table --- */
+/* --- PROFILE TABLE --- */
 .table-container {
     overflow-x: auto;
 }
@@ -535,7 +633,8 @@ table {
     border-collapse: collapse;
 }
 
-th, td {
+th,
+td {
     text-align: left;
     padding: 16px;
     border-bottom: 1px solid var(--border);
@@ -558,77 +657,306 @@ td {
     font-size: 0.75rem;
     font-weight: 600;
 }
-.status-completed { background: rgba(16, 185, 129, 0.1); color: #059669; }
-.status-pending { background: rgba(245, 158, 11, 0.1); color: #d97706; }
+
+.status-completed {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+}
+
+.status-pending {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
 
 /* --- RESPONSIVE MOBILE (UPDATED SPACING) --- */
 @media (max-width: 768px) {
-    /* 1. FIX: Sidebar to Fixed Bottom */
-    .sidebar { 
-        bottom: 0; 
-        top: auto; 
-        width: 100%; 
-        height: 70px; 
-        flex-direction: row; 
-        border-right: none; 
+
+    /*1. FIX: Sidebar to Fixed Bottom */
+    .sidebar {
+        bottom: 0;
+        top: auto;
+        width: 100%;
+        height: 70px;
+        flex-direction: row;
+        border-right: none;
         border-top: 1px solid var(--border);
-        z-index: 1000; /* Ensure it stays on top of content */
-        position: fixed; /* Explicitly fixed */
+        z-index: 1000;
+        /* Ensure it stays on top of content */
+        position: fixed;
+        /* Explicitly fixed */
         left: 0;
     }
-    
+
     /* Disable sidebar hover expansion on mobile */
-    .sidebar:hover { width: 100%; }
-    
-    .logo-area, .sidebar-footer { display: none; }
-    
-    .nav-menu { 
-        display: flex; 
-        flex-direction: row; 
-        justify-content: space-around; 
-        width: 100%; 
-        padding: 0; 
+    .sidebar:hover {
+        width: 100%;
+    }
+
+    .logo-area,
+    .sidebar-footer {
+        display: none;
+    }
+
+    .nav-menu {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+        width: 100%;
+        padding: 0;
         align-items: center;
     }
-    
-    .nav-label { display: none; }
-    .nav-icon { font-size: 1.4rem; margin: 0; }
-    .nav-link { padding: 10px; flex-direction: column; gap: 4px; }
-    .nav-link span { font-size: 0.7rem; } 
-    
-    /* 2. FIX: Main Content Overflow & Padding */
-    .main-content { 
-        margin-left: 0; 
-        width: 100%; 
-        margin-bottom: 100px; /* Increased to clear bottom nav */
-        padding: 20px; 
+
+    .nav-label {
+        display: none;
     }
 
-    /* 3. FIX: Stats Grid Layout */
+    .nav-icon {
+        font-size: 1.4rem;
+        margin: 0;
+    }
+
+    .nav-link {
+        padding: 10px;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .nav-link span {
+        font-size: 0.7rem;
+    }
+
+    /*2. FIX: Main Content Overflow & Padding */
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        margin-bottom: 100px;
+        /* Increased to clear bottom nav */
+        padding: 20px;
+    }
+
+    /*3. FIX: Org Grid Layout (1 Column) */
+    .org-grid-layout {
+        grid-template-columns: 1fr;
+        /*1 Column on Mobile */
+        gap: 16px;
+    }
+
+    /*4. FIX: Stats Grid Layout */
     .stats-grid {
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Smaller min-width for mobile */
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        /* Smaller min-width for mobile */
         gap: 12px;
     }
+
     .stat-card {
         padding: 16px;
-        flex-direction: column; /* Stack text and icon vertically if space is tight */
-        align-items: flex-start;
+        flex-direction: column;
+        /* Stack text and icon vertically if space is tight */
+        align-items: center;
         gap: 10px;
     }
-    .stat-icon { align-self: flex-end; }
 
-    /* 4. FIX: Content Row Layout (Stack cards) */
-    .content-row { 
-        display: flex; 
-        flex-direction: column; /* Stack vertically to prevent breaking */
-        gap: 20px; 
+    .stat-icon {
+        align-self: center;
     }
-    .content-row > .card {
-        width: 100%; /* Ensure cards take full width */
+
+    /*5. FIX: Content Row Layout (Stack cards) */
+    .content-row {
+        display: flex;
+        flex-direction: column;
+        /* Stack vertically to prevent breaking */
+        gap: 20px;
+    }
+
+    .content-row>.card {
+        width: 100%;
+        /* Ensure cards take full width */
     }
 
     /* Mobile Adjustments */
-    .mobile-only { display: block; }
-    .user-info { display: none; }
-    .user-profile-box { padding: 5px; }
+    .mobile-only {
+        display: block;
+    }
+
+    .user-info {
+        display: none;
+    }
+
+    .user-profile-box {
+        padding: 5px;
+    }
+}
+
+
+/* --- EVENTS TAB REFERENCE UI --- */
+.events-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.filter-input-group {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-input-group i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.filter-input-group input,
+.filter-date-group input {
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.filter-date-group {
+    position: relative;
+    min-width: 180px;
+}
+
+.filter-date-group i {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+}
+
+.filter-date-group input {
+    padding-left: 12px;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+/* Style for native date picker icon */
+.filter-date-group input::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 10px;
+    top: 0;
+    width: 20px;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.reset-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 8px;
+    transition: color 0.2s;
+}
+
+.reset-filter:hover {
+    color: var(--text);
+}
+
+.events-grid-layout {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+}
+
+@media (max-width: 1100px) {
+    .events-grid-layout {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .events-grid-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.event-card-ref {
+    background: var(--panel);
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.event-card-ref:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.event-card-thumb {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    display: block;
+}
+
+.event-card-body {
+    padding: 20px;
+}
+
+.event-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.event-org-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.event-card-info h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+}
+
+.event-card-info p {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.event-card-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.event-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
