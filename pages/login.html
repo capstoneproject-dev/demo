@@ -204,6 +204,7 @@
 // Mock login process
 document.addEventListener('DOMContentLoaded', function() {
   var loginBtn = document.getElementById('loginBtn');
+  var loginForm = document.getElementById('loginForm');
   if (loginBtn) {
     loginBtn.addEventListener('click', function() {
       var typeInput = document.getElementById('loginType');
@@ -218,6 +219,14 @@ document.addEventListener('DOMContentLoaded', function() {
         alert('Please enter a valid user type: student, org, or osa.');
       }
     });
+    if (loginForm) {
+      loginForm.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          loginBtn.click();
+        }
+      });
+    }
   }
 });
 </script>

@@ -37,6 +37,21 @@ const transactionsData = [
     { date: "Oct 10, 2023", item: "Membership Application", org: "ELITECH", status: "Pending" }
 ];
 
+// Flattened Organization Data (Based on your provided list)
+const organizationData = [
+    { name: "Supreme Student Council", category: "Council", imgSeed: "council", color: "#002147" },
+    { name: "AISERS", category: "ICS", imgSeed: "network", color: "#f59e0b" },
+    { name: "ELITECH", category: "ICS", imgSeed: "electronic", color: "#6366f1" },
+    { name: "ILASSO", category: "ILAS", imgSeed: "book", color: "#ef4444" },
+    { name: "AERO-ATSO", category: "INET", imgSeed: "plane", color: "#6366f1" },
+    { name: "AETSO", category: "INET", imgSeed: "industry", color: "#6366f1" },
+    { name: "AMTSO", category: "INET", imgSeed: "gear", color: "#6366f1" },
+    { name: "RCYC", category: "Interest Club", imgSeed: "bicycle", color: "#059669" },
+    { name: "CYC", category: "Interest Club", imgSeed: "child", color: "#059669" },
+    { name: "Scholar’s Guild", category: "Interest Club", imgSeed: "grad", color: "#059669" },
+    { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669" }
+];
+
 // --- CORE NAVIGATION LOGIC ---
 function navigate(viewId, element) {
     // Update Active Link
@@ -78,12 +93,91 @@ function navigate(viewId, element) {
 // --- ORGANIZATION TABS LOGIC ---
 const orgTabsContent = {
     'about': `
-        <div style="text-align:center; padding: 40px;">
-            <i class="fa-solid fa-building-columns" style="font-size: 3rem; color: var(--primary); margin-bottom: 20px;"></i>
-            <h2 style="margin-bottom: 10px;">About Organization Council</h2>
-            <p style="max-width: 600px; margin: 0 auto; color: var(--muted); line-height: 1.6;">
-                We are a unified body representing various college organizations. Our goal is to foster leadership, 
-                provide essential services, and create a vibrant academic community for all students.
+        <style>
+            /* Desktop: 4 columns */
+            .org-grid-layout {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 20px;
+                margin-top: 10px;
+            }
+            /* Mobile: 1 column (Vertical Stack) */
+            @media (max-width: 768px) {
+                .org-grid-layout {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+        <div class="org-grid-layout">
+            ${organizationData.map(org => `
+                <div style="
+                    aspect-ratio: 16/9;
+                    border-radius: 12px;
+                    position: relative;
+                    overflow: hidden;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+                    transition: transform 0.3s;
+                    cursor: pointer;
+                    background-color: #000;
+                ">
+                    <!-- Movie Poster Image -->
+                    <img src="https://picsum.photos/seed/${org.imgSeed}/400/225" style="width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0.9;" alt="${org.name}">
+                    
+                    <!-- Gradient Overlay -->
+                    <div style="
+                        position: absolute;
+                        bottom: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 60%;
+                        background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 100%);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding-bottom: 12px;
+                    ">
+                        <!-- Organization Name Text -->
+                        <div style="
+                            color: white;
+                            font-weight: 800;
+                            font-size: 1.1rem;
+                            text-align: center;
+                            width: 100%;
+                            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+                            letter-spacing: 0.5px;
+                            line-height: 1.2;
+                        ">
+                            ${org.name}
+                        </div>
+                    </div>
+
+                    <!-- Category Badge (Top Left) -->
+                    <div style="
+                        position: absolute;
+                        top: 12px;
+                        left: 12px;
+                        background: var(--accent);
+                        color: var(--primary);
+                        padding: 5px 12px;
+                        border-radius: 4px;
+                        font-weight: 700;
+                        font-size: 0.8rem;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    ">
+                        ${org.category}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `,
+    'my-organization': `
+        <div style="text-align:center; padding: 60px 20px; color: var(--muted);">
+            <i class="fa-solid fa-users-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;"></i>
+            <h3 style="margin-bottom: 10px; color: var(--text);">No Organizations Joined</h3>
+            <p style="max-width: 400px; margin: 0 auto; line-height: 1.5;">
+                You haven't joined any student organizations yet. Visit the "About" tab to explore and join!
             </p>
         </div>
     `,
@@ -244,7 +338,7 @@ function setDate() {
     document.getElementById('current-date').innerText = today.toLocaleDateString('en-US', options);
 }
 
-// Helper to switch the actual theme logic
+// Helper to switch to actual theme logic
 function switchThemeLogic() {
     document.body.classList.toggle('dark');
     const isDark = document.body.classList.contains('dark');

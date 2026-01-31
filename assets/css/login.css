@@ -1,4 +1,4 @@
-  :root {
+:root {
     /* Color Palette: Navy Blue and White */
     --primary: #002147;       /* Deep Navy */
     --primary-light: #003366; /* Lighter Navy for hover */
@@ -327,8 +327,10 @@
     height: 100%;
     pointer-events: none;
     /* 
-       UPDATED PATH: Since CSS is now in assets/css/, 
-       we go up one level to assets, then into photos. 
+       Path adjusted:
+       CSS is in assets/css/
+       Image is in assets/photos/LoginPage/
+       We go up one level (../) to reach assets, then into photos.
     */
     background: url('../photos/LoginPage/lines.png') center/cover no-repeat;
     opacity: 0.35;
