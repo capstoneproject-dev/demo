@@ -40,21 +40,21 @@ const transactionsData = [
 // Flattened Organization Data (Based on your provided list)
 const organizationData = [
     // Supreme Student Council
-    { name: "Supreme Student Council", category: "Council", imgSeed: "council", color: "#002147" },
+    { name: "Supreme Student Council", category: "Council", imgSeed: "council", color: "#002147", image: "../assets/photos/studentDashboard/Organization/SSC.png" },
     // ICS
-    { name: "AISERS", category: "ICS", imgSeed: "network", color: "#f59e0b" },
+    { name: "AISERS", category: "ICS", imgSeed: "network", color: "#f59e0b", image: "../assets/photos/studentDashboard/Organization/AISERS.png" },
     // ILAS
-    { name: "ILASSO", category: "ILAS", imgSeed: "book", color: "#ef4444" },
+    { name: "ILASSO", category: "ILAS", imgSeed: "book", color: "#ef4444", image: "../assets/photos/studentDashboard/Organization/ILASSO.png" },
     // INET
-    { name: "ELITECH", category: "INET", imgSeed: "electronic", color: "#6366f1" },
-    { name: "AERO-ATSO", category: "INET", imgSeed: "plane", color: "#6366f1" },
-    { name: "AETSO", category: "INET", imgSeed: "industry", color: "#6366f1" },
-    { name: "AMTSO", category: "INET", imgSeed: "gear", color: "#6366f1" },
+    { name: "ELITECH", category: "INET", imgSeed: "electronic", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/ELITECH.png" },
+    { name: "AERO-ATSO", category: "INET", imgSeed: "plane", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AEROATSO.png" },
+    { name: "AETSO", category: "INET", imgSeed: "industry", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AET.png" },
+    { name: "AMTSO", category: "INET", imgSeed: "gear", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AMT.png" },
     // Interest Club
-    { name: "RCYC", category: "Interest Club", imgSeed: "bicycle", color: "#059669" },
-    { name: "CYC", category: "Interest Club", imgSeed: "child", color: "#059669" },
-    { name: "Scholar’s Guild", category: "Interest Club", imgSeed: "grad", color: "#059669" },
-    { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669" }
+    { name: "RCYC", category: "Interest Club", imgSeed: "bicycle", color: "#059669", image: "../assets/photos/studentDashboard/Organization/RCYC.png" },
+    { name: "CYC", category: "Interest Club", imgSeed: "child", color: "#059669", image: "../assets/photos/studentDashboard/Organization/CYC.png" },
+    { name: "Scholar’s Guild", category: "Interest Club", imgSeed: "grad", color: "#059669", image: "../assets/photos/studentDashboard/Organization/PSG.png" },
+    { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669", image: "../assets/photos/studentDashboard/Organization/AERONAUTICA.png" }
 ];
 
 // --- CORE NAVIGATION LOGIC ---
@@ -181,7 +181,7 @@ function switchOrgTab(tabName, btn) {
 
                 // Image
                 const img = document.createElement('img');
-                img.src = `https://picsum.photos/seed/${org.imgSeed}/400/225`;
+                img.src = org.image ? org.image : `https://picsum.photos/seed/${org.imgSeed}/400/225`;
                 img.className = 'org-card-image';
                 img.alt = org.name;
 
