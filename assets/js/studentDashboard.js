@@ -57,6 +57,83 @@ const organizationData = [
     { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669", image: "../assets/photos/studentDashboard/Organization/AERONAUTICA.png" }
 ];
 
+// Extended Events Data (for Events Tab)
+const extendedEvents = [
+    {
+        title: "The Summit 2024",
+        date: "Nov. 11-24, 2024",
+        time: "08:00 AM - 05:00 PM",
+        venue: "Main Auditorium",
+        participants: 120,
+        description: "Join us for the biggest gathering of tech leaders and students. Featuring keynote speakers, workshops, and networking opportunities.",
+        org: "SSC",
+        img: "https://picsum.photos/seed/summit/600/400",
+        gallery: [
+            "https://picsum.photos/seed/summit/600/400",
+            "https://picsum.photos/seed/summit2/600/400",
+            "https://picsum.photos/seed/summit3/600/400"
+        ]
+    },
+    {
+        title: "Collision Conference",
+        date: "June 17-20, 2024",
+        time: "09:00 AM - 04:00 PM",
+        venue: "Tech Hall B",
+        participants: 85,
+        description: "A deep dive into collision technology and future innovations. Hands-on labs available for all participants.",
+        org: "AISERS",
+        img: "https://picsum.photos/seed/collision/600/400",
+        gallery: [
+            "https://picsum.photos/seed/collision/600/400",
+            "https://picsum.photos/seed/collision2/600/400"
+        ]
+    },
+    {
+        title: "Web Summit 2024",
+        date: "Feb. 26-29, 2024",
+        time: "10:00 AM - 03:00 PM",
+        venue: "Computer Lab 3",
+        participants: 45,
+        description: "Explore the latest web frameworks and design trends. Perfect for CS and IT students looking to upgrade their portfolio.",
+        org: "ELITECH",
+        img: "https://picsum.photos/seed/websummit/600/400",
+        gallery: [
+            "https://picsum.photos/seed/websummit/600/400",
+            "https://picsum.photos/seed/websummit2/600/400",
+            "https://picsum.photos/seed/websummit3/600/400"
+        ]
+    },
+    {
+        title: "Tech Expo 2024",
+        date: "Dec. 05-10, 2024",
+        time: "08:00 AM - 05:00 PM",
+        venue: "Open Grounds",
+        participants: 300,
+        description: "Showcasing student inventions and capstone projects. Open to all departments.",
+        org: "AERO-ATSO",
+        img: "https://picsum.photos/seed/techexpo/600/400",
+        gallery: [
+            "https://picsum.photos/seed/techexpo/600/400",
+            "https://picsum.photos/seed/techexpo2/600/400"
+        ]
+    },
+    {
+        title: "Innovation Week",
+        date: "Jan. 15-20, 2025",
+        time: "TBA",
+        venue: "Student Hub",
+        participants: 12,
+        description: "A week-long hackathon and brainstorming session to solve campus problems.",
+        org: "AMTSO",
+        img: "https://picsum.photos/seed/innovation/600/400",
+        gallery: [
+            "https://picsum.photos/seed/innovation/600/400",
+            "https://picsum.photos/seed/innovation2/600/400",
+            "https://picsum.photos/seed/innovation3/600/400"
+        ]
+    }
+];
+
 // --- CORE NAVIGATION LOGIC ---
 function navigate(viewId, element) {
     // Update Active Link
@@ -261,14 +338,6 @@ function switchOrgTab(tabName, btn) {
             </div>
         `;
     } else if (tabName === 'events') {
-        const extendedEvents = [
-            { title: "The Summit 2024", date: "Nov. 11-24, 2024", org: "SSC", img: "https://picsum.photos/seed/summit/600/400" },
-            { title: "Collision Conference", date: "June 17-20, 2024", org: "AISERS", img: "https://picsum.photos/seed/collision/600/400" },
-            { title: "Web Summit 2024", date: "Feb. 26-29, 2024", org: "ELITECH", img: "https://picsum.photos/seed/websummit/600/400" },
-            { title: "Tech Expo 2024", date: "Dec. 05-10, 2024", org: "AERO-ATSO", img: "https://picsum.photos/seed/techexpo/600/400" },
-            { title: "Innovation Week", date: "Jan. 15-20, 2025", org: "AMTSO", img: "https://picsum.photos/seed/innovation/600/400" }
-        ];
-
         // Filter Bar
         const filterBar = document.createElement('div');
         filterBar.className = 'events-filter-bar';
@@ -317,8 +386,14 @@ function switchOrgTab(tabName, btn) {
                     <div class="event-card-footer">
                         <div class="event-stat"><i class="fa-regular fa-heart"></i> 5</div>
                         <div class="event-stat"><i class="fa-regular fa-comment"></i> 5</div>
-                        <div class="event-stat"><i class="fa-solid fa-users"></i> 500</div>
-                        <div class="event-stat"><i class="fa-regular fa-file-lines"></i> 20</div>
+                        <div class="event-actions">
+                            <button class="btn-view-details" onclick="openDetailsModal('${ev.title}')">
+                                Details <i class="fa-solid fa-circle-info"></i>
+                            </button>
+                            <button class="btn-register-card" onclick="openRegistrationModal('${ev.title}')">
+                                Pre-Register <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
                     </div>
                 `;
                 grid.appendChild(card);
@@ -526,3 +601,122 @@ window.addEventListener('DOMContentLoaded', () => {
     renderProfile();
     switchOrgTab('about', document.querySelector('.tab-btn')); // Init tab
 });
+
+// --- MODAL LOGIC ---
+function openRegistrationModal(eventTitle) {
+    const modal = document.getElementById('eventRegistrationModal');
+    const titleEl = document.getElementById('modalEventTitle');
+
+    if (modal && titleEl) {
+        titleEl.innerText = 'Registering for: ' + eventTitle;
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+}
+
+function closeRegistrationModal() {
+    const modal = document.getElementById('eventRegistrationModal');
+    if (modal) {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+    // Optional: Reset form
+    document.getElementById('registrationForm').reset();
+}
+
+function handleRegistrationSubmit(e) {
+    e.preventDefault();
+    // Here you would normally gather data and send to backend
+    alert('Registration Submitted Successfully! (Placeholder)');
+    closeRegistrationModal();
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', (e) => {
+    const modal = document.getElementById('eventRegistrationModal');
+    if (e.target === modal) {
+        closeRegistrationModal();
+    }
+});
+
+// --- EVENT DETAILS MODAL & CAROUSEL LOGIC ---
+
+let currentSlide = 0;
+let currentEventGallery = [];
+
+function openDetailsModal(eventTitle) {
+    // Find event object
+    const eventObj = extendedEvents.find(e => e.title === eventTitle);
+    if (!eventObj) return;
+
+    const modal = document.getElementById('eventDetailsModal');
+
+    // Populate Details
+    document.getElementById('detailsEventTitle').innerText = eventObj.title;
+    document.getElementById('detailsDate').innerText = eventObj.date;
+    document.getElementById('detailsTime').innerText = eventObj.time || "TBA";
+    document.getElementById('detailsVenue').innerText = eventObj.venue || "TBA";
+    document.getElementById('detailsParticipants').innerText = eventObj.participants + " Registered";
+    document.getElementById('detailsDesc').innerText = eventObj.description;
+
+    // Setup Carousel
+    currentEventGallery = eventObj.gallery || [eventObj.img];
+    currentSlide = 0;
+    renderCarousel();
+
+    // Show Modal
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDetailsModal() {
+    const modal = document.getElementById('eventDetailsModal');
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function renderCarousel() {
+    const track = document.getElementById('carouselTrack');
+    const indicators = document.getElementById('carouselIndicators');
+
+    track.innerHTML = '';
+    indicators.innerHTML = '';
+
+    // Create Slides
+    currentEventGallery.forEach((imgSrc, index) => {
+        const slide = document.createElement('div');
+        slide.className = 'carousel-slide';
+        slide.innerHTML = `<img src="${imgSrc}" alt="Gallery Image">`;
+        track.appendChild(slide);
+
+        // Create Indicator Dot
+        const dot = document.createElement('div');
+        dot.className = `indicator ${index === 0 ? 'active' : ''}`;
+        dot.onclick = () => {
+            currentSlide = index;
+            updateCarousel();
+        };
+        indicators.appendChild(dot);
+    });
+
+    updateCarousel();
+}
+
+function updateCarousel() {
+    const track = document.getElementById('carouselTrack');
+    const dots = document.querySelectorAll('.indicator');
+
+    const translateValue = -(currentSlide * 100);
+    track.style.transform = `translateX(${translateValue}%)`;
+
+    dots.forEach((dot, idx) => {
+        if (idx === currentSlide) dot.classList.add('active');
+        else dot.classList.remove('active');
+    });
+}
+
+function moveSlide(direction) {
+    const totalSlides = currentEventGallery.length;
+    currentSlide = (currentSlide + direction + totalSlides) % totalSlides;
+    updateCarousel();
+}

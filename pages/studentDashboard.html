@@ -99,37 +99,7 @@
 
         <!-- DASHBOARD VIEW -->
         <div id="dashboard" class="section-view active">
-            <!-- Stats -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-info">
-                        <h3>4</h3>
-                        <p>Joined Orgs</p>
-                    </div>
-                    <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-info">
-                        <h3>3</h3>
-                        <p>Upcoming Events</p>
-                    </div>
-                    <div class="stat-icon"><i class="fa-regular fa-calendar-check"></i></div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-info">
-                        <h3>12</h3>
-                        <p>Services Availed</p>
-                    </div>
-                    <div class="stat-icon"><i class="fa-solid fa-receipt"></i></div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-info">
-                        <h3>98%</h3>
-                        <p>Attendance</p>
-                    </div>
-                    <div class="stat-icon"><i class="fa-solid fa-chart-pie"></i></div>
-                </div>
-            </div>
+
 
             <div class="content-row">
                 <!-- Recent Announcements -->
@@ -253,6 +223,117 @@
         </div>
 
     </main>
+
+    <!-- EVENT REGISTRATION MODAL -->
+    <div id="eventRegistrationModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Event Registration</h3>
+                <button class="close-modal" onclick="closeRegistrationModal()"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="modalEventTitle" style="margin-bottom: 20px; color: var(--primary); font-weight: 600;"></p>
+                <form id="registrationForm" onsubmit="handleRegistrationSubmit(event)">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" placeholder="e.g. Juan Dela Cruz" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Student ID</label>
+                        <input type="text" placeholder="e.g. 2021-12345" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" placeholder="e.g. juan@student.edu" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Contact Number</label>
+                        <input type="tel" placeholder="e.g. 09123456789" required>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeRegistrationModal()">Cancel</button>
+                        <button type="submit" class="btn-submit">Pre-Register</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- EVENT DETAILS MODAL -->
+    <div id="eventDetailsModal" class="modal-overlay">
+        <div class="modal-content details-modal-content">
+            <div class="modal-header">
+                <h3 id="detailsEventTitle">Event Details</h3>
+                <button class="close-modal" onclick="closeDetailsModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Modern Carousel -->
+                <div class="carousel-container">
+                    <div class="carousel-track" id="carouselTrack">
+                        <!-- Slides injected via JS -->
+                    </div>
+
+                    <!-- Navigation Arrows -->
+                    <button class="carousel-arrow carousel-prev" onclick="moveSlide(-1)">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button class="carousel-arrow carousel-next" onclick="moveSlide(1)">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+
+                    <!-- Indicators -->
+                    <div class="carousel-indicators" id="carouselIndicators">
+                        <!-- Dots injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Info Grid -->
+                <div class="details-info-grid">
+                    <div class="info-item">
+                        <i class="fa-regular fa-calendar info-icon"></i>
+                        <div>
+                            <small>Date</small>
+                            <span id="detailsDate"></span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fa-regular fa-clock info-icon"></i>
+                        <div>
+                            <small>Time</small>
+                            <span id="detailsTime"></span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fa-solid fa-location-dot info-icon"></i>
+                        <div>
+                            <small>Venue</small>
+                            <span id="detailsVenue"></span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fa-solid fa-users info-icon"></i>
+                        <div>
+                            <small>Participants</small>
+                            <span id="detailsParticipants"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="details-description">
+                    <h4>About this Event</h4>
+                    <p id="detailsDesc"></p>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-submit" onclick="closeDetailsModal()">Close Details</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- JAVASCRIPT REFERENCE -->
     <script src="../assets/js/studentDashboard.js"></script>
