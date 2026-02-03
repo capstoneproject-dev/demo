@@ -1515,3 +1515,152 @@ td {
         gap: 5px;
     }
 }
+
+/* --- SERVICE SELECTION MODAL --- */
+.service-select-modal {
+    max-width: 600px;
+    width: 90%;
+}
+
+.header-text-group h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--text);
+}
+
+.header-text-group p {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+
+/* Org Select List Grid */
+.org-select-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+/* Custom Scrollbar for list */
+.org-select-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.org-select-list::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 10px;
+}
+
+/* Org Option Card */
+.org-option-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--panel);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.org-option-card:hover {
+    border-color: var(--primary-2);
+    background-color: var(--panel-2);
+    transform: translateY(-2px);
+}
+
+.section-title {
+    font-size: 1.5rem;
+    color: var(--primary);
+    margin-bottom: 20px;
+    font-weight: 700;
+}
+
+.org-option-card.selected {
+    border-color: var(--primary);
+    background-color: rgba(0, 33, 71, 0.05);
+    box-shadow: 0 0 0 4px rgba(0, 33, 71, 0.1);
+}
+
+.org-option-card.selected .check-icon {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.org-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.org-avatar {
+    width: 40px;
+    height: 40px;
+    background-color: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.org-name-text {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.check-icon {
+    color: var(--primary);
+    font-size: 1.2rem;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* --- TOAST NOTIFICATION --- */
+.toast-notification {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background-color: #10b981;
+    /* Success Green */
+    color: white;
+    padding: 12px 24px;
+    border-radius: 50px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    font-weight: 500;
+    min-width: 300px;
+    justify-content: center;
+}
+
+.toast-notification.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.toast-icon {
+    font-size: 1.2rem;
+}
+
+/* Accessibility Focus Styles */
+.org-option-card:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}

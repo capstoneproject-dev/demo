@@ -221,6 +221,7 @@
             </div>
 
             <!-- CATEGORIZED SERVICES LIST (Previously servicesGrid) -->
+            <h2 class="section-title">Rent an Item</h2>
             <div id="servicesGrid">
                 <!-- Categories will be injected here via JavaScript -->
             </div>
@@ -380,6 +381,40 @@
                     <button type="button" class="btn-submit" onclick="closeDetailsModal()">Close Details</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- SERVICE SELECTION MODAL -->
+    <div id="serviceSelectModal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="modal-content service-select-modal">
+            <div class="modal-header">
+                <div class="header-text-group">
+                    <h3>Select an Organization</h3>
+                    <p id="modalServiceSubtitle">Choose who will provide: ...</p>
+                </div>
+                <button class="close-modal" aria-label="Close modal" onclick="closeServiceModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div id="orgSelectList" class="org-select-list">
+                    <!-- Organization options injected via JS -->
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeServiceModal()">Cancel</button>
+                    <button type="button" class="btn-submit" id="btnContinueService" disabled>Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="toast-notification">
+        <div class="toast-content">
+            <i class="fa-solid fa-circle-check toast-icon"></i>
+            <span id="toastMessage">Action successful</span>
         </div>
     </div>
 

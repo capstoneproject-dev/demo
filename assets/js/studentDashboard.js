@@ -857,6 +857,22 @@ function renderServices(filter = "") {
                         <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
                     </div>
                 `;
+
+                // NEW INTERACTION LOGIC
+                if (service.name !== "Others") {
+                    card.onclick = () => openServiceModal(service.name);
+                    card.style.cursor = "pointer";
+                    card.setAttribute('role', 'button');
+                    card.setAttribute('aria-label', `Select organization for ${service.name}`);
+                    card.setAttribute('tabindex', '0');
+                    card.onkeydown = (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openServiceModal(service.name);
+                        }
+                    };
+                }
+
                 cardGrid.appendChild(card);
             });
 
@@ -973,3 +989,190 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// --- DATA MAPPING (Service -> Organizations) ---
+const serviceOrgMapping = {
+    "Shoe Rag": ["AISERS"],
+    "Calculator": ["AISERS"],
+    "Business Calculator": ["AISERS"],
+    "Scientific Calculator": ["SSC", "AERO-ATSO"],
+    "Arnis Equipment": ["AISERS"],
+    "Printing": ["SSC", "CYC", "AMTSO", "AET"],
+    "Crimping Tools": ["ELITECH"],
+    "Mini Fan": ["ELITECH"],
+    "Tester": ["ELITECH"],
+    "Rulers": ["AMTSO"],
+    "T-Square": ["AMTSO", "AERO-ATSO"],
+    "Triangle Ruler": ["AMTSO"],
+    "Protractor": ["AMTSO"],
+    "1x1 Photo Processing": ["SSC"],
+    "Locker Rental": ["SSC"],
+    "Others": ["Various"]
+};
+
+// --- GLOBAL STATE ---
+let currentSelectedService = null;
+let currentSelectedOrg = null;
+
+// --- MODAL FUNCTIONS ---
+
+function openServiceModal(serviceName) {
+    const modal = document.getElementById('serviceSelectModal');
+    const listContainer = document.getElementById('orgSelectList');
+    const subtitle = document.getElementById('modalServiceSubtitle');
+    const continueBtn = document.getElementById('btnContinueService');
+
+    // 1. Set State
+    currentSelectedService = serviceName;
+    currentSelectedOrg = null;
+    continueBtn.disabled = true;
+
+    // 2. Set Content
+    subtitle.textContent = `Choose who will provide: ${serviceName}`;
+    listContainer.innerHTML = ''; // Clear previous
+
+    // 3. Get Orgs for this service
+    const orgs = serviceOrgMapping[serviceName] || [];
+
+    if (orgs.length === 0) {
+        listContainer.innerHTML = `<div style="text-align:center; color:var(--muted); padding:20px;">No organizations found for this service.</div>`;
+    } else {
+        orgs.forEach((orgName, index) => {
+            // Create Option Card
+            const card = document.createElement('div');
+            card.className = 'org-option-card';
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
+            card.onclick = () => selectOrgOption(orgName, card);
+            card.onkeydown = (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectOrgOption(orgName, card);
+                }
+            };
+
+            // Initials for avatar
+            const initials = orgName.substring(0, 2).toUpperCase();
+
+            card.innerHTML = `
+                <div class="org-info">
+                    <div class="org-avatar">${initials}</div>
+                    <div class="org-name-text">${orgName}</div>
+                </div>
+                <i class="fa-solid fa-circle-check check-icon"></i>
+            `;
+            listContainer.appendChild(card);
+
+            // Auto-select if only one option exists
+            if (orgs.length === 1) {
+                selectOrgOption(orgName, card);
+            }
+        });
+    }
+
+    // 4. Show Modal & Accessibility
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    trapFocus(modal);
+}
+
+function closeServiceModal() {
+    const modal = document.getElementById('serviceSelectModal');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+
+    // Clean up state
+    currentSelectedService = null;
+    currentSelectedOrg = null;
+}
+
+function selectOrgOption(orgName, cardElement) {
+    currentSelectedOrg = orgName;
+
+    // Visual Update: Remove 'selected' from all, add to clicked
+    const allCards = document.querySelectorAll('.org-option-card');
+    allCards.forEach(c => c.classList.remove('selected'));
+
+    cardElement.classList.add('selected');
+
+    // Enable Continue Button
+    const continueBtn = document.getElementById('btnContinueService');
+    continueBtn.disabled = false;
+}
+
+function handleServiceContinue() {
+    if (!currentSelectedService || !currentSelectedOrg) return;
+
+    // 1. Store Data (Frontend Only)
+    console.log(`Service: ${currentSelectedService}, Org: ${currentSelectedOrg}`);
+
+    // 2. Show Success Toast
+    showToast(`Selected ${currentSelectedOrg} for ${currentSelectedService}`);
+
+    // 3. Close Modal
+    closeServiceModal();
+}
+
+function showToast(message) {
+    const toast = document.getElementById('toast');
+    const msgSpan = document.getElementById('toastMessage');
+
+    msgSpan.textContent = message;
+    toast.classList.add('show');
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// --- ACCESSIBILITY: FOCUS TRAP ---
+function trapFocus(element) {
+    const focusableEls = element.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const firstFocusableEl = focusableEls[0];
+    const lastFocusableEl = focusableEls[focusableEls.length - 1];
+
+    element.addEventListener('keydown', function (e) {
+        const isTabPressed = e.key === 'Tab' || e.keyCode === 9;
+
+        if (!isTabPressed) return;
+
+        if (e.shiftKey) { // Shift + Tab
+            if (document.activeElement === firstFocusableEl) {
+                lastFocusableEl.focus();
+                e.preventDefault();
+            }
+        } else { // Tab
+            if (document.activeElement === lastFocusableEl) {
+                firstFocusableEl.focus();
+                e.preventDefault();
+            }
+        }
+    });
+
+    // Set initial focus
+    if (firstFocusableEl) firstFocusableEl.focus();
+}
+
+// --- EVENT LISTENERS FOR MODAL ---
+
+// 1. Click outside to close
+document.getElementById('serviceSelectModal').addEventListener('click', function (e) {
+    if (e.target === this) {
+        closeServiceModal();
+    }
+});
+
+// 2. ESC key to close
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('serviceSelectModal');
+        if (modal.classList.contains('open')) {
+            closeServiceModal();
+        }
+    }
+});
+
+// 3. Continue Button Click
+document.getElementById('btnContinueService').addEventListener('click', handleServiceContinue);
