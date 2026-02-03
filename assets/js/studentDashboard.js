@@ -1010,35 +1010,59 @@ const serviceOrgMapping = {
     "Others": ["Various"]
 };
 
+// --- CONFIGURATION CONSTANTS ---
+const OPERATING_HOURS = {
+    OPEN: 7 * 60,  // 7:00 AM in minutes
+    CLOSE: 16 * 60, // 4:00 PM in minutes
+    OPEN_STR: "07:00 AM",
+    CLOSE_STR: "04:00 PM"
+};
+const MAX_ADVANCE_DAYS = 1;  // 1 day ahead only
+const RATE_PER_HOUR = 10.00;  // ₱10 per hour
+const RATE_PER_HALF_HOUR = 5.00;  // ₱5 per 30 minutes
+
 // --- GLOBAL STATE ---
 let currentSelectedService = null;
 let currentSelectedOrg = null;
+let rentalData = {
+    date: "",
+    startTime: "",
+    duration: "",
+    endTime: "",
+    hours: 0,
+    amount: 0
+};
 
 // --- MODAL FUNCTIONS ---
 
-function openServiceModal(serviceName) {
-    const modal = document.getElementById('serviceSelectModal');
-    const listContainer = document.getElementById('orgSelectList');
-    const subtitle = document.getElementById('modalServiceSubtitle');
-    const continueBtn = document.getElementById('btnContinueService');
+// --- MODAL NAVIGATION (STEP 1 <-> STEP 2) ---
 
-    // 1. Set State
+function openServiceModal(serviceName) {
+    // Reset State
+    resetModalState();
+
+    const modal = document.getElementById('serviceSelectModal');
+    const titleEl = document.getElementById('modalTitle');
+    const subtitleEl = document.getElementById('modalSubtitle');
+    const listContainer = document.getElementById('orgSelectList');
+    const continueBtn = document.getElementById('btnStep1Continue');
+
+    // Set State
     currentSelectedService = serviceName;
     currentSelectedOrg = null;
     continueBtn.disabled = true;
 
-    // 2. Set Content
-    subtitle.textContent = `Choose who will provide: ${serviceName}`;
-    listContainer.innerHTML = ''; // Clear previous
+    // Set Content
+    titleEl.innerText = "Select an Organization";
+    subtitleEl.innerText = `Choose who will provide: ${serviceName}`;
+    listContainer.innerHTML = '';
 
-    // 3. Get Orgs for this service
+    // Populate Orgs (Existing Logic)
     const orgs = serviceOrgMapping[serviceName] || [];
-
     if (orgs.length === 0) {
         listContainer.innerHTML = `<div style="text-align:center; color:var(--muted); padding:20px;">No organizations found for this service.</div>`;
     } else {
         orgs.forEach((orgName, index) => {
-            // Create Option Card
             const card = document.createElement('div');
             card.className = 'org-option-card';
             card.setAttribute('role', 'button');
@@ -1050,10 +1074,7 @@ function openServiceModal(serviceName) {
                     selectOrgOption(orgName, card);
                 }
             };
-
-            // Initials for avatar
             const initials = orgName.substring(0, 2).toUpperCase();
-
             card.innerHTML = `
                 <div class="org-info">
                     <div class="org-avatar">${initials}</div>
@@ -1063,14 +1084,12 @@ function openServiceModal(serviceName) {
             `;
             listContainer.appendChild(card);
 
-            // Auto-select if only one option exists
-            if (orgs.length === 1) {
-                selectOrgOption(orgName, card);
-            }
+            if (orgs.length === 1) selectOrgOption(orgName, card);
         });
     }
 
-    // 4. Show Modal & Accessibility
+    // Show Modal (Step 1)
+    showStep1();
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
@@ -1082,36 +1101,213 @@ function closeServiceModal() {
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
-
-    // Clean up state
-    currentSelectedService = null;
-    currentSelectedOrg = null;
+    resetModalState();
 }
 
 function selectOrgOption(orgName, cardElement) {
     currentSelectedOrg = orgName;
-
-    // Visual Update: Remove 'selected' from all, add to clicked
     const allCards = document.querySelectorAll('.org-option-card');
     allCards.forEach(c => c.classList.remove('selected'));
-
     cardElement.classList.add('selected');
-
-    // Enable Continue Button
-    const continueBtn = document.getElementById('btnContinueService');
-    continueBtn.disabled = false;
+    document.getElementById('btnStep1Continue').disabled = false;
 }
 
 function handleServiceContinue() {
     if (!currentSelectedService || !currentSelectedOrg) return;
+    // Transition to Step 2
+    showStep2();
+}
 
-    // 1. Store Data (Frontend Only)
-    console.log(`Service: ${currentSelectedService}, Org: ${currentSelectedOrg}`);
+function handleBackToStep1() {
+    // Return to Step 1
+    showStep1();
+}
 
-    // 2. Show Success Toast
-    showToast(`Selected ${currentSelectedOrg} for ${currentSelectedService}`);
+function resetModalState() {
+    currentSelectedService = null;
+    currentSelectedOrg = null;
+    rentalData = { date: "", startTime: "", duration: "", endTime: "", hours: 0, amount: 0 };
 
-    // 3. Close Modal
+    // Reset Inputs
+    document.getElementById('rentalDate').value = "";
+    document.getElementById('startTime').value = "";
+    document.getElementById('duration').value = "";
+
+    // Reset Displays
+    document.getElementById('endTimeDisplay').innerText = "--:-- --";
+    document.getElementById('totalAmountDisplay').innerText = "₱0.00";
+    document.getElementById('rentalErrorMessage').innerText = "";
+    document.getElementById('rentalErrorMessage').classList.remove('visible');
+
+    // Reset Buttons
+    document.getElementById('btnStep1Continue').disabled = true;
+    document.getElementById('btnStep2Confirm').disabled = true;
+
+    // Clear Org Selection visual
+    document.querySelectorAll('.org-option-card').forEach(c => c.classList.remove('selected'));
+}
+
+// --- VIEW CONTROLLERS ---
+
+function showStep1() {
+    document.getElementById('step1-org-selection').style.display = 'block';
+    document.getElementById('step2-rental-details').style.display = 'none';
+
+    document.getElementById('modalTitle').innerText = "Select an Organization";
+    document.getElementById('modalSubtitle').innerText = `Choose who will provide: ${currentSelectedService || '...'}`;
+
+    // Toggle Footer Buttons
+    document.getElementById('btnStep1Cancel').style.display = 'inline-block';
+    document.getElementById('btnStep1Continue').style.display = 'inline-block';
+    document.getElementById('btnStep2Back').style.display = 'none';
+    document.getElementById('btnStep2Confirm').style.display = 'none';
+}
+
+function showStep2() {
+    document.getElementById('step1-org-selection').style.display = 'none';
+    document.getElementById('step2-rental-details').style.display = 'block';
+
+    document.getElementById('modalTitle').innerText = "Rental Details";
+    document.getElementById('modalSubtitle').innerText = `Provider: ${currentSelectedOrg}`;
+
+    // Toggle Footer Buttons
+    document.getElementById('btnStep1Cancel').style.display = 'none';
+    document.getElementById('btnStep1Continue').style.display = 'none';
+    document.getElementById('btnStep2Back').style.display = 'inline-block';
+    document.getElementById('btnStep2Confirm').style.display = 'inline-block';
+
+    // Set Date Input Constraints (Min = Today, Max = Today + 1 day)
+    const dateInput = document.getElementById('rentalDate');
+    const today = new Date();
+    const maxDate = new Date();
+    maxDate.setDate(today.getDate() + MAX_ADVANCE_DAYS);
+
+    dateInput.min = today.toISOString().split('T')[0];
+    dateInput.max = maxDate.toISOString().split('T')[0];
+
+    // Trigger initial calculation
+    calculateRental();
+}
+
+// --- RENTAL LOGIC & VALIDATION ---
+
+// Helper: Convert "HH:mm" to minutes from midnight
+function timeToMinutes(timeStr) {
+    if (!timeStr) return null;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return (hours * 60) + minutes;
+}
+
+// Helper: Convert minutes from midnight to "HH:mm AM/PM"
+function minutesToTime(totalMinutes) {
+    let hours = Math.floor(totalMinutes / 60);
+    let minutes = totalMinutes % 60;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${minutes} ${ampm}`;
+}
+
+function calculateRental() {
+    const dateInput = document.getElementById('rentalDate');
+    const startInput = document.getElementById('startTime');
+    const durationInput = document.getElementById('duration');
+    const endDisplay = document.getElementById('endTimeDisplay');
+    const priceDisplay = document.getElementById('totalAmountDisplay');
+    const errorMsg = document.getElementById('rentalErrorMessage');
+    const confirmBtn = document.getElementById('btnStep2Confirm');
+
+    // Clear previous errors
+    errorMsg.innerText = "";
+    errorMsg.classList.remove('visible');
+    startInput.classList.remove('input-error');
+    durationInput.classList.remove('input-error');
+
+    const dateVal = dateInput.value;
+    const startVal = startInput.value;
+    const durationVal = parseFloat(durationInput.value);
+
+    // 1. Base Validation (Presence)
+    if (!dateVal || !startVal || !durationVal) {
+        endDisplay.innerText = "--:-- --";
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    const startMinutes = timeToMinutes(startVal);
+    const durationMinutes = durationVal * 60;
+    const endMinutes = startMinutes + durationMinutes;
+    const totalHours = durationVal;
+
+    // 2. Date Validation (Max 1 day ahead)
+    const selectedDate = new Date(dateVal);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date();
+    maxDate.setDate(today.getDate() + MAX_ADVANCE_DAYS);
+
+    if (selectedDate < today || selectedDate > maxDate) {
+        showError("Date must be today or tomorrow only.");
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    // 3. Operating Hours Validation (7:00 AM - 4:00 PM)
+    if (startMinutes < OPERATING_HOURS.OPEN) {
+        showError(`Reservations start at ${OPERATING_HOURS.OPEN_STR}.`);
+        startInput.classList.add('input-error');
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    if (endMinutes > OPERATING_HOURS.CLOSE) {
+        showError(`End time exceeds ${OPERATING_HOURS.CLOSE_STR}. Please shorten duration.`);
+        startInput.classList.add('input-error');
+        durationInput.classList.add('input-error');
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    // 4. Calculate Price (₱10 per hour + ₱5 per 30 minutes)
+    const wholeHours = Math.floor(totalHours);
+    const halfHours = (totalHours - wholeHours) > 0 ? 1 : 0;
+    const calculatedAmount = (wholeHours * RATE_PER_HOUR) + (halfHours * RATE_PER_HALF_HOUR);
+
+    // 5. Valid State: Update UI
+    rentalData.date = dateVal;
+    rentalData.startTime = startVal;
+    rentalData.hours = totalHours;
+    rentalData.endTime = minutesToTime(endMinutes);
+    rentalData.amount = calculatedAmount;
+
+    // Update Displays
+    endDisplay.innerText = rentalData.endTime;
+    priceDisplay.innerText = `₱${rentalData.amount.toFixed(2)}`;
+
+    // Enable Confirm
+    confirmBtn.disabled = false;
+}
+
+function showError(message) {
+    const errorMsg = document.getElementById('rentalErrorMessage');
+    errorMsg.innerText = message;
+    errorMsg.classList.add('visible');
+
+    // Reset calculated displays on error
+    document.getElementById('endTimeDisplay').innerText = "--:-- --";
+    document.getElementById('totalAmountDisplay').innerText = "₱0.00";
+}
+
+function confirmRental() {
+    // Final Data Model check
+    console.log("FINAL RENTAL DATA:", {
+        service: currentSelectedService,
+        organization: currentSelectedOrg,
+        ...rentalData
+    });
+
+    showToast(`Rental Confirmed: ${currentSelectedOrg} - ${rentalData.date} @ ${rentalData.startTime}`);
     closeServiceModal();
 }
 
@@ -1174,5 +1370,24 @@ document.addEventListener('keydown', function (e) {
     }
 });
 
-// 3. Continue Button Click
-document.getElementById('btnContinueService').addEventListener('click', handleServiceContinue);
+// 3. Step 1 Continue Button Click
+document.getElementById('btnStep1Continue').addEventListener('click', handleServiceContinue);
+
+// 4. Step 2 Rental Form Input Listeners
+document.addEventListener('DOMContentLoaded', () => {
+    const inputs = ['rentalDate', 'startTime', 'duration'];
+
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', calculateRental);
+            el.addEventListener('change', calculateRental); // For date pickers/time pickers
+        }
+    });
+
+    // 5. Confirm Button Logic
+    const confirmBtn = document.getElementById('btnStep2Confirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', confirmRental);
+    }
+});

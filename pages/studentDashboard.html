@@ -389,8 +389,8 @@
         <div class="modal-content service-select-modal">
             <div class="modal-header">
                 <div class="header-text-group">
-                    <h3>Select an Organization</h3>
-                    <p id="modalServiceSubtitle">Choose who will provide: ...</p>
+                    <h3 id="modalTitle">Select an Organization</h3>
+                    <p id="modalSubtitle">Choose who will provide: ...</p>
                 </div>
                 <button class="close-modal" aria-label="Close modal" onclick="closeServiceModal()">
                     <i class="fa-solid fa-xmark"></i>
@@ -398,13 +398,61 @@
             </div>
 
             <div class="modal-body">
-                <div id="orgSelectList" class="org-select-list">
-                    <!-- Organization options injected via JS -->
+
+                <!-- STEP 1: ORG SELECTION -->
+                <div id="step1-org-selection">
+                    <div id="orgSelectList" class="org-select-list">
+                        <!-- Organization options injected via JS -->
+                    </div>
+                </div>
+
+                <!-- STEP 2: RENTAL DETAILS -->
+                <div id="step2-rental-details" style="display: none;">
+
+                    <div class="form-group">
+                        <label for="rentalDate">Date of Rental</label>
+                        <input type="date" id="rentalDate">
+                        <small style="color: var(--muted); font-size: 0.75rem;">Today or tomorrow only</small>
+                    </div>
+
+                    <div class="time-inputs-row">
+                        <div class="form-group">
+                            <label for="startTime">Start Time</label>
+                            <input type="time" id="startTime" step="1800">
+                        </div>
+                        <div class="form-group">
+                            <label for="duration">Duration (Hours)</label>
+                            <input type="number" id="duration" step="0.5" min="0.5" placeholder="e.g. 1.5">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>End Time</label>
+                        <div class="read-only-field">
+                            <span id="endTimeDisplay">--:-- --</span>
+                            <i class="fa-solid fa-lock lock-icon"></i>
+                        </div>
+                    </div>
+
+                    <!-- Validation Error Message -->
+                    <div id="rentalErrorMessage" class="error-message"></div>
+
+                    <!-- Price Display -->
+                    <div class="price-summary">
+                        Total Amount: <span id="totalAmountDisplay">₱0.00</span>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="btn-cancel" onclick="closeServiceModal()">Cancel</button>
-                    <button type="button" class="btn-submit" id="btnContinueService" disabled>Continue</button>
+                    <!-- Buttons will be swapped dynamically by JS -->
+                    <button type="button" class="btn-cancel" id="btnStep1Cancel"
+                        onclick="closeServiceModal()">Cancel</button>
+                    <button type="button" class="btn-cancel" id="btnStep2Back" style="display: none;"
+                        onclick="handleBackToStep1()">Back</button>
+                    <button type="button" class="btn-submit" id="btnStep1Continue" disabled>Continue</button>
+                    <button type="button" class="btn-submit" id="btnStep2Confirm" style="display: none;"
+                        disabled>Confirm
+                        Rental</button>
                 </div>
             </div>
         </div>
