@@ -769,3 +769,207 @@ function moveSlide(direction) {
     currentSlide = (currentSlide + direction + totalSlides) % totalSlides;
     updateCarousel();
 }
+
+// --- DATA CATEGORIES CONFIGURATION ---
+const serviceCategories = {
+    academic: {
+        title: "Academic & Study Tools",
+        icon: "fa-calculator",
+        items: ["Calculator", "Business Calculator", "Scientific Calculator", "Rulers", "T-Square", "Triangle Ruler", "Protractor"]
+    },
+    laboratory: {
+        title: "Laboratory",
+        icon: "fa-flask",
+        items: ["Shoe Rag", "Crimping Tools", "Tester"]
+    },
+    equipment: {
+        title: "Equipment & Utilities",
+        icon: "fa-toolbox",
+        items: ["Arnis Equipment", "Mini Fan", "Locker Rental"]
+    },
+    others: {
+        title: "Others",
+        icon: "fa-layer-group",
+        items: ["Others"]
+    }
+};
+
+// --- RENDER SERVICES (UPDATED) ---
+function renderServices(filter = "") {
+    const grid = document.getElementById('servicesGrid');
+    const hero = document.getElementById('printingHero');
+    const filterLower = filter.toLowerCase();
+
+    // 1. Handle Printing Hero Visibility
+    // Show hero if filter is empty, or if it matches "printing" or "photo" (since 1x1 is listed there)
+    const printingKeywords = ["printing", "photo", "1x1"];
+    const showHero = filterLower === "" || printingKeywords.some(keyword => filterLower.includes(keyword));
+
+    if (showHero) {
+        hero.style.display = "block";
+    } else {
+        hero.style.display = "none";
+    }
+
+    // 2. Render Categorized Services
+    grid.innerHTML = ""; // Clear current content
+
+    let hasResults = false;
+
+    // Iterate through defined categories
+    for (const [key, category] of Object.entries(serviceCategories)) {
+        // Find matching services in servicesData for this category
+        const matchingServices = servicesData.filter(service =>
+            category.items.includes(service.name) &&
+            (service.name.toLowerCase().includes(filterLower) || service.org.toLowerCase().includes(filterLower))
+        );
+
+        // If we have matches, render the section
+        if (matchingServices.length > 0) {
+            hasResults = true;
+
+            // Create Section Container
+            const section = document.createElement('div');
+            section.className = 'category-section';
+
+            // Create Header
+            const header = document.createElement('div');
+            header.className = 'category-header';
+            header.innerHTML = `
+                <div class="category-icon"><i class="fa-solid ${category.icon}"></i></div>
+                <div class="category-title">${category.title}</div>
+            `;
+            section.appendChild(header);
+
+            // Create Grid for Cards
+            const cardGrid = document.createElement('div');
+            cardGrid.className = 'category-grid';
+
+            matchingServices.forEach(service => {
+                const card = document.createElement('div');
+                card.className = 'service-card'; // Use existing card class
+                card.innerHTML = `
+                    <div class="service-icon">
+                        <i class="fa-solid ${service.icon}"></i>
+                    </div>
+                    <div>
+                        <div class="service-name">${service.name}</div>
+                        <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
+                    </div>
+                `;
+                cardGrid.appendChild(card);
+            });
+
+            section.appendChild(cardGrid);
+            grid.appendChild(section);
+        }
+    }
+
+    // Optional: Show "No results" if everything is empty (and hero is hidden)
+    if (!hasResults && !showHero) {
+        grid.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 40px;">No services found matching "${filter}".</div>`;
+    }
+}
+
+// --- FILTER SERVICES ---
+function filterServices() {
+    const searchInput = document.getElementById('serviceSearch');
+    const query = searchInput.value;
+    renderServices(query);
+}
+
+// --- UPLOAD ZONE LOGIC ---
+document.addEventListener('DOMContentLoaded', () => {
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+    const uploadContent = uploadZone?.querySelector('.upload-content');
+    const fileSelectedState = document.getElementById('fileSelectedState');
+    const filenameText = document.getElementById('filenameText');
+    const btnUploadSubmit = document.getElementById('btnUploadSubmit');
+
+    if (!uploadZone) return;
+
+    // Click to browse
+    uploadZone.addEventListener('click', (e) => {
+        // Prevent triggering click if user clicked the submit button
+        if (e.target !== btnUploadSubmit) {
+            fileInput.click();
+        }
+    });
+
+    // Drag & Drop Events
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, () => uploadZone.classList.add('drag-over'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, () => uploadZone.classList.remove('drag-over'), false);
+    });
+
+    // Handle Drop
+    uploadZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    }
+
+    // Handle Input Change
+    fileInput.addEventListener('change', function () {
+        handleFiles(this.files);
+    });
+
+    function handleFiles(files) {
+        if (files.length > 0) {
+            const file = files[0];
+
+            // Validate format
+            const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/jpg'];
+            // Simple extension check as backup
+            const validExtensions = ['pdf', 'docx', 'png', 'jpg', 'jpeg'];
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+
+            if (validTypes.includes(file.type) || validExtensions.includes(fileExtension)) {
+                showFileSelected(file);
+            } else {
+                alert('Invalid file format. Please upload PDF, DOCX, PNG, or JPG.');
+                resetUploadUI();
+            }
+        }
+    }
+
+    function showFileSelected(file) {
+        uploadContent.style.display = 'none';
+        fileSelectedState.style.display = 'flex';
+        filenameText.textContent = file.name;
+        btnUploadSubmit.disabled = false;
+    }
+
+    function resetUploadUI() {
+        uploadContent.style.display = 'block';
+        fileSelectedState.style.display = 'none';
+        fileInput.value = ''; // Reset input
+        btnUploadSubmit.disabled = true;
+    }
+
+    // Handle Submit (Mock)
+    btnUploadSubmit.addEventListener('click', (e) => {
+        e.stopPropagation(); // Stop bubbling to uploadZone click
+        const file = fileInput.files[0];
+        if (file) {
+            alert(`Uploading "${file.name}" to print queue... (Demo)`);
+            // Optional: Reset after success
+            setTimeout(resetUploadUI, 1000);
+        }
+    });
+});

@@ -473,6 +473,273 @@ header {
     background-color: var(--muted);
 }
 
+/* --- PRINTING HERO SECTION --- */
+.printing-hero {
+    background-color: var(--panel-2);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    margin-bottom: 40px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.hero-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 40px;
+}
+
+/* Left Side */
+.hero-info {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+}
+
+.hero-icon-wrapper {
+    width: 64px;
+    height: 64px;
+    background-color: var(--primary);
+    color: white;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    flex-shrink: 0;
+}
+
+.hero-text h2 {
+    font-size: 1.75rem;
+    color: var(--text);
+    margin-bottom: 10px;
+}
+
+.hero-text p {
+    color: var(--muted);
+    font-size: 1rem;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.supported-services-list {
+    list-style: none;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.supported-services-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.supported-services-list li i {
+    color: var(--primary);
+}
+
+/* Right Side - Upload UI */
+.hero-upload {
+    flex: 1;
+    max-width: 450px;
+}
+
+.upload-zone {
+    background-color: var(--panel);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-md);
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-zone:hover {
+    border-color: var(--primary);
+    background-color: rgba(0, 33, 71, 0.02);
+}
+
+.upload-zone.drag-over {
+    border-color: var(--primary);
+    background-color: rgba(0, 33, 71, 0.05);
+    transform: scale(1.01);
+}
+
+.upload-icon {
+    font-size: 2.5rem;
+    color: var(--muted);
+    margin-bottom: 15px;
+}
+
+.upload-main-text {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 1.1rem;
+    margin-bottom: 5px;
+}
+
+.upload-sub-text {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+}
+
+.browse-link {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.upload-formats {
+    font-size: 0.8rem;
+    color: var(--muted);
+    background: var(--bg);
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+}
+
+/* File Selected State */
+.file-selected-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    gap: 15px;
+}
+
+.selected-file-icon {
+    width: 60px;
+    height: 60px;
+    background-color: var(--panel-2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: var(--primary);
+}
+
+.filename-text {
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
+.file-size-text {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: 0;
+}
+
+.btn-upload-submit {
+    margin-top: 10px;
+    padding: 10px 24px;
+    border-radius: var(--radius-md);
+    border: none;
+    background-color: var(--primary);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 33, 71, 0.2);
+    transition: transform 0.2s, background 0.2s;
+}
+
+.btn-upload-submit:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background-color: var(--primary-2);
+}
+
+.btn-upload-submit:disabled {
+    background-color: var(--muted);
+    cursor: not-allowed;
+    opacity: 0.5;
+    box-shadow: none;
+}
+
+/* --- CATEGORIES GRID --- */
+#servicesGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+}
+
+.category-section {
+    animation: fadeIn 0.4s ease;
+}
+
+.category-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+}
+
+.category-icon {
+    width: 36px;
+    height: 36px;
+    background-color: var(--panel-2);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 1.1rem;
+}
+
+.category-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+/* --- RESPONSIVE ADJUSTMENTS FOR HERO --- */
+@media (max-width: 900px) {
+    .hero-content {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+
+    .hero-info {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .supported-services-list {
+        justify-content: center;
+    }
+
+    .hero-upload {
+        max-width: 100%;
+    }
+}
+
 /* --- ORGANIZATION CARD STYLES (MOVIE UI) --- */
 
 /* Grid Layout */

@@ -173,8 +173,56 @@
                     placeholder="Search for a service (e.g., Printing, Calculator, Locker)..."
                     onkeyup="filterServices()">
             </div>
-            <div class="services-grid" id="servicesGrid">
-                <!-- Populated by JS -->
+
+            <!-- PRINTING HERO SECTION -->
+            <div class="printing-hero" id="printingHero">
+                <div class="hero-content">
+                    <!-- Left Side: Info -->
+                    <div class="hero-info">
+                        <div class="hero-icon-wrapper">
+                            <i class="fa-solid fa-print"></i>
+                        </div>
+                        <div class="hero-text">
+                            <h2>Printing Services</h2>
+                            <p>Upload your documents and get them printed quickly on campus.</p>
+                            <ul class="supported-services-list">
+                                <li><i class="fa-solid fa-circle-check"></i> Document Printing</li>
+                                <li><i class="fa-solid fa-circle-check"></i> 1×1 Photo Processing</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Right Side: Upload UI -->
+                    <div class="hero-upload">
+                        <div class="upload-zone" id="uploadZone">
+                            <input type="file" id="fileInput" hidden accept=".pdf,.docx,.png,.jpg,.jpeg">
+                            <div class="upload-content">
+                                <div class="upload-icon">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                                </div>
+                                <p class="upload-main-text">Drag & drop files here</p>
+                                <p class="upload-sub-text">or <span class="browse-link">browse files</span></p>
+                                <p class="upload-formats">Supported: PDF, DOCX, PNG, JPG</p>
+                            </div>
+                            <!-- Success / File Selected State -->
+                            <div class="file-selected-state" id="fileSelectedState" style="display: none;">
+                                <div class="selected-file-icon">
+                                    <i class="fa-solid fa-file-lines"></i>
+                                </div>
+                                <div class="selected-file-info">
+                                    <p class="filename-text" id="filenameText">document.pdf</p>
+                                    <p class="file-size-text">Ready to print</p>
+                                </div>
+                                <button class="btn-upload-submit" id="btnUploadSubmit" disabled>Upload to Print</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATEGORIZED SERVICES LIST (Previously servicesGrid) -->
+            <div id="servicesGrid">
+                <!-- Categories will be injected here via JavaScript -->
             </div>
         </div>
 
