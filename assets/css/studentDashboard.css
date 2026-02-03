@@ -955,6 +955,18 @@ td {
     transform: translateY(-2px);
 }
 
+/* Registered State */
+.btn-register-card.registered {
+    background: #10b981;
+    border: none;
+    cursor: not-allowed;
+}
+
+.btn-register-card.registered:hover {
+    background: #059669;
+    transform: none;
+}
+
 
 .filter-input-group {
     position: relative;

@@ -370,6 +370,7 @@ function switchOrgTab(tabName, btn) {
                 return;
             }
             filteredEvents.forEach(ev => {
+                const isRegistered = isEventRegistered(ev.title);
                 const card = document.createElement('div');
                 card.className = 'event-card-ref';
                 card.innerHTML = `
@@ -390,8 +391,10 @@ function switchOrgTab(tabName, btn) {
                             <button class="btn-view-details" onclick="openDetailsModal('${ev.title}')">
                                 Details <i class="fa-solid fa-circle-info"></i>
                             </button>
-                            <button class="btn-register-card" onclick="openRegistrationModal('${ev.title}')">
-                                Pre-Register <i class="fa-solid fa-arrow-right"></i>
+                            <button class="btn-register-card ${isRegistered ? 'registered' : ''}" 
+                                    onclick="openRegistrationModal('${ev.title}')" 
+                                    ${isRegistered ? 'disabled style="cursor: not-allowed;"' : ''}>
+                                ${isRegistered ? 'Registered <i class="fa-solid fa-check"></i>' : 'Pre-Register <i class="fa-solid fa-arrow-right"></i>'}
                             </button>
                         </div>
                     </div>
@@ -603,12 +606,33 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- MODAL LOGIC ---
+
+// Track registered events in localStorage
+function getRegisteredEvents() {
+    const registered = localStorage.getItem('registeredEvents');
+    return registered ? JSON.parse(registered) : [];
+}
+
+function addRegisteredEvent(eventTitle) {
+    const registered = getRegisteredEvents();
+    if (!registered.includes(eventTitle)) {
+        registered.push(eventTitle);
+        localStorage.setItem('registeredEvents', JSON.stringify(registered));
+    }
+}
+
+function isEventRegistered(eventTitle) {
+    return getRegisteredEvents().includes(eventTitle);
+}
+
 function openRegistrationModal(eventTitle) {
     const modal = document.getElementById('eventRegistrationModal');
     const titleEl = document.getElementById('modalEventTitle');
 
     if (modal && titleEl) {
         titleEl.innerText = 'Registering for: ' + eventTitle;
+        // Store the event title in modal for later use
+        modal.setAttribute('data-event-title', eventTitle);
         modal.classList.add('open');
         document.body.style.overflow = 'hidden'; // Prevent background scrolling
     }
@@ -626,9 +650,34 @@ function closeRegistrationModal() {
 
 function handleRegistrationSubmit(e) {
     e.preventDefault();
+
+    // Get the event title from the modal
+    const modal = document.getElementById('eventRegistrationModal');
+    const eventTitle = modal.getAttribute('data-event-title');
+
     // Here you would normally gather data and send to backend
-    alert('Registration Submitted Successfully! (Placeholder)');
+    // For now, we'll just mark it as registered
+    addRegisteredEvent(eventTitle);
+
+    alert('Registration Submitted Successfully!');
     closeRegistrationModal();
+
+    // Update the button for this event
+    updateEventButton(eventTitle);
+}
+
+function updateEventButton(eventTitle) {
+    // Find all buttons with this event title and update them
+    const buttons = document.querySelectorAll('.btn-register-card');
+    buttons.forEach(btn => {
+        const btnEventTitle = btn.getAttribute('onclick').match(/openRegistrationModal\('(.+?)'\)/)?.[1];
+        if (btnEventTitle === eventTitle) {
+            btn.classList.add('registered');
+            btn.innerHTML = 'Registered <i class="fa-solid fa-check"></i>';
+            btn.disabled = true;
+            btn.style.cursor = 'not-allowed';
+        }
+    });
 }
 
 // Close modal when clicking outside
