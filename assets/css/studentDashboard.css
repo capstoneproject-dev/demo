@@ -313,48 +313,6 @@ header {
     }
 }
 
-/* Dashboard Stats Grid */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 24px;
-    margin-bottom: 30px;
-}
-
-.stat-card {
-    background: var(--panel);
-    padding: 24px;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.stat-info h3 {
-    font-size: 2rem;
-    color: var(--primary);
-    margin-bottom: 4px;
-}
-
-.stat-info p {
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-
-.stat-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: var(--radius-md);
-    background-color: var(--panel-2);
-    color: var(--primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-}
-
 /* Content Rows */
 .content-row {
     display: grid;
@@ -577,24 +535,6 @@ header {
     line-height: 1.2;
 }
 
-/* Category Badge (Top Left) */
-.org-badge-overlay {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    background: var(--accent);
-    color: var(--primary);
-    /* Navy text on Gold */
-    padding: 5px 12px;
-    border-radius: 4px;
-    font-weight: 700;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    z-index: 2;
-}
-
 /* --- ORG TABS --- */
 .tabs {
     display: flex;
@@ -741,26 +681,7 @@ td {
         gap: 16px;
     }
 
-    /*4. FIX: Stats Grid Layout */
-    .stats-grid {
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        /* Smaller min-width for mobile */
-        gap: 12px;
-    }
-
-    .stat-card {
-        padding: 16px;
-        flex-direction: column;
-        /* Stack text and icon vertically if space is tight */
-        align-items: center;
-        gap: 10px;
-    }
-
-    .stat-icon {
-        align-self: center;
-    }
-
-    /*5. FIX: Content Row Layout (Stack cards) */
+    /*4. FIX: Content Row Layout (Stack cards) */
     .content-row {
         display: flex;
         flex-direction: column;
