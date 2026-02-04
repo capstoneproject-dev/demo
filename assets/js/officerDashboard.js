@@ -103,7 +103,8 @@ function navigate(viewId, element) {
         'tracker': 'Services Tracker',
         'documents': 'Document Organizer',
         'analytics': 'Data Analytics',
-        'announcements': 'Manage Announcements'
+        'announcements': 'Manage Announcements',
+        'events': 'Events Management'
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'Org Manager';
 }
