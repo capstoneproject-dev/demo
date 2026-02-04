@@ -101,6 +101,37 @@ const transactions = [
     { org: "AETSO", doc: "Flight Simulation Log", date: "Oct 23, 2023", status: "Approved" }
 ];
 
+// --- PDF UPLOAD HANDLER (uses PDFViewer module) ---
+async function handlePdfUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        // Use the PDFViewer module to handle upload
+        const result = await PDFViewer.handleUpload(file);
+
+        // Add to transactions list for display
+        transactions.unshift({
+            id: result.docId,
+            org: 'Current User',
+            doc: result.name,
+            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            status: 'Pending'
+        });
+
+        // Re-render transactions table
+        renderTransactions();
+        showToast('PDF uploaded successfully!', 'success');
+
+        // Open the PDF viewer
+        PDFViewer.open(result.docId);
+    } catch (error) {
+        showToast(error.message || 'Failed to upload PDF', 'error');
+    }
+
+    // Reset input
+    event.target.value = '';
+}
 let currentOrgId = null;
 
 // --- NAVIGATION ---
@@ -181,16 +212,40 @@ function renderDocs() {
     `).join('');
 }
 
+function formatShortDate(isoDate) {
+    const date = new Date(isoDate);
+    if (Number.isNaN(date.getTime())) return 'Unknown';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function syncPdfUploadsIntoTransactions() {
+    if (!window.PDFViewer || typeof PDFViewer.getUploadsMeta !== 'function') return;
+
+    const uploads = PDFViewer.getUploadsMeta();
+    uploads.forEach(upload => {
+        const exists = transactions.some(t => t.id === upload.id);
+        if (!exists) {
+            transactions.unshift({
+                id: upload.id,
+                org: 'Current User',
+                doc: upload.name,
+                date: formatShortDate(upload.uploadDate),
+                status: 'Pending'
+            });
+        }
+    });
+}
+
 function renderTransactions() {
     const tbody = document.getElementById('transactions-table-body');
-    tbody.innerHTML = transactions.map(t => `
+    tbody.innerHTML = transactions.map((t, index) => `
         <tr>
             <td>${t.org}</td>
             <td>${t.doc}</td>
             <td>${t.date}</td>
             <td><span class="status-badge status-${t.status.toLowerCase()}">${t.status}</span></td>
             <td>
-                <button class="btn btn-sm btn-primary">
+                <button class="btn btn-sm btn-primary" onclick="openPdfViewer('${t.id || 'doc_' + index}')">
                     <i class="fa-solid fa-eye"></i> View
                 </button>
             </td>
@@ -328,5 +383,10 @@ window.addEventListener('DOMContentLoaded', () => {
     renderOrgs();
     renderRequests();
     renderDocs();
+    renderTransactions();
+});
+
+document.addEventListener('pdfviewer:ready', () => {
+    syncPdfUploadsIntoTransactions();
     renderTransactions();
 });
