@@ -202,23 +202,49 @@
 
         <!-- ORGANIZATIONS LIST VIEW -->
         <div id="organizations" class="section-view">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Accredited Student Organizations</div>
-                    <input type="text" placeholder="Search Orgs..." style="margin-bottom: 0; width: 250px;">
+            <div class="split-view-grid">
+                <!-- LEFT HALF: Organization List -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Accredited Student Organizations</div>
+                        <input type="text" placeholder="Search Orgs..." style="margin-bottom: 0; width: 250px;">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Organization Name</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="org-list-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Organization Name</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="org-list-body">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
+
+                <!-- RIGHT HALF: Real-time Transactions -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Recent Documents</div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Organization</th>
+                                    <th>Document Name</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions-table-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

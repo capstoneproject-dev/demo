@@ -92,6 +92,15 @@ const documents = [
     { name: "List of Officers", org: "Engineering Club", type: "Admin", status: "Approved" }
 ];
 
+const transactions = [
+    { org: "Supreme Student Council", doc: "Budget Proposal Q4", date: "Oct 25, 2023", status: "Pending" },
+    { org: "AISERS", doc: "Seminar Speaker Fee", date: "Oct 25, 2023", status: "Approved" },
+    { org: "ELITECH", doc: "Hackathon Venue Receipt", date: "Oct 24, 2023", status: "Approved" },
+    { org: "ILASSO", doc: "Outreach Permit", date: "Oct 24, 2023", status: "Rejected" },
+    { org: "RCYC", doc: "Monthly Dues Report", date: "Oct 23, 2023", status: "Pending" },
+    { org: "AETSO", doc: "Flight Simulation Log", date: "Oct 23, 2023", status: "Approved" }
+];
+
 let currentOrgId = null;
 
 // --- NAVIGATION ---
@@ -134,7 +143,7 @@ function renderOrgs() {
             <td><strong>${org.name}</strong></td>
             <td>
                 <button class="btn btn-sm btn-primary" onclick="openMonitoring(${org.id})">
-                    <i class="fa-solid fa-eye"></i> Monitor
+                    <i class="fa-solid fa-eye"></i> View
                 </button>
             </td>
         </tr>
@@ -168,6 +177,23 @@ function renderDocs() {
             <td>${doc.type}</td>
             <td><span class="status-badge status-${doc.status.toLowerCase()}">${doc.status}</span></td>
             <td><button class="btn btn-sm btn-outline"><i class="fa-solid fa-download"></i></button></td>
+        </tr>
+    `).join('');
+}
+
+function renderTransactions() {
+    const tbody = document.getElementById('transactions-table-body');
+    tbody.innerHTML = transactions.map(t => `
+        <tr>
+            <td>${t.org}</td>
+            <td>${t.doc}</td>
+            <td>${t.date}</td>
+            <td><span class="status-badge status-${t.status.toLowerCase()}">${t.status}</span></td>
+            <td>
+                <button class="btn btn-sm btn-primary">
+                    <i class="fa-solid fa-eye"></i> View
+                </button>
+            </td>
         </tr>
     `).join('');
 }
@@ -302,4 +328,5 @@ window.addEventListener('DOMContentLoaded', () => {
     renderOrgs();
     renderRequests();
     renderDocs();
+    renderTransactions();
 });
