@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Organization Management Dashboard</title>
-    
+
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="../assets/css/officerDashboard.css">
 </head>
+
 <body>
 
     <!-- Sidebar -->
@@ -25,6 +27,18 @@
                 <a href="#" class="nav-link active" onclick="navigate('dashboard', this)">
                     <i class="fa-solid fa-gauge-high nav-icon"></i>
                     <span class="nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('announcements', this)">
+                    <i class="fa-solid fa-bullhorn nav-icon"></i>
+                    <span class="nav-label">Announcements</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('events', this)">
+                    <i class="fa-solid fa-calendar-days nav-icon"></i>
+                    <span class="nav-label">Events</span>
                 </a>
             </li>
             <li class="nav-item">
@@ -43,12 +57,6 @@
                 <a href="#" class="nav-link" onclick="navigate('analytics', this)">
                     <i class="fa-solid fa-chart-line nav-icon"></i>
                     <span class="nav-label">Analytics</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="#" class="nav-link" onclick="navigate('announcements', this)">
-                    <i class="fa-solid fa-bullhorn nav-icon"></i>
-                    <span class="nav-label">Announcements</span>
                 </a>
             </li>
         </ul>
@@ -71,7 +79,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        
+
         <!-- Top Header -->
         <header>
             <!-- Left: Page Title -->
@@ -88,7 +96,7 @@
                 <button class="icon-btn mobile-only" onclick="toggleThemeMobile()">
                     <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
                 </button>
-                
+
                 <!-- Mobile Logout -->
                 <a href="#" class="icon-btn mobile-only logout-icon" onclick="handleLogout(event)">
                     <i class="fa-solid fa-arrow-right-from-bracket"></i>
@@ -194,29 +202,33 @@
                             <i class="fa-solid fa-pen-to-square"></i> Post Announcement
                         </button>
                         <button class="btn btn-outline" onclick="navigate('documents')">
-                            <i class="fa-solid fa-file-export"></i> Compile Document
+                            <i class="fa-solid fa-file-export"></i>Document
                         </button>
                         <button class="btn btn-outline" onclick="navigate('tracker')">
-                            <i class="fa-solid fa-qrcode"></i> Scan Attendance
+                            <i class="fa-solid fa-qrcode"></i> Services
                         </button>
                     </div>
                 </div>
             </div>
-            
+
             <!-- System Status / Tools Integration -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">External Systems Integration</div>
                 </div>
                 <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 200px; padding: 15px; background: var(--panel-2); border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div
+                        style="flex: 1; min-width: 200px; padding: 15px; background: var(--panel-2); border-radius: var(--radius-md); border: 1px solid var(--border);">
                         <h4 style="margin-bottom: 5px; color: var(--primary);">Rental System</h4>
-                        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Linked to Income Generating Product Database.</p>
+                        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Linked to Income
+                            Generating Product Database.</p>
                         <button class="btn btn-sm btn-primary">Open System</button>
                     </div>
-                    <div style="flex: 1; min-width: 200px; padding: 15px; background: var(--panel-2); border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div
+                        style="flex: 1; min-width: 200px; padding: 15px; background: var(--panel-2); border-radius: var(--radius-md); border: 1px solid var(--border);">
                         <h4 style="margin-bottom: 5px; color: var(--primary);">Event Registration</h4>
-                        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Manage participants for upcoming events.</p>
+                        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Manage participants for
+                            upcoming events.</p>
                         <button class="btn btn-sm btn-primary">Open System</button>
                     </div>
                 </div>
@@ -231,7 +243,8 @@
                     <div class="card-header">
                         <div class="card-title">Inventory & Rentals</div>
                         <div>
-                            <input type="text" placeholder="Search..." style="margin-bottom: 0; width: 200px; padding: 6px 12px;">
+                            <input type="text" placeholder="Search..."
+                                style="margin-bottom: 0; width: 200px; padding: 6px 12px;">
                         </div>
                     </div>
                     <div class="table-container">
@@ -260,7 +273,8 @@
                     <div class="qr-placeholder">
                         <i class="fa-solid fa-qrcode"></i>
                         <h3>QR Scanner</h3>
-                        <p style="color: var(--muted); margin-bottom: 15px;">Click to activate camera for event check-in</p>
+                        <p style="color: var(--muted); margin-bottom: 15px;">Click to activate camera for event check-in
+                        </p>
                         <button class="btn btn-primary" onclick="alert('Opening Camera Module...')">
                             <i class="fa-solid fa-camera"></i> Start Scan
                         </button>
@@ -302,7 +316,8 @@
                         <textarea rows="3" placeholder="Brief details..."></textarea>
 
                         <label>Attach File</label>
-                        <div style="border: 2px dashed var(--border); padding: 20px; text-align: center; border-radius: var(--radius-md); margin-bottom: 20px; cursor: pointer; color: var(--muted);">
+                        <div
+                            style="border: 2px dashed var(--border); padding: 20px; text-align: center; border-radius: var(--radius-md); margin-bottom: 20px; cursor: pointer; color: var(--muted);">
                             <i class="fa-solid fa-cloud-arrow-up"></i> Click to upload PDF
                         </div>
 
@@ -334,7 +349,7 @@
                         <option>Last Semester</option>
                     </select>
                 </div>
-                
+
                 <div class="chart-container">
                     <div class="bar-group">
                         <div class="bar" style="height: 40%;"></div>
@@ -357,7 +372,8 @@
                         <span class="bar-label">Tickets</span>
                     </div>
                 </div>
-                <p style="text-align: center; color: var(--muted); font-size: 0.9rem;">Revenue comparison by service category</p>
+                <p style="text-align: center; color: var(--muted); font-size: 0.9rem;">Revenue comparison by service
+                    category</p>
             </div>
 
             <div class="content-row">
@@ -365,38 +381,38 @@
                     <div class="card-header">
                         <div class="card-title">Event Participation</div>
                     </div>
-                        <div class="table-container">
+                    <div class="table-container">
                         <table class="table-container">
-                        <thead>
-                            <tr>
-                                <th>Event Name</th>
-                                <th>Target</th>
-                                <th>Actual</th>
-                                <th>%</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Tech Summit</td>
-                                <td>150</td>
-                                <td>142</td>
-                                <td style="color: #059669;">94%</td>
-                            </tr>
-                            <tr>
-                                <td>Sports Fest</td>
-                                <td>300</td>
-                                <td>210</td>
-                                <td style="color: #d97706;">70%</td>
-                            </tr>
-                            <tr>
-                                <td>Seminar</td>
-                                <td>100</td>
-                                <td>98</td>
-                                <td style="color: #059669;">98%</td>
-                            </tr>
-                        </tbody>
+                            <thead>
+                                <tr>
+                                    <th>Event Name</th>
+                                    <th>Target</th>
+                                    <th>Actual</th>
+                                    <th>%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Tech Summit</td>
+                                    <td>150</td>
+                                    <td>142</td>
+                                    <td style="color: #059669;">94%</td>
+                                </tr>
+                                <tr>
+                                    <td>Sports Fest</td>
+                                    <td>300</td>
+                                    <td>210</td>
+                                    <td style="color: #d97706;">70%</td>
+                                </tr>
+                                <tr>
+                                    <td>Seminar</td>
+                                    <td>100</td>
+                                    <td>98</td>
+                                    <td style="color: #059669;">98%</td>
+                                </tr>
+                            </tbody>
                         </table>
-                        </div>
+                    </div>
                 </div>
                 <div class="card">
                     <div class="card-header">
@@ -404,7 +420,8 @@
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 15px;">
                         <div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
+                            <div
+                                style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
                                 <span>Budget Used</span>
                                 <span>65%</span>
                             </div>
@@ -413,7 +430,8 @@
                             </div>
                         </div>
                         <div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
+                            <div
+                                style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
                                 <span>Profit Margin</span>
                                 <span>22%</span>
                             </div>
@@ -471,9 +489,14 @@
             </div>
         </div>
 
+        <!-- EVENTS VIEW -->
+        <div id="events" class="section-view">
+        </div>
+
     </main>
 
     <!-- Custom JS -->
     <script src="../assets/js/officerDashboard.js"></script>
 </body>
+
 </html>
