@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OSA Management System</title>
-    
+
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- CSS Reference -->
     <link rel="stylesheet" href="../assets/css/osaDashboard.css">
 </head>
+
 <body>
 
     <!-- Toast Container -->
@@ -72,7 +74,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        
+
         <!-- Top Header (Integrated with Prompt Code) -->
         <header>
             <!-- Left: Page Title -->
@@ -87,14 +89,14 @@
                 <button class="icon-btn mobile-only" onclick="switchThemeLogic()">
                     <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
                 </button>
-                
+
                 <!-- Mobile Logout -->
                 <a href="#" class="icon-btn mobile-only logout-icon" onclick="handleLogout(event)">
                     <i class="fa-solid fa-arrow-right-from-bracket"></i>
                 </a>
 
                 <!-- User Profile -->
-                <a href="#" class="user-profile" onclick="showToast('Navigate to Profile (Demo)', 'info')"> 
+                <a href="#" class="user-profile" onclick="showToast('Navigate to Profile (Demo)', 'info')">
                     <img src="https://picsum.photos/seed/osaadmin/100/100" alt="Student" class="avatar">
                     <div class="user-info">
                         <span style="display: block; font-size: 0.85rem; font-weight: 600;">Dir. Maria Santos</span>
@@ -177,14 +179,16 @@
                         <div class="card-title">Priority Actions</div>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 12px;">
-                        <div style="padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+                        <div
+                            style="padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
                             <div>
                                 <div style="font-weight: 600; font-size: 0.9rem;">Event Proposal: "Tech Summit"</div>
                                 <div style="font-size: 0.75rem; color: var(--muted);">Computer Science Society</div>
                             </div>
                             <button class="btn btn-sm btn-primary" onclick="navigate('requests')">Review</button>
                         </div>
-                        <div style="padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+                        <div
+                            style="padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
                             <div>
                                 <div style="font-weight: 600; font-size: 0.9rem;">Post Approval: General Assembly</div>
                                 <div style="font-size: 0.75rem; color: var(--muted);">Student Council</div>
@@ -208,10 +212,6 @@
                         <thead>
                             <tr>
                                 <th>Organization Name</th>
-                                <th>Category</th>
-                                <th>President</th>
-                                <th>Members</th>
-                                <th>Status</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -228,16 +228,17 @@
             <button class="btn btn-outline btn-sm" onclick="navigate('organizations')" style="margin-bottom: 20px;">
                 <i class="fa-solid fa-arrow-left"></i> Back to List
             </button>
-            
+
             <div class="card" style="margin-bottom: 24px; border-left: 5px solid var(--primary);">
                 <div class="card-header">
                     <div>
-                        <h2 id="monitoring-org-name" style="font-size: 1.5rem; margin-bottom: 5px;">Organization Name</h2>
+                        <h2 id="monitoring-org-name" style="font-size: 1.5rem; margin-bottom: 5px;">Organization Name
+                        </h2>
                         <p id="monitoring-org-details" style="color: var(--muted);">Details here</p>
                     </div>
                     <div class="status-badge status-completed">Good Standing</div>
                 </div>
-                
+
                 <!-- Financial Report Section -->
                 <h3 style="font-size: 1.1rem; margin-bottom: 15px;">Financial Report Status</h3>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
@@ -287,7 +288,8 @@
                         <button class="btn btn-outline" onclick="navigate('documents')">
                             <i class="fa-solid fa-file-shield"></i> View Submitted Documents
                         </button>
-                        <button class="btn btn-danger" onclick="showToast('Warning sent to Organization President', 'error')">
+                        <button class="btn btn-danger"
+                            onclick="showToast('Warning sent to Organization President', 'error')">
                             <i class="fa-solid fa-triangle-exclamation"></i> Issue Sanction
                         </button>
                     </div>
@@ -360,12 +362,12 @@
                 <div class="card-header">
                     <div class="card-title">Student Enrollment Verification</div>
                 </div>
-                
+
                 <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 300px;">
                         <label>Student ID Number</label>
                         <input type="text" id="verify-input" placeholder="e.g., 2021-12345">
-                        
+
                         <label>OR Full Name</label>
                         <input type="text" id="verify-name" placeholder="Last Name, First Name">
 
@@ -376,9 +378,11 @@
 
                     <div style="flex: 1; min-width: 300px;" id="verify-result-area">
                         <div class="verification-box">
-                            <i class="fa-solid fa-id-card" style="font-size: 3rem; color: var(--muted); margin-bottom: 15px;"></i>
+                            <i class="fa-solid fa-id-card"
+                                style="font-size: 3rem; color: var(--muted); margin-bottom: 15px;"></i>
                             <h3 style="color: var(--muted);">Enter details to verify</h3>
-                            <p style="font-size: 0.9rem; color: var(--muted);">Connects to University Registrar Database</p>
+                            <p style="font-size: 0.9rem; color: var(--muted);">Connects to University Registrar Database
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -390,4 +394,5 @@
     <!-- JS Reference -->
     <script src="../assets/js/osaDashboard.js"></script>
 </body>
+
 </html>

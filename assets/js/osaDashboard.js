@@ -4,7 +4,7 @@
 function switchThemeLogic() {
     document.body.classList.toggle('dark');
     const isDark = document.body.classList.contains('dark');
-    
+
     // Update Mobile Icon
     const mobIcon = document.getElementById('mobile-theme-icon');
     if (mobIcon) {
@@ -14,7 +14,7 @@ function switchThemeLogic() {
     // Update Sidebar Icon
     const sbIcon = document.querySelector('#themeBtn .nav-icon');
     const sbText = document.querySelector('#themeBtn .nav-label');
-    
+
     if (sbIcon && sbText) {
         if (isDark) {
             sbIcon.className = 'fa-solid fa-sun nav-icon';
@@ -32,7 +32,7 @@ function switchThemeLogic() {
 // Logout handler
 function handleLogout(e) {
     e.preventDefault();
-    if(confirm('Are you sure you want to logout?')) {
+    if (confirm('Are you sure you want to logout?')) {
         showToast('Logging out...', 'info');
         setTimeout(() => {
             window.location.href = '../pages/login.html'; // Change to your login page
@@ -45,31 +45,38 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check if user previously selected dark mode
     if (localStorage.getItem('theme') === 'dark') {
         document.body.classList.add('dark');
-        
+
         // Set icons to Sun immediately
         const mobIcon = document.getElementById('mobile-theme-icon');
-        if(mobIcon) mobIcon.className = 'fa-solid fa-sun';
+        if (mobIcon) mobIcon.className = 'fa-solid fa-sun';
 
         // If sidebar exists
         const sbIcon = document.querySelector('#themeBtn .nav-icon');
         const sbText = document.querySelector('#themeBtn .nav-label');
-        if(sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
-        if(sbText) sbText.innerText = 'Light Mode';
+        if (sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
+        if (sbText) sbText.innerText = 'Light Mode';
     }
-    
+
     // Initialize Sidebar Theme Button Click Event
     const sidebarThemeBtn = document.getElementById('themeBtn');
-    if(sidebarThemeBtn) {
+    if (sidebarThemeBtn) {
         sidebarThemeBtn.onclick = switchThemeLogic;
     }
 });
 
 // --- DATA SIMULATION ---
 const organizations = [
-    { id: 1, name: "Computer Science Society", category: "Academic", president: "Juan Dela Cruz", members: 120, status: "Active" },
-    { id: 2, name: "University Chorale", category: "Arts", president: "Maria Santos", members: 45, status: "Active" },
-    { id: 3, name: "Engineering Club", category: "Academic", president: "Pedro Reyes", members: 200, status: "Warning" },
-    { id: 4, name: "Peer Facilitators", category: "Community", president: "Anna Lee", members: 60, status: "Active" }
+    { id: 1, name: "Supreme Student Council", category: "Student Council", president: "TBD", members: "N/A", status: "Active" },
+    { id: 2, name: "AISERS", category: "ICS", president: "TBD", members: "N/A", status: "Active" },
+    { id: 3, name: "ELITECH", category: "ICS", president: "TBD", members: "N/A", status: "Active" },
+    { id: 4, name: "ILASSO", category: "ILAS", president: "TBD", members: "N/A", status: "Active" },
+    { id: 5, name: "AERO-ATSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
+    { id: 6, name: "AETSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
+    { id: 7, name: "AMTSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
+    { id: 8, name: "RCYC", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
+    { id: 9, name: "CYC", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
+    { id: 10, name: "SCHOLAR'S GUILD", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
+    { id: 11, name: "AERONAUTICA", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" }
 ];
 
 const requests = [
@@ -96,7 +103,7 @@ function navigate(viewId, element) {
     } else {
         // Handling manual navigation (like back button)
         document.querySelectorAll('.nav-link').forEach(link => {
-            if(link.getAttribute('onclick').includes(viewId)) link.classList.add('active');
+            if (link.getAttribute('onclick').includes(viewId)) link.classList.add('active');
             else link.classList.remove('active');
         });
     }
@@ -125,10 +132,6 @@ function renderOrgs() {
     tbody.innerHTML = organizations.map(org => `
         <tr>
             <td><strong>${org.name}</strong></td>
-            <td>${org.category}</td>
-            <td>${org.president}</td>
-            <td>${org.members}</td>
-            <td><span class="status-badge ${org.status === 'Active' ? 'status-approved' : 'status-pending'}">${org.status}</span></td>
             <td>
                 <button class="btn btn-sm btn-primary" onclick="openMonitoring(${org.id})">
                     <i class="fa-solid fa-eye"></i> Monitor
@@ -141,7 +144,7 @@ function renderOrgs() {
 function renderRequests(filter = 'all') {
     const tbody = document.getElementById('requests-table');
     const filtered = filter === 'all' ? requests : requests.filter(r => r.type.includes(filter));
-    
+
     tbody.innerHTML = filtered.map(req => `
         <tr>
             <td><span class="status-badge status-submitted">${req.type}</span></td>
@@ -174,10 +177,10 @@ function renderDocs() {
 function openMonitoring(orgId) {
     currentOrgId = orgId;
     const org = organizations.find(o => o.id === orgId);
-    if(org) {
+    if (org) {
         document.getElementById('monitoring-org-name').innerText = org.name;
         document.getElementById('monitoring-org-details').innerText = `${org.category} • President: ${org.president}`;
-        
+
         // Mock event history for this org
         const eventTable = document.getElementById('monitoring-events-table');
         eventTable.innerHTML = `
@@ -200,10 +203,10 @@ function openMonitoring(orgId) {
 
 function handleRequest(id, action) {
     const index = requests.findIndex(r => r.id === id);
-    if(index > -1) {
+    if (index > -1) {
         const req = requests[index];
         showToast(`Request "${req.title}" has been ${action}`, action === 'Approved' ? 'success' : 'error');
-        
+
         // Remove from pending list to simulate DB update
         requests.splice(index, 1);
         renderRequests(document.getElementById('request-filter').value);
@@ -221,7 +224,7 @@ function verifyStudent() {
     const nameInput = document.getElementById('verify-name').value;
     const resultArea = document.getElementById('verify-result-area');
 
-    if(!idInput || !nameInput) {
+    if (!idInput || !nameInput) {
         showToast('Please enter both ID and Name', 'error');
         return;
     }
@@ -232,8 +235,8 @@ function verifyStudent() {
     setTimeout(() => {
         // Logic: Mock validation. If ID starts with 2023, assume enrolled.
         const isEnrolled = idInput.startsWith("2023") || idInput.startsWith("2022");
-        
-        if(isEnrolled) {
+
+        if (isEnrolled) {
             resultArea.innerHTML = `
                 <div class="verification-box" style="background: rgba(16, 185, 129, 0.1); border-color: #10b981; border-style: solid;">
                     <i class="fa-solid fa-circle-check" style="font-size: 3rem; color: #059669; margin-bottom: 15px;"></i>
@@ -271,7 +274,7 @@ function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
+
     let icon = 'fa-circle-info';
     if (type === 'success') icon = 'fa-circle-check';
     if (type === 'error') icon = 'fa-circle-exclamation';
@@ -283,7 +286,7 @@ function showToast(message, type = 'info') {
         </div>
         <i class="fa-solid fa-xmark" style="cursor:pointer; opacity:0.5;" onclick="this.parentElement.remove()"></i>
     `;
-    
+
     container.appendChild(toast);
 
     // Auto remove
