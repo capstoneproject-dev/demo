@@ -131,6 +131,19 @@ const extendedEvents = [
             "https://picsum.photos/seed/innovation2/600/400",
             "https://picsum.photos/seed/innovation3/600/400"
         ]
+    },
+    {
+        title: "AIS-SAHAN: Constinuency Check",
+        date: "Feb. 05, 2026",
+        time: "TBA",
+        venue: "TBA",
+        participants: 0,
+        description: "Consistency check for AIS-SAHAN.",
+        org: "General",
+        img: "https://picsum.photos/seed/ais-sahan/600/400",
+        gallery: [
+            "https://picsum.photos/seed/ais-sahan/600/400"
+        ]
     }
 ];
 
@@ -507,7 +520,7 @@ function renderCalendar() {
     daysContainer.innerHTML = '';
 
     // Logic to get days in month and start day
-    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 (Sun) to 6 (Sat)
+    const firstDayIndex = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
     // Previous Month Days (Trailing)
@@ -534,12 +547,14 @@ function renderCalendar() {
             dayDiv.classList.add('today');
         }
 
+        // ADD CLICK HANDLER
+        dayDiv.onclick = (e) => handleDateClick(year, month, i, e);
+
         // Check for events on this day
         const dayEvents = getEventsForDate(year, month, i);
         if (dayEvents.length > 0) {
             const dotsContainer = document.createElement('div');
             dotsContainer.classList.add('event-dots');
-            // Add a dot for each event (max 3 to fit)
             dayEvents.slice(0, 3).forEach(() => {
                 const dot = document.createElement('div');
                 dot.classList.add('event-dot');
@@ -547,7 +562,6 @@ function renderCalendar() {
             });
             dayDiv.appendChild(dotsContainer);
 
-            // Optional: Add title for hover tooltip
             const eventTitles = dayEvents.map(e => e.title).join(', ');
             dayDiv.title = eventTitles;
         }
@@ -556,7 +570,6 @@ function renderCalendar() {
     }
 
     // 3. Next Month Days (Leading) to fill 42 cells
-    // Calculate how many cells we've filled so far
     const filledCells = firstDayIndex + daysInMonth;
     const nextDays = 42 - filledCells;
 
@@ -572,6 +585,107 @@ function changeMonth(direction) {
     currentCalendarDate.setMonth(currentCalendarDate.getMonth() + direction);
     renderCalendar();
 }
+
+// --- CALENDAR DATE CLICK & POPOVER LOGIC ---
+
+function handleDateClick(year, month, day, event) {
+    const clickedDate = new Date(year, month, day);
+    const options = { month: 'short', day: 'numeric' };
+    const dateStr = clickedDate.toLocaleDateString('en-US', options);
+
+    // Find events
+    const events = getEventsForDate(year, month, day);
+
+    // Populate Popover
+    const popoverTitle = document.getElementById('popoverDateTitle');
+    const popoverList = document.getElementById('popoverEventList');
+
+    popoverTitle.innerText = `Events on ${dateStr}`;
+    popoverList.innerHTML = '';
+
+    if (events.length > 0) {
+        events.forEach(ev => {
+            const item = document.createElement('div');
+            item.className = 'popover-event-item';
+            item.innerHTML = `
+                <span class="popover-event-title">${ev.title}</span>
+                <button class="btn-popover-view" onclick="navigateToEventDetails('${ev.title}')">View</button>
+            `;
+            popoverList.appendChild(item);
+        });
+    } else {
+        popoverList.innerHTML = `<div class="no-events-msg">No events scheduled.</div>`;
+    }
+
+    // Position Popover
+    const popover = document.getElementById('calendarPopover');
+
+    if (window.innerWidth <= 768) {
+        // Mobile: handled by CSS (center fixed)
+        popover.style.position = '';
+        popover.style.left = '';
+        popover.style.top = '';
+    } else {
+        // Desktop: Position near the click, but don't go off screen
+        const clickX = event.clientX;
+        const clickY = event.clientY;
+
+        popover.style.position = 'fixed';
+        popover.style.left = `${clickX + 10}px`;
+        popover.style.top = `${clickY + 10}px`;
+
+        // Simple boundary check (prevent going off right edge)
+        if (clickX + 300 > window.innerWidth) {
+            popover.style.left = `${clickX - 290}px`;
+        }
+    }
+
+    // Show
+    hideCalendarPopover();
+    popover.classList.remove('hidden');
+    setTimeout(() => {
+        popover.classList.add('visible');
+    }, 10);
+}
+
+function hideCalendarPopover() {
+    const popover = document.getElementById('calendarPopover');
+    if (!popover) return;
+    popover.classList.remove('visible');
+    popover.classList.add('hidden');
+}
+
+function navigateToEventDetails(eventTitle) {
+    hideCalendarPopover();
+    navigate('organizations');
+
+    const buttons = document.querySelectorAll('.tab-btn');
+    let eventsTabBtn = null;
+    buttons.forEach(btn => {
+        if (btn.innerText.includes('Events')) eventsTabBtn = btn;
+    });
+
+    if (eventsTabBtn) {
+        switchOrgTab('events', eventsTabBtn);
+    }
+
+    setTimeout(() => {
+        openDetailsModal(eventTitle);
+    }, 100);
+}
+
+// --- GLOBAL LISTENER TO CLOSE POPOVER ON OUTSIDE CLICK ---
+document.addEventListener('click', function (e) {
+    const popover = document.getElementById('calendarPopover');
+    const calendarGrid = document.getElementById('calendarDays');
+    if (!popover || !calendarGrid) return;
+
+    if (popover.classList.contains('visible') &&
+        !popover.contains(e.target) &&
+        !calendarGrid.contains(e.target)) {
+        hideCalendarPopover();
+    }
+});
 
 // Helper to check if extendedEvents match the current calendar day
 function getEventsForDate(year, month, day) {
@@ -596,9 +710,6 @@ function getEventsForDate(year, month, day) {
                 "Jul": 6, "Aug": 7, "Sep": 8, "Oct": 9, "Nov": 10, "Dec": 11
             };
 
-            // Handle full names if regex fails or specific formats
-            // For now, assuming the 3-letter abbreviation based on provided data
-
             const eventMonthIndex = monthMap[eventMonthStr.substring(0, 3)]; // Handle "November" vs "Nov"
 
             if (eventYear === year && eventMonthIndex === month) {
@@ -608,6 +719,7 @@ function getEventsForDate(year, month, day) {
         return false;
     });
 }
+
 
 function renderDashboard() {
     // Render Announcements
@@ -725,13 +837,120 @@ if (localStorage.getItem('theme') === 'dark') {
     if (mobIcon) mobIcon.className = 'fa-solid fa-sun';
 }
 
+
+// --- DASHBOARD EVENT TODAY CAROUSEL LOGIC ---
+
+let carouselInterval;
+let currentDashboardSlideIndex = 0;
+
+function initDashboardCarousel() {
+    const track = document.getElementById('dashboardCarouselTrack');
+    if (!track) return;
+
+    track.innerHTML = ''; // Clear previous
+
+    // 1. Determine which event to show (Logic from previous step)
+    const today = new Date();
+    const currentMonth = today.toLocaleString('en-us', { month: 'short' });
+    const currentDay = today.getDate();
+    const currentYear = today.getFullYear();
+
+    let todaysEvent = extendedEvents.find(ev => {
+        const regex = /([a-zA-Z]+)\.\s+(\d+)(?:-(\d+))?,\s+(\d+)/;
+        const match = ev.date.match(regex);
+        if (match) {
+            const eventYear = parseInt(match[4]);
+            const eventMonthStr = match[1];
+            const startDay = parseInt(match[2]);
+            const endDay = match[3] ? parseInt(match[3]) : startDay;
+
+            if (eventYear === currentYear && eventMonthStr.includes(currentMonth)) {
+                if (currentDay >= startDay && currentDay <= endDay) return true;
+            }
+        }
+        return false;
+    });
+
+    // Fallback to first event
+    if (!todaysEvent) {
+        todaysEvent = extendedEvents[0];
+    }
+
+    // 2. Prepare Images
+    let images = [];
+    if (todaysEvent.gallery && todaysEvent.gallery.length > 0) {
+        images = todaysEvent.gallery;
+    } else {
+        images = [todaysEvent.img];
+    }
+
+    // 3. Create Image Elements
+    images.forEach((src, index) => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.className = 'carousel-slide-img';
+        if (index === 0) img.classList.add('active');
+        track.appendChild(img);
+    });
+
+    // 4. Reset state
+    currentDashboardSlideIndex = 0;
+
+    // 5. Start Auto-Rotation (3 seconds)
+    if (carouselInterval) clearInterval(carouselInterval);
+
+    const slides = track.getElementsByClassName('carousel-slide-img');
+
+    if (slides.length > 1) {
+        carouselInterval = setInterval(() => {
+            moveDashboardSlide(1);
+        }, 3000);
+    }
+}
+
+// Function to manually move slides (for arrows)
+function moveDashboardSlide(direction) {
+    const track = document.getElementById('dashboardCarouselTrack');
+    if (!track) return;
+
+    const slides = track.getElementsByClassName('carousel-slide-img');
+    if (slides.length === 0) return;
+
+    // Remove active from current
+    slides[currentDashboardSlideIndex].classList.remove('active');
+
+    // Calculate new index
+    currentDashboardSlideIndex = currentDashboardSlideIndex + direction;
+
+    // Wrap around logic
+    if (currentDashboardSlideIndex >= slides.length) {
+        currentDashboardSlideIndex = 0;
+    } else if (currentDashboardSlideIndex < 0) {
+        currentDashboardSlideIndex = slides.length - 1;
+    }
+
+    // Add active to new
+    slides[currentDashboardSlideIndex].classList.add('active');
+
+    // Reset timer on manual interaction so it doesn't jump immediately after click
+    if (slides.length > 1) {
+        clearInterval(carouselInterval);
+        carouselInterval = setInterval(() => {
+            moveDashboardSlide(1);
+        }, 3000);
+    }
+}
+
 // --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', () => {
     setDate();
     renderDashboard();
     renderServices();
     renderProfile();
-    switchOrgTab('about', document.querySelector('.tab-btn')); // Init tab
+    switchOrgTab('about', document.querySelector('.tab-btn'));
+
+    // Initialize Dashboard Carousel for the new layout
+    initDashboardCarousel();
 });
 
 // --- MODAL LOGIC ---

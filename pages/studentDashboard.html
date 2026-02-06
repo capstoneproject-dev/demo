@@ -100,85 +100,116 @@
         <!-- DASHBOARD VIEW -->
         <div id="dashboard" class="section-view active">
 
+            <div class="dashboard-layout-wrapper">
 
-            <div class="content-row">
-                <!-- Recent Announcements -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Latest Announcements</div>
-                        <a href="#" style="color:var(--primary); text-decoration:none; font-size:0.85rem;"
-                            onclick="navigate('organizations')">View All</a>
+                <!-- LEFT MAIN CONTENT (Primary Column) -->
+                <div class="dashboard-main-column">
+
+                    <!-- 1. Latest Announcements -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Latest Announcements</div>
+                            <a href="#" style="color:var(--primary); text-decoration:none; font-size:0.85rem;"
+                                onclick="navigate('organizations')">View All</a>
+                        </div>
+                        <div id="announcements-list">
+                            <!-- Populated by JS -->
+                        </div>
                     </div>
-                    <div id="announcements-list">
-                        <!-- Populated by JS -->
+
+                    <!-- Lower Row: Activity & Events -->
+                    <div class="dashboard-row-split">
+
+                        <!-- 2. Recent Activity -->
+                        <div class="card">
+                            <div class="card-header">
+                                <div class="card-title">Recent Activity</div>
+                            </div>
+                            <div class="list-item">
+                                <div class="item-icon"><i class="fa-solid fa-print"></i></div>
+                                <div class="item-content">
+                                    <h4>Printing Service</h4>
+                                    <p>Availed 5 pages</p>
+                                </div>
+                                <span class="date-badge">2h ago</span>
+                            </div>
+                            <div class="list-item">
+                                <div class="item-icon"><i class="fa-solid fa-user-plus"></i></div>
+                                <div class="item-content">
+                                    <h4>Membership</h4>
+                                    <p>Applied to ELITECH</p>
+                                </div>
+                                <span class="date-badge">1d ago</span>
+                            </div>
+                        </div>
+
+                        <!-- 3. Upcoming Events -->
+                        <div class="card">
+                            <div class="card-header">
+                                <div class="card-title">Upcoming Events</div>
+                                <a href="#" style="color:var(--primary); text-decoration:none; font-size:0.85rem;"
+                                    onclick="navigate('organizations')">View All</a>
+                            </div>
+                            <!-- Container for JS injection -->
+                            <div id="events-preview-container"></div>
+                        </div>
+
                     </div>
                 </div>
 
-                <!-- Quick Activity -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Recent Activity</div>
-                    </div>
-                    <div class="list-item">
-                        <div class="item-icon"><i class="fa-solid fa-print"></i></div>
-                        <div class="item-content">
-                            <h4>Printing Service</h4>
-                            <p>Availed 5 pages</p>
+                <!-- RIGHT SIDEBAR (Secondary Column) -->
+                <div class="dashboard-sidebar-column">
+
+                    <!-- 4. Event Today (Carousel) -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Event Today</div>
                         </div>
-                        <span class="date-badge">2h ago</span>
-                    </div>
-                    <div class="list-item">
-                        <div class="item-icon"><i class="fa-solid fa-user-plus"></i></div>
-                        <div class="item-content">
-                            <h4>Membership</h4>
-                            <p>Applied to ELITECH</p>
+
+                        <div class="dashboard-event-carousel">
+                            <!-- Navigation Arrows -->
+                            <button class="carousel-arrow carousel-prev" onclick="moveDashboardSlide(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <button class="carousel-arrow carousel-next" onclick="moveDashboardSlide(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+
+                            <div class="carousel-track" id="dashboardCarouselTrack">
+                                <!-- Images injected via JS -->
+                            </div>
                         </div>
-                        <span class="date-badge">1d ago</span>
                     </div>
+
+                    <!-- 5. Calendar Widget -->
+                    <div class="card" id="event-calendar">
+                        <div class="card-header">
+                            <div class="card-title">Event Calendar</div>
+                            <div class="calendar-nav">
+                                <button class="calendar-nav-btn" onclick="changeMonth(-1)"><i
+                                        class="fa-solid fa-chevron-left"></i></button>
+                                <span id="calendarMonthYear"></span>
+                                <button class="calendar-nav-btn" onclick="changeMonth(1)"><i
+                                        class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                        <div class="calendar-grid">
+                            <div class="calendar-day-header">Sun</div>
+                            <div class="calendar-day-header">Mon</div>
+                            <div class="calendar-day-header">Tue</div>
+                            <div class="calendar-day-header); ">Wed</div>
+                            <div class="calendar-day-header">Thu</div>
+                            <div class="calendar-day-header">Fri</div>
+                            <div class="calendar-day-header">Sat</div>
+                        </div>
+                        <div id="calendarDays" class="calendar-grid">
+                            <!-- Days populated by JS -->
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-            <!-- Upcoming Events Preview -->
-            <div class="content-row">
-                <!-- Existing Events List Card -->
-                <div class="card" style="flex: 2;">
-                    <div class="card-header">
-                        <div class="card-title">Upcoming Events</div>
-                        <a href="#" style="color:var(--primary); text-decoration:none; font-size:0.85rem;"
-                            onclick="navigate('organizations')">View All</a>
-                    </div>
-                    <div class="content-row" style="margin-bottom: 0; gap: 20px;">
-                        <!-- Populated by JS -->
-                        <div id="events-preview-container" style="display: contents;"></div>
-                    </div>
-                </div>
-
-                <!-- New Functional Calendar Card -->
-                <div class="card" id="event-calendar">
-                    <div class="card-header">
-                        <div class="card-title">Event Calendar</div>
-                        <div class="calendar-nav">
-                            <button class="calendar-nav-btn" onclick="changeMonth(-1)"><i
-                                    class="fa-solid fa-chevron-left"></i></button>
-                            <span id="calendarMonthYear"></span>
-                            <button class="calendar-nav-btn" onclick="changeMonth(1)"><i
-                                    class="fa-solid fa-chevron-right"></i></button>
-                        </div>
-                    </div>
-                    <div class="calendar-grid">
-                        <div class="calendar-day-header">Sun</div>
-                        <div class="calendar-day-header">Mon</div>
-                        <div class="calendar-day-header">Tue</div>
-                        <div class="calendar-day-header">Wed</div>
-                        <div class="calendar-day-header">Thu</div>
-                        <div class="calendar-day-header">Fri</div>
-                        <div class="calendar-day-header">Sat</div>
-                    </div>
-                    <div id="calendarDays" class="calendar-grid">
-                        <!-- Days populated by JS -->
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- ORGANIZATIONS VIEW -->
@@ -499,6 +530,20 @@
 
     <!-- JAVASCRIPT REFERENCE -->
     <script src="../assets/js/studentDashboard.js"></script>
+
+    <!-- NEW: CALENDAR EVENT POPOVER -->
+    <div id="calendarPopover" class="calendar-popover hidden">
+        <div class="popover-header">
+            <span id="popoverDateTitle">Events on Feb 6</span>
+            <button class="popover-close" onclick="hideCalendarPopover()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div id="popoverEventList" class="popover-content">
+            <!-- Events injected via JS -->
+        </div>
+    </div>
+
 </body>
 
 </html>
