@@ -450,6 +450,9 @@
     <div id="serviceSelectModal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
         <div class="modal-content service-select-modal">
             <div class="modal-header">
+                <button class="back-modal" id="btnModalBack" aria-label="Go back" style="display: none;">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
                 <div class="header-text-group">
                     <h3 id="modalTitle">Select an Organization</h3>
                     <p id="modalSubtitle">Choose who will provide: ...</p>
@@ -516,10 +519,6 @@
                     <!-- Buttons will be swapped dynamically by JS -->
                     <button type="button" class="btn-cancel" id="btnStep1Cancel"
                         onclick="closeServiceModal()">Cancel</button>
-                    <button type="button" class="btn-cancel" id="btnStep1BackToGroup" style="display: none;"
-                        onclick="handleBackToItemSelect()">Back</button>
-                    <button type="button" class="btn-cancel" id="btnStep2Back" style="display: none;"
-                        onclick="handleBackToStep1()">Back</button>
                     <button type="button" class="btn-submit" id="btnStep1Continue" disabled>Continue</button>
                     <button type="button" class="btn-submit" id="btnStep2Confirm" style="display: none;"
                         disabled>Confirm

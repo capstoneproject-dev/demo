@@ -1,8 +1,8 @@
 // --- DATA SIMULATION ---
 const servicesData = [
     // NEW: Parent Group Items
-    { name: "Calculator", org: "Combined", icon: "fa-calculator", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/businesscalculator.png" },
-    { name: "Rulers", org: "Combined", icon: "fa-ruler", color: "#64748b" },
+    { name: "Calculator", org: "Combined", icon: "fa-calculator", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/businessscical.png" },
+    { name: "Rulers", org: "Combined", icon: "fa-ruler", color: "#64748b", backgroundImage: "../assets/photos/studentDashboard/Services/rulerbackground.png" },
 
     // Existing Specific Items
     { name: "Shoe Rag", org: "AISERS", icon: "fa-shoe-prints", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/shoerag.png" },
@@ -1201,18 +1201,24 @@ function renderServices(filter = "") {
 
             matchingServices.forEach(service => {
                 const card = document.createElement('div');
-                card.className = 'service-card';
+                card.className = 'service-card'; // Base class
 
+                // --- UPDATED LOGIC FOR OPTION 1 ---
                 if (service.backgroundImage) {
-                    card.classList.add('has-bg');
-                    card.style.backgroundImage = `url('${service.backgroundImage}')`;
+                    // Apply Gallery Layout Class
+                    card.classList.add('gallery-card');
+
+                    // New HTML Structure: Image Top, Text Bottom
                     card.innerHTML = `
-                        <div class="service-overlay"></div>
-                        <div class="service-content">
+                        <div class="gallery-img-wrapper">
+                            <img src="${service.backgroundImage}" alt="${service.name}" loading="lazy">
+                        </div>
+                        <div class="gallery-content">
                             <div class="service-name">${service.name}</div>
                         </div>
                     `;
                 } else {
+                    // Fallback for Icon-only items (No change needed here)
                     card.innerHTML = `
                         <div class="service-icon">
                             <i class="fa-solid ${service.icon}"></i>
@@ -1422,41 +1428,44 @@ function openItemSelectModal(parentName) {
     resetModalState();
 
     const modal = document.getElementById('serviceSelectModal');
+    const titleEl = document.getElementById('modalTitle');
+    const subtitleEl = document.getElementById('modalSubtitle');
+    const listContainer = document.getElementById('itemSelectList');
 
     // Set State
     currentParentGroup = parentName;
 
-    // Populate the step0 list
-    const listContainer = document.getElementById('itemSelectList');
+    // Get children from config
     const children = serviceGroups[parentName] || [];
+
+    // Set Content
+    titleEl.innerText = `Select ${parentName} Type`;
+    titleEl.className = 'step-0-header'; // Apply large centered title style
+    subtitleEl.style.display = 'none'; // Hide subtitle for this clean layout
     listContainer.innerHTML = '';
 
+    // Switch to horizontal grid layout, add grid-2x2 for 4 items, grid-1x2 for 2 items
+    listContainer.className = 'item-type-grid';
+    if (children.length === 4) {
+        listContainer.classList.add('grid-2x2');
+    } else if (children.length === 2) {
+        listContainer.classList.add('grid-1x2');
+    }
+
     children.forEach(childName => {
+        // Find full data for the child
         const childData = servicesData.find(s => s.name === childName);
-        const icon = childData ? childData.icon : 'fa-circle';
-        const color = childData ? childData.color : 'var(--muted)';
 
         const card = document.createElement('div');
-        card.className = 'org-option-card';
+        card.className = 'item-type-card';
+
+        // Interaction: Close item modal, proceed to org modal
         card.onclick = () => {
-            // Transitions from Step 0 to Step 1
+            closeItemSelectModal();
             openServiceModal(childName, parentName);
         };
 
-        const avatarContent = (childData && childData.backgroundImage)
-            ? `<img src="${childData.backgroundImage}" alt="${childName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`
-            : `<i class="fa-solid ${icon}" style="color: ${color}"></i>`;
-
-        card.innerHTML = `
-            <div class="org-info">
-                <div class="org-avatar">
-                    ${avatarContent}
-                </div>
-                <div class="org-name-text">${childName}</div>
-            </div>
-            <i class="fa-solid fa-chevron-right" style="color: var(--muted);"></i>
-        `;
-
+        // Accessibility
         card.setAttribute('role', 'button');
         card.setAttribute('tabindex', '0');
         card.onkeydown = (e) => {
@@ -1465,13 +1474,32 @@ function openItemSelectModal(parentName) {
                 card.click();
             }
         };
+
+        // Render Content
+        if (childData && childData.backgroundImage) {
+            // Use Background Image
+            card.innerHTML = `
+                <div class="item-type-image-wrapper">
+                    <img src="${childData.backgroundImage}" alt="${childName}">
+                </div>
+                <div class="item-type-title">${childName}</div>
+            `;
+        } else {
+            // Fallback: Icon + Background Color
+            const icon = childData ? childData.icon : 'fa-box';
+            card.innerHTML = `
+                <div class="item-type-image-wrapper" style="background-color: #e2e8f0;">
+                    <i class="fa-solid ${icon} item-type-icon"></i>
+                </div>
+                <div class="item-type-title">${childName}</div>
+            `;
+        }
+
         listContainer.appendChild(card);
     });
 
-    // Show Step 0 UI
+    // Show Modal (Step 0)
     showStep0();
-
-    // Show Modal
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
@@ -1517,6 +1545,17 @@ function openServiceModal(serviceName, parentGroup = null) {
 
     // Populate Orgs (Existing Logic)
     const orgs = serviceOrgMapping[serviceName] || [];
+
+    // Logo Mapping
+    const orgLogos = {
+        "AISERS": "../assets/photos/studentDashboard/Organization/AISERS.png",
+        "AMTSO": "../assets/photos/studentDashboard/Organization/AMT.png",
+        "AERO-ATSO": "../assets/photos/studentDashboard/Organization/AEROATSO.png",
+        "ELITECH": "../assets/photos/studentDashboard/Organization/ELITECH.png",
+        "SSC": "../assets/photos/studentDashboard/Organization/SSC.png",
+        "Supreme Student Council": "../assets/photos/studentDashboard/Organization/SSC.png"
+    };
+
     if (orgs.length === 0) {
         listContainer.innerHTML = `<div style="text-align:center; color:var(--muted); padding:20px;">No organizations found for this service.</div>`;
     } else {
@@ -1532,10 +1571,18 @@ function openServiceModal(serviceName, parentGroup = null) {
                     selectOrgOption(orgName, card);
                 }
             };
+
+            // Check if we have a logo, otherwise initials
+            const logoPath = orgLogos[orgName];
             const initials = orgName.substring(0, 2).toUpperCase();
+
+            const avatarContent = logoPath
+                ? `<img src="${logoPath}" alt="${orgName} logo">`
+                : initials;
+
             card.innerHTML = `
                 <div class="org-info">
-                    <div class="org-avatar">${initials}</div>
+                    <div class="org-avatar">${avatarContent}</div>
                     <div class="org-name-text">${orgName}</div>
                 </div>
                 <i class="fa-solid fa-circle-check check-icon"></i>
@@ -1601,6 +1648,7 @@ function resetModalState() {
     // Reset Buttons
     document.getElementById('btnStep1Continue').disabled = true;
     document.getElementById('btnStep2Confirm').disabled = true;
+    document.getElementById('btnModalBack').style.display = 'none';
 
     // Clear Org Selection visual
     document.querySelectorAll('.org-option-card').forEach(c => c.classList.remove('selected'));
@@ -1618,9 +1666,10 @@ function showStep0() {
 
     // Footer Buttons for Step 0
     document.getElementById('btnStep1Cancel').style.display = 'inline-block';
-    document.getElementById('btnStep1BackToGroup').style.display = 'none';
     document.getElementById('btnStep1Continue').style.display = 'none';
-    document.getElementById('btnStep2Back').style.display = 'none';
+
+    // Header Back Button
+    document.getElementById('btnModalBack').style.display = 'none';
 }
 
 function showStep1() {
@@ -1631,17 +1680,18 @@ function showStep1() {
     document.getElementById('modalTitle').innerText = "Select an Organization";
     document.getElementById('modalSubtitle').innerText = `Choose who will provide: ${currentSelectedService || '...'}`;
 
-    // Toggle Footer Buttons
+    // Header Back Button visibility & action
+    const backBtn = document.getElementById('btnModalBack');
     if (currentParentGroup) {
+        backBtn.style.display = 'flex';
+        backBtn.onclick = handleBackToItemSelect;
         document.getElementById('btnStep1Cancel').style.display = 'none';
-        document.getElementById('btnStep1BackToGroup').style.display = 'inline-block';
     } else {
+        backBtn.style.display = 'none';
         document.getElementById('btnStep1Cancel').style.display = 'inline-block';
-        document.getElementById('btnStep1BackToGroup').style.display = 'none';
     }
 
     document.getElementById('btnStep1Continue').style.display = 'inline-block';
-    document.getElementById('btnStep2Back').style.display = 'none';
     document.getElementById('btnStep2Confirm').style.display = 'none';
 }
 
@@ -1653,10 +1703,14 @@ function showStep2() {
     document.getElementById('modalTitle').innerText = "Rental Details";
     document.getElementById('modalSubtitle').innerText = `Provider: ${currentSelectedOrg}`;
 
+    // Header Back Button
+    const backBtn = document.getElementById('btnModalBack');
+    backBtn.style.display = 'flex';
+    backBtn.onclick = handleBackToStep1;
+
     // Toggle Footer Buttons
     document.getElementById('btnStep1Cancel').style.display = 'none';
     document.getElementById('btnStep1Continue').style.display = 'none';
-    document.getElementById('btnStep2Back').style.display = 'inline-block';
     document.getElementById('btnStep2Confirm').style.display = 'inline-block';
 
     // Set Date Input Constraints (Min = Today, Max = Today + 1 day)

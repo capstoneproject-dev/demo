@@ -669,6 +669,32 @@ header {
     color: var(--primary);
 }
 
+.org-avatar {
+    width: 40px;
+    height: 40px;
+    background: var(--panel-2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary);
+    flex-shrink: 0;
+    overflow: hidden;
+    /* Ensure image doesn't bleed out */
+}
+
+.org-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 50%;
+    background-color: white;
+    /* Optional: adds consistency if logo is transparent */
+}
+
 .filename-text {
     font-weight: 600;
     color: var(--text);
@@ -715,6 +741,23 @@ header {
 
 .category-section {
     animation: fadeIn 0.4s ease;
+}
+
+.categ.modal-header {
+    display: flex;
+    justify-content: flex-start;
+    /* Align children to the start */
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    /* For close button positioning if needed */
+}
+
+.close-modal {
+    margin-left: auto;
+    /* Push close button to the far right */
 }
 
 .category-header {
@@ -1595,6 +1638,27 @@ td {
     color: var(--muted);
 }
 
+/* Header Back Button */
+.back-modal {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 8px;
+    margin-right: 12px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.back-modal:hover {
+    background-color: var(--panel-2);
+    color: var(--primary);
+}
+
 /* Org Select List Grid */
 .org-select-list {
     display: flex;
@@ -1613,6 +1677,129 @@ td {
 .org-select-list::-webkit-scrollbar-thumb {
     background-color: var(--border);
     border-radius: 10px;
+}
+
+/* --- ITEM TYPE SELECTION LAYOUT (STEP 0) --- */
+
+/* Step 0 Specific Header */
+.step-0-header {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+/* Grid Container for Horizontal Cards */
+.item-type-grid {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    width: 100%;
+}
+
+/* Specific Grid for 4-item layouts (e.g., Rulers) - 2x2 Grid */
+.item-type-grid.grid-2x2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    max-width: 450px;
+    /* Keep it centered and compact */
+    margin: 0 auto;
+}
+
+.item-type-grid.grid-2x2 .item-type-card {
+    min-height: 160px;
+    /* More proportional for 2x2 layout */
+    padding: 12px;
+}
+
+.item-type-grid.grid-2x2 .item-type-image-wrapper {
+    margin-bottom: 8px;
+}
+
+.item-type-grid.grid-2x2 .item-type-title {
+    font-size: 0.95rem;
+    /* Slightly smaller for compactness */
+}
+
+/* Specific Grid for 2-item layouts (e.g., Calculators) - 1x2 Grid */
+.item-type-grid.grid-1x2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    max-width: 550px;
+    margin: 0 auto;
+}
+
+/* The Large Horizontal Card */
+.item-type-card {
+    flex: 1;
+    min-height: 240px;
+    /* Increased slightly for spacing */
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    background-color: var(--panel-2);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+/* Hover Effect */
+.item-type-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+    border-color: var(--primary);
+}
+
+/* Image/Icon Wrapper */
+.item-type-image-wrapper {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: 12px;
+    background-color: var(--bg);
+    /* Light fallback */
+}
+
+.item-type-image-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Card Title Text */
+.item-type-title {
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--text);
+    text-align: center;
+}
+
+/* Icon fallback (if no image) */
+.item-type-icon {
+    font-size: 3rem;
+    color: var(--muted);
+}
+
+/* Mobile Responsive: Stack Vertically */
+@media (max-width: 600px) {
+    .item-type-grid {
+        flex-direction: column;
+    }
+
+    .item-type-card {
+        width: 100%;
+        min-height: 180px;
+    }
 }
 
 /* Org Option Card */
@@ -2498,5 +2685,80 @@ button:focus-visible {
 
     .calendar-popover.visible {
         transform: translate(-50%, -50%);
+    }
+}
+
+/* --- OPTION 1: GALLERY CARD LAYOUT (New Additions) --- */
+
+/* 1. Base Card Overrides for Gallery Style */
+.service-card.gallery-card {
+    padding: 0 !important;
+    /* Remove default padding to allow image to touch edges */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Keeps image inside rounded corners */
+    height: 100%;
+    /* Ensures equal height in grid */
+    background: var(--panel);
+    border: 1px solid var(--border);
+}
+
+/* 2. The Image Container */
+.gallery-img-wrapper {
+    width: 100%;
+    height: 180px;
+    /* Fixed height for uniformity */
+    background-color: #f1f5f9;
+    /* Light gray bg for transparent images */
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+    /* Separator line */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 3. The Image Itself */
+.gallery-img-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* 'cover' fills the box, 'contain' shows full image */
+    transition: transform 0.4s ease;
+}
+
+/* Hover Effect: Gentle Zoom */
+.service-card.gallery-card:hover .gallery-img-wrapper img {
+    transform: scale(1.08);
+}
+
+/* 4. The Text Container (Below Image) */
+.gallery-content {
+    padding: 16px;
+    background: var(--panel);
+    flex-grow: 1;
+    /* Pushes content to fill space */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+/* Text Styling */
+.gallery-content .service-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
+/* --- MOBILE ADJUSTMENTS --- */
+@media (max-width: 768px) {
+    .gallery-img-wrapper {
+        height: 150px;
+        /* Slightly smaller on mobile */
     }
 }
