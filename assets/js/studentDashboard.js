@@ -1,8 +1,7 @@
 // --- DATA SIMULATION ---
 const servicesData = [
     { name: "Shoe Rag", org: "AISERS", icon: "fa-shoe-prints", color: "#f59e0b" },
-    { name: "Calculator", org: "AISERS", icon: "fa-calculator", color: "#f59e0b" },
-    { name: "Business Calculator", org: "AISERS", icon: "fa-calculator", color: "#f59e0b" },
+    { name: "Business Calculator", org: "AISERS", icon: "fa-calculator", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/businesscalculator.png" },
     { name: "Scientific Calculator", org: "SSC, AERO-ATSO", icon: "fa-square-root-variable", color: "#ef4444" },
     { name: "Arnis Equipment", org: "AISERS", icon: "fa-hand-fist", color: "#f59e0b" },
     { name: "Printing", org: "SSC, CYC, AMTSO, AET", icon: "fa-print", color: "#ef4444" },
@@ -1147,7 +1146,7 @@ const serviceCategories = {
     academic: {
         title: "Academic & Study Tools",
         icon: "fa-calculator",
-        items: ["Calculator", "Business Calculator", "Scientific Calculator", "Rulers", "T-Square", "Triangle Ruler", "Protractor"]
+        items: ["Business Calculator", "Scientific Calculator", "Rulers", "T-Square", "Triangle Ruler", "Protractor"]
     },
     laboratory: {
         title: "Laboratory",
@@ -1219,16 +1218,29 @@ function renderServices(filter = "") {
 
             matchingServices.forEach(service => {
                 const card = document.createElement('div');
-                card.className = 'service-card'; // Use existing card class
-                card.innerHTML = `
-                    <div class="service-icon">
-                        <i class="fa-solid ${service.icon}"></i>
-                    </div>
-                    <div>
-                        <div class="service-name">${service.name}</div>
-                        <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
-                    </div>
-                `;
+                card.className = 'service-card';
+
+                if (service.backgroundImage) {
+                    card.classList.add('has-bg');
+                    card.style.backgroundImage = `url('${service.backgroundImage}')`;
+                    card.innerHTML = `
+                        <div class="service-overlay"></div>
+                        <div class="service-content">
+                            <div class="service-name">${service.name}</div>
+                            <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
+                        </div>
+                    `;
+                } else {
+                    card.innerHTML = `
+                        <div class="service-icon">
+                            <i class="fa-solid ${service.icon}"></i>
+                        </div>
+                        <div>
+                            <div class="service-name">${service.name}</div>
+                            <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
+                        </div>
+                    `;
+                }
 
                 // NEW INTERACTION LOGIC
                 if (service.name !== "Others") {
@@ -1365,7 +1377,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- DATA MAPPING (Service -> Organizations) ---
 const serviceOrgMapping = {
     "Shoe Rag": ["AISERS"],
-    "Calculator": ["AISERS"],
     "Business Calculator": ["AISERS"],
     "Scientific Calculator": ["SSC", "AERO-ATSO"],
     "Arnis Equipment": ["AISERS"],

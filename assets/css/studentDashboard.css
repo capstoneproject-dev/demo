@@ -481,6 +481,41 @@ header {
     background-color: var(--muted);
 }
 
+/* Service Card with Background */
+.service-card.has-bg {
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    border: none;
+    overflow: hidden;
+    min-height: 160px;
+}
+
+.service-card.has-bg .service-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.1) 100%);
+    z-index: 1;
+}
+
+.service-card.has-bg .service-content {
+    position: relative;
+    z-index: 2;
+    margin-top: auto;
+}
+
+.service-card.has-bg .service-name {
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.service-card.has-bg .org-badge {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 /* --- PRINTING HERO SECTION --- */
 .printing-hero {
     background-color: var(--panel-2);
