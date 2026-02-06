@@ -319,66 +319,39 @@ function switchOrgTab(tabName, btn) {
                 <i class="fa-solid fa-users-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;"></i>
                 <h3 style="margin-bottom: 10px; color: var(--text);">No Organizations Joined</h3>
                 <p style="max-width: 400px; margin: 0 auto; line-height: 1.5;">
-                    You haven't joined any student organizations yet. Visit to "About" tab to explore and join!
-                </p>
-            </div>
         `;
     } else if (tabName === 'membership') {
-        // --- MEMBERSHIP LAYOUT ---
+        // --- MEMBERSHIP LAYOUT (Grid + Modal) ---
         contentDiv.innerHTML = `
             <div class="membership-dashboard-wrapper">
-                
-                <div class="membership-stats-row">
-                    <div class="mem-stat-card">
-                        <div class="mem-icon" style="background: rgba(37, 99, 235, 0.1); color: #2563eb;">
-                            <i class="fa-solid fa-id-card"></i>
-                        </div>
-                        <div class="mem-stat-info">
-                            <h3>0</h3>
-                            <small>Active Memberships</small>
-                        </div>
-                    </div>
-                    <div class="mem-stat-card">
-                        <div class="mem-icon" style="background: rgba(245, 158, 11, 0.1); color: #d97706;">
-                            <i class="fa-solid fa-hourglass-half"></i>
-                        </div>
-                        <div class="mem-stat-info">
-                            <h3>0</h3>
-                            <small>Pending Applications</small>
-                        </div>
-                    </div>
-                     <div class="mem-stat-card">
-                        <div class="mem-icon" style="background: rgba(16, 185, 129, 0.1); color: #059669;">
-                            <i class="fa-solid fa-check-to-slot"></i>
-                        </div>
-                        <div class="mem-stat-info">
-                            <h3>12</h3>
-                            <small>Open Positions</small>
-                        </div>
-                    </div>
-                </div>
 
                 <div class="membership-split-layout">
-                    
                     <div class="recruitment-feed">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                            <h3 class="section-title" style="margin:0; font-size:1.25rem;">Recruiting Organizations</h3>
-                            <span style="font-size:0.85rem; color:var(--muted);">Select one to apply</span>
+                            <h3 class="section-title" style="margin:0; font-size:1.5rem; color:var(--primary);">Recruiting Organizations</h3>
+                            <span style="font-size:0.9rem; color:var(--muted);">Select an organization to apply</span>
                         </div>
                         
                         <div class="recruitment-grid" id="recruitmentGrid">
                             </div>
                     </div>
+                </div>
 
-                    <div class="application-panel">
-                        <div class="card sticky-form-card" style="border-top: none; padding: 24px;">
-                            
-                            <h3 style="color: var(--primary); font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">
-                                Application for Organization Membership
+                <div id="membershipApplicationModal" class="modal-overlay">
+                    <div class="modal-content membership-modal-content">
+                        
+                        <div class="modal-header">
+                            <h3 style="color: var(--primary); font-size: 1.1rem; font-weight: 700;">
+                                Application for Membership
                             </h3>
-                            
+                            <button class="close-modal" onclick="closeMembershipModal()">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <div class="modal-body">
                             <p class="form-description">
-                                To apply, select the desired organization, download and complete the provided application form, attach the filled form using the upload function, then click Submit.
+                                To apply, verify the organization details, complete the form below, attach required documents, then click Submit.
                             </p>
                             
                             <form id="membershipForm" onsubmit="handleMembershipSubmit(event)">
@@ -409,33 +382,49 @@ function switchOrgTab(tabName, btn) {
 
                                 <div class="form-group">
                                     <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Upload file here</label>
+                                    
                                     <div class="custom-upload-box" id="mem-upload-box" onclick="triggerFileUpload()">
-                                        <span class="upload-placeholder-text">Upload Here</span>
+                                        <span class="upload-placeholder-text">Upload Application Form</span>
                                         <div class="upload-plus-icon"><i class="fa-solid fa-plus"></i></div>
                                     </div>
-                                    <input type="file" id="mem-file-upload" hidden onchange="handleFilePreview(this)">
+                                    
+                                    <input type="file" id="mem-file-upload" hidden onchange="handleFilePreview(this)" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
                                 </div>
 
                                 <button type="submit" class="btn-submit-wide">
-                                    Submit
+                                    Submit Application
                                 </button>
                             </form>
                         </div>
                     </div>
-
                 </div>
+
             </div>
         `;
 
-        // Inject Recruitment Cards (Logic remains the same as before)
+        // Inject Recruitment Cards
         const grid = document.getElementById('recruitmentGrid');
 
-        organizationData.forEach((org, index) => {
-            const card = document.createElement('div');
-            card.className = 'recruit-card';
-            card.id = `recruit-card-${index}`;
+        // NEW: Check if data is empty before rendering
+        if (organizationData.length === 0) {
+            grid.innerHTML = `
+                <div class="recruitment-empty-state">
+                    <i class="fa-solid fa-folder-open empty-state-icon"></i>
+                    <div class="empty-state-title">No Available Organizations</div>
+                    <div class="empty-state-desc">
+                        There are currently no organizations accepting applications. 
+                        Please check back later for future recruitment announcements.
+                    </div>
+                </div>
+            `;
+        } else {
+            // EXISTING LOGIC: Loop through data if items exist
+            organizationData.forEach((org, index) => {
+                const card = document.createElement('div');
+                card.className = 'recruit-card';
+                card.id = `recruit-card-${index}`;
 
-            card.innerHTML = `
+                card.innerHTML = `
                 <div class="recruit-header" style="background:${org.color}"></div>
                 <div class="recruit-body">
                     <img src="${org.image || `https://picsum.photos/seed/${org.imgSeed}/100/100`}" class="recruit-logo">
@@ -444,13 +433,15 @@ function switchOrgTab(tabName, btn) {
                         <span class="recruit-badge">Open for Officers</span>
                         <p class="recruit-desc">We are looking for passionate individuals to lead our upcoming projects.</p>
                     </div>
-                    <button class="btn-apply-recruit" onclick="fillMembershipForm('${org.name}', 'recruit-card-${index}')">
+                    <button class="btn-apply-recruit" onclick="openMembershipModal('${org.name}', 'recruit-card-${index}')">
                         Apply Now
                     </button>
                 </div>
             `;
-            grid.appendChild(card);
-        });
+                grid.appendChild(card);
+            });
+        }
+
     } else if (tabName === 'events') {
         // Filter Bar
         const filterBar = document.createElement('div');
@@ -2031,31 +2022,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- MEMBERSHIP FORM LOGIC ---
 
-// 1. Updated Fill Function
-function fillMembershipForm(orgName, cardId) {
+// 1. Open Modal and Fill Data
+function openMembershipModal(orgName, cardId) {
+    const modal = document.getElementById('membershipApplicationModal');
     const orgInput = document.getElementById('mem-org-input');
 
     // Fill the organization input
     if (orgInput) {
         orgInput.value = orgName;
-        // Visual flash effect
-        orgInput.style.backgroundColor = "#e0f2fe"; // Light blue
-        setTimeout(() => orgInput.style.backgroundColor = "#f1f5f9", 500);
     }
 
-    // Highlight selected card visually
+    // Highlight selected card visually (in the background grid)
     document.querySelectorAll('.recruit-card').forEach(c => c.classList.remove('selected-org-card'));
     const card = document.getElementById(cardId);
     if (card) card.classList.add('selected-org-card');
 
-    // Scroll to form on Mobile
-    if (window.innerWidth <= 900) {
-        const formCard = document.querySelector('.sticky-form-card');
-        if (formCard) {
-            formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+    // Show Modal
+    if (modal) {
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
     }
 }
+
+// 2. Close Modal
+function closeMembershipModal() {
+    const modal = document.getElementById('membershipApplicationModal');
+    if (modal) {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+}
+
+// 3. Close Modal on Outside Click
+window.addEventListener('click', (e) => {
+    const modal = document.getElementById('membershipApplicationModal');
+    if (e.target === modal) {
+        closeMembershipModal();
+    }
+});
 
 // 2. Role Selection Logic (Visual Toggle)
 function selectRole(role, btnElement) {
@@ -2266,7 +2270,7 @@ function handleMembershipSubmit(e) {
     const org = document.getElementById('mem-org-input').value;
 
     if (!org) {
-        alert("Please select an organization from the list first.");
+        alert("Organization info missing. Please try again.");
         return;
     }
 
@@ -2276,21 +2280,38 @@ function handleMembershipSubmit(e) {
 
     btn.innerText = "Submitting...";
     btn.disabled = true;
+    btn.style.opacity = "0.7";
 
     setTimeout(() => {
+        // Show success alert
         alert(`Application to ${org} submitted successfully!`);
-        btn.innerText = "Submitted";
-        btn.style.background = "#10b981"; // Success green
 
-        // Reset form after delay
-        setTimeout(() => {
-            e.target.reset();
-            document.querySelectorAll('.recruit-card').forEach(c => c.classList.remove('selected-org-card'));
-            const display = document.getElementById('file-name-display');
-            if (display) display.style.display = 'none';
-            btn.innerText = originalText;
-            btn.style.background = "var(--primary)";
-            btn.disabled = false;
-        }, 2000);
-    }, 1000);
+        // Reset and Close
+        e.target.reset();
+
+        // Reset File Preview Box
+        const box = document.getElementById('mem-upload-box');
+        if (box) {
+            box.classList.remove('has-preview');
+            box.style = "";
+            box.innerHTML = `
+                <span class="upload-placeholder-text">Upload Here</span>
+                <div class="upload-plus-icon"><i class="fa-solid fa-plus"></i></div>
+            `;
+        }
+
+        // Reset Global PDF State
+        pdfDoc = null;
+        pageNum = 1;
+        pageRendering = false;
+        pageNumPending = null;
+
+        // Reset Button
+        btn.innerText = originalText;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+
+        closeMembershipModal();
+
+    }, 1500);
 }

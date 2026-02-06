@@ -2815,13 +2815,16 @@ button:focus-visible {
     display: block;
 }
 
-/* 2. Split Layout (Recruitment + Form) */
+/* 1. Layout: Remove Split, make full width */
 .membership-split-layout {
-    display: grid;
-    grid-template-columns: 1.8fr 1.2fr;
-    /* Larger left column */
-    gap: 24px;
-    align-items: flex-start;
+    display: block;
+    /* Was grid */
+    width: 100%;
+}
+
+/* 2. Recruitment Feed: Full Width */
+.recruitment-feed {
+    width: 100%;
 }
 
 /* Recruitment Grid */
@@ -3103,6 +3106,13 @@ button:focus-visible {
 }
 
 /* Mobile Adjustments */
+@media (max-width: 768px) {
+    .recruitment-grid {
+        grid-template-columns: 1fr;
+        /* Stack on mobile */
+    }
+}
+
 @media (max-width: 600px) {
     .role-toggle-group {
         flex-direction: row;
@@ -3229,4 +3239,41 @@ button:focus-visible {
 .btn-remove-file:hover {
     transform: scale(1.1);
     background: #dc2626;
+}
+
+/* --- MEMBERSHIP EMPTY STATE --- */
+.recruitment-empty-state {
+    grid-column: 1 / -1;
+    /* Spans full width of the grid */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+    width: 100%;
+}
+
+.empty-state-icon {
+    font-size: 3.5rem;
+    margin-bottom: 16px;
+    opacity: 0.3;
+    color: var(--text);
+}
+
+.empty-state-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.empty-state-desc {
+    font-size: 0.9rem;
+    max-width: 350px;
+    line-height: 1.5;
 }
