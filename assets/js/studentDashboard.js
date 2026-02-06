@@ -409,12 +409,11 @@ function switchOrgTab(tabName, btn) {
 
                                 <div class="form-group">
                                     <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Upload file here</label>
-                                    <div class="custom-upload-box" onclick="document.getElementById('mem-file-upload').click()">
+                                    <div class="custom-upload-box" id="mem-upload-box" onclick="triggerFileUpload()">
                                         <span class="upload-placeholder-text">Upload Here</span>
                                         <div class="upload-plus-icon"><i class="fa-solid fa-plus"></i></div>
-                                        <input type="file" id="mem-file-upload" hidden onchange="handleFileDisplay(this)">
                                     </div>
-                                    <div id="file-name-display" style="font-size:0.8rem; color:var(--primary); margin-top:-15px; margin-bottom:15px; display:none;"></div>
+                                    <input type="file" id="mem-file-upload" hidden onchange="handleFilePreview(this)">
                                 </div>
 
                                 <button type="submit" class="btn-submit-wide">
@@ -2075,15 +2074,191 @@ function selectRole(role, btnElement) {
     btnElement.style.opacity = "1"; // Active one is fully opaque
 }
 
-// 3. File Upload Display Helper
-function handleFileDisplay(input) {
-    const display = document.getElementById('file-name-display');
-    if (input.files && input.files[0]) {
-        display.style.display = 'block';
-        display.innerHTML = `<i class="fa-solid fa-paperclip"></i> ${input.files[0].name}`;
-    } else {
-        display.style.display = 'none';
+// --- FILE PREVIEW LOGIC (With PDF Pagination) ---
+
+// State variables for PDF navigation
+let pdfDoc = null;
+let pageNum = 1;
+let pageRendering = false;
+let pageNumPending = null;
+
+// 1. Trigger the hidden input
+function triggerFileUpload() {
+    const box = document.getElementById('mem-upload-box');
+    if (!box.classList.contains('has-preview')) {
+        document.getElementById('mem-file-upload').click();
     }
+}
+
+// 2. Handle File Selection
+function handleFilePreview(input) {
+    const box = document.getElementById('mem-upload-box');
+
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        box.classList.add('has-preview');
+
+        // A. Handle PDF (Multi-page)
+        if (file.type === 'application/pdf') {
+            const fileReader = new FileReader();
+
+            fileReader.onload = function () {
+                const typedarray = new Uint8Array(this.result);
+
+                // Initialize PDF Loader
+                pdfjsLib.getDocument(typedarray).promise.then(function (pdf) {
+                    // Set Global State
+                    pdfDoc = pdf;
+                    pageNum = 1;
+
+                    // Setup HTML Structure with Nav Controls
+                    box.innerHTML = `
+                        <div class="file-preview-wrapper">
+                            <canvas id="pdf-render-canvas" class="pdf-preview-canvas"></canvas>
+                            
+                            <div class="pdf-nav-controls">
+                                <button type="button" class="pdf-nav-btn" id="pdf-prev" onclick="changePdfPage(-1)">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </button>
+                                <span class="pdf-page-info">
+                                    <span id="page_num">1</span> / <span id="page_count">${pdf.numPages}</span>
+                                </span>
+                                <button type="button" class="pdf-nav-btn" id="pdf-next" onclick="changePdfPage(1)">
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+
+                            <button type="button" class="btn-remove-file" onclick="removeFile(event)">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    `;
+
+                    // Initial Render
+                    renderPage(pageNum);
+
+                }, function (error) {
+                    console.error(error);
+                    box.innerHTML = `<div style="color:red; font-size:0.9rem;">Error loading PDF.</div>`;
+                });
+            };
+            fileReader.readAsArrayBuffer(file);
+        }
+        // B. Handle Image
+        else if (file.type.match('image.*')) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                box.innerHTML = `
+                    <div class="file-preview-wrapper">
+                        <img src="${e.target.result}" class="file-preview-img" alt="Preview" style="margin-bottom:10px;">
+                        <button type="button" class="btn-remove-file" onclick="removeFile(event)">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                `;
+            }
+            reader.readAsDataURL(file);
+        }
+        // C. Fallback
+        else {
+            box.innerHTML = `
+                <div class="file-preview-wrapper" style="height: 100px;">
+                    <i class="fa-regular fa-file-lines" style="font-size:2rem; color:var(--muted); margin-bottom:8px;"></i>
+                    <span class="file-name-text" style="font-size:0.85rem;">${file.name}</span>
+                    <button type="button" class="btn-remove-file" onclick="removeFile(event)">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+// 3. Render Specific PDF Page
+function renderPage(num) {
+    pageRendering = true;
+
+    // Fetch page
+    pdfDoc.getPage(num).then(function (page) {
+        const canvas = document.getElementById('pdf-render-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Scale 1.5 for clarity
+        const scale = 1.5;
+        const viewport = page.getViewport({ scale: scale });
+
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        // Render Context
+        const renderContext = {
+            canvasContext: ctx,
+            viewport: viewport
+        };
+        const renderTask = page.render(renderContext);
+
+        // Wait for render to finish
+        renderTask.promise.then(function () {
+            pageRendering = false;
+            if (pageNumPending !== null) {
+                // If a page change was requested while rendering, do it now
+                renderPage(pageNumPending);
+                pageNumPending = null;
+            }
+        });
+    });
+
+    // Update Counters UI
+    document.getElementById('page_num').textContent = num;
+
+    // Update Buttons State
+    document.getElementById('pdf-prev').disabled = (num <= 1);
+    document.getElementById('pdf-next').disabled = (num >= pdfDoc.numPages);
+}
+
+// 4. Handle Page Change Clicks
+function changePdfPage(offset) {
+    if (!pdfDoc) return;
+
+    // Calculate new page number
+    const newPage = pageNum + offset;
+
+    // If request comes while rendering, queue it
+    if (pageRendering) {
+        pageNumPending = newPage;
+    } else {
+        // Only proceed if within bounds
+        if (newPage > 0 && newPage <= pdfDoc.numPages) {
+            pageNum = newPage;
+            renderPage(pageNum);
+        }
+    }
+
+    // Stop click bubbling
+    if (typeof event !== 'undefined') event.stopPropagation();
+}
+
+// 5. Remove File & Reset
+function removeFile(event) {
+    event.stopPropagation();
+
+    const box = document.getElementById('mem-upload-box');
+    const input = document.getElementById('mem-file-upload');
+
+    // Clear Global PDF State
+    pdfDoc = null;
+    pageNum = 1;
+    pageRendering = false;
+    pageNumPending = null;
+
+    input.value = '';
+    box.classList.remove('has-preview');
+    box.style = "";
+
+    box.innerHTML = `
+        <span class="upload-placeholder-text">Upload Here</span>
+        <div class="upload-plus-icon"><i class="fa-solid fa-plus"></i></div>
+    `;
 }
 
 function handleMembershipSubmit(e) {

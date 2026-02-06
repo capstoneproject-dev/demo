@@ -537,6 +537,11 @@
     </div>
 
     <!-- JAVASCRIPT REFERENCE -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Set the worker source (Required for PDF.js)
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
     <script src="../assets/js/studentDashboard.js"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
