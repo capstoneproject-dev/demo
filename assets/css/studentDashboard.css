@@ -1751,3 +1751,127 @@ button:focus-visible {
     border-color: #ef4444 !important;
     background-color: rgba(239, 68, 68, 0.05) !important;
 }
+
+/* --- CALENDAR STYLES --- */
+#event-calendar {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.calendar-nav-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.calendar-nav-btn:hover {
+    background-color: var(--panel-2);
+    color: var(--primary);
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    /* Reduced gap to save space */
+    gap: 2px;
+    margin-top: 10px;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-weight: 600;
+    padding-bottom: 4px;
+}
+
+.calendar-day {
+    /* Removed aspect-ratio: 1 to reduce height */
+    height: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Center content vertically */
+    padding: 2px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--text);
+    cursor: default;
+    transition: background-color 0.2s;
+    position: relative;
+    border: 1px solid transparent;
+}
+
+.calendar-day:hover {
+    background-color: var(--panel-2);
+}
+
+.calendar-day.empty {
+    cursor: default;
+}
+
+.calendar-day.today {
+    background-color: var(--panel-2);
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 700;
+}
+
+/* Event Dot Indicator */
+.event-dots {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+}
+
+.event-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: var(--accent);
+}
+
+/* Responsive adjustment for calendar in grid */
+@media (max-width: 900px) {
+    .content-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Gray out non-current month days */
+.calendar-day.other-month {
+    width: 28px;
+    /* Fixed width */
+    height: 28px;
+    /* Fixed height (same as width) */
+    margin: 5px auto;
+    /* Center horizontally in grid cell */
+    border-radius: 50%;
+    /* Perfect circle */
+
+    background-color: #e2e8f0;
+    /* Visible gray background (Slate-200) */
+    color: #64748b;
+    /* Darker gray text (Slate-500) */
+    opacity: 1;
+    /* Solid opacity */
+
+    /* Override flex alignment from parent if needed, though parent flex handles inside content */
+    flex: 0 0 auto;
+    /* Prevent growing */
+}

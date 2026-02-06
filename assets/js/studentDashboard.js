@@ -483,6 +483,128 @@ function renderServices(filter = "") {
     });
 }
 
+// --- CALENDAR STATE ---
+let currentCalendarDate = new Date();
+
+// --- CALENDAR FUNCTIONS ---
+
+function renderCalendar() {
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth(); // 0-11
+
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ];
+
+    // Update Header
+    document.getElementById('calendarMonthYear').innerText = `${monthNames[month]} ${year}`;
+
+    const daysContainer = document.getElementById('calendarDays');
+    daysContainer.innerHTML = '';
+
+    // Logic to get days in month and start day
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 (Sun) to 6 (Sat)
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    // Previous Month Days (Trailing)
+    const prevMonthDays = new Date(year, month, 0).getDate();
+
+    // We want a fixed 6 rows * 7 days = 42 cells
+    // 1. Previous Month Days
+    for (let x = firstDayIndex; x > 0; x--) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-day', 'other-month');
+        dayDiv.innerText = prevMonthDays - x + 1;
+        daysContainer.appendChild(dayDiv);
+    }
+
+    // 2. Current Month Days
+    const today = new Date();
+    for (let i = 1; i <= daysInMonth; i++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-day');
+        dayDiv.innerText = i;
+
+        // Highlight today
+        if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+            dayDiv.classList.add('today');
+        }
+
+        // Check for events on this day
+        const dayEvents = getEventsForDate(year, month, i);
+        if (dayEvents.length > 0) {
+            const dotsContainer = document.createElement('div');
+            dotsContainer.classList.add('event-dots');
+            // Add a dot for each event (max 3 to fit)
+            dayEvents.slice(0, 3).forEach(() => {
+                const dot = document.createElement('div');
+                dot.classList.add('event-dot');
+                dotsContainer.appendChild(dot);
+            });
+            dayDiv.appendChild(dotsContainer);
+
+            // Optional: Add title for hover tooltip
+            const eventTitles = dayEvents.map(e => e.title).join(', ');
+            dayDiv.title = eventTitles;
+        }
+
+        daysContainer.appendChild(dayDiv);
+    }
+
+    // 3. Next Month Days (Leading) to fill 42 cells
+    // Calculate how many cells we've filled so far
+    const filledCells = firstDayIndex + daysInMonth;
+    const nextDays = 42 - filledCells;
+
+    for (let j = 1; j <= nextDays; j++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-day', 'other-month');
+        dayDiv.innerText = j;
+        daysContainer.appendChild(dayDiv);
+    }
+}
+
+function changeMonth(direction) {
+    currentCalendarDate.setMonth(currentCalendarDate.getMonth() + direction);
+    renderCalendar();
+}
+
+// Helper to check if extendedEvents match the current calendar day
+function getEventsForDate(year, month, day) {
+    return extendedEvents.filter(event => {
+        // Extended Events Date Format: "Nov. 11-24, 2024" or "Nov. 11, 2024"
+        const dateStr = event.date;
+
+        // Simple regex to extract parts
+        // Matches: "Month. Start-End, Year" or "Month. Start, Year"
+        const regex = /([a-zA-Z]+)\.\s+(\d+)(?:-(\d+))?,\s+(\d+)/;
+        const match = dateStr.match(regex);
+
+        if (match) {
+            const eventYear = parseInt(match[4]);
+            const eventMonthStr = match[1];
+            const startDay = parseInt(match[2]);
+            const endDay = match[3] ? parseInt(match[3]) : startDay;
+
+            // Convert month string to index (e.g., "Nov" -> 10)
+            const monthMap = {
+                "Jan": 0, "Feb": 1, "Mar": 2, "Apr": 3, "May": 4, "Jun": 5,
+                "Jul": 6, "Aug": 7, "Sep": 8, "Oct": 9, "Nov": 10, "Dec": 11
+            };
+
+            // Handle full names if regex fails or specific formats
+            // For now, assuming the 3-letter abbreviation based on provided data
+
+            const eventMonthIndex = monthMap[eventMonthStr.substring(0, 3)]; // Handle "November" vs "Nov"
+
+            if (eventYear === year && eventMonthIndex === month) {
+                return day >= startDay && day <= endDay;
+            }
+        }
+        return false;
+    });
+}
+
 function renderDashboard() {
     // Render Announcements
     const annList = document.getElementById('announcements-list');
@@ -506,6 +628,9 @@ function renderDashboard() {
             <p style="font-size: 0.85rem; color: var(--muted);">${ev.org}</p>
         </div>
     `).join('');
+
+    // NEW: Render Calendar
+    renderCalendar();
 }
 
 function renderProfile() {
