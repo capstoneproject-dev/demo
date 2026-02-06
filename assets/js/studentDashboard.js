@@ -324,34 +324,126 @@ function switchOrgTab(tabName, btn) {
             </div>
         `;
     } else if (tabName === 'membership') {
+        // --- NEW MEMBERSHIP LAYOUT ---
         contentDiv.innerHTML = `
-            <div style="padding: 20px;">
-                <h3 style="margin-bottom: 15px;">Apply for Officer Membership</h3>
-                <p style="color: var(--muted); margin-bottom: 20px;">
-                    Aspiring to lead? Fill out form below to apply for officer roles in our partner organizations.
-                </p>
-                <form onsubmit="event.preventDefault(); alert('Application Submitted Successfully!');" style="display: grid; gap: 15px; max-width: 500px;">
-                    <div>
-                        <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Full Name</label>
-                        <input type="text" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);" required>
+            <div class="membership-dashboard-wrapper">
+                
+                <div class="membership-stats-row">
+                    <div class="mem-stat-card">
+                        <div class="mem-icon" style="background: rgba(37, 99, 235, 0.1); color: #2563eb;">
+                            <i class="fa-solid fa-id-card"></i>
+                        </div>
+                        <div class="mem-stat-info">
+                            <h3>0</h3>
+                            <small>Active Memberships</small>
+                        </div>
                     </div>
-                    <div>
-                        <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Desired Organization</label>
-                        <select style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);">
-                            <option>SSC</option>
-                            <option>AISERS</option>
-                            <option>ELITECH</option>
-                            <option>AERO-ATSO</option>
-                        </select>
+                    <div class="mem-stat-card">
+                        <div class="mem-icon" style="background: rgba(245, 158, 11, 0.1); color: #d97706;">
+                            <i class="fa-solid fa-hourglass-half"></i>
+                        </div>
+                        <div class="mem-stat-info">
+                            <h3>0</h3>
+                            <small>Pending Applications</small>
+                        </div>
                     </div>
-                    <div>
-                        <label style="display:block; margin-bottom:5px; font-size:0.9rem;">Position</label>
-                        <input type="text" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--text);" required>
+                     <div class="mem-stat-card">
+                        <div class="mem-icon" style="background: rgba(16, 185, 129, 0.1); color: #059669;">
+                            <i class="fa-solid fa-check-to-slot"></i>
+                        </div>
+                        <div class="mem-stat-info">
+                            <h3>12</h3>
+                            <small>Open Positions</small>
+                        </div>
                     </div>
-                    <button type="submit" style="background: var(--primary); color: white; padding: 12px; border-radius: var(--radius-md); border: none; cursor: pointer; font-weight: 600;">Submit Application</button>
-                </form>
+                </div>
+
+                <div class="membership-split-layout">
+                    
+                    <div class="recruitment-feed">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                            <h3 class="section-title" style="margin:0; font-size:1.25rem;">Recruiting Organizations</h3>
+                            <span style="font-size:0.85rem; color:var(--muted);">Select one to apply</span>
+                        </div>
+                        
+                        <div class="recruitment-grid" id="recruitmentGrid">
+                            </div>
+                    </div>
+
+                    <div class="application-panel">
+                        <div class="card sticky-form-card">
+                            <div class="card-header">
+                                <div class="card-title"><i class="fa-solid fa-file-pen" style="margin-right:8px; color:var(--primary);"></i>Application</div>
+                            </div>
+                            
+                            <form id="membershipForm" onsubmit="handleMembershipSubmit(event)">
+                                <div class="form-group">
+                                    <label style="font-size:0.85rem; color:var(--muted);">Target Organization</label>
+                                    <input type="text" id="mem-org-input" placeholder="Select from list..." readonly 
+                                        style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--primary); font-weight:600; cursor:not-allowed;">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label style="font-size:0.85rem; color:var(--muted);">Student Info</label>
+                                    <input type="text" value="Juan Dela Cruz (2021-12345)" readonly
+                                         style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg); color:var(--muted); font-size:0.9rem;">
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-size:0.85rem; color:var(--muted);">Applying For</label>
+                                    <select id="mem-position-input" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel); color:var(--text); outline:none;">
+                                        <option value="" disabled selected>Select Position...</option>
+                                        <option>General Member</option>
+                                        <option>Committee Associate</option>
+                                        <option>Executive Officer</option>
+                                        <option>Logistics Head</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-size:0.85rem; color:var(--muted);">Short Motivation</label>
+                                    <textarea rows="3" placeholder="Why do you want to join us?" required
+                                        style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel); color:var(--text); outline:none; font-family:var(--font);"></textarea>
+                                </div>
+
+                                <button type="submit" class="btn-submit" style="width:100%; justify-content:center;">
+                                    Submit Application
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
             </div>
         `;
+
+        // Inject Recruitment Cards
+        const grid = document.getElementById('recruitmentGrid');
+
+        // Use organizationData but map distinct "Open Roles" to them for flavor
+        organizationData.forEach((org, index) => {
+            const card = document.createElement('div');
+            card.className = 'recruit-card';
+            // Unique ID for selection logic
+            card.id = `recruit-card-${index}`;
+
+            // Layout (Desktop vs Mobile handled by CSS)
+            card.innerHTML = `
+                <div class="recruit-header" style="background:${org.color}"></div>
+                <div class="recruit-body">
+                    <img src="${org.image || `https://picsum.photos/seed/${org.imgSeed}/100/100`}" class="recruit-logo">
+                    <div class="recruit-info-group">
+                        <h4>${org.name}</h4>
+                        <span class="recruit-badge">Open for Officers</span>
+                        <p class="recruit-desc">We are looking for passionate individuals to lead our upcoming projects.</p>
+                    </div>
+                    <button class="btn-apply-recruit" onclick="fillMembershipForm('${org.name}', 'recruit-card-${index}')">
+                        Apply Now
+                    </button>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
     } else if (tabName === 'events') {
         // Filter Bar
         const filterBar = document.createElement('div');
@@ -1928,3 +2020,65 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmBtn.addEventListener('click', confirmRental);
     }
 });
+
+// --- MEMBERSHIP HELPERS ---
+
+function fillMembershipForm(orgName, cardId) {
+    // 1. Fill Input
+    const input = document.getElementById('mem-org-input');
+    const select = document.getElementById('mem-position-input');
+    if (input) {
+        input.value = orgName;
+        // Visual feedback (flash effect)
+        input.style.borderColor = 'var(--primary)';
+        setTimeout(() => input.style.borderColor = 'var(--border)', 500);
+
+        // Auto focus select
+        if (select) select.focus();
+    }
+
+    // 2. Highlight selected card
+    document.querySelectorAll('.recruit-card').forEach(c => c.classList.remove('selected-org-card'));
+    const card = document.getElementById(cardId);
+    if (card) card.classList.add('selected-org-card');
+
+    // 3. Scroll to form on Mobile
+    if (window.innerWidth <= 900) {
+        const formCard = document.querySelector('.sticky-form-card');
+        if (formCard) {
+            formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
+function handleMembershipSubmit(e) {
+    e.preventDefault();
+    const org = document.getElementById('mem-org-input').value;
+
+    if (!org) {
+        alert("Please select an organization from the list first.");
+        return;
+    }
+
+    // Success Simulation
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.innerText;
+
+    btn.innerText = "Submitting...";
+    btn.disabled = true;
+
+    setTimeout(() => {
+        alert(`Application to ${org} submitted successfully!`);
+        btn.innerText = "Submitted";
+        btn.style.background = "#10b981"; // Success green
+
+        // Reset form after delay
+        setTimeout(() => {
+            e.target.reset();
+            document.querySelectorAll('.recruit-card').forEach(c => c.classList.remove('selected-org-card'));
+            btn.innerText = originalText;
+            btn.style.background = "var(--primary)";
+            btn.disabled = false;
+        }, 2000);
+    }, 1000);
+}
