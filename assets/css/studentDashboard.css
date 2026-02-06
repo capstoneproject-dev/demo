@@ -1503,8 +1503,9 @@ td {
     font-size: 0.9rem;
 }
 
-/* View Details Button (Secondary Style) */
-.btn-view-details {
+/* View Details Button & Share (Secondary Style) */
+.btn-view-details,
+.btn-share {
     background: transparent;
     border: 1px solid var(--primary);
     color: var(--primary);
@@ -1519,9 +1520,12 @@ td {
     gap: 6px;
 }
 
-.btn-view-details:hover {
+.btn-view-details:hover,
+.btn-share:hover {
     background: var(--panel-2);
     transform: translateY(-2px);
+    color: var(--primary);
+    /* Keep primary color on hover */
 }
 
 /* Responsive Adjustments */
@@ -1900,27 +1904,7 @@ button:focus-visible {
     /* Prevent growing */
 }
 
-/* --- SHARE BUTTON STYLES --- */
-.btn-share {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
 
-.btn-share:hover {
-    background: var(--panel-2);
-    color: var(--text);
-    transform: translateY(-2px);
-}
 
 /* --- MOBILE FIXES FOR BROKEN SECTIONS --- */
 @media (max-width: 768px) {
