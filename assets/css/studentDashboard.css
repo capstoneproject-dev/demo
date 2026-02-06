@@ -471,15 +471,7 @@ header {
     margin-bottom: 8px;
 }
 
-.org-badge {
-    display: inline-block;
-    font-size: 0.75rem;
-    padding: 4px 10px;
-    border-radius: 20px;
-    color: #fff;
-    align-self: flex-start;
-    background-color: var(--muted);
-}
+
 
 /* Service Card with Background */
 .service-card.has-bg {
@@ -497,7 +489,7 @@ header {
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.1) 100%);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.486) 0%, rgba(0, 0, 0, 0.1) 100%);
     z-index: 1;
 }
 
@@ -512,9 +504,7 @@ header {
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.service-card.has-bg .org-badge {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
+
 
 /* --- PRINTING HERO SECTION --- */
 .printing-hero {
@@ -1671,8 +1661,9 @@ td {
 .org-avatar {
     width: 40px;
     height: 40px;
-    background-color: var(--primary);
-    color: white;
+    background-color: #fff;
+    color: var(--primary);
+    border: 1px solid var(--border);
     border-radius: 50%;
     display: flex;
     align-items: center;

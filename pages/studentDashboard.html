@@ -461,6 +461,13 @@
 
             <div class="modal-body">
 
+                <!-- STEP 0: ITEM TYPE SELECTION -->
+                <div id="step0-item-selection" style="display: none;">
+                    <div id="itemSelectList" class="org-select-list">
+                        <!-- Options injected via JS -->
+                    </div>
+                </div>
+
                 <!-- STEP 1: ORG SELECTION -->
                 <div id="step1-org-selection">
                     <div id="orgSelectList" class="org-select-list">
@@ -509,6 +516,8 @@
                     <!-- Buttons will be swapped dynamically by JS -->
                     <button type="button" class="btn-cancel" id="btnStep1Cancel"
                         onclick="closeServiceModal()">Cancel</button>
+                    <button type="button" class="btn-cancel" id="btnStep1BackToGroup" style="display: none;"
+                        onclick="handleBackToItemSelect()">Back</button>
                     <button type="button" class="btn-cancel" id="btnStep2Back" style="display: none;"
                         onclick="handleBackToStep1()">Back</button>
                     <button type="button" class="btn-submit" id="btnStep1Continue" disabled>Continue</button>

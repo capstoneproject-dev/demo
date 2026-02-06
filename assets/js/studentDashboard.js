@@ -1,20 +1,23 @@
 // --- DATA SIMULATION ---
 const servicesData = [
-    { name: "Shoe Rag", org: "AISERS", icon: "fa-shoe-prints", color: "#f59e0b" },
+    // NEW: Parent Group Items
+    { name: "Calculator", org: "Combined", icon: "fa-calculator", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/businesscalculator.png" },
+    { name: "Rulers", org: "Combined", icon: "fa-ruler", color: "#64748b" },
+
+    // Existing Specific Items
+    { name: "Shoe Rag", org: "AISERS", icon: "fa-shoe-prints", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/shoerag.png" },
     { name: "Business Calculator", org: "AISERS", icon: "fa-calculator", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/businesscalculator.png" },
-    { name: "Scientific Calculator", org: "SSC, AERO-ATSO", icon: "fa-square-root-variable", color: "#ef4444" },
-    { name: "Arnis Equipment", org: "AISERS", icon: "fa-hand-fist", color: "#f59e0b" },
+    { name: "Scientific Calculator", org: "SSC, AERO-ATSO", icon: "fa-square-root-variable", color: "#ef4444", backgroundImage: "../assets/photos/studentDashboard/Services/scical.png" },
+    { name: "Arnis", org: "AISERS", icon: "fa-hand-fist", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/arnis.png" },
     { name: "Printing", org: "SSC, CYC, AMTSO, AET", icon: "fa-print", color: "#ef4444" },
-    { name: "Crimping Tools", org: "ELITECH", icon: "fa-pliers", color: "#6366f1" },
-    { name: "Mini Fan", org: "ELITECH", icon: "fa-fan", color: "#6366f1" },
-    { name: "Tester", org: "ELITECH", icon: "fa-bolt", color: "#6366f1" },
-    { name: "Rulers", org: "General", icon: "fa-ruler", color: "#64748b" },
-    { name: "T-Square", org: "General", icon: "fa-ruler-combined", color: "#64748b" },
-    { name: "Triangle Ruler", org: "General", icon: "fa-shapes", color: "#64748b" },
-    { name: "Protractor", org: "General", icon: "fa-rotate", color: "#64748b" },
+    { name: "Network Crimping Tool", org: "ELITECH", icon: "fa-pliers", color: "#6366f1", backgroundImage: "../assets/photos/studentDashboard/Services/crimpingtool.png" },
+    { name: "Mini Fan", org: "ELITECH", icon: "fa-fan", color: "#6366f1", backgroundImage: "../assets/photos/studentDashboard/Services/minifan.png" },
+    { name: "Network Cable Tester", org: "ELITECH", icon: "fa-bolt", color: "#6366f1", backgroundImage: "../assets/photos/studentDashboard/Services/tester.png" },
+    { name: "T-Square", org: "General", icon: "fa-ruler-combined", color: "#64748b", backgroundImage: "../assets/photos/studentDashboard/Services/tsquare.png" },
+    { name: "Triangle Ruler", org: "General", icon: "fa-shapes", color: "#64748b", backgroundImage: "../assets/photos/studentDashboard/Services/triangle.png" },
+    { name: "Protractor", org: "General", icon: "fa-rotate", color: "#64748b", backgroundImage: "../assets/photos/studentDashboard/Services/protractor.png" },
     { name: "1x1 Photo Processing", org: "SSC", icon: "fa-camera", color: "#ef4444" },
-    { name: "Locker Rental", org: "SSC", icon: "fa-box-archive", color: "#ef4444" },
-    { name: "Others", org: "Various", icon: "fa-plus", color: "#64748b" }
+    { name: "Lockers", org: "SSC", icon: "fa-box-archive", color: "#ef4444", backgroundImage: "../assets/photos/studentDashboard/Services/locker.png" }
 ];
 
 const eventsData = [
@@ -476,28 +479,7 @@ function switchOrgTab(tabName, btn) {
     contentDiv.style.animation = 'fadeIn 0.4s ease';
 }
 
-// --- RENDER FUNCTIONS ---
-function renderServices(filter = "") {
-    const grid = document.getElementById('servicesGrid');
-    grid.innerHTML = "";
 
-    servicesData.forEach(service => {
-        if (service.name.toLowerCase().includes(filter.toLowerCase()) || service.org.toLowerCase().includes(filter.toLowerCase())) {
-            const card = document.createElement('div');
-            card.className = 'service-card';
-            card.innerHTML = `
-                <div class="service-icon">
-                    <i class="fa-solid ${service.icon}"></i>
-                </div>
-                <div>
-                    <div class="service-name">${service.name}</div>
-                    <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
-                </div>
-            `;
-            grid.appendChild(card);
-        }
-    });
-}
 
 // --- CALENDAR STATE ---
 let currentCalendarDate = new Date();
@@ -1146,23 +1128,24 @@ const serviceCategories = {
     academic: {
         title: "Academic & Study Tools",
         icon: "fa-calculator",
-        items: ["Business Calculator", "Scientific Calculator", "Rulers", "T-Square", "Triangle Ruler", "Protractor"]
+        items: ["Calculator", "Rulers"] // Replaced specific items with generic ones
     },
     laboratory: {
         title: "Laboratory",
         icon: "fa-flask",
-        items: ["Shoe Rag", "Crimping Tools", "Tester"]
+        items: ["Shoe Rag", "Network Crimping Tool", "Network Cable Tester"]
     },
     equipment: {
         title: "Equipment & Utilities",
         icon: "fa-toolbox",
-        items: ["Arnis Equipment", "Mini Fan", "Locker Rental"]
-    },
-    others: {
-        title: "Others",
-        icon: "fa-layer-group",
-        items: ["Others"]
+        items: ["Arnis", "Mini Fan", "Lockers"]
     }
+};
+
+// Configuration for Parent -> Children mapping
+const serviceGroups = {
+    "Calculator": ["Business Calculator", "Scientific Calculator"],
+    "Rulers": ["Rulers", "T-Square", "Triangle Ruler", "Protractor"]
 };
 
 // --- RENDER SERVICES (UPDATED) ---
@@ -1227,7 +1210,6 @@ function renderServices(filter = "") {
                         <div class="service-overlay"></div>
                         <div class="service-content">
                             <div class="service-name">${service.name}</div>
-                            <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
                         </div>
                     `;
                 } else {
@@ -1237,13 +1219,26 @@ function renderServices(filter = "") {
                         </div>
                         <div>
                             <div class="service-name">${service.name}</div>
-                            <span class="org-badge" style="background-color: ${service.color}">${service.org}</span>
                         </div>
                     `;
                 }
 
-                // NEW INTERACTION LOGIC
-                if (service.name !== "Others") {
+                // INTERACTION LOGIC
+                if (serviceGroups[service.name]) {
+                    // NEW: Check if this item is a Parent Group
+                    card.onclick = () => openItemSelectModal(service.name);
+                    card.style.cursor = "pointer";
+                    card.setAttribute('role', 'button');
+                    card.setAttribute('aria-label', `Select type for ${service.name}`);
+                    card.setAttribute('tabindex', '0');
+                    card.onkeydown = (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openItemSelectModal(service.name);
+                        }
+                    };
+                } else {
+                    // Existing Logic: Regular Service
                     card.onclick = () => openServiceModal(service.name);
                     card.style.cursor = "pointer";
                     card.setAttribute('role', 'button');
@@ -1379,18 +1374,17 @@ const serviceOrgMapping = {
     "Shoe Rag": ["AISERS"],
     "Business Calculator": ["AISERS"],
     "Scientific Calculator": ["SSC", "AERO-ATSO"],
-    "Arnis Equipment": ["AISERS"],
+    "Arnis": ["AISERS"],
     "Printing": ["SSC", "CYC", "AMTSO", "AET"],
-    "Crimping Tools": ["ELITECH"],
+    "Network Crimping Tool": ["ELITECH"],
     "Mini Fan": ["ELITECH"],
-    "Tester": ["ELITECH"],
+    "Network Cable Tester": ["ELITECH"],
     "Rulers": ["AMTSO"],
     "T-Square": ["AMTSO", "AERO-ATSO"],
     "Triangle Ruler": ["AMTSO"],
     "Protractor": ["AMTSO"],
     "1x1 Photo Processing": ["SSC"],
-    "Locker Rental": ["SSC"],
-    "Others": ["Various"]
+    "Lockers": ["SSC"]
 };
 
 // --- CONFIGURATION CONSTANTS ---
@@ -1407,6 +1401,7 @@ const RATE_PER_HALF_HOUR = 5.00;  // ₱5 per 30 minutes
 // --- GLOBAL STATE ---
 let currentSelectedService = null;
 let currentSelectedOrg = null;
+let currentParentGroup = null; // Track if we came from a group (e.g. Calculator)
 let rentalData = {
     date: "",
     startTime: "",
@@ -1420,7 +1415,86 @@ let rentalData = {
 
 // --- MODAL NAVIGATION (STEP 1 <-> STEP 2) ---
 
-function openServiceModal(serviceName) {
+// --- ITEM SELECTION MODAL LOGIC ---
+
+function openItemSelectModal(parentName) {
+    // Reset State
+    resetModalState();
+
+    const modal = document.getElementById('serviceSelectModal');
+
+    // Set State
+    currentParentGroup = parentName;
+
+    // Populate the step0 list
+    const listContainer = document.getElementById('itemSelectList');
+    const children = serviceGroups[parentName] || [];
+    listContainer.innerHTML = '';
+
+    children.forEach(childName => {
+        const childData = servicesData.find(s => s.name === childName);
+        const icon = childData ? childData.icon : 'fa-circle';
+        const color = childData ? childData.color : 'var(--muted)';
+
+        const card = document.createElement('div');
+        card.className = 'org-option-card';
+        card.onclick = () => {
+            // Transitions from Step 0 to Step 1
+            openServiceModal(childName, parentName);
+        };
+
+        const avatarContent = (childData && childData.backgroundImage)
+            ? `<img src="${childData.backgroundImage}" alt="${childName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`
+            : `<i class="fa-solid ${icon}" style="color: ${color}"></i>`;
+
+        card.innerHTML = `
+            <div class="org-info">
+                <div class="org-avatar">
+                    ${avatarContent}
+                </div>
+                <div class="org-name-text">${childName}</div>
+            </div>
+            <i class="fa-solid fa-chevron-right" style="color: var(--muted);"></i>
+        `;
+
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                card.click();
+            }
+        };
+        listContainer.appendChild(card);
+    });
+
+    // Show Step 0 UI
+    showStep0();
+
+    // Show Modal
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeItemSelectModal() {
+    closeServiceModal();
+}
+
+// Close item modal on ESC
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        closeServiceModal();
+    }
+});
+
+function handleBackToItemSelect() {
+    if (currentParentGroup) {
+        openItemSelectModal(currentParentGroup);
+    }
+}
+
+function openServiceModal(serviceName, parentGroup = null) {
     // Reset State
     resetModalState();
 
@@ -1433,6 +1507,7 @@ function openServiceModal(serviceName) {
     // Set State
     currentSelectedService = serviceName;
     currentSelectedOrg = null;
+    currentParentGroup = parentGroup; // Store for back navigation
     continueBtn.disabled = true;
 
     // Set Content
@@ -1509,6 +1584,7 @@ function handleBackToStep1() {
 function resetModalState() {
     currentSelectedService = null;
     currentSelectedOrg = null;
+    currentParentGroup = null;
     rentalData = { date: "", startTime: "", duration: "", endTime: "", hours: 0, amount: 0 };
 
     // Reset Inputs
@@ -1532,7 +1608,23 @@ function resetModalState() {
 
 // --- VIEW CONTROLLERS ---
 
+function showStep0() {
+    document.getElementById('step0-item-selection').style.display = 'block';
+    document.getElementById('step1-org-selection').style.display = 'none';
+    document.getElementById('step2-rental-details').style.display = 'none';
+
+    document.getElementById('modalTitle').innerText = `Select ${currentParentGroup || 'Item'} Type`;
+    document.getElementById('modalSubtitle').innerText = "Choose the specific type you need...";
+
+    // Footer Buttons for Step 0
+    document.getElementById('btnStep1Cancel').style.display = 'inline-block';
+    document.getElementById('btnStep1BackToGroup').style.display = 'none';
+    document.getElementById('btnStep1Continue').style.display = 'none';
+    document.getElementById('btnStep2Back').style.display = 'none';
+}
+
 function showStep1() {
+    document.getElementById('step0-item-selection').style.display = 'none';
     document.getElementById('step1-org-selection').style.display = 'block';
     document.getElementById('step2-rental-details').style.display = 'none';
 
@@ -1540,13 +1632,21 @@ function showStep1() {
     document.getElementById('modalSubtitle').innerText = `Choose who will provide: ${currentSelectedService || '...'}`;
 
     // Toggle Footer Buttons
-    document.getElementById('btnStep1Cancel').style.display = 'inline-block';
+    if (currentParentGroup) {
+        document.getElementById('btnStep1Cancel').style.display = 'none';
+        document.getElementById('btnStep1BackToGroup').style.display = 'inline-block';
+    } else {
+        document.getElementById('btnStep1Cancel').style.display = 'inline-block';
+        document.getElementById('btnStep1BackToGroup').style.display = 'none';
+    }
+
     document.getElementById('btnStep1Continue').style.display = 'inline-block';
     document.getElementById('btnStep2Back').style.display = 'none';
     document.getElementById('btnStep2Confirm').style.display = 'none';
 }
 
 function showStep2() {
+    document.getElementById('step0-item-selection').style.display = 'none';
     document.getElementById('step1-org-selection').style.display = 'none';
     document.getElementById('step2-rental-details').style.display = 'block';
 
