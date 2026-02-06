@@ -1906,17 +1906,124 @@ button:focus-visible {
 
 
 
-/* --- MOBILE FIXES FOR BROKEN SECTIONS --- */
+/* --- MOBILE RESPONSIVE (UPDATED FROM REFERENCE) --- */
 @media (max-width: 768px) {
 
-    /* 1. FIX SIDEBAR HOVER CONFLICT 
-       On mobile, the sidebar is a bottom bar. We must disable the desktop 
-       logic that pushes the main content to the right when hovered. 
-    */
-    .sidebar:hover+.main-content {
-        margin-left: 0 !important;
-        width: 100% !important;
+    /* 1. FIX: Sidebar to Fixed Bottom */
+    .sidebar {
+        bottom: 0;
+        top: auto;
+        width: 100%;
+        height: 70px;
+        flex-direction: row;
+        border-right: none;
+        border-top: 1px solid var(--border);
+        z-index: 1000;
+        position: fixed;
+        left: 0;
+        /* FIX: Disable transition to prevent any "growing" effect on tap/hover */
+        transition: none;
     }
+
+    /* Disable sidebar hover expansion on mobile */
+    .sidebar:hover {
+        width: 100%;
+        /* Explicitly keep it at 100% */
+    }
+
+    /* FIX: Prevent Main Content from shifting when sidebar is hovered */
+    /* This overrides the global ".sidebar:hover + .main-content" rule */
+    .sidebar:hover+.main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .logo-area,
+    .sidebar-footer {
+        display: none;
+    }
+
+    .nav-menu {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+        /* Spreads icons evenly */
+        width: 100%;
+        padding: 0;
+        align-items: center;
+        /* Vertically centers icons */
+    }
+
+    .nav-label {
+        display: none;
+    }
+
+    .nav-icon {
+        font-size: 1.4rem;
+        margin: 0;
+    }
+
+    .nav-link {
+        padding: 10px;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    /* 2. FIX: Main Content Overflow & Padding */
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+        margin-bottom: 100px;
+        /* Increased to clear the bottom nav */
+        padding: 20px;
+    }
+
+    /* 3. FIX: Stats Grid Layout */
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        /* Smaller min-width for mobile */
+        gap: 12px;
+    }
+
+    .stat-card {
+        padding: 16px;
+        flex-direction: column;
+        /* Stack text and icon vertically if space is tight */
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .stat-icon {
+        align-self: flex-end;
+    }
+
+    /* 4. FIX: Content Row Layout (Stack cards) */
+    .content-row {
+        display: flex;
+        flex-direction: column;
+        /* Stack vertically to prevent breaking */
+        gap: 20px;
+    }
+
+    .content-row>.card {
+        width: 100%;
+        /* Ensure cards take full width */
+    }
+
+    /* Mobile Adjustments */
+    .mobile-only {
+        display: block;
+    }
+
+    .user-info {
+        display: none;
+    }
+
+    .user-profile {
+        padding: 5px;
+    }
+
+    /* --- MOBILE FIXES FOR BROKEN SECTIONS (RESTORED) --- */
 
     /* 2. FIX ORGANIZATIONS (Movie Grid) */
     .org-grid-layout {
@@ -1992,6 +2099,37 @@ button:focus-visible {
     .main-content {
         overflow-x: hidden;
         /* Prevent horizontal scroll from layout shifts */
+    }
+
+    /* --- MOBILE FIXES FOR ORGANIZATIONS SPLIT VIEW --- */
+    /* 1. Force vertical stacking of the split grid */
+    .split-view-grid {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* 2. Compact table padding for better fit on mobile screens */
+    #organizations table th,
+    #organizations table td {
+        padding: 10px 8px;
+        /* Reduced padding */
+        font-size: 0.85rem;
+        /* Slightly smaller text for readability */
+        white-space: nowrap;
+        /* Prevent text wrapping which can make tables very tall */
+    }
+
+    /* 3. Adjust button size inside tables to save space */
+    #organizations .btn-sm {
+        padding: 4px 8px;
+        font-size: 0.75rem;
+    }
+
+    /* 4. Ensure the table container allows horizontal scroll if columns are too tight */
+    #organizations .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        /* Smooth scroll on iOS */
     }
 }
 

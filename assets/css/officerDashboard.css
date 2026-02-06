@@ -679,7 +679,7 @@ td {
     margin-bottom: 5px;
 }
 
-/* --- MOBILE RESPONSIVE (UPDATED) --- */
+/* --- MOBILE RESPONSIVE (UPDATED FROM REFERENCE) --- */
 @media (max-width: 768px) {
 
     /* 1. FIX: Sidebar to Fixed Bottom */
@@ -692,14 +692,22 @@ td {
         border-right: none;
         border-top: 1px solid var(--border);
         z-index: 1000;
-        /* Ensure it stays on top of content */
         position: fixed;
-        /* Explicitly fixed */
         left: 0;
+        /* FIX: Disable transition to prevent any "growing" effect on tap/hover */
+        transition: none;
     }
 
     /* Disable sidebar hover expansion on mobile */
     .sidebar:hover {
+        width: 100%;
+        /* Explicitly keep it at 100% */
+    }
+
+    /* FIX: Prevent Main Content from shifting when sidebar is hovered */
+    /* This overrides the global ".sidebar:hover + .main-content" rule */
+    .sidebar:hover+.main-content {
+        margin-left: 0;
         width: 100%;
     }
 
@@ -712,9 +720,11 @@ td {
         display: flex;
         flex-direction: row;
         justify-content: space-around;
+        /* Spreads icons evenly */
         width: 100%;
         padding: 0;
         align-items: center;
+        /* Vertically centers icons */
     }
 
     .nav-label {
@@ -732,16 +742,12 @@ td {
         gap: 4px;
     }
 
-    .nav-link span {
-        font-size: 0.7rem;
-    }
-
     /* 2. FIX: Main Content Overflow & Padding */
     .main-content {
         margin-left: 0;
         width: 100%;
         margin-bottom: 100px;
-        /* Increased to clear bottom nav */
+        /* Increased to clear the bottom nav */
         padding: 20px;
     }
 
@@ -788,10 +794,5 @@ td {
 
     .user-profile {
         padding: 5px;
-    }
-
-    /* Hide Notification dropdown trigger wrapper to save space if needed */
-    .notif-wrapper {
-        display: none;
     }
 }

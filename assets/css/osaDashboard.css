@@ -1188,14 +1188,22 @@ td {
         border-right: none;
         border-top: 1px solid var(--border);
         z-index: 1000;
-        /* Ensure it stays on top of content */
         position: fixed;
-        /* Explicitly fixed */
         left: 0;
+        /* FIX: Disable transition to prevent any "growing" effect on tap/hover */
+        transition: none;
     }
 
     /* Disable sidebar hover expansion on mobile */
     .sidebar:hover {
+        width: 100%;
+        /* Explicitly keep it at 100% */
+    }
+
+    /* FIX: Prevent Main Content from shifting when sidebar is hovered */
+    /* This overrides the global ".sidebar:hover + .main-content" rule */
+    .sidebar:hover+.main-content {
+        margin-left: 0;
         width: 100%;
     }
 
