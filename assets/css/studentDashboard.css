@@ -1024,6 +1024,12 @@ td {
     transform: translateY(20px);
     transition: transform 0.3s;
     overflow: hidden;
+    /* Contains the scroll */
+    display: flex;
+    flex-direction: column;
+    /* Enables flex layout for children */
+    max-height: 90vh;
+    /* Prevents modal from being taller than screen */
 }
 
 .modal-overlay.open .modal-content {
@@ -1036,6 +1042,8 @@ td {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
+    /* Prevent header from shrinking */
 }
 
 .modal-header h3 {
@@ -1058,6 +1066,12 @@ td {
 
 .modal-body {
     padding: 24px;
+    overflow-y: auto;
+    /* Enables vertical scrolling */
+    flex-grow: 1;
+    /* Takes up remaining space between header and footer */
+    min-height: 0;
+    /* Fix for Firefox flexbox scrolling issue */
 }
 
 .form-group {
@@ -1092,7 +1106,14 @@ td {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
-    margin-top: 24px;
+    margin-top: 0;
+    /* Reset margin since flex handles spacing */
+    padding: 20px 24px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    /* Prevent footer from shrinking */
+    background-color: var(--panel);
+    /* Ensure background covers scrolling content */
 }
 
 .btn-cancel {
@@ -1340,6 +1361,9 @@ td {
 .details-modal-content {
     max-width: 700px;
     width: 95%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Modern Carousel */
@@ -1874,4 +1898,158 @@ button:focus-visible {
     /* Override flex alignment from parent if needed, though parent flex handles inside content */
     flex: 0 0 auto;
     /* Prevent growing */
+}
+
+/* --- SHARE BUTTON STYLES --- */
+.btn-share {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-share:hover {
+    background: var(--panel-2);
+    color: var(--text);
+    transform: translateY(-2px);
+}
+
+/* --- MOBILE FIXES FOR BROKEN SECTIONS --- */
+@media (max-width: 768px) {
+
+    /* 1. FIX SIDEBAR HOVER CONFLICT 
+       On mobile, the sidebar is a bottom bar. We must disable the desktop 
+       logic that pushes the main content to the right when hovered. 
+    */
+    .sidebar:hover+.main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+
+    /* 2. FIX ORGANIZATIONS (Movie Grid) */
+    .org-grid-layout {
+        grid-template-columns: 1fr;
+        /* Force 1 column */
+        gap: 16px;
+    }
+
+    /* Adjust the card aspect ratio or height for better mobile viewing */
+    .org-card {
+        aspect-ratio: auto;
+        /* Remove fixed ratio to let content determine height */
+        height: auto;
+        min-height: 200px;
+    }
+
+    .org-overlay {
+        padding-bottom: 30px;
+        /* More padding for text */
+    }
+
+    .org-title {
+        font-size: 1.3rem;
+        /* Slightly larger text for mobile */
+    }
+
+    /* 3. FIX SERVICES (Hero & Grid) */
+    .hero-content {
+        flex-direction: column;
+        /* Stack vertically */
+        align-items: stretch;
+        /* Stretch items to full width */
+    }
+
+    .hero-info {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .hero-upload {
+        width: 100%;
+        max-width: 100%;
+        /* Remove max-width constraint */
+    }
+
+    /* Force service cards in a single column */
+    .category-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* 4. FIX PROFILE SECTION */
+    /* Ensure the profile header flex wraps correctly */
+    #profile .card>div[style*='display: flex'] {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    /* Ensure table scrolls horizontally if needed */
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        /* Smooth scroll on iOS */
+    }
+
+    /* 5. FIX EVENTS TAB (Nested Grid) */
+    .events-grid-layout {
+        grid-template-columns: 1fr;
+    }
+
+    /* 6. GENERAL CONTENT FIX */
+    .main-content {
+        overflow-x: hidden;
+        /* Prevent horizontal scroll from layout shifts */
+    }
+}
+
+
+/* --- EVENT CARD FOOTER VISIBILITY FIX --- */
+
+/* 1. Update Footer Container */
+/* 1. Update Footer Container */
+.event-card-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 16px;
+    /* Increased from 12px 16px to 16px all around */
+    border-top: 1px solid var(--border);
+}
+
+/* 2. Update Actions Container */
+.event-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    align-items: center;
+}
+
+/* 3. Compact Button Sizing for Footer */
+.btn-share,
+.btn-view-details,
+.btn-register-card {
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    /* Reduced horizontal padding slightly */
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    /* Prevent buttons from getting squished */
+}
+
+/* Optional: Adjust stats to be smaller if they are taking up too much room */
+.event-stat {
+    font-size: 0.75rem;
+    gap: 4px;
 }

@@ -386,8 +386,12 @@ function switchOrgTab(tabName, btn) {
                     </div>
                     <div class="event-card-footer">
                         <div class="event-stat"><i class="fa-regular fa-heart"></i> 5</div>
-                        <div class="event-stat"><i class="fa-regular fa-comment"></i> 5</div>
                         <div class="event-actions">
+                            <!-- NEW SHARE BUTTON -->
+                            <button class="btn-share" onclick="shareEvent('${ev.title}')">
+                                Share <i class="fa-solid fa-share-nodes"></i>
+                            </button>
+                            
                             <button class="btn-view-details" onclick="openDetailsModal('${ev.title}')">
                                 Details <i class="fa-solid fa-circle-info"></i>
                             </button>
@@ -817,6 +821,30 @@ window.addEventListener('click', (e) => {
 
 let currentSlide = 0;
 let currentEventGallery = [];
+
+// --- SHARE EVENT FUNCTION ---
+function shareEvent(eventTitle) {
+    // Create a mock shareable URL
+    const baseUrl = window.location.href.split('?')[0];
+    const shareUrl = `${baseUrl}?event=${encodeURIComponent(eventTitle)}`;
+
+    // Check if Web Share API is supported (Mobile devices mostly)
+    if (navigator.share) {
+        navigator.share({
+            title: eventTitle,
+            text: `Check out this event: ${eventTitle}`,
+            url: shareUrl
+        }).catch((error) => console.log('Error sharing:', error));
+    } else {
+        // Fallback: Copy to clipboard
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showToast("Event link copied to clipboard!");
+        }).catch((err) => {
+            console.error('Failed to copy: ', err);
+            showToast("Failed to copy link.");
+        });
+    }
+}
 
 function openDetailsModal(eventTitle) {
     // Find event object
