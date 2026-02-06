@@ -232,6 +232,14 @@ body {
     transform: translateY(-2px);
 }
 
+/* --- SIDEBAR & MAIN CONTENT INTERACTION --- */
+
+/* When sidebar is hovered and expands, push the main content to the right */
+.sidebar:hover+.main-content {
+    margin-left: var(--sidebar-expanded);
+    width: calc(100% - var(--sidebar-expanded));
+}
+
 /* --- MAIN CONTENT --- */
 .main-content {
     margin-left: var(--sidebar-collapsed);
