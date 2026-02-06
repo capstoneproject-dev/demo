@@ -368,16 +368,20 @@ function switchOrgTab(tabName, btn) {
                                         style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9;" required>
                                 </div>
 
-                                <div class="form-group">
-                                    <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Desired Organization</label>
-                                    <input type="text" id="mem-org-input" 
-                                        style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9;" readonly>
-                                </div>
-
                                 <div class="role-toggle-group">
                                     <button type="button" class="role-btn" onclick="selectRole('Officer', this)">Officer</button>
                                     <button type="button" class="role-btn" onclick="selectRole('Junior Officer', this)" style="background: #002147;">Junior Officer</button>
                                     <input type="hidden" id="mem-role-input" value="Junior Officer">
+                                </div>
+
+                                <div class="download-form-container">
+                                    <div class="download-text-group">
+                                        <i class="fa-solid fa-file-pdf download-icon"></i>
+                                        <span>Download Application Form</span>
+                                    </div>
+                                    <button type="button" class="btn-download-app" onclick="downloadApplicationForm()">
+                                        Download
+                                    </button>
                                 </div>
 
                                 <div class="form-group">
@@ -2025,11 +2029,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // 1. Open Modal and Fill Data
 function openMembershipModal(orgName, cardId) {
     const modal = document.getElementById('membershipApplicationModal');
-    const orgInput = document.getElementById('mem-org-input');
 
-    // Fill the organization input
-    if (orgInput) {
-        orgInput.value = orgName;
+    // Store the organization name in a data attribute for submission
+    if (modal) {
+        modal.setAttribute('data-selected-org', orgName);
     }
 
     // Highlight selected card visually (in the background grid)
@@ -2267,7 +2270,8 @@ function removeFile(event) {
 
 function handleMembershipSubmit(e) {
     e.preventDefault();
-    const org = document.getElementById('mem-org-input').value;
+    const modal = document.getElementById('membershipApplicationModal');
+    const org = modal ? modal.getAttribute('data-selected-org') : null;
 
     if (!org) {
         alert("Organization info missing. Please try again.");
@@ -2314,4 +2318,41 @@ function handleMembershipSubmit(e) {
         closeMembershipModal();
 
     }, 1500);
+}
+
+function downloadApplicationForm() {
+    // Correctly formatted path with forward slashes and encoded spaces
+    const filePath = '../assets/pdf%20files/membership/AISERS%20RECRUITMENT%20FORM.pdf';
+    const fileName = 'AISERS RECRUITMENT FORM.pdf';
+
+    // 1. Visual Feedback (Spinner)
+    const btn = document.querySelector('.btn-download-app');
+    if (btn) {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Downloading...`;
+        btn.disabled = true;
+
+        // 2. Trigger Download
+        setTimeout(() => {
+            const link = document.createElement('a');
+            link.href = filePath;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+
+            // Trigger click
+            link.click();
+
+            // Clean up
+            document.body.removeChild(link);
+
+            // 3. Reset Button & Show Success
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+
+            // Uses your existing toast function
+            if (typeof showToast === "function") {
+                showToast("Form downloaded successfully!");
+            }
+        }, 1000); // 1s delay for visual feedback
+    }
 }
