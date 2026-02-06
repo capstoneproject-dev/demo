@@ -42,21 +42,28 @@ const transactionsData = [
 // Flattened Organization Data (Based on your provided list)
 const organizationData = [
     // Supreme Student Council
-    { name: "Supreme Student Council", category: "Council", imgSeed: "council", color: "#002147", image: "../assets/photos/studentDashboard/Organization/SSC.png" },
+    { name: "Supreme Student Council", category: "Council", imgSeed: "council", color: "#002147", image: "../assets/photos/studentDashboard/Organization/SSC.png", banner: "" },
     // ICS
-    { name: "AISERS", category: "ICS", imgSeed: "network", color: "#f59e0b", image: "../assets/photos/studentDashboard/Organization/AISERS.png" },
+    {
+        name: "AISERS",
+        category: "ICS",
+        imgSeed: "network",
+        color: "#f59e0b",
+        image: "../assets/photos/studentDashboard/Organization/AISERS.png",
+        banner: "../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg"
+    },
     // ILAS
-    { name: "ILASSO", category: "ILAS", imgSeed: "book", color: "#ef4444", image: "../assets/photos/studentDashboard/Organization/ILASSO.png" },
+    { name: "ILASSO", category: "ILAS", imgSeed: "book", color: "#ef4444", image: "../assets/photos/studentDashboard/Organization/ILASSO.png", banner: "" },
     // INET
-    { name: "ELITECH", category: "INET", imgSeed: "electronic", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/ELITECH.png" },
-    { name: "AERO-ATSO", category: "INET", imgSeed: "plane", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AEROATSO.png" },
-    { name: "AETSO", category: "INET", imgSeed: "industry", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AET.png" },
-    { name: "AMTSO", category: "INET", imgSeed: "gear", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AMT.png" },
+    { name: "ELITECH", category: "INET", imgSeed: "electronic", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/ELITECH.png", banner: "" },
+    { name: "AERO-ATSO", category: "INET", imgSeed: "plane", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AEROATSO.png", banner: "" },
+    { name: "AETSO", category: "INET", imgSeed: "industry", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AET.png", banner: "" },
+    { name: "AMTSO", category: "INET", imgSeed: "gear", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AMT.png", banner: "" },
     // Interest Club
-    { name: "RCYC", category: "Interest Club", imgSeed: "bicycle", color: "#059669", image: "../assets/photos/studentDashboard/Organization/RCYC.png" },
-    { name: "CYC", category: "Interest Club", imgSeed: "child", color: "#059669", image: "../assets/photos/studentDashboard/Organization/CYC.png" },
-    { name: "Scholar’s Guild", category: "Interest Club", imgSeed: "grad", color: "#059669", image: "../assets/photos/studentDashboard/Organization/PSG.png" },
-    { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669", image: "../assets/photos/studentDashboard/Organization/AERONAUTICA.png" }
+    { name: "RCYC", category: "Interest Club", imgSeed: "bicycle", color: "#059669", image: "../assets/photos/studentDashboard/Organization/RCYC.png", banner: "" },
+    { name: "CYC", category: "Interest Club", imgSeed: "child", color: "#059669", image: "../assets/photos/studentDashboard/Organization/CYC.png", banner: "" },
+    { name: "Scholar’s Guild", category: "Interest Club", imgSeed: "grad", color: "#059669", image: "../assets/photos/studentDashboard/Organization/PSG.png", banner: "" },
+    { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669", image: "../assets/photos/studentDashboard/Organization/AERONAUTICA.png", banner: "" }
 ];
 
 // Extended Events Data (for Events Tab)
@@ -341,15 +348,15 @@ function switchOrgTab(tabName, btn) {
                     <div class="modal-content membership-modal-content">
                         
                         <div class="modal-header">
-                            <h3 style="color: var(--primary); font-size: 1.1rem; font-weight: 700;">
-                                Application for Membership
-                            </h3>
                             <button class="close-modal" onclick="closeMembershipModal()">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
                         </div>
 
                         <div class="modal-body">
+                            <h3 style="color: var(--primary); font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">
+                                Application for Membership
+                            </h3>
                             <p class="form-description">
                                 To apply, verify the organization details, complete the form below, attach required documents, then click Submit.
                             </p>
@@ -2035,6 +2042,23 @@ function openMembershipModal(orgName, cardId) {
         modal.setAttribute('data-selected-org', orgName);
     }
 
+    // --- NEW: BANNER LOGIC ---
+    // Find the organization data
+    const orgData = organizationData.find(o => o.name === orgName);
+    const modalHeader = modal ? modal.querySelector('.modal-header') : null;
+
+    if (modalHeader && orgData) {
+        if (orgData.banner) {
+            // Set the specific banner if available
+            modalHeader.style.backgroundImage = `url('${orgData.banner}')`;
+        } else {
+            // Fallback: Clear image or set a default pattern/color
+            modalHeader.style.backgroundImage = 'none';
+            modalHeader.style.backgroundColor = orgData.color || 'var(--panel-2)';
+        }
+    }
+    // -------------------------
+
     // Highlight selected card visually (in the background grid)
     document.querySelectorAll('.recruit-card').forEach(c => c.classList.remove('selected-org-card'));
     const card = document.getElementById(cardId);
@@ -2053,6 +2077,15 @@ function closeMembershipModal() {
     if (modal) {
         modal.classList.remove('open');
         document.body.style.overflow = '';
+
+        // --- NEW: CLEANUP ---
+        // Reset the background image to avoid flashing the wrong one next time
+        const modalHeader = modal.querySelector('.modal-header');
+        if (modalHeader) {
+            setTimeout(() => {
+                modalHeader.style.backgroundImage = '';
+            }, 300); // Wait for transition to finish
+        }
     }
 }
 

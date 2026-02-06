@@ -3349,3 +3349,42 @@ button:focus-visible {
         width: 100%;
     }
 }
+/* --- MEMBERSHIP MODAL BANNER STYLES --- */
+
+/* Target the header specifically within the membership modal */
+.membership-modal-content .modal-header {
+    height: 150px; /* Define height for the banner */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: var(--panel-2); /* Fallback color */
+    align-items: flex-start; /* Align close button to top */
+    transition: background-image 0.3s ease;
+    border-bottom: none; /* remove border to look more like a cover image */
+}
+
+/* Make the close button distinct against the banner */
+.membership-modal-content .modal-header .close-modal {
+    background: rgba(255, 255, 255, 0.9);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto; /* Push to right */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    color: var(--text);
+}
+
+.membership-modal-content .modal-header .close-modal:hover {
+    background: #fff;
+    color: var(--primary);
+}
+
+/* Mobile Adjustment: slightly shorter banner on small screens */
+@media (max-width: 768px) {
+    .membership-modal-content .modal-header {
+        height: 120px;
+    }
+}
