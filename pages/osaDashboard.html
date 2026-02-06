@@ -221,7 +221,7 @@
                             <thead>
                                 <tr>
                                     <th>Organization Name</th>
-                                    <th>Action</th>
+                                    <th class="text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="org-list-body">
@@ -246,6 +246,7 @@
                             <thead>
                                 <tr>
                                     <th>Organization</th>
+                                    <th>Sender</th>
                                     <th>Document Name</th>
                                     <th>Date</th>
                                     <th>Status</th>
@@ -338,15 +339,42 @@
         <!-- REQUESTS & APPROVAL VIEW -->
         <div id="requests" class="section-view">
             <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Pending Requests</div>
-                    <select style="width: 200px; margin: 0;" id="request-filter" onchange="filterRequests()">
-                        <option value="all">All Requests</option>
-                        <option value="Event Proposal">Event Proposals</option>
-                        <option value="Posting">Posting Approval</option>
-                        <option value="Document">Document Submissions</option>
-                    </select>
+                <!-- Simplified Filter Bar -->
+                <div class="requests-filter-bar">
+                    <!-- Status Tabs -->
+                    <div class="req-tabs">
+                        <button class="req-tab active" onclick="switchReqStatus('all', this)">Overview</button>
+                        <button class="req-tab" onclick="switchReqStatus('Pending', this)">Pending</button>
+                        <button class="req-tab" onclick="switchReqStatus('Approved', this)">Approved</button>
+                        <button class="req-tab" onclick="switchReqStatus('Rejected', this)">Rejected</button>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="req-filter-controls">
+                        <select id="req-type-filter" onchange="renderRequests()">
+                            <option value="all">All Types</option>
+                            <option value="Event Proposal">Event Proposals</option>
+                            <option value="Posting">Posting Approval</option>
+                            <option value="Document">Document Submissions</option>
+                        </select>
+
+                        <select id="req-org-filter" onchange="renderRequests()">
+                            <option value="all">All Organizations</option>
+                            <!-- Populated via JS -->
+                        </select>
+
+                        <button class="date-range-btn" onclick="openDatePicker()">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span id="date-range-label">Select Date Range</span>
+                        </button>
+
+                        <button class="btn btn-outline btn-sm" onclick="clearRequestFilters()">
+                            <i class="fa-solid fa-filter-circle-xmark"></i> Clear
+                        </button>
+                    </div>
                 </div>
+
+                <!-- Table -->
                 <div class="table-container">
                     <table>
                         <thead>
@@ -428,6 +456,94 @@
         </div>
 
     </main>
+
+    <!-- Request Action Confirmation Modal -->
+    <div id="request-action-modal" class="request-action-modal">
+        <div class="request-action-modal-content">
+            <div class="request-action-modal-header">
+                <h3 id="request-action-title">Confirm Action</h3>
+                <button class="modal-close-btn" onclick="closeRequestActionModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="request-action-modal-body">
+                <p id="request-action-message">Are you sure you want to perform this action? This cannot be undone.</p>
+                <p id="request-action-instruction" style="margin-top: 12px; font-size: 0.9rem;">
+                    Type <strong id="request-action-keyword">"Approve"</strong> to confirm:
+                </p>
+                <input type="text" id="request-action-input" placeholder="Type here to confirm"
+                    style="margin-top: 8px;" />
+            </div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-outline" onclick="closeRequestActionModal()">Cancel</button>
+                <button class="btn btn-primary" id="request-action-confirm-btn" onclick="confirmRequestAction()">
+                    Confirm Action
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Range Calendar Modal -->
+    <div id="date-picker-modal" class="date-picker-modal">
+        <div class="date-picker-content">
+            <div class="date-picker-header">
+                <h3>Select Date Range</h3>
+                <button class="modal-close-btn" onclick="closeDatePicker()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="date-picker-body">
+                <!-- Calendar Navigation -->
+                <div class="calendar-nav">
+                    <button onclick="changeCalendarMonth(-1)">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <div class="calendar-month-year">
+                        <span id="calendar-month-label">January 2024</span>
+                    </div>
+                    <button onclick="changeCalendarMonth(1)">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <!-- Calendar Grid -->
+                <div class="calendar-grid">
+                    <div class="calendar-weekdays">
+                        <div>Sun</div>
+                        <div>Mon</div>
+                        <div>Tue</div>
+                        <div>Wed</div>
+                        <div>Thu</div>
+                        <div>Fri</div>
+                        <div>Sat</div>
+                    </div>
+                    <div id="calendar-dates" class="calendar-dates">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Selected Range Display -->
+                <div class="date-range-display">
+                    <div class="date-range-item">
+                        <label>From:</label>
+                        <span id="selected-from-date">Not selected</span>
+                    </div>
+                    <div class="date-range-item">
+                        <label>To:</label>
+                        <span id="selected-to-date">Not selected</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="date-picker-footer">
+                <button class="btn btn-outline" onclick="clearDateRange()">Clear</button>
+                <button class="btn btn-primary" onclick="applyDateRange()">Apply</button>
+            </div>
+        </div>
+    </div>
+
+
 
     <!-- PDF Viewer Modal (Google Drive Style) -->
     <div id="pdf-modal" class="pdf-modal">

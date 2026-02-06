@@ -625,6 +625,556 @@ td {
 }
 
 
+/* --- MODERN REQUESTS & APPROVAL STYLES --- */
+
+/* --- REQUESTS FILTER BAR MODERN LAYOUT --- */
+
+/* 1. Main Container - Flex Row */
+.requests-filter-bar {
+    display: flex;
+    justify-content: space-between;
+    /* Push tabs to left, controls to right */
+    align-items: center;
+    gap: 20px;
+    background-color: var(--panel);
+    /* Clean background for the whole tool bar */
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    /* Subtle definition from table */
+}
+
+/* 2. Left Side: Status Tabs */
+.req-tabs {
+    display: flex;
+    gap: 8px;
+    /* Compact tabs */
+    align-items: center;
+}
+
+.req-tab {
+    background: transparent;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 30px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.req-tab:hover {
+    background-color: var(--panel-2);
+    color: var(--primary);
+}
+
+.req-tab.active {
+    background-color: var(--primary);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 33, 71, 0.2);
+    /* Lift effect */
+}
+
+/* 3. Right Side: Controls (Dropdowns & Date Button) */
+.req-filter-controls {
+    display: flex;
+    flex: 1;
+    /* Take up remaining space to push dropdowns to right */
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-end;
+    /* Align dropdowns to the right edge */
+}
+
+/* 4. Dropdowns Grouping */
+.req-dropdowns {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Note: The HTML structure uses .req-filter-controls directly for selects now, so we style select within it */
+.req-filter-controls select {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 160px;
+    /* Ensure consistent width for dropdowns */
+    height: 40px;
+    margin: 0;
+}
+
+.req-filter-controls select:hover {
+    border-color: var(--primary);
+}
+
+.req-filter-controls select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* 5. Date Range Button - Integrated Styling */
+.date-range-btn {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0 16px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    height: 40px;
+}
+
+.req-filter-controls .btn {
+    height: 40px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.date-range-btn:hover {
+    background-color: var(--panel);
+    border-color: var(--primary);
+}
+
+.date-range-btn i {
+    color: var(--primary);
+}
+
+.date-range-btn.active {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* Responsive: Stack vertically on mobile */
+/* --- MOBILE VIEW FIXES FOR REQUESTS & APPROVAL PAGE (UPDATED) --- */
+@media (max-width: 768px) {
+
+    /* 1. Fix Filter Bar Layout - Switched to Block to fix initial render collapse */
+    .requests-filter-bar {
+        display: block;
+        padding: 12px;
+    }
+
+    /* 2. Make Tabs Horizontally Scrollable */
+    .req-tabs {
+        width: 100%;
+        margin-bottom: 12px;
+        overflow-x: auto;
+        white-space: nowrap;
+        display: flex;
+        -webkit-overflow-scrolling: touch;
+        -ms-overflow-style: none;
+        /* IE and Edge */
+        scrollbar-width: none;
+        /* Firefox */
+    }
+
+    .req-tabs::-webkit-scrollbar {
+        display: none;
+        /* Hide scrollbar for Chrome/Safari */
+    }
+
+    .req-tab {
+        flex: 0 0 auto;
+        /* Prevent buttons from shrinking */
+        font-size: 0.85rem;
+    }
+
+    /* 3. Stack Filter Controls Vertically */
+    .req-filter-controls {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    /* 4. Make Inputs and Buttons Full Width */
+    .req-filter-controls select,
+    .req-filter-controls .date-range-btn,
+    .req-filter-controls .btn-outline {
+        width: 100%;
+        justify-content: center;
+        height: 40px;
+        margin: 0;
+    }
+
+    /* 5. Optimize Table for Mobile Scroll */
+    #requests .table-container {
+        border-radius: var(--radius-md);
+        overflow-x: auto;
+    }
+
+    #requests table {
+        min-width: 600px;
+        /* Force table to maintain width and scroll */
+    }
+
+    #requests th,
+    #requests td {
+        padding: 10px 12px;
+        /* Compact padding */
+        white-space: nowrap;
+        /* Prevent text wrapping */
+    }
+
+    /* 6. Adjust Table Buttons */
+    #requests .btn-sm {
+        padding: 6px 10px;
+    }
+}
+
+/* Small Button Variant */
+.btn-sm {
+    padding: 8px 12px;
+    font-size: 0.875rem;
+}
+
+/* 4. Table Enhancements - Clean & Readable */
+#requests table {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    /* Prevents border radius bleed */
+    border-spacing: 0;
+    /* Reset default */
+}
+
+#requests table thead {
+    background-color: var(--panel-2);
+    /* Distinct header background */
+    border-bottom: 2px solid var(--border);
+    /* Stronger separation */
+}
+
+#requests th {
+    border-bottom: none;
+    /* Handled by thead border */
+    padding: 16px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--primary);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+}
+
+#requests td {
+    border-bottom: 1px solid var(--border);
+    padding: 16px;
+    vertical-align: middle;
+    /* Align text in the middle of the cell */
+}
+
+#requests tbody tr {
+    transition: background-color 0.2s;
+}
+
+#requests tbody tr:hover {
+    background-color: var(--panel-2);
+    /* Subtle row highlight */
+}
+
+
+/* --- DATE PICKER CALENDAR MODAL --- */
+.date-picker-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 3000;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.2s ease;
+}
+
+.date-picker-modal.active {
+    display: flex;
+}
+
+.date-picker-content {
+    background: var(--panel);
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+.date-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.date-picker-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--text);
+}
+
+.date-picker-body {
+    padding: 24px;
+}
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.calendar-nav button {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-nav button:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
+.calendar-month-year {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.calendar-grid {
+    margin-bottom: 20px;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.calendar-weekdays div {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    padding: 8px 0;
+}
+
+.calendar-dates {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-date {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid transparent;
+}
+
+.calendar-date:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--primary);
+}
+
+.calendar-date.other-month {
+    color: var(--muted);
+    opacity: 0.4;
+}
+
+.calendar-date.selected {
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+}
+
+.calendar-date.in-range {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: var(--primary);
+}
+
+.calendar-date.today {
+    border: 2px solid var(--primary);
+    font-weight: 600;
+}
+
+.calendar-date.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.date-range-display {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    background: var(--panel-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+}
+
+.date-range-item {
+    flex: 1;
+}
+
+.date-range-item label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.date-range-item span {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--text);
+    font-weight: 500;
+}
+
+.date-picker-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+
+
+/* --- REQUEST ACTION CONFIRMATION MODAL --- */
+.request-action-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 3000;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.2s ease;
+}
+
+.request-action-modal.active {
+    display: flex;
+}
+
+.request-action-modal-content {
+    background: var(--panel);
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.request-action-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.request-action-modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--text);
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.request-action-modal-body {
+    padding: 24px;
+}
+
+.request-action-modal-body p {
+    margin: 0;
+    color: var(--text);
+    line-height: 1.6;
+}
+
+.request-action-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+
+
+/* --- UTILITIES --- */
+.text-right {
+    text-align: right;
+}
+
 /* --- MOBILE RESPONSIVE (UPDATED FROM REFERENCE) --- */
 @media (max-width: 768px) {
 
