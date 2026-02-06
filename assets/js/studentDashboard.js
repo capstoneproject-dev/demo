@@ -324,7 +324,7 @@ function switchOrgTab(tabName, btn) {
             </div>
         `;
     } else if (tabName === 'membership') {
-        // --- NEW MEMBERSHIP LAYOUT ---
+        // --- MEMBERSHIP LAYOUT ---
         contentDiv.innerHTML = `
             <div class="membership-dashboard-wrapper">
                 
@@ -371,43 +371,54 @@ function switchOrgTab(tabName, btn) {
                     </div>
 
                     <div class="application-panel">
-                        <div class="card sticky-form-card">
-                            <div class="card-header">
-                                <div class="card-title"><i class="fa-solid fa-file-pen" style="margin-right:8px; color:var(--primary);"></i>Application</div>
-                            </div>
+                        <div class="card sticky-form-card" style="border-top: none; padding: 24px;">
+                            
+                            <h3 style="color: var(--primary); font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">
+                                Application for Organization Membership
+                            </h3>
+                            
+                            <p class="form-description">
+                                To apply, select the desired organization, download and complete the provided application form, attach the filled form using the upload function, then click Submit.
+                            </p>
                             
                             <form id="membershipForm" onsubmit="handleMembershipSubmit(event)">
-                                <div class="form-group">
-                                    <label style="font-size:0.85rem; color:var(--muted);">Target Organization</label>
-                                    <input type="text" id="mem-org-input" placeholder="Select from list..." readonly 
-                                        style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-2); color:var(--primary); font-weight:600; cursor:not-allowed;">
-                                </div>
                                 
                                 <div class="form-group">
-                                    <label style="font-size:0.85rem; color:var(--muted);">Student Info</label>
-                                    <input type="text" value="Juan Dela Cruz (2021-12345)" readonly
-                                         style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg); color:var(--muted); font-size:0.9rem;">
+                                    <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Full Name</label>
+                                    <input type="text" id="mem-fullname" 
+                                        style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9;" required>
                                 </div>
 
                                 <div class="form-group">
-                                    <label style="font-size:0.85rem; color:var(--muted);">Applying For</label>
-                                    <select id="mem-position-input" style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel); color:var(--text); outline:none;">
-                                        <option value="" disabled selected>Select Position...</option>
-                                        <option>General Member</option>
-                                        <option>Committee Associate</option>
-                                        <option>Executive Officer</option>
-                                        <option>Logistics Head</option>
-                                    </select>
+                                    <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Email</label>
+                                    <input type="email" id="mem-email" 
+                                        style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9;" required>
                                 </div>
 
                                 <div class="form-group">
-                                    <label style="font-size:0.85rem; color:var(--muted);">Short Motivation</label>
-                                    <textarea rows="3" placeholder="Why do you want to join us?" required
-                                        style="width:100%; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel); color:var(--text); outline:none; font-family:var(--font);"></textarea>
+                                    <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Desired Organization</label>
+                                    <input type="text" id="mem-org-input" 
+                                        style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9;" readonly>
                                 </div>
 
-                                <button type="submit" class="btn-submit" style="width:100%; justify-content:center;">
-                                    Submit Application
+                                <div class="role-toggle-group">
+                                    <button type="button" class="role-btn" onclick="selectRole('Officer', this)">Officer</button>
+                                    <button type="button" class="role-btn" onclick="selectRole('Junior Officer', this)" style="background: #002147;">Junior Officer</button>
+                                    <input type="hidden" id="mem-role-input" value="Junior Officer">
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Upload file here</label>
+                                    <div class="custom-upload-box" onclick="document.getElementById('mem-file-upload').click()">
+                                        <span class="upload-placeholder-text">Upload Here</span>
+                                        <div class="upload-plus-icon"><i class="fa-solid fa-plus"></i></div>
+                                        <input type="file" id="mem-file-upload" hidden onchange="handleFileDisplay(this)">
+                                    </div>
+                                    <div id="file-name-display" style="font-size:0.8rem; color:var(--primary); margin-top:-15px; margin-bottom:15px; display:none;"></div>
+                                </div>
+
+                                <button type="submit" class="btn-submit-wide">
+                                    Submit
                                 </button>
                             </form>
                         </div>
@@ -417,17 +428,14 @@ function switchOrgTab(tabName, btn) {
             </div>
         `;
 
-        // Inject Recruitment Cards
+        // Inject Recruitment Cards (Logic remains the same as before)
         const grid = document.getElementById('recruitmentGrid');
 
-        // Use organizationData but map distinct "Open Roles" to them for flavor
         organizationData.forEach((org, index) => {
             const card = document.createElement('div');
             card.className = 'recruit-card';
-            // Unique ID for selection logic
             card.id = `recruit-card-${index}`;
 
-            // Layout (Desktop vs Mobile handled by CSS)
             card.innerHTML = `
                 <div class="recruit-header" style="background:${org.color}"></div>
                 <div class="recruit-body">
@@ -1595,6 +1603,7 @@ function openItemSelectModal(parentName) {
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
+    trapFocus(modal);
 }
 
 function closeItemSelectModal() {
@@ -2021,33 +2030,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// --- MEMBERSHIP HELPERS ---
+// --- MEMBERSHIP FORM LOGIC ---
 
+// 1. Updated Fill Function
 function fillMembershipForm(orgName, cardId) {
-    // 1. Fill Input
-    const input = document.getElementById('mem-org-input');
-    const select = document.getElementById('mem-position-input');
-    if (input) {
-        input.value = orgName;
-        // Visual feedback (flash effect)
-        input.style.borderColor = 'var(--primary)';
-        setTimeout(() => input.style.borderColor = 'var(--border)', 500);
+    const orgInput = document.getElementById('mem-org-input');
 
-        // Auto focus select
-        if (select) select.focus();
+    // Fill the organization input
+    if (orgInput) {
+        orgInput.value = orgName;
+        // Visual flash effect
+        orgInput.style.backgroundColor = "#e0f2fe"; // Light blue
+        setTimeout(() => orgInput.style.backgroundColor = "#f1f5f9", 500);
     }
 
-    // 2. Highlight selected card
+    // Highlight selected card visually
     document.querySelectorAll('.recruit-card').forEach(c => c.classList.remove('selected-org-card'));
     const card = document.getElementById(cardId);
     if (card) card.classList.add('selected-org-card');
 
-    // 3. Scroll to form on Mobile
+    // Scroll to form on Mobile
     if (window.innerWidth <= 900) {
         const formCard = document.querySelector('.sticky-form-card');
         if (formCard) {
             formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
+    }
+}
+
+// 2. Role Selection Logic (Visual Toggle)
+function selectRole(role, btnElement) {
+    // Set hidden input value
+    document.getElementById('mem-role-input').value = role;
+
+    // Visual update (Reset all buttons to look like the image - solid dark blue)
+    // Note: The image shows both as dark buttons, but usually one is active. 
+    // I will add a slight opacity change to indicate selection for UX.
+    const buttons = btnElement.parentElement.querySelectorAll('.role-btn');
+    buttons.forEach(b => {
+        b.style.opacity = "0.6"; // Dim others
+        b.style.border = "none";
+    });
+
+    btnElement.style.opacity = "1"; // Active one is fully opaque
+}
+
+// 3. File Upload Display Helper
+function handleFileDisplay(input) {
+    const display = document.getElementById('file-name-display');
+    if (input.files && input.files[0]) {
+        display.style.display = 'block';
+        display.innerHTML = `<i class="fa-solid fa-paperclip"></i> ${input.files[0].name}`;
+    } else {
+        display.style.display = 'none';
     }
 }
 
@@ -2076,6 +2111,8 @@ function handleMembershipSubmit(e) {
         setTimeout(() => {
             e.target.reset();
             document.querySelectorAll('.recruit-card').forEach(c => c.classList.remove('selected-org-card'));
+            const display = document.getElementById('file-name-display');
+            if (display) display.style.display = 'none';
             btn.innerText = originalText;
             btn.style.background = "var(--primary)";
             btn.disabled = false;

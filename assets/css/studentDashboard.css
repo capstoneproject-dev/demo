@@ -2993,3 +2993,124 @@ button:focus-visible {
         font-size: 0.85rem;
     }
 }
+
+/* --- NEW FORM STYLES (Membership Tab) --- */
+
+/* Form Header Text */
+.form-description {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+/* Role Toggle Buttons (Officer / Junior Officer) */
+.role-toggle-group {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.role-btn {
+    flex: 1;
+    /* Equal width */
+    background: var(--primary);
+    /* Dark Blue */
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.2s;
+    text-align: center;
+}
+
+.role-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* Inactive state for toggle logic (optional, if you want one to be grayed out) */
+.role-btn.outline {
+    background: transparent;
+    border: 2px solid var(--primary);
+    color: var(--primary);
+}
+
+/* Custom Upload Area */
+.custom-upload-box {
+    background: var(--panel-2);
+    /* Light gray background */
+    border: 1px solid var(--border);
+    /* Standard border */
+    border-radius: var(--radius-md);
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.custom-upload-box:hover {
+    border-color: var(--primary);
+    background: rgba(0, 33, 71, 0.03);
+}
+
+.upload-placeholder-text {
+    font-size: 1rem;
+    color: #9ca3af;
+    /* Gray text color similar to image */
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.upload-plus-icon {
+    font-size: 1.5rem;
+    color: #cbd5e1;
+    /* Light gray icon color */
+    background: white;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Submit Button Override */
+.btn-submit-wide {
+    width: 100%;
+    padding: 14px;
+    background: var(--primary);
+    color: white;
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+}
+
+.btn-submit-wide:hover {
+    background: var(--primary-2);
+}
+
+/* Mobile Adjustments */
+@media (max-width: 600px) {
+    .role-toggle-group {
+        flex-direction: row;
+        /* Keep side-by-side on mobile if space permits */
+    }
+
+    .role-btn {
+        font-size: 0.85rem;
+        padding: 10px;
+    }
+}
