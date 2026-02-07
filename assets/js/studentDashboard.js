@@ -573,6 +573,9 @@ function switchOrgTab(tabName, btn) {
 
                 const card = document.createElement('div');
                 card.className = 'event-card-ref'; // Enhanced via CSS
+                card.setAttribute('onclick', `openDetailsModal('${ev.title}')`);
+                card.setAttribute('style', 'cursor: pointer;');
+                card.setAttribute('title', 'View Details');
 
                 // Badge Label
                 let statusLabel = '';
@@ -1065,61 +1068,53 @@ function initDashboardCarousel() {
     const track = document.getElementById('dashboardCarouselTrack');
     if (!track) return;
 
-    track.innerHTML = ''; // Clear previous
+    track.innerHTML = ''; // Clear previous content
 
-    // 1. Determine which event to show (Logic from previous step)
-    const today = new Date();
-    const currentMonth = today.toLocaleString('en-us', { month: 'short' });
-    const currentDay = today.getDate();
-    const currentYear = today.getFullYear();
+    // 1. Filter events that match "Today" status
+    // This uses the same helper logic as the Events Tab -> Today Filter
+    const todayEvents = extendedEvents.filter(ev => getEventStatus(ev.date) === 'today');
 
-    let todaysEvent = extendedEvents.find(ev => {
-        const regex = /([a-zA-Z]+)\.\s+(\d+)(?:-(\d+))?,\s+(\d+)/;
-        const match = ev.date.match(regex);
-        if (match) {
-            const eventYear = parseInt(match[4]);
-            const eventMonthStr = match[1];
-            const startDay = parseInt(match[2]);
-            const endDay = match[3] ? parseInt(match[3]) : startDay;
+    let slidesToRender = [];
 
-            if (eventYear === currentYear && eventMonthStr.includes(currentMonth)) {
-                if (currentDay >= startDay && currentDay <= endDay) return true;
-            }
-        }
-        return false;
-    });
-
-    // Fallback to first event
-    if (!todaysEvent) {
-        todaysEvent = extendedEvents[0];
-    }
-
-    // 2. Prepare Images
-    let images = [];
-    if (todaysEvent.gallery && todaysEvent.gallery.length > 0) {
-        images = todaysEvent.gallery;
+    if (todayEvents.length > 0) {
+        // If we have events today, cycle through their main images
+        slidesToRender = todayEvents.map(ev => ({
+            src: ev.img,
+            title: ev.title
+        }));
     } else {
-        images = [todaysEvent.img];
+        // Fallback: If no events today, show the next upcoming event to avoid empty white space
+        const nextEvent = extendedEvents.find(ev => getEventStatus(ev.date) === 'upcoming');
+        if (nextEvent) {
+            slidesToRender = [{ src: nextEvent.img, title: nextEvent.title }];
+        } else {
+            // Ultimate fallback if no upcoming events exist
+            slidesToRender = [{ src: extendedEvents[0].img, title: "Event" }];
+        }
     }
 
-    // 3. Create Image Elements
-    images.forEach((src, index) => {
+    // 2. Generate Slides
+    slidesToRender.forEach((item, index) => {
         const img = document.createElement('img');
-        img.src = src;
+        img.src = item.src;
         img.className = 'carousel-slide-img';
+        img.alt = item.title;
+        img.title = item.title; // Tooltip on hover
+
+        // Set first image as active
         if (index === 0) img.classList.add('active');
+
         track.appendChild(img);
     });
 
-    // 4. Reset state
+    // 3. Reset Index
     currentDashboardSlideIndex = 0;
 
-    // 5. Start Auto-Rotation (3 seconds)
+    // 4. Restart Interval
     if (carouselInterval) clearInterval(carouselInterval);
 
-    const slides = track.getElementsByClassName('carousel-slide-img');
-
-    if (slides.length > 1) {
+    // Only auto-rotate if we have more than 1 image
+    if (slidesToRender.length > 1) {
         carouselInterval = setInterval(() => {
             moveDashboardSlide(1);
         }, 3000);

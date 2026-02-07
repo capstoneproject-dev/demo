@@ -1352,6 +1352,7 @@ td {
     border: 1px solid var(--border);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
 }
 
 .event-card-ref:hover {
@@ -3522,6 +3523,8 @@ button:focus-visible {
     flex-direction: column;
     height: 450px;
     /* Adjust this value if you want the card taller/shorter */
+    cursor: pointer;
+    /* Added for clickability */
 }
 
 /* 2. Force the Image Wrapper (first child) to take exactly 70% */
