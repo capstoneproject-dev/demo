@@ -909,11 +909,11 @@ function getEventsForDate(year, month, day) {
 
 
 function renderDashboard() {
-    // Render Announcements
+    // 1. Render Announcements (Existing Logic)
     const annList = document.getElementById('announcements-list');
     annList.innerHTML = announcementsData.map(item => `
-        <div class="list-item">
-            <div class="item-icon"><i class="fa-solid fa-bullhorn"></i></div>
+        <div class="list-item dashboard-announcement-item">
+            <div class="item-icon announcement-icon"><i class="fa-solid fa-bullhorn"></i></div>
             <div class="item-content">
                 <h4>${item.title}</h4>
                 <p>${item.content}</p>
@@ -922,17 +922,48 @@ function renderDashboard() {
         </div>
     `).join('');
 
-    // Render Event Cards (Preview)
+    // 2. Render ALL Upcoming Events (Grid Layout)
     const eventContainer = document.getElementById('events-preview-container');
-    eventContainer.innerHTML = eventsData.map(ev => `
-        <div style="background: var(--panel-2); padding: 15px; border-radius: var(--radius-md); flex: 1;">
-            <div style="font-size: 0.8rem; color: var(--primary); font-weight: 600; margin-bottom: 5px;">${ev.date}</div>
-            <h4 style="margin-bottom: 5px;">${ev.title}</h4>
-            <p style="font-size: 0.85rem; color: var(--muted);">${ev.org}</p>
-        </div>
-    `).join('');
 
-    // NEW: Render Calendar
+    // Filter & Sort
+    const upcomingEvents = extendedEvents
+        .filter(ev => {
+            const status = getEventStatus(ev.date);
+            return status === 'upcoming' || status === 'today';
+        })
+        .sort((a, b) => {
+            const dateA = new Date(a.date.replace('.', ''));
+            const dateB = new Date(b.date.replace('.', ''));
+            return dateA - dateB;
+        });
+
+    if (upcomingEvents.length === 0) {
+        eventContainer.innerHTML = `
+            <div style="grid-column: 1 / -1; width:100%; text-align:center; padding:30px; color:var(--muted); background:var(--panel-2); border-radius:12px; border:1px dashed var(--border);">
+                <p>No upcoming events scheduled.</p>
+            </div>`;
+    } else {
+        eventContainer.innerHTML = upcomingEvents.map(ev => `
+            <div class="dashboard-event-preview-card" onclick="navigateToEventDetails('${ev.title}')" title="View Details">
+                <div class="card-top-accent"></div>
+                <div class="card-content">
+                    <div class="preview-date-badge">
+                        <span class="p-month">${ev.date.split('.')[0]}</span>
+                        <span class="p-day">${ev.date.split(' ')[1].replace(',', '')}</span>
+                    </div>
+                    <div class="preview-details">
+                        <h4 class="preview-title">${ev.title}</h4>
+                        <div class="preview-meta">
+                            <span class="preview-org"><i class="fa-solid fa-users"></i> ${ev.org}</span>
+                            ${ev.time ? `<span class="preview-time"><i class="fa-regular fa-clock"></i> ${ev.time.split(' - ')[0]}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // 3. Render Calendar (Existing Logic)
     renderCalendar();
 }
 

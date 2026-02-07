@@ -67,8 +67,9 @@ body {
 .sidebar {
     width: var(--sidebar-collapsed);
     height: 100vh;
-    background-color: var(--panel);
-    border-right: 1px solid var(--border);
+    background-color: #002147 !important;
+    /* Force Navy Blue */
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
     position: fixed;
     left: 0;
     top: 0;
@@ -90,8 +91,8 @@ body {
     display: flex;
     align-items: center;
     padding: 0 22px;
-    border-bottom: 1px solid var(--border);
-    color: var(--primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
     font-weight: 700;
     font-size: 1.2rem;
 }
@@ -128,7 +129,7 @@ body {
     align-items: center;
     padding: 12px 14px;
     text-decoration: none;
-    color: var(--muted);
+    color: rgba(255, 255, 255, 0.7);
     border-radius: var(--radius-sm);
     font-weight: 500;
     transition: all 0.2s;
@@ -136,12 +137,12 @@ body {
 }
 
 .nav-link:hover {
-    background-color: var(--panel-2);
-    color: var(--primary-2);
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
 }
 
 .nav-link.active {
-    background-color: var(--primary);
+    background-color: rgba(255, 255, 255, 0.15);
     color: #ffffff;
 }
 
@@ -164,7 +165,7 @@ body {
 
 /* Sidebar Footer */
 .sidebar-footer {
-    border-top: 1px solid var(--border);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     padding: 20px 12px;
 }
 
@@ -172,7 +173,7 @@ body {
 .logout-btn {
     background: none;
     border: none;
-    color: var(--muted);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
     width: 100%;
     text-align: left;
@@ -3688,3 +3689,273 @@ button:focus-visible {
         width: 100%;
     }
 }
+
+/* --- DASHBOARD VIBE ENHANCEMENTS --- */
+
+/* 1. Dashboard Cards: Softer Shadow, Less Border */
+#dashboard .card {
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    /* Lighter border */
+    box-shadow: 0 8px 24px rgba(149, 157, 165, 0.1);
+    /* Softer, deeper shadow */
+    background: linear-gradient(145deg, #ffffff, #fcfdff);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+#dashboard .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(149, 157, 165, 0.15);
+}
+
+/* 2. Card Headers: Modern Accent */
+#dashboard .card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+#dashboard .card-title {
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+}
+
+/* Add a small accent dot to titles */
+#dashboard .card-title::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background-color: var(--accent);
+    border-radius: 50%;
+    margin-right: 10px;
+    box-shadow: 0 0 8px var(--accent);
+}
+
+/* 3. Latest Announcements: "Notification Card" Style */
+.dashboard-announcement-item {
+    background: var(--bg);
+    border: 1px solid transparent;
+    /* Prepare for hover */
+    border-radius: 12px;
+    margin-bottom: 12px;
+    padding: 16px;
+    transition: all 0.2s ease;
+}
+
+.dashboard-announcement-item:hover {
+    background: #fff;
+    border-color: var(--border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    transform: translateX(4px);
+    /* Subtle slide right */
+}
+
+.dashboard-announcement-item:last-child {
+    border-bottom: 1px solid transparent;
+    /* Remove default list border */
+}
+
+.announcement-icon {
+    background: rgba(0, 33, 71, 0.05);
+    color: var(--primary);
+    border-radius: 10px;
+}
+
+/* 4. Upcoming Events Preview Cards (New Class from JS) */
+/* --- EVENTS DASHBOARD GRID LAYOUT --- */
+
+/* The Container: Defines the Grid */
+#events-preview-container {
+    display: grid;
+    /* Auto-fill creates as many columns as fit. Min 240px wide per card. */
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+
+    /* OPTIONAL: Limit height and add scroll if you have MANY events */
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 4px;
+    /* Space for scrollbar */
+    padding-bottom: 4px;
+}
+
+/* Custom Scrollbar for the container */
+#events-preview-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+#events-preview-container::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 10px;
+}
+
+/* The Card Design */
+.dashboard-event-preview-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-event-preview-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+    border-color: var(--primary);
+}
+
+/* Colored accent bar at top */
+.card-top-accent {
+    height: 6px;
+    background: var(--primary);
+    width: 100%;
+}
+
+.card-content {
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+/* Date Badge Style */
+.preview-date-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel-2);
+    border-radius: 8px;
+    min-width: 50px;
+    padding: 8px 4px;
+    border: 1px solid var(--border);
+}
+
+.p-month {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--primary);
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.p-day {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+}
+
+/* Text Details */
+.preview-details {
+    flex: 1;
+    min-width: 0;
+    /* Prevents text overflow issues */
+}
+
+.preview-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+    line-height: 1.3;
+
+    /* Truncate long titles */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    /* Standard property */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.preview-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.preview-org,
+.preview-time {
+    font-size: 0.75rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Dark Mode Adjustment */
+body.dark .preview-date-badge {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* 5. Calendar Enhancements */
+#event-calendar {
+    background: #ffffff;
+}
+
+.calendar-day {
+    font-weight: 500;
+    border-radius: 10px;
+    /* Softer square */
+    margin: 4px auto;
+}
+
+/* Highlight Today more prominently */
+.calendar-day.today {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 10px rgba(0, 33, 71, 0.3);
+    border: none;
+}
+
+.calendar-day.today:hover {
+    background: var(--primary-2);
+}
+
+/* Header Month/Year */
+#calendarMonthYear {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+/* 6. Event Carousel (Right Sidebar) */
+.dashboard-event-carousel {
+    border: none;
+    /* Remove the heavy border */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    /* Add shadow instead */
+    border-radius: 20px;
+}
+
+/* 7. Dark Mode Adjustments for these new styles */
+body.dark #dashboard .card {
+    background: var(--panel);
+    border-color: var(--border);
+    box-shadow: none;
+}
+
+body.dark .dashboard-announcement-item {
+    background: var(--panel-2);
+}
+
+body.dark .dashboard-announcement-item:hover {
+    background: #1e293b;
+    /* Darker hover */
+}
+
+body.dark .dashboard-event-preview-card {
+    background: var(--primary);
+    /* Keep brand color or darken */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* REMOVED: Replaced by Grid auto-fill auto-fit logic above */
