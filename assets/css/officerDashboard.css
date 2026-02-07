@@ -632,41 +632,81 @@ td {
     color: #2563eb;
 }
 
-/* --- ANALYTICS CHARTS (CSS SIMULATED) --- */
-.chart-container {
-    height: 200px;
+/* --- NEW ANALYTICS FILTER TOOLBAR --- */
+.analytics-toolbar {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-around;
-    padding-top: 20px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 10px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
-.bar-group {
+.filters {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.filter-group {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 8px;
+}
+
+.filter-group label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+}
+
+/* Include input[type="month"] to match select styles */
+.filter-group select,
+.filter-group input[type="month"] {
+    margin-bottom: 0;
+    padding: 8px 12px;
+    min-width: 140px;
+    font-size: 0.85rem;
+    height: 38px;
+    /* Force height match */
+}
+
+/* --- NEW ANALYTICS GRID & CHARTS --- */
+/* --- ANALYTICS GRID (Strict 2x2) --- */
+.analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* Strict 2x2 on desktop */
+    gap: 24px;
+    margin-bottom: 30px;
+}
+
+.chart-container-relative {
+    position: relative;
+    height: 220px;
     width: 100%;
 }
 
-.bar {
-    width: 30px;
-    background: var(--primary);
-    border-radius: 6px 6px 0 0;
-    transition: height 0.5s ease;
-    position: relative;
-    min-height: 4px;
-}
+@media (max-width: 768px) {
+    .analytics-grid {
+        grid-template-columns: 1fr;
+        /* Stack vertically on mobile */
+    }
 
-.bar:hover {
-    opacity: 0.8;
-}
+    .analytics-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
 
-.bar-label {
-    font-size: 0.75rem;
-    color: var(--muted);
+    .filters {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .filter-group select,
+    .filter-group input[type="month"] {
+        width: 100%;
+    }
 }
 
 /* --- TOOLS / QR PLACEHOLDER --- */

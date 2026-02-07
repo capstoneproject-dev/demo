@@ -9,6 +9,8 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="../assets/css/officerDashboard.css">
 </head>
@@ -367,106 +369,105 @@
 
         <!-- ANALYTICS VIEW -->
         <div id="analytics" class="section-view">
-            <div class="card" style="margin-bottom: 24px;">
-                <div class="card-header">
-                    <div class="card-title">Revenue Analytics (Income Generating)</div>
-                    <select style="width: auto; margin: 0;">
-                        <option>This Semester</option>
-                        <option>Last Semester</option>
-                    </select>
-                </div>
 
-                <div class="chart-container">
-                    <div class="bar-group">
-                        <div class="bar" style="height: 40%;"></div>
-                        <span class="bar-label">Rentals</span>
+            <div class="analytics-toolbar card">
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Academic Year</label>
+                        <select id="filter-year">
+                            <option>2023-2024</option>
+                            <option>2022-2023</option>
+                        </select>
                     </div>
-                    <div class="bar-group">
-                        <div class="bar" style="height: 75%; background-color: var(--accent);"></div>
-                        <span class="bar-label">Printing</span>
-                    </div>
-                    <div class="bar-group">
-                        <div class="bar" style="height: 55%;"></div>
-                        <span class="bar-label">Food Sales</span>
-                    </div>
-                    <div class="bar-group">
-                        <div class="bar" style="height: 30%;"></div>
-                        <span class="bar-label">Merch</span>
-                    </div>
-                    <div class="bar-group">
-                        <div class="bar" style="height: 90%;"></div>
-                        <span class="bar-label">Tickets</span>
+                    <div class="filter-group">
+                        <label>Select Month</label>
+                        <input type="month" id="filter-month">
                     </div>
                 </div>
-                <p style="text-align: center; color: var(--muted); font-size: 0.9rem;">Revenue comparison by service
-                    category</p>
+                <button class="btn btn-outline btn-sm">
+                    <i class="fa-solid fa-download"></i> Export Report
+                </button>
             </div>
 
-            <div class="content-row">
+            <div class="analytics-grid">
+
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">Event Participation</div>
+                        <div class="card-title">
+                            <i class="fa-solid fa-wallet me-2" style="color: #002147;"></i> Financial Performance
+                        </div>
                     </div>
-                    <div class="table-container">
-                        <table class="table-container">
-                            <thead>
-                                <tr>
-                                    <th>Event Name</th>
-                                    <th>Target</th>
-                                    <th>Actual</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Tech Summit</td>
-                                    <td>150</td>
-                                    <td>142</td>
-                                    <td style="color: #059669;">94%</td>
-                                </tr>
-                                <tr>
-                                    <td>Sports Fest</td>
-                                    <td>300</td>
-                                    <td>210</td>
-                                    <td style="color: #d97706;">70%</td>
-                                </tr>
-                                <tr>
-                                    <td>Seminar</td>
-                                    <td>100</td>
-                                    <td>98</td>
-                                    <td style="color: #059669;">98%</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="chart-container-relative">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                    <div class="mt-3"
+                        style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); padding-top: 10px; border-top: 1px solid var(--border);">
+                        <span>Total: <strong>₱12,500</strong></span>
+                        <span style="color: #059669;"><i class="fa-solid fa-arrow-up"></i> 8.5% Growth</span>
                     </div>
                 </div>
+
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">Finances Snapshot</div>
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 15px;">
-                        <div>
-                            <div
-                                style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
-                                <span>Budget Used</span>
-                                <span>65%</span>
-                            </div>
-                            <div style="height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden;">
-                                <div style="width: 65%; background: var(--primary); height: 100%;"></div>
-                            </div>
+                        <div class="card-title">
+                            <i class="fa-solid fa-arrow-trend-up me-2" style="color: #059669;"></i> Participation Trends
                         </div>
-                        <div>
-                            <div
-                                style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 5px;">
-                                <span>Profit Margin</span>
-                                <span>22%</span>
-                            </div>
-                            <div style="height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden;">
-                                <div style="width: 22%; background: var(--accent); height: 100%;"></div>
-                            </div>
+                    </div>
+                    <div class="chart-container-relative">
+                        <canvas id="participationChart"></canvas>
+                    </div>
+                    <div class="mt-3"
+                        style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); padding-top: 10px; border-top: 1px solid var(--border);">
+                        <span>Avg Attendance: <strong>150</strong></span>
+                        <span>Retention: <strong>High</strong></span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-box me-2" style="color: #d97706;"></i> Inventory Utilization
+                        </div>
+                    </div>
+                    <div style="display: flex; height: 100%; align-items: center; justify-content: center;">
+                        <div style="width: 60%; height: 200px;">
+                            <canvas id="rentalsChart"></canvas>
+                        </div>
+                        <div style="width: 40%; padding-left: 10px; font-size: 0.85rem;">
+                            <div style="margin-bottom: 8px;"><strong>14</strong> Active</div>
+                            <div style="margin-bottom: 8px; color: #d97706;"><strong>4</strong> Pending</div>
+                            <div style="color: #dc2626;"><strong>2</strong> Overdue</div>
                         </div>
                     </div>
                 </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-file-contract me-2" style="color: var(--muted);"></i> Document
+                            Workflow
+                        </div>
+                    </div>
+                    <div style="display: flex; height: 100%; align-items: center;">
+                        <div style="width: 50%; height: 200px;">
+                            <canvas id="docsChart"></canvas>
+                        </div>
+                        <div style="width: 50%; font-size: 0.85rem;">
+                            <ul style="list-style: none;">
+                                <li style="margin-bottom: 8px; display: flex; align-items: center;"><span
+                                        style="width: 10px; height: 10px; background: #059669; border-radius: 50%; margin-right: 8px;"></span>
+                                    Accepted (15)</li>
+                                <li style="margin-bottom: 8px; display: flex; align-items: center;"><span
+                                        style="width: 10px; height: 10px; background: #d97706; border-radius: 50%; margin-right: 8px;"></span>
+                                    Pending (2)</li>
+                                <li style="display: flex; align-items: center;"><span
+                                        style="width: 10px; height: 10px; background: #dc2626; border-radius: 50%; margin-right: 8px;"></span>
+                                    Rejected (1)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -535,6 +536,7 @@
     </main>
 
     <!-- Custom JS -->
+    <script src="../assets/js/officerAnalytics.js"></script>
     <script src="../assets/js/officerDashboard.js"></script>
 </body>
 
