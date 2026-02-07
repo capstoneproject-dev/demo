@@ -182,6 +182,17 @@ function renderAnnouncements() {
 
 function toggleNotifs() {
     document.getElementById('notif-dropdown').classList.toggle('show');
+    // Close export if open
+    const exportDropdown = document.getElementById('export-dropdown');
+    if (exportDropdown) exportDropdown.classList.remove('show');
+}
+
+function toggleExportMenu() {
+    const exportDropdown = document.getElementById('export-dropdown');
+    if (exportDropdown) exportDropdown.classList.toggle('show');
+    // Close notif if open
+    const notifDropdown = document.getElementById('notif-dropdown');
+    if (notifDropdown) notifDropdown.classList.remove('show');
 }
 
 // Close dropdown if clicked outside
@@ -192,6 +203,14 @@ window.onclick = function (event) {
             var openDropdown = dropdowns[i];
             if (openDropdown.classList.contains('show')) {
                 openDropdown.classList.remove('show');
+            }
+        }
+    }
+    if (!event.target.closest('.export-wrapper')) {
+        var exports = document.getElementsByClassName("export-dropdown");
+        for (var i = 0; i < exports.length; i++) {
+            if (exports[i].classList.contains('show')) {
+                exports[i].classList.remove('show');
             }
         }
     }
@@ -283,6 +302,163 @@ function viewEventsList() {
     if (eventsFrame) {
         eventsFrame.src = "../systems/QR-Attendance/events.html";
     }
+}
+
+// --- EXPORT FUNCTIONS ---
+
+function getReportMetadata() {
+    const filterYear = document.getElementById('filter-year');
+    const filterMonth = document.getElementById('filter-month');
+
+    const year = filterYear ? filterYear.value : "Unknown Year";
+    const monthInput = filterMonth ? filterMonth.value : "";
+
+    let dateLabel = "All Time";
+    if (monthInput) {
+        const dateObj = new Date(monthInput + "-01");
+        dateLabel = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+
+    return { year, dateLabel, monthInput };
+}
+
+function exportCSV() {
+    const meta = getReportMetadata();
+
+    // 1. Define Data Structure
+    const reportData = [
+        ['ORGANIZATION MANAGEMENT REPORT'],
+        ['Generated On', new Date().toLocaleString()],
+        ['Period Covered', meta.dateLabel],
+        ['Academic Year', meta.year],
+        [],
+        ['--- FINANCIAL & PARTICIPATION ---'],
+        ['Metric', 'Value', 'Trend/Notes'],
+        ['Total Revenue', '₱12,500', '+8.5% vs last month'],
+        ['Avg Attendance', '150', 'High Retention'],
+        ['Participation Growth', '+12%', 'Based on recent events'],
+        [],
+        ['--- INVENTORY UTILIZATION (Breakdown) ---'],
+        ['Status', 'Count'],
+        ['Active (Rented)', '14'],
+        ['Pending Requests', '4'],
+        ['Overdue/Damaged', '2'],
+        [],
+        ['--- DOCUMENT WORKFLOW (Breakdown) ---'],
+        ['Status', 'Count'],
+        ['Accepted', '15'],
+        ['Pending Review', '2'],
+        ['Rejected', '1'],
+        [],
+        ['--- RECENT RENTAL TRANSACTIONS ---'],
+        ['Item', 'Borrower', 'Due Date', 'Status']
+    ];
+
+    // 2. Append Rentals Data
+    rentalsData.forEach(item => {
+        reportData.push([item.item, item.renter, item.due, item.status]);
+    });
+
+    // 3. Build CSV String
+    let csvContent = "data:text/csv;charset=utf-8,";
+    reportData.forEach(rowArray => {
+        let row = rowArray.map(item => {
+            let str = String(item);
+            // Escape quotes and commas
+            if (str.includes(',')) return `"${str}"`;
+            return str;
+        }).join(",");
+        csvContent += row + "\r\n";
+    });
+
+    // 4. Download
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `OrgReport_Full_${meta.monthInput || 'Summary'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const meta = getReportMetadata();
+
+    // -- HEADER --
+    doc.setFontSize(18);
+    doc.setTextColor(0, 33, 71); // Navy
+    doc.text("Organization Management Report", 14, 20);
+
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+    doc.text(`Period: ${meta.dateLabel} | A.Y. ${meta.year}`, 14, 34);
+
+    // -- SECTION 1: KEY METRICS SUMMARY --
+    doc.setDrawColor(200);
+    doc.setFillColor(247, 249, 255);
+    doc.rect(14, 40, 182, 18, 'F'); // Light Blue Box
+
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.setFont(undefined, 'bold');
+    doc.text("Financials & Growth", 20, 48);
+    doc.setFont(undefined, 'normal');
+    doc.text("Revenue: 12,500 (+8.5%)", 20, 54);
+
+    doc.setFont(undefined, 'bold');
+    doc.text("Participation", 100, 48);
+    doc.setFont(undefined, 'normal');
+    doc.text("Avg: 150 | Growth: +12%", 100, 54);
+
+    // -- SECTION 2: DETAILED ANALYTICS (Inventory & Docs) --
+    doc.setFontSize(12);
+    doc.setTextColor(0, 33, 71);
+    doc.text("Detailed Analytics Breakdown", 14, 70);
+
+    // We use autoTable to create side-by-side tables for Inventory and Docs
+    doc.autoTable({
+        startY: 74,
+        head: [['Inventory Status', 'Count', 'Document Status', 'Count']],
+        body: [
+            ['Active (Rented)', '14', 'Accepted', '15'],
+            ['Pending Requests', '4', 'Pending', '2'],
+            ['Overdue', '2', 'Rejected', '1'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [0, 33, 71] },
+        styles: { fontSize: 10, cellPadding: 3 },
+        columnStyles: {
+            0: { fontStyle: 'bold', width: 40 },
+            1: { halign: 'center', width: 20 },
+            2: { fontStyle: 'bold', width: 40 },
+            3: { halign: 'center', width: 20 }
+        }
+    });
+
+    // -- SECTION 3: RENTAL TRANSACTIONS --
+    // Get the Y position where the previous table ended
+    let finalY = doc.lastAutoTable.finalY + 15;
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 33, 71);
+    doc.text("Recent Rental Transactions", 14, finalY);
+
+    const rentalBody = rentalsData.map(item => [item.item, item.renter, item.due, item.status]);
+
+    doc.autoTable({
+        startY: finalY + 4,
+        head: [['Item', 'Borrower', 'Due Date', 'Status']],
+        body: rentalBody,
+        theme: 'striped',
+        headStyles: { fillColor: [244, 208, 63], textColor: [0, 0, 0] }, // Gold Header
+        styles: { fontSize: 9 }
+    });
+
+    // -- DOWNLOAD --
+    doc.save(`OrgReport_Full_${meta.monthInput || 'Summary'}.pdf`);
 }
 
 // --- UTILS ---

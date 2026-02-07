@@ -11,7 +11,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Custom CSS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
     <link rel="stylesheet" href="../assets/css/officerDashboard.css">
 </head>
 
@@ -384,9 +386,19 @@
                         <input type="month" id="filter-month">
                     </div>
                 </div>
-                <button class="btn btn-outline btn-sm">
-                    <i class="fa-solid fa-download"></i> Export Report
-                </button>
+                <div class="export-wrapper">
+                    <button class="btn btn-outline btn-sm" onclick="toggleExportMenu()">
+                        <i class="fa-solid fa-download"></i> Export Report <i class="fa-solid fa-caret-down ms-2"></i>
+                    </button>
+                    <div class="export-dropdown" id="export-dropdown">
+                        <div class="export-item" onclick="exportCSV()">
+                            <i class="fa-solid fa-file-csv"></i> Download CSV
+                        </div>
+                        <div class="export-item" onclick="exportPDF()">
+                            <i class="fa-solid fa-file-pdf"></i> Download PDF
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="analytics-grid">
