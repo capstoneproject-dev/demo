@@ -3627,3 +3627,64 @@ button:focus-visible {
         height: 160px;
     }
 }
+
+/* --- ORGANIZATION FILTER DROPDOWN --- */
+
+.filter-select-group {
+    position: relative;
+    min-width: 200px;
+}
+
+.filter-select-group i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+.filter-select-group select {
+    width: 100%;
+    padding: 12px 12px 12px 40px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 0.95rem;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.filter-select-group select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 33, 71, 0.1);
+}
+
+.filter-select-group::after {
+    content: '\f078';
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+
+@media (max-width: 600px) {
+    .events-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-select-group {
+        width: 100%;
+    }
+}

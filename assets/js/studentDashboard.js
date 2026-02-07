@@ -482,7 +482,14 @@ function switchOrgTab(tabName, btn) {
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" id="eventSearch" placeholder="Search events...">
             </div>
-            `;
+
+            <div class="filter-select-group">
+                <i class="fa-solid fa-filter"></i>
+                <select id="eventOrgFilter">
+                    <option value="all">All Organizations</option>
+                </select>
+            </div>
+        `;
         contentDiv.appendChild(filterBar);
 
         // 2. NEW: Time Filter Tabs (Past, Today, Upcoming)
@@ -504,6 +511,21 @@ function switchOrgTab(tabName, btn) {
 
         // State for filtering
         let currentTimeFilter = 'upcoming';
+        let currentOrgFilter = 'all'; // State for Org Filter
+
+        // Helper to populate Org Dropdown
+        function populateOrgDropdown() {
+            const orgSelect = document.getElementById('eventOrgFilter');
+            // Get unique organizations from the events list
+            const uniqueOrgs = [...new Set(extendedEvents.map(ev => ev.org))].sort();
+
+            uniqueOrgs.forEach(org => {
+                const option = document.createElement('option');
+                option.value = org;
+                option.innerText = org;
+                orgSelect.appendChild(option);
+            });
+        }
 
         function renderEventsList() {
             grid.innerHTML = '';
@@ -521,7 +543,13 @@ function switchOrgTab(tabName, btn) {
                 if (currentTimeFilter === 'all') matchesTime = true;
                 else matchesTime = (status === currentTimeFilter);
 
-                return matchesSearch && matchesTime;
+                // 3. Org Match (NEW)
+                let matchesOrg = false;
+                const orgSelectValue = document.getElementById('eventOrgFilter').value;
+                if (orgSelectValue === 'all') matchesOrg = true;
+                else matchesOrg = (ev.org === orgSelectValue);
+
+                return matchesSearch && matchesTime && matchesOrg;
             });
 
             // Empty State
@@ -600,6 +628,9 @@ function switchOrgTab(tabName, btn) {
             });
         }
 
+        // Initialize Options
+        populateOrgDropdown();
+
         // Listeners for Time Tabs
         timeFilters.querySelectorAll('.time-filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -615,6 +646,9 @@ function switchOrgTab(tabName, btn) {
 
         // Search Listener
         document.getElementById('eventSearch').addEventListener('keyup', renderEventsList);
+
+        // NEW Listener for Dropdown
+        document.getElementById('eventOrgFilter').addEventListener('change', renderEventsList);
 
         // Initial Render
         renderEventsList();
