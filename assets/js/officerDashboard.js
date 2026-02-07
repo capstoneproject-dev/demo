@@ -230,6 +230,30 @@ function returnItem(index) {
     }
 }
 
+function viewAllRentals() {
+    // 1. Switch to the Services Tracker tab
+    navigate('tracker');
+
+    // 2. Find the iframe
+    const trackerFrame = document.querySelector('#tracker iframe');
+
+    if (trackerFrame) {
+        // Smooth approach: Send a message to the iframe
+        trackerFrame.contentWindow.postMessage({ action: 'scrollTo', target: 'rental-records' }, '*');
+    }
+}
+
+function viewEventsList() {
+    // 1. Switch to the Events tab
+    navigate('events');
+
+    // 2. Change the iframe source to the Events List page
+    const eventsFrame = document.querySelector('#events iframe');
+    if (eventsFrame) {
+        eventsFrame.src = "../systems/QR-Attendance/events.html";
+    }
+}
+
 // --- UTILS ---
 function setDate() {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -239,9 +263,13 @@ function setDate() {
     const headerDate = document.getElementById('current-date');
     if (headerDate) headerDate.innerText = dateString;
 
-    // Update Active Rentals Card Date
+    // Update Active Rentals Table Date
     const rentalDate = document.getElementById('rentals-date');
     if (rentalDate) rentalDate.innerText = dateString;
+
+    // Update Active Rentals Stat Card Date
+    const statDate = document.getElementById('rentals-stat-date');
+    if (statDate) statDate.innerText = dateString;
 }
 
 // Attach sidebar theme event listener
