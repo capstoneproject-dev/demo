@@ -14,7 +14,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
 
+    <!-- PDF.js for Document Viewing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
+
     <link rel="stylesheet" href="../assets/css/officerDashboard.css">
+    <!-- PDF Viewer Styles -->
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
 
 <body>
@@ -345,7 +351,7 @@
                         <span class="col-sent mobile-hide">Sent By</span>
                         <span class="col-ssc mobile-hide">SSC Review</span>
                         <span class="col-osa mobile-hide">OSA Review</span>
-                        <span class="col-status" style="text-align: right;">Status</span>
+                        <span class="col-status" style="text-align: right;">Actions</span>
                     </div>
 
                     <div id="docs-list">
@@ -591,7 +597,104 @@
         </div>
     </div>
 
+    <!-- PDF Viewer Modal (Google Drive Style) -->
+    <div id="pdf-modal" class="pdf-modal">
+        <div class="pdf-modal-content">
+            <!-- Modal Header -->
+            <div class="pdf-modal-header">
+                <div class="pdf-modal-title">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span id="pdf-doc-name">Document</span>
+                </div>
+                <div class="pdf-toolbar">
+                    <!-- Navigation -->
+                    <button class="btn btn-sm btn-outline nav-btn" onclick="pdfPrevPage()" title="Previous Page">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <span id="pdf-page-info" class="pdf-toolbar-info">0 pages</span>
+                    <button class="btn btn-sm btn-outline nav-btn" onclick="pdfNextPage()" title="Next Page">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Zoom -->
+                    <button class="btn btn-sm btn-outline zoom-btn" onclick="pdfZoomOut()" title="Zoom Out">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <span id="pdf-zoom-info" class="pdf-toolbar-info">100%</span>
+                    <button class="btn btn-sm btn-outline zoom-btn" onclick="pdfZoomIn()" title="Zoom In">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Annotation Tools -->
+                    <button id="pdf-highlight-btn" class="btn btn-sm btn-outline" onclick="togglePdfHighlightMode()"
+                        title="Highlight Text">
+                        <i class="fa-solid fa-highlighter"></i>
+                    </button>
+                    <button id="pdf-comment-btn" class="btn btn-sm btn-outline" onclick="togglePdfCommentMode()"
+                        title="Add Comment">
+                        <i class="fa-solid fa-comment"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Sidebar Toggle -->
+                    <button class="btn btn-sm btn-outline" onclick="togglePdfSidebar()" title="Toggle Sidebar">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                </div>
+                <button class="pdf-close-btn" onclick="closePdfViewer()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="pdf-modal-body">
+                <!-- PDF Viewer Container (pages render here) -->
+                <div id="pdf-viewer-container" class="pdf-viewer-container">
+                    <div class="pdf-loading">
+                        <i class="fa-solid fa-spinner"></i>
+                        <p>Select a document to view</p>
+                    </div>
+                </div>
+
+                <!-- Floating Sidebar Toggle (Visible when sidebar is collapsed) -->
+                <button id="pdf-sidebar-toggle" class="pdf-sidebar-toggle" onclick="togglePdfSidebar()"
+                    title="Show Annotations">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
+
+                <!-- Annotations Sidebar -->
+                <div id="pdf-sidebar" class="pdf-sidebar">
+                    <div class="pdf-sidebar-header">
+                        <h4>Annotations</h4>
+                        <button class="btn btn-sm btn-outline" onclick="togglePdfSidebar()">
+                            <i class="fa-solid fa-angles-right"></i>
+                        </button>
+                    </div>
+                    <div id="pdf-annotations-list" class="pdf-sidebar-content">
+                        <div class="pdf-no-annotations">
+                            <i class="fa-solid fa-note-sticky"></i>
+                            <p>No annotations yet<br><small>Select text to add highlights or comments</small></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comment Input Modal -->
+    <div id="pdf-comment-modal" class="pdf-comment-modal">
+        <div class="pdf-comment-modal-content">
+            <h4>Add Comment</h4>
+            <div id="pdf-selected-text-preview" class="selected-text-preview"></div>
+            <textarea id="pdf-comment-textarea" placeholder="Enter your comment..."></textarea>
+            <div class="pdf-comment-modal-actions">
+                <button class="btn btn-sm btn-outline" onclick="cancelPdfComment()">Cancel</button>
+                <button class="btn btn-sm btn-primary" onclick="savePdfComment()">Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Custom JS -->
+    <script src="../assets/js/pdfViewer.js"></script>
     <script src="../assets/js/officerAnalytics.js"></script>
     <script src="../assets/js/officerDashboard.js"></script>
 </body>
