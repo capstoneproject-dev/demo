@@ -1225,6 +1225,48 @@
             e.target.value = '';
         });
     </script>
+    <script>
+        window.addEventListener('message', async function (event) {
+            // Only act if the message type is CREATE_EVENT
+            if (event.data && event.data.type === 'CREATE_EVENT') {
+                console.log("Received Cross-Post Request (Events Tab):", event.data);
+
+                const newEvent = {
+                    id: Date.now().toString(),
+                    name: event.data.eventName,
+                    description: event.data.description,
+                    createdAt: new Date().toISOString(),
+                    status: 'active',
+                    firstDate: event.data.date,
+                    lastDate: event.data.date,
+                    records: []
+                };
+
+                // 1. Save to Firebase (if available)
+                if (window.firebaseDB) {
+                    try {
+                        await window.firebaseDB.addEvent(newEvent);
+                    } catch (e) { console.warn("Firebase save failed:", e); }
+                }
+
+                // 2. Save to LocalStorage (Offline Support)
+                if (window.offlineSync) {
+                    window.offlineSync.saveToLocalStorage('events', newEvent, 'add');
+                } else {
+                    // Manual Fallback
+                    const localEvents = JSON.parse(localStorage.getItem('events')) || [];
+                    localEvents.push(newEvent);
+                    localStorage.setItem('events', JSON.stringify(localEvents));
+                }
+
+                // 3. Refresh the List if function exists
+                if (typeof updateEventsList === 'function') {
+                    if (typeof events !== 'undefined') events.push(newEvent);
+                    updateEventsList();
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>

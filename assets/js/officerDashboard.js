@@ -212,13 +212,38 @@ function postAnnouncement(e) {
     e.preventDefault();
     const title = document.getElementById('ann-title').value;
     const content = document.getElementById('ann-content').value;
+    const syncEvent = document.getElementById('sync-event').checked; // Get checkbox state
 
+    // 1. Add to Local Dashboard Feed
     announcementsData.unshift({
         title: title,
         content: content,
         date: "Just now"
     });
     renderAnnouncements();
+
+    // 2. CROSS-POSTING LOGIC
+    if (syncEvent) {
+        // Find the Events iframe
+        const eventsFrame = document.querySelector('#events iframe');
+
+        // Send message to the iframe
+        if (eventsFrame && eventsFrame.contentWindow) {
+            eventsFrame.contentWindow.postMessage({
+                type: 'CREATE_EVENT',
+                eventName: title,
+                description: content,
+                date: new Date().toISOString().split('T')[0] // YYYY-MM-DD
+            }, '*');
+
+            alert(`Announcement Posted & Event "${title}" created in Attendance System!`);
+        } else {
+            alert("Announcement posted, but could not sync to Events tab (Frame not loaded).");
+        }
+    } else {
+        alert("Announcement Posted!");
+    }
+
     e.target.reset();
 }
 

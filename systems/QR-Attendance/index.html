@@ -293,6 +293,46 @@
         });
     </script>
     <audio id="beepSound" src="lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
+    <script>
+        window.addEventListener('message', async function (event) {
+            // Check for the CREATE_EVENT command
+            if (event.data && event.data.type === 'CREATE_EVENT') {
+                console.log("Received Cross-Post Request (Scanner View):", event.data);
+
+                const newEvent = {
+                    id: Date.now().toString(),
+                    name: event.data.eventName,
+                    description: event.data.description,
+                    createdAt: new Date().toISOString(),
+                    status: 'active',
+                    firstDate: event.data.date,
+                    lastDate: event.data.date,
+                    records: []
+                };
+
+                // 1. Save to LocalStorage (Primary persistence)
+                try {
+                    const localEvents = JSON.parse(localStorage.getItem('events')) || [];
+                    localEvents.push(newEvent);
+                    localStorage.setItem('events', JSON.stringify(localEvents));
+                } catch (e) {
+                    console.error("Error saving to LocalStorage:", e);
+                }
+
+                // 2. Save to Firebase (if available)
+                if (window.firebaseDB) {
+                    try {
+                        await window.firebaseDB.addEvent(newEvent);
+                    } catch (e) { console.warn("Firebase save failed:", e); }
+                }
+
+                // 3. OfflineSync Support
+                if (window.offlineSync) {
+                    window.offlineSync.saveToLocalStorage('events', newEvent, 'add');
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>

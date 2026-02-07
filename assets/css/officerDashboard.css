@@ -799,32 +799,73 @@ td {
         /* Stack vertically to prevent breaking */
         gap: 20px;
     }
-
-    .content-row>.card {
-        width: 100%;
-        /* Ensure cards take full width */
-    }
-
-    /* IFRAME mobile override */
-    #events .card,
-    #tracker .card {
-        width: 100%;
-        margin: 10px 0;
-    }
-
-    /* Mobile Adjustments */
-    .mobile-only {
-        display: block;
-    }
-
-    .user-info {
-        display: none;
-    }
-
-    .user-profile {
-        padding: 5px;
-    }
 }
+
+/* --- FORM SYNC OPTION --- */
+.sync-option {
+    margin-bottom: 20px;
+    padding: 12px 15px;
+    background: var(--panel-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    transition: all 0.2s ease;
+}
+
+.sync-option:hover {
+    border-color: var(--primary);
+    background: var(--panel);
+}
+
+.sync-option label {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    width: 100%;
+}
+
+/* NEW: Specific styles for the checkbox to override global defaults */
+.sync-option input {
+    margin-bottom: 0;
+    margin-right: 12px;
+    width: auto;
+    cursor: pointer;
+}
+
+.sync-text {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.content-row>.card {
+    width: 100%;
+    /* Ensure cards take full width */
+}
+
+/* IFRAME mobile override */
+#events .card,
+#tracker .card {
+    width: 100%;
+    margin: 10px 0;
+}
+
+/* Mobile Adjustments */
+.mobile-only {
+    display: block;
+}
+
+.user-info {
+    display: none;
+}
+
+.user-profile {
+    padding: 5px;
+}
+
 
 /* --- DARK MODE CONTRAST OVERRIDES --- */
 body.dark .btn-primary {
