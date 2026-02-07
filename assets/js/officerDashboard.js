@@ -107,6 +107,12 @@ function navigate(viewId, element) {
         'events': 'Events Management'
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'Org Manager';
+
+    // Resize charts if Analytics tab is opened
+    if (viewId === 'analytics') {
+        // This forces Chart.js to resize correctly if hidden previously
+        window.dispatchEvent(new Event('resize'));
+    }
 }
 
 // --- RENDER FUNCTIONS ---
