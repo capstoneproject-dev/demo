@@ -2555,6 +2555,62 @@ button:focus-visible {
     }
 }
 
+/* --- DESKTOP DASHBOARD ALIGNMENT FIX --- */
+/* Applies Grid layout to align cards across columns without changing HTML structure */
+@media (min-width: 901px) {
+    .dashboard-layout-wrapper {
+        display: grid;
+        /* Matches the original 2:1 ratio (Main vs Sidebar) */
+        grid-template-columns: 2fr 1fr;
+        /* Two auto-sized rows */
+        grid-template-rows: auto auto;
+        gap: 24px;
+        /* Forces cards in the same row to match height */
+        align-items: stretch;
+    }
+
+    /* "Dissolve" the intermediate column containers so their children (the cards) 
+       become direct participants of the main grid */
+    .dashboard-main-column,
+    .dashboard-sidebar-column {
+        display: contents;
+    }
+
+    /* --- ROW 1 ALIGNMENT --- */
+
+    /* Latest Announcements (Top-Left) */
+    .dashboard-main-column>.card:first-child {
+        grid-column: 1 / 2;
+        grid-row: 1 / 2;
+        height: 100%;
+    }
+
+    /* Event Today (Top-Right) */
+    .dashboard-sidebar-column>.card:first-child {
+        grid-column: 2 / 3;
+        grid-row: 1 / 2;
+        height: 100%;
+    }
+
+    /* --- ROW 2 ALIGNMENT --- */
+
+    /* Recent Activity & Upcoming Events Split (Bottom-Left) */
+    .dashboard-main-column>.dashboard-row-split {
+        grid-column: 1 / 2;
+        grid-row: 2 / 3;
+        height: 100%;
+        /* Ensure the inner cards stretch too */
+        align-items: stretch;
+    }
+
+    /* Calendar (Bottom-Right) */
+    .dashboard-sidebar-column>.card:last-child {
+        grid-column: 2 / 3;
+        grid-row: 2 / 3;
+        height: 100%;
+    }
+}
+
 /* --- CALENDAR INTERACTION STYLES --- */
 
 .calendar-day {
