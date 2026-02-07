@@ -7,11 +7,9 @@
     <title>Welcome - Attendance System</title>
     <link href="lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="lib/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <!-- Navigation (matches merchandise header style) -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
@@ -32,37 +30,65 @@
         </div>
     </nav>
 
-    <div class="container mt-5" style="margin-top: 120px !important;">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header text-center">
-                        <h1 class="h3 mb-0">Attendance System</h1>
-                    </div>
-                    <div class="card-body">
+    <div class="container main-content">
+        <div class="row mb-5">
+            <div class="col-12">
+                <div style="height: 40px;"></div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-5">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body p-5">
+                        <h5 class="card-title text-primary fw-bold mb-3">New Session</h5>
+                        <p class="text-muted mb-4">Initialize a new attendance tracking session.</p>
+
                         <form id="eventForm">
                             <div class="mb-4">
-                                <label for="eventName" class="form-label">Event Name</label>
-                                <input type="text" class="form-control" id="eventName" required
-                                    placeholder="Enter event name">
+                                <label for="eventName" class="form-label text-uppercase small fw-bold text-muted">Event
+                                    Title</label>
+                                <input type="text" class="form-control form-control-lg bg-light" id="eventName" required
+                                    placeholder="Type event name...">
                             </div>
-                            <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-primary">Start Attendance</button>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary py-3 fw-bold">
+                                    Start Attendance
+                                </button>
                             </div>
                         </form>
                     </div>
                 </div>
+            </div>
 
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <h2 class="h5 mb-0">Quick Actions</h2>
+            <div class="col-lg-7">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <a href="events.html" class="card text-decoration-none h-100 border-0 shadow-sm tool-card">
+                            <div class="card-body p-4 d-flex flex-column justify-content-center">
+                                <h6 class="fw-bold text-dark mb-1">Event History</h6>
+                                <p class="text-muted small mb-0">View past logs & records</p>
+                            </div>
+                        </a>
                     </div>
-                    <div class="card-body">
-                        <div class="d-grid gap-2">
-                            <a href="events.html" class="btn btn-info">View All Events</a>
-                            <a href="generate-qr.html" class="btn btn-warning">Generate Bar Codes</a>
-                            <a href="barcode-database.html" class="btn btn-warning">View Barcode Database</a>
-                        </div>
+
+                    <div class="col-md-6">
+                        <a href="generate-qr.html" class="card text-decoration-none h-100 border-0 shadow-sm tool-card">
+                            <div class="card-body p-4 d-flex flex-column justify-content-center">
+                                <h6 class="fw-bold text-dark mb-1">Generate Codes</h6>
+                                <p class="text-muted small mb-0">Create new student QRs</p>
+                            </div>
+                        </a>
+                    </div>
+
+                    <div class="col-12">
+                        <a href="barcode-database.html"
+                            class="card text-decoration-none h-100 border-0 shadow-sm tool-card">
+                            <div class="card-body p-4">
+                                <h6 class="fw-bold text-dark mb-1">Student Database</h6>
+                                <p class="text-muted small mb-0">Manage masterlist and enrollments</p>
+                            </div>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -71,36 +97,28 @@
 
     <script src="lib/bootstrap.bundle.min.js"></script>
     <script>
+        // EXISTING JAVASCRIPT LOGIC
         document.getElementById('eventForm').addEventListener('submit', async function (e) {
             e.preventDefault();
             const eventName = document.getElementById('eventName').value;
 
-            // Create the event in Firebase
             if (window.firebaseDB) {
                 try {
-                    // Create event record
                     const eventData = {
                         name: eventName,
                         description: `Event created on ${new Date().toLocaleDateString()}`,
                         status: 'active'
                     };
                     const eventId = await window.firebaseDB.createEvent(eventData);
-
-                    // Set as current event
                     await window.firebaseDB.setCurrentEvent(eventName);
-
                     console.log('Event created successfully:', eventId);
                 } catch (error) {
                     console.error('Error creating event:', error);
-                    // Fallback to localStorage
                     localStorage.setItem('currentEvent', eventName);
                 }
             } else {
-                // Fallback to localStorage
                 localStorage.setItem('currentEvent', eventName);
             }
-
-            // Redirect to the attendance page
             window.location.href = 'index.html';
         });
     </script>
