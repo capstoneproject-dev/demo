@@ -2854,7 +2854,10 @@ button:focus-visible {
 .recruit-header {
     height: 60px;
     width: 100%;
-    /* Background color set inline via JS based on Org Color */
+    /* Background set inline via JS (color or banner image) */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 .recruit-body {
@@ -3349,18 +3352,23 @@ button:focus-visible {
         width: 100%;
     }
 }
+
 /* --- MEMBERSHIP MODAL BANNER STYLES --- */
 
 /* Target the header specifically within the membership modal */
 .membership-modal-content .modal-header {
-    height: 150px; /* Define height for the banner */
+    height: 150px;
+    /* Define height for the banner */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    background-color: var(--panel-2); /* Fallback color */
-    align-items: flex-start; /* Align close button to top */
+    background-color: var(--panel-2);
+    /* Fallback color */
+    align-items: flex-start;
+    /* Align close button to top */
     transition: background-image 0.3s ease;
-    border-bottom: none; /* remove border to look more like a cover image */
+    border-bottom: none;
+    /* remove border to look more like a cover image */
 }
 
 /* Make the close button distinct against the banner */
@@ -3372,8 +3380,9 @@ button:focus-visible {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: auto; /* Push to right */
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    margin-left: auto;
+    /* Push to right */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     color: var(--text);
 }
 

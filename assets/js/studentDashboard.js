@@ -436,7 +436,7 @@ function switchOrgTab(tabName, btn) {
                 card.id = `recruit-card-${index}`;
 
                 card.innerHTML = `
-                <div class="recruit-header" style="background:${org.color}"></div>
+                <div class="recruit-header" style="background: ${org.banner ? `url('${org.banner}') center/cover no-repeat` : org.color}"></div>
                 <div class="recruit-body">
                     <img src="${org.image || `https://picsum.photos/seed/${org.imgSeed}/100/100`}" class="recruit-logo">
                     <div class="recruit-info-group">
