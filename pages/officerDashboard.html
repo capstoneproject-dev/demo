@@ -140,17 +140,23 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-info">
-                        <h3>₱12.5k</h3>
-                        <p>Total Revenue</p>
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <h3>₱12.5k</h3>
+                            <span style="color: #059669; font-size: 0.8rem; font-weight: 600;">
+                                <i class="fa-solid fa-arrow-up"></i> 8.5%
+                            </span>
+                            <span style="color: var(--muted); font-size: 0.75rem;">vs last month</span>
+                        </div>
+                        <p>Revenue (February)</p>
                     </div>
                     <div class="stat-icon"><i class="fa-solid fa-wallet"></i></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-info">
-                        <h3>85%</h3>
-                        <p>Avg Attendance</p>
+                        <h3 style="color: #059669;">+12%</h3>
+                        <p>Participation Growth</p>
                     </div>
-                    <div class="stat-icon"><i class="fa-solid fa-chart-pie"></i></div>
+                    <div class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-info">
@@ -159,12 +165,32 @@
                     </div>
                     <div class="stat-icon"><i class="fa-solid fa-box"></i></div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-info">
-                        <h3>2</h3>
-                        <p>Pending OSA Docs</p>
+                <div class="stat-card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                    <div
+                        style="width: 100%; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+                        <div>
+                            <span style="font-weight: 600; color: var(--text); display: block;">Document Status</span>
+                            <small style="color: var(--muted); font-size: 0.75rem;">(February)</small>
+                        </div>
+                        <i class="fa-solid fa-file-contract" style="color: var(--muted);"></i>
                     </div>
-                    <div class="stat-icon"><i class="fa-solid fa-file-circle-check"></i></div>
+
+                    <div
+                        style="width: 100%; display: flex; justify-content: space-between; text-align: center; padding-top: 5px;">
+                        <div style="flex: 1;">
+                            <h3 style="color: #d97706; font-size: 1.2rem; margin-bottom: 0;">2</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Pending</p>
+                        </div>
+                        <div
+                            style="flex: 1; border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+                            <h3 style="color: #059669; font-size: 1.2rem; margin-bottom: 0;">15</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Accepted</p>
+                        </div>
+                        <div style="flex: 1;">
+                            <h3 style="color: #dc2626; font-size: 1.2rem; margin-bottom: 0;">1</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Rejected</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -192,6 +218,57 @@
                     </div>
                 </div>
 
+                <!-- Latest Updates -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Latest Updates</div>
+                    </div>
+                    <div class="dash-announcement">
+                        <h5>
+                            General Assembly
+                            <small style="font-weight: 400; font-size: 0.7rem; color: var(--muted);">Today</small>
+                        </h5>
+                        <p>Mandatory attendance for all members at Room 301. Please bring your IDs.</p>
+                    </div>
+                    <div class="dash-announcement">
+                        <h5>
+                            Office Closure
+                            <small style="font-weight: 400; font-size: 0.7rem; color: var(--muted);">Yesterday</small>
+                        </h5>
+                        <p>Office will be closed due to University Holiday. Operations resume Monday.</p>
+                    </div>
+                </div>
+
+                <!-- Upcoming Events -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Upcoming Events</div>
+                        <button class="btn btn-outline btn-sm" onclick="navigate('events')">View Calendar</button>
+                    </div>
+                    <div class="event-list">
+                        <div class="event-item">
+                            <div class="event-date-box">
+                                <span class="event-day">15</span>
+                                <span class="event-month">Feb</span>
+                            </div>
+                            <div class="event-details">
+                                <h4>Tech Innovation Summit</h4>
+                                <p><i class="fa-regular fa-clock"></i> 9:00 AM • Auditorium A</p>
+                            </div>
+                        </div>
+                        <div class="event-item">
+                            <div class="event-date-box">
+                                <span class="event-day">22</span>
+                                <span class="event-month">Feb</span>
+                            </div>
+                            <div class="event-details">
+                                <h4>Inter-Org Sports Fest</h4>
+                                <p><i class="fa-regular fa-clock"></i> 8:00 AM • University Oval</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Quick Actions -->
                 <div class="card">
                     <div class="card-header">
@@ -201,35 +278,18 @@
                         <button class="btn btn-primary" onclick="navigate('announcements')">
                             <i class="fa-solid fa-pen-to-square"></i> Post Announcement
                         </button>
-                        <button class="btn btn-outline" onclick="navigate('documents')">
-                            <i class="fa-solid fa-file-export"></i>Document
+                        <button class="btn btn-outline" onclick="navigate('events')">
+                            <i class="fa-solid fa-calendar-days"></i> Events
                         </button>
                         <button class="btn btn-outline" onclick="navigate('tracker')">
                             <i class="fa-solid fa-qrcode"></i> Services
                         </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- System Status / Tools Integration -->
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">External Systems Integration</div>
-                </div>
-                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                    <div
-                        style="flex: 1; min-width: 200px; padding: 15px; background: var(--panel-2); border-radius: var(--radius-md); border: 1px solid var(--border);">
-                        <h4 style="margin-bottom: 5px; color: var(--primary);">Rental System</h4>
-                        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Linked to Income
-                            Generating Product Database.</p>
-                        <button class="btn btn-sm btn-primary">Open System</button>
-                    </div>
-                    <div
-                        style="flex: 1; min-width: 200px; padding: 15px; background: var(--panel-2); border-radius: var(--radius-md); border: 1px solid var(--border);">
-                        <h4 style="margin-bottom: 5px; color: var(--primary);">Event Registration</h4>
-                        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px;">Manage participants for
-                            upcoming events.</p>
-                        <button class="btn btn-sm btn-primary">Open System</button>
+                        <button class="btn btn-outline" onclick="navigate('documents')">
+                            <i class="fa-solid fa-file-contract"></i> Document
+                        </button>
+                        <button class="btn btn-outline" onclick="navigate('analytics')">
+                            <i class="fa-solid fa-chart-line"></i> Analytics
+                        </button>
                     </div>
                 </div>
             </div>
