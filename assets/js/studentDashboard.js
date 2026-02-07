@@ -67,94 +67,113 @@ const organizationData = [
 ];
 
 // Extended Events Data (for Events Tab)
+// Assuming Today is Feb 7, 2026 based on context
 const extendedEvents = [
     {
-        title: "The Summit 2024",
-        date: "Nov. 11-24, 2024",
+        title: "University Week Opening",
+        date: "Jan. 15, 2026", // Past
         time: "08:00 AM - 05:00 PM",
-        venue: "Main Auditorium",
-        participants: 120,
-        description: "Join us for the biggest gathering of tech leaders and students. Featuring keynote speakers, workshops, and networking opportunities.",
+        venue: "Grandstand",
+        participants: 500,
+        description: "The grand opening of our annual University Week featuring a parade and torch lighting ceremony.",
         org: "SSC",
-        img: "https://picsum.photos/seed/summit/600/400",
-        gallery: [
-            "https://picsum.photos/seed/summit/600/400",
-            "https://picsum.photos/seed/summit2/600/400",
-            "https://picsum.photos/seed/summit3/600/400"
-        ]
+        img: "https://picsum.photos/seed/uniweek/600/400",
+        gallery: ["https://picsum.photos/seed/uniweek/600/400"]
     },
     {
-        title: "Collision Conference",
-        date: "June 17-20, 2024",
-        time: "09:00 AM - 04:00 PM",
-        venue: "Tech Hall B",
-        participants: 85,
-        description: "A deep dive into collision technology and future innovations. Hands-on labs available for all participants.",
-        org: "AISERS",
-        img: "https://picsum.photos/seed/collision/600/400",
-        gallery: [
-            "https://picsum.photos/seed/collision/600/400",
-            "https://picsum.photos/seed/collision2/600/400"
-        ]
-    },
-    {
-        title: "Web Summit 2024",
-        date: "Feb. 26-29, 2024",
-        time: "10:00 AM - 03:00 PM",
-        venue: "Computer Lab 3",
+        title: "Creative Writing Workshop",
+        date: "Jan. 28, 2026", // Past
+        time: "01:00 PM - 04:00 PM",
+        venue: "Library Conference Room",
         participants: 45,
-        description: "Explore the latest web frameworks and design trends. Perfect for CS and IT students looking to upgrade their portfolio.",
-        org: "ELITECH",
-        img: "https://picsum.photos/seed/websummit/600/400",
-        gallery: [
-            "https://picsum.photos/seed/websummit/600/400",
-            "https://picsum.photos/seed/websummit2/600/400",
-            "https://picsum.photos/seed/websummit3/600/400"
-        ]
+        description: "Unleash your inner writer with our workshop on poetry and short stories.",
+        org: "ILASSO",
+        img: "https://picsum.photos/seed/writing/600/400",
+        gallery: ["https://picsum.photos/seed/writing/600/400"]
     },
     {
-        title: "Tech Expo 2024",
-        date: "Dec. 05-10, 2024",
-        time: "08:00 AM - 05:00 PM",
-        venue: "Open Grounds",
-        participants: 300,
-        description: "Showcasing student inventions and capstone projects. Open to all departments.",
-        org: "AERO-ATSO",
-        img: "https://picsum.photos/seed/techexpo/600/400",
-        gallery: [
-            "https://picsum.photos/seed/techexpo/600/400",
-            "https://picsum.photos/seed/techexpo2/600/400"
-        ]
+        title: "Tech Talk: AI Future",
+        date: "Feb. 07, 2026", // Today
+        time: "10:00 AM - 12:00 PM",
+        venue: "Main Auditorium",
+        participants: 200,
+        description: "A deep dive into Generative AI and its impact on student life.",
+        org: "AISERS",
+        img: "https://picsum.photos/seed/ai_talk/600/400",
+        gallery: ["https://picsum.photos/seed/ai_talk/600/400"]
     },
     {
-        title: "Innovation Week",
-        date: "Jan. 15-20, 2025",
-        time: "TBA",
-        venue: "Student Hub",
-        participants: 12,
-        description: "A week-long hackathon and brainstorming session to solve campus problems.",
+        title: "Engine Maintenance Training",
+        date: "Feb. 07, 2026", // Today
+        time: "01:00 PM - 05:00 PM",
+        venue: "Hangar 2",
+        participants: 30,
+        description: "Hands-on training for aircraft engine basic maintenance checks.",
         org: "AMTSO",
-        img: "https://picsum.photos/seed/innovation/600/400",
-        gallery: [
-            "https://picsum.photos/seed/innovation/600/400",
-            "https://picsum.photos/seed/innovation2/600/400",
-            "https://picsum.photos/seed/innovation3/600/400"
-        ]
+        img: "https://picsum.photos/seed/engine/600/400",
+        gallery: ["https://picsum.photos/seed/engine/600/400"]
     },
     {
-        title: "AIS-SAHAN: Constinuency Check",
-        date: "Feb. 05, 2026",
-        time: "TBA",
-        venue: "TBA",
-        participants: 0,
-        description: "Consistency check for AIS-SAHAN.",
-        org: "General",
-        img: "https://picsum.photos/seed/ais-sahan/600/400",
-        gallery: [
-            "https://picsum.photos/seed/ais-sahan/600/400"
-        ]
+        title: "Leadership Bootcamp",
+        date: "Feb. 10, 2026", // Upcoming
+        time: "08:00 AM - 05:00 PM",
+        venue: "Retreat House",
+        participants: 50,
+        description: "Forming the next generation of student leaders.",
+        org: "CYC",
+        img: "https://picsum.photos/seed/leadership/600/400",
+        gallery: ["https://picsum.photos/seed/leadership/600/400"]
+    },
+    {
+        title: "Robotics Hardware Expo",
+        date: "Feb. 20, 2026", // Upcoming
+        time: "09:00 AM - 04:00 PM",
+        venue: "Engineering Lobby",
+        participants: 120,
+        description: "Showcasing the latest student projects in automation and robotics.",
+        org: "ELITECH",
+        img: "https://picsum.photos/seed/robotics/600/400",
+        gallery: ["https://picsum.photos/seed/robotics/600/400"]
+    },
+    {
+        title: "Aviation Safety Seminar",
+        date: "Mar. 05, 2026", // Upcoming
+        time: "01:00 PM - 03:00 PM",
+        venue: "AV Room 1",
+        participants: 80,
+        description: "Critical safety protocols for aspiring pilots and mechanics.",
+        org: "AERO-ATSO",
+        img: "https://picsum.photos/seed/aviation/600/400",
+        gallery: ["https://picsum.photos/seed/aviation/600/400"]
+    },
+    {
+        title: "Community Clean-up Drive",
+        date: "Mar. 15, 2026", // Upcoming
+        time: "06:00 AM - 10:00 AM",
+        venue: "City Plaza",
+        participants: 150,
+        description: "Giving back to the community by maintaining cleanliness in public spaces.",
+        org: "RCYC",
+        img: "https://picsum.photos/seed/cleanup/600/400",
+        gallery: ["https://picsum.photos/seed/cleanup/600/400"]
     }
 ];
+
+// Helper to determine event status relative to "Today" (Feb 7, 2026)
+function getEventStatus(dateStr) {
+    const today = new Date(2026, 1, 7); // Month is 0-indexed: 1 = Feb. Day = 7.
+    today.setHours(0, 0, 0, 0);
+
+    // Parse format "MMM. DD, YYYY" e.g., "Jan. 15, 2026"
+    const cleanDateStr = dateStr.replace('.', ''); // "Jan 15, 2026"
+    const eventDate = new Date(cleanDateStr);
+    eventDate.setHours(0, 0, 0, 0);
+
+    if (eventDate.getTime() === today.getTime()) return 'today';
+    if (eventDate < today) return 'past';
+    return 'upcoming';
+}
+
 
 // --- CORE NAVIGATION LOGIC ---
 function navigate(viewId, element) {
@@ -452,69 +471,127 @@ function switchOrgTab(tabName, btn) {
                 grid.appendChild(card);
             });
         }
-
     } else if (tabName === 'events') {
-        // Filter Bar
+        // --- EVENTS TAB CONTENT ---
+
+        // 1. Search Bar (Existing)
         const filterBar = document.createElement('div');
         filterBar.className = 'events-filter-bar';
         filterBar.innerHTML = `
             <div class="filter-input-group">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="eventSearch" placeholder="Search by keywords">
+                <input type="text" id="eventSearch" placeholder="Search events...">
             </div>
-            <div class="filter-date-group">
-                <input type="date" id="eventDate">
-                <i class="fa-regular fa-calendar"></i>
-            </div>
-            <div class="reset-filter" id="resetEvents">
-                <i class="fa-solid fa-xmark"></i>
-                <span>Reset</span>
-            </div>
-        `;
+            `;
         contentDiv.appendChild(filterBar);
 
-        // Events Grid Container
+        // 2. NEW: Time Filter Tabs (Past, Today, Upcoming)
+        const timeFilters = document.createElement('div');
+        timeFilters.className = 'event-time-filters';
+        timeFilters.innerHTML = `
+            <button class="time-filter-btn active" data-filter="upcoming">Upcoming</button>
+            <button class="time-filter-btn" data-filter="today">Today</button>
+            <button class="time-filter-btn" data-filter="past">Past</button>
+            <button class="time-filter-btn" data-filter="all">All Events</button>
+        `;
+        contentDiv.appendChild(timeFilters);
+
+        // 3. Grid Container
         const grid = document.createElement('div');
         grid.className = 'events-grid-layout';
         grid.id = 'eventsGridContainer';
         contentDiv.appendChild(grid);
 
-        function renderEvents(filteredEvents) {
+        // State for filtering
+        let currentTimeFilter = 'upcoming';
+
+        function renderEventsList() {
             grid.innerHTML = '';
-            if (filteredEvents.length === 0) {
-                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted);">No events found matching your criteria.</div>';
+            const searchTerm = document.getElementById('eventSearch').value.toLowerCase();
+
+            // Filter logic
+            const filtered = extendedEvents.filter(ev => {
+                // 1. Keyword Match
+                const matchesSearch = ev.title.toLowerCase().includes(searchTerm) ||
+                    ev.org.toLowerCase().includes(searchTerm);
+
+                // 2. Time Match
+                const status = getEventStatus(ev.date);
+                let matchesTime = false;
+                if (currentTimeFilter === 'all') matchesTime = true;
+                else matchesTime = (status === currentTimeFilter);
+
+                return matchesSearch && matchesTime;
+            });
+
+            // Empty State
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--muted);">
+                        <i class="fa-regular fa-calendar-xmark" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;"></i>
+                        <p>No ${currentTimeFilter !== 'all' ? currentTimeFilter : ''} events found matching your search.</p>
+                    </div>`;
                 return;
             }
-            filteredEvents.forEach(ev => {
+
+            // Render Cards
+            filtered.forEach(ev => {
                 const isRegistered = isEventRegistered(ev.title);
+                const status = getEventStatus(ev.date);
+
+                // Parse date for Badge (e.g. "Feb. 07")
+                const [monthStr, dayStr] = ev.date.split(' '); // ["Feb.", "07,"]
+                const cleanDay = dayStr.replace(',', '');
+
                 const card = document.createElement('div');
-                card.className = 'event-card-ref';
+                card.className = 'event-card-ref'; // Enhanced via CSS
+
+                // Badge Label
+                let statusLabel = '';
+                if (currentTimeFilter === 'all') {
+                    if (status === 'today') statusLabel = '<span class="event-status-pill status-today">Happening Today</span>';
+                    else if (status === 'upcoming') statusLabel = '<span class="event-status-pill status-upcoming">Upcoming</span>';
+                    else statusLabel = '<span class="event-status-pill status-past">Completed</span>';
+                }
+
                 card.innerHTML = `
-                    <img src="${ev.img}" class="event-card-thumb" alt="${ev.title}">
+                    <div style="position:relative;">
+                        <div class="event-date-badge">
+                            <span class="event-date-month">${monthStr.replace('.', '')}</span>
+                            <span class="event-date-day">${cleanDay}</span>
+                        </div>
+                        <img src="${ev.img}" class="event-card-thumb" alt="${ev.title}">
+                    </div>
+                    
                     <div class="event-card-body">
-                        <div class="event-card-header">
-                            <div class="event-org-icon">${ev.org.charAt(0)}</div>
+                        ${statusLabel}
+                        <div class="event-card-header" style="margin-bottom: 8px;">
                             <div class="event-card-info">
                                 <h4>${ev.title}</h4>
-                                <p>${ev.date}</p>
+                                <p><i class="fa-solid fa-users" style="font-size:0.75rem; color:var(--primary);"></i> ${ev.org}</p>
                             </div>
                         </div>
+                        
+                        <div style="display:flex; align-items:center; gap:10px; font-size:0.85rem; color:var(--muted); margin-bottom:15px;">
+                            <span><i class="fa-regular fa-clock"></i> ${ev.time.split(' - ')[0]}</span>
+                        </div>
                     </div>
+
                     <div class="event-card-footer">
-                        <div class="event-stat"><i class="fa-regular fa-heart"></i> 5</div>
+                        <div class="event-stat"><i class="fa-regular fa-heart"></i> ${Math.floor(Math.random() * 50) + 10}</div>
                         <div class="event-actions">
-                            <!-- NEW SHARE BUTTON -->
-                            <button class="btn-share" onclick="shareEvent('${ev.title}')">
-                                Share <i class="fa-solid fa-share-nodes"></i>
+                            <button class="btn-share" onclick="shareEvent('${ev.title}')" title="Share">
+                                <i class="fa-solid fa-share-nodes"></i>
                             </button>
                             
-                            <button class="btn-view-details" onclick="openDetailsModal('${ev.title}')">
-                                Details <i class="fa-solid fa-circle-info"></i>
+                            <button class="btn-view-details" onclick="openDetailsModal('${ev.title}')" title="Details">
+                                <i class="fa-solid fa-circle-info"></i>
                             </button>
+                            
                             <button class="btn-register-card ${isRegistered ? 'registered' : ''}" 
                                     onclick="openRegistrationModal('${ev.title}')" 
                                     ${isRegistered ? 'disabled style="cursor: not-allowed;"' : ''}>
-                                ${isRegistered ? 'Registered <i class="fa-solid fa-check"></i>' : 'Pre-Register <i class="fa-solid fa-arrow-right"></i>'}
+                                ${isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Join'}
                             </button>
                         </div>
                     </div>
@@ -523,30 +600,24 @@ function switchOrgTab(tabName, btn) {
             });
         }
 
-        function filterEvents() {
-            const searchTerm = document.getElementById('eventSearch').value.toLowerCase();
-            const dateTerm = document.getElementById('eventDate').value;
+        // Listeners for Time Tabs
+        timeFilters.querySelectorAll('.time-filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // UI Toggle
+                timeFilters.querySelectorAll('.time-filter-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
 
-            const filtered = extendedEvents.filter(ev => {
-                const matchesSearch = ev.title.toLowerCase().includes(searchTerm) || ev.org.toLowerCase().includes(searchTerm);
-                // Simple date match for simulation (checking if year matches if a date is picked)
-                const matchesDate = !dateTerm || ev.date.includes(dateTerm.split('-')[0]);
-                return matchesSearch && matchesDate;
+                // Logic
+                currentTimeFilter = e.target.getAttribute('data-filter');
+                renderEventsList();
             });
-            renderEvents(filtered);
-        }
-
-        // Event Listeners
-        document.getElementById('eventSearch').addEventListener('input', filterEvents);
-        document.getElementById('eventDate').addEventListener('change', filterEvents);
-        document.getElementById('resetEvents').addEventListener('click', () => {
-            document.getElementById('eventSearch').value = '';
-            document.getElementById('eventDate').value = '';
-            renderEvents(extendedEvents);
         });
 
+        // Search Listener
+        document.getElementById('eventSearch').addEventListener('keyup', renderEventsList);
+
         // Initial Render
-        renderEvents(extendedEvents);
+        renderEventsList();
     } else if (tabName === 'contacts') {
         const grid = document.createElement('div');
         grid.style.display = 'grid';

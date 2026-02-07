@@ -3397,3 +3397,233 @@ button:focus-visible {
         height: 120px;
     }
 }
+
+/* --- EVENTS TAB ENHANCEMENTS --- */
+
+/* 1. Time Filter Tabs */
+.event-time-filters {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    /* Allows scrolling on mobile */
+    padding-bottom: 5px;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* The buttons themselves */
+.time-filter-btn {
+    background: transparent;
+    border: none;
+    /* Removes the default gray border */
+    padding: 8px 20px;
+    border-radius: 30px;
+    /* Makes them pill-shaped */
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover effect */
+.time-filter-btn:hover {
+    color: var(--primary);
+    background-color: var(--panel-2);
+}
+
+/* The Active State (Underline effect) */
+.time-filter-btn.active {
+    color: var(--primary);
+    background-color: rgba(0, 33, 71, 0.05);
+}
+
+.time-filter-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 3px;
+    background-color: var(--primary);
+    border-radius: 3px;
+}
+
+/* 2. Enhanced Event Card Design */
+.event-card-ref {
+    border: none !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    border-radius: 20px;
+    background: var(--panel);
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    height: 450px;
+    /* Adjust this value if you want the card taller/shorter */
+}
+
+/* 2. Force the Image Wrapper (first child) to take exactly 70% */
+.event-card-ref>div:first-child {
+    height: 70%;
+    width: 100%;
+    overflow: hidden;
+    /* Ensures image doesn't spill out */
+}
+
+.event-card-ref:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* New Floating Date Badge on Image */
+.event-date-badge {
+    position: absolute;
+    /* CRITICAL: This floats it on top of the image */
+    top: 15px;
+    left: 15px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(4px);
+    /* Glass effect */
+    border-radius: 12px;
+    padding: 8px 12px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    z-index: 2;
+    /* Ensures it sits above the image */
+    min-width: 60px;
+}
+
+/* The Month text (e.g., FEB) */
+.event-date-month {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--primary);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+/* The Day text (e.g., 10) */
+.event-date-day {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+}
+
+/* Image enhancement */
+.event-card-thumb {
+    height: 100% !important;
+    /* Overrides previous fixed pixel height */
+    width: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.event-card-ref:hover .event-card-thumb {
+    transform: scale(1.05);
+}
+
+/* Card Body Layout */
+.event-card-body {
+    flex: 1;
+    /* Pushes footer to bottom if content is short */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* Centers title vertically in the space */
+    padding: 10px 20px 0 20px;
+    /* Reduced padding to fit 30% */
+    position: relative;
+}
+
+.event-card-info h4 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+.event-card-info p {
+    font-size: 0.85rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Status Badge (Upcoming/Today/Past) */
+.event-status-pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.status-today {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.status-upcoming {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.status-past {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+/* Enhanced Footer */
+.event-card-footer {
+    height: auto;
+    padding: 10px 20px 15px 20px;
+    background-color: transparent;
+    border-top: none;
+    /* Optional: Removes line for a cleaner look */
+}
+
+/* Button styles in card */
+.event-actions .btn-share,
+.event-actions .btn-view-details {
+    border: none;
+    background: var(--panel-2);
+    color: var(--muted);
+    transition: all 0.2s;
+}
+
+.event-actions .btn-share:hover,
+.event-actions .btn-view-details:hover {
+    background: var(--bg);
+    color: var(--primary);
+    transform: translateY(-2px);
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+    .event-date-badge {
+        padding: 6px 10px;
+        min-width: 50px;
+    }
+
+    .event-date-day {
+        font-size: 1rem;
+    }
+
+    .event-card-thumb {
+        height: 160px;
+    }
+}
