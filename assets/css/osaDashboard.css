@@ -18,6 +18,7 @@
 
     --sidebar-collapsed: 74px;
     --sidebar-expanded: 250px;
+    --sidebar-bg: #002147;
 
     --radius-lg: 18px;
     --radius-md: 14px;
@@ -29,14 +30,15 @@
 
 /* Dark Mode */
 body.dark {
-    --bg: #0b1220;
+    --bg: #002147;
+    --sidebar-bg: #0b1220;
     --panel: #0f172a;
     --panel-2: #0c162b;
-    --text: #e5e7eb;
+    --text: #ffffff;
     --muted: #9ca3af;
     --border: rgba(255, 255, 255, 0.10);
     --shadow: 0 18px 48px rgba(0, 0, 0, 0.40);
-    --primary: #7aa2ff;
+    --primary: #FDF2D4;
     --primary-2: #9bb7ff;
     --accent: #f4d03f;
     --ring: rgba(122, 162, 255, 0.25);
@@ -62,8 +64,8 @@ body {
 .sidebar {
     width: var(--sidebar-collapsed);
     height: 100vh;
-    background-color: #002147 !important;
-    /* Force Navy Blue */
+    background-color: var(--sidebar-bg) !important;
+    /* Force hierarchy background */
     border-right: 1px solid rgba(255, 255, 255, 0.1);
     position: fixed;
     left: 0;
@@ -1718,4 +1720,40 @@ td {
     .pdf-annotations-sidebar.collapsed {
         transform: translateX(100%);
     }
+}
+
+/* --- DARK MODE CONTRAST OVERRIDES --- */
+body.dark .btn-primary,
+body.dark .req-tab.active,
+body.dark .btn-success,
+body.dark .btn-danger {
+    color: #000;
+}
+
+body.dark .bar {
+    background: var(--primary);
+    filter: brightness(0.9);
+}
+
+body.dark .verification-box,
+body.dark .stat-card {
+    background: var(--panel);
+    /* Use panel color for clarity */
+}
+
+body.dark .stat-info h3,
+body.dark .stat-icon,
+body.dark .card-title,
+body.dark .theme-toggle:hover,
+body.dark .icon-btn:hover,
+body.dark .btn-outline:hover,
+body.dark .req-tab:hover,
+body.dark .date-range-btn i,
+body.dark .verification-box i {
+    color: #fff !important;
+}
+
+/* Ensure request filter dropdowns are legible */
+body.dark .req-filter-controls select {
+    background: var(--panel-2);
 }
