@@ -9,7 +9,8 @@ const rentalsData = [
 const docsData = [
     { title: "September Financial Statement", type: "Financial Statement", date: "Oct 05", status: "Approved" },
     { title: "Team Building Proposal", type: "Proposal", date: "Oct 18", status: "Sent to OSA" },
-    { title: "Election Guidelines", type: "Document", date: "Oct 20", status: "Pending" }
+    { title: "Election Guidelines", type: "Document", date: "Oct 20", status: "Pending" },
+    { title: "Constitution Amendment", type: "Legal", date: "Oct 24", status: "SSC Approved" }
 ];
 
 let announcementsData = [
@@ -213,90 +214,112 @@ function renderDocs(filter = 'All', btnElement = null) {
     const sscOfficers = ["Pres. Cruz", "VP Santos", "Sec. Reyes"];
     const osaAdmins = ["Dir. Fury", "Mrs. Potts", "Admin Stark"];
 
+    // Update filter logic to handle "SSC Approved" status
     const filteredData = docsData.filter(doc => {
         if (filter === 'All') return true;
-        if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending');
+        if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending') || doc.status === 'SSC Approved';
         return doc.status.includes(filter);
     });
 
     if (filteredData.length === 0) {
-        list.innerHTML = `
-            <div style="text-align:center; padding: 40px 20px; color:var(--muted); grid-column: 1 / -1;">
-                <i class="fa-regular fa-folder-open" style="font-size: 2rem; margin-bottom: 10px; display:block;"></i>
-                No documents found.
-            </div>`;
+        list.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--muted); grid-column: 1/-1;">No documents found.</div>`;
         return;
     }
 
-    list.innerHTML = filteredData.map(doc => {
+    list.innerHTML = filteredData.map((doc, index) => {
         // --- WORKFLOW LOGIC ---
-        let badgeClass = '';
         let sscHtml = '';
         let osaHtml = '';
+        let actionButtons = '';
+        let statusBadge = '';
 
         // Deterministic random names based on title length (keeps it consistent per render)
         const sender = senders[doc.title.length % senders.length];
         const sscOfficer = sscOfficers[doc.title.length % sscOfficers.length];
         const osaAdmin = osaAdmins[doc.title.length % osaAdmins.length];
 
-        if (doc.status.includes('Approved')) {
+        if (doc.status === 'Approved') {
             // Both Approved
-            badgeClass = 'status-completed';
             sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
             osaHtml = `<span>${osaAdmin}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            actionButtons = `
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
+                    <i class="fa-solid fa-eye"></i> View
+                </button>`;
+            statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
+        }
+        else if (doc.status === 'SSC Approved') {
+            // SSC Approved - User must Submit to OSA
+            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Action Required</span>`;
+            actionButtons = `
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); submitToOSA(${index})">
+                    Submit to OSA <i class="fa-solid fa-paper-plane"></i>
+                </button>`;
+            statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Ready</span>';
+        }
+        else if (doc.status.includes('Sent to OSA')) {
+            // SSC Approved, OSA Pending
+            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
+            actionButtons = `
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
+                    <i class="fa-solid fa-eye"></i> View
+                </button>`;
+            statusBadge = '<span class="status-badge status-sent" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Sent to OSA</span>';
         }
         else if (doc.status.includes('Rejected')) {
-            // Logic: Randomly decide if SSC or OSA rejected it
-            badgeClass = 'status-rejected';
-            const rejectedBySSC = (doc.title.length % 2 === 0); // 50/50 chance
-
+            // Rejected by either SSC or OSA
+            const rejectedBySSC = (doc.title.length % 2 === 0);
             if (rejectedBySSC) {
                 sscHtml = `<span>${sscOfficer}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
-                osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Not reached</span>`;
+                osaHtml = `<span style="color:var(--muted)">--</span>`;
             } else {
                 sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
                 osaHtml = `<span>${osaAdmin}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
             }
-        }
-        else if (doc.status.includes('Sent to OSA')) {
-            // SSC Approved, OSA Pending
-            badgeClass = 'status-sent';
-            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
+            actionButtons = `
+                <button class="btn btn-outline btn-sm" style="color:#dc2626; border-color:#dc2626;" onclick="event.stopPropagation(); alert('Redirect to edit...')">
+                    <i class="fa-solid fa-rotate-right"></i> Resubmit
+                </button>`;
+            statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
         }
         else {
-            // Pending / Sent to SSC
-            badgeClass = 'status-pending';
+            // Pending SSC
             sscHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
-            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting for SSC</span>`;
+            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting</span>`;
+            actionButtons = `
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
+                    <i class="fa-regular fa-eye"></i> View
+                </button>`;
+            statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
         }
 
         return `
-        <div class="list-item">
+        <div class="list-item" onclick="openPdfViewer('doc_${index}')">
             <div class="col-name" style="display: flex; gap: 15px; align-items: center;">
                 <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
-                    <i class="fa-solid fa-file-lines"></i>
+                    <i class="fa-solid fa-file-pdf"></i>
                 </div>
                 <div style="overflow: hidden;">
-                    <h4 style="font-size:0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</h4>
+                    <div style="display:flex; align-items:center;">
+                        <h4 style="font-size:0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</h4>
+                        ${statusBadge}
+                    </div>
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
             </div>
 
-            <div class="col-sent mobile-hide">
-                ${sender}
-            </div>
+            <div class="col-sent mobile-hide">${sender}</div>
 
-            <div class="col-ssc mobile-hide">
-                ${sscHtml}
-            </div>
+            <div class="col-ssc mobile-hide">${sscHtml}</div>
 
-            <div class="col-osa mobile-hide">
-                ${osaHtml}
-            </div>
+            <div class="col-osa mobile-hide">${osaHtml}</div>
 
             <div class="col-status">
-                <span class="status-badge ${badgeClass}">${doc.status}</span>
+                <div class="action-btn-group">
+                    ${actionButtons}
+                </div>
             </div>
         </div>`;
     }).join('');
@@ -609,6 +632,20 @@ function exportPDF() {
     // -- DOWNLOAD --
     doc.save(`OrgReport_Full_${meta.monthInput || 'Summary'}.pdf`);
 }
+
+// --- WORKFLOW ACTION: Submit to OSA ---
+function submitToOSA(index) {
+    if (confirm('Submit this approved document to OSA for final review?')) {
+        // Update the document status
+        if (docsData[index]) {
+            docsData[index].status = "Sent to OSA";
+            renderDocs(currentDocFilter); // Re-render
+            alert('Document sent to OSA successfully!');
+        }
+    }
+}
+
+
 
 // --- UTILS ---
 function setDate() {
