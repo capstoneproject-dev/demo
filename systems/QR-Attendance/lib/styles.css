@@ -1,112 +1,205 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&display=swap');
 
 :root {
-    --gold: #FFD700;
-    --gold-dark: #FFC107;
-    --black: #181818;
-    --white: #fff;
+    /* --- DASHBOARD IDENTITY VARIABLES --- */
+    --primary: #002147;
+    /* Navy */
+    --primary-hover: #003366;
+    /* Lighter Navy */
+    --accent: #f4d03f;
+    /* Gold */
+    --accent-hover: #d4b128;
+    /* Darker Gold */
+    --bg: #f3f6fb;
+    /* Dashboard Background */
+    --card-bg: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: rgba(15, 23, 42, 0.10);
+    --shadow: 0 14px 40px rgba(2, 6, 23, 0.10);
+
+    /* Layout */
+    --radius-lg: 18px;
+    --radius-md: 14px;
+    --font-main: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    --font-brand: 'Montserrat', sans-serif;
 }
 
 body {
-    background-color: #f8f9fa;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-main);
 }
 
-.card {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-#qrCode {
-    padding: 20px;
-    background-color: white;
-    border-radius: 8px;
-    display: inline-block;
-}
-
-#scanner {
-    max-width: 300px;
-    margin: 0 auto;
-}
-
-.table {
-    margin-bottom: 0;
-}
-
-.btn {
-    padding: 8px 20px;
-}
-
-.form-control:focus {
-    border-color: #80bdff;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-.btn-warning:hover {
-    background-color: #ffbf00 !important;
-    border-color: #b38600 !important;
-    color: rgb(0, 0, 0) !important;
-} 
-
-/* Merchandise-like header theme */
+/* --- NAVBAR OVERRIDES --- */
 .navbar {
-    background: var(--black) !important;
+    background-color: var(--primary) !important;
+    /* Force Navy over Bootstrap bg-dark */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     height: 70px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .navbar-brand span {
-    font-family: 'Montserrat', Arial, sans-serif;
+    font-family: var(--font-brand);
     font-weight: 900;
-    color: var(--gold);
+    color: var(--accent) !important;
     letter-spacing: 2px;
+    text-transform: uppercase;
 }
 
-.btn-primary {
-    background: var(--gold);
-    color: var(--black);
-    border: none;
+.nav-link {
+    color: rgba(255, 255, 255, 0.8) !important;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.nav-link.active {
+    color: #ffffff !important;
+}
+
+/* --- CARD STYLING (MATCHING DASHBOARD) --- */
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+    overflow: hidden;
+    /* For rounded corners on children */
+}
+
+.card-header {
+    background-color: #ffffff;
+    /* Clean white header */
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+}
+
+.card-header h1,
+.card-header h2,
+.card-header h3,
+.card-header .h3,
+.card-header .h5 {
+    font-family: var(--font-main);
+    color: var(--primary);
     font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.5px;
 }
 
-.btn-primary:hover, .btn-primary:focus {
-    background: var(--black);
-    color: var(--gold);
+.card-body {
+    padding: 24px;
 }
 
-.card-header h1, .card-header h2, .card-header h3 {
-    font-family: 'Montserrat', Arial, sans-serif;
-    color: var(--black);
+/* --- FORM ELEMENTS --- */
+.form-label {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
 }
 
-/* Toast notifications */
+.form-control {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    font-size: 0.95rem;
+    background-color: #f7f9ff;
+    /* Slight tint matching dashboard panels */
+    color: var(--text);
+}
+
+.form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 33, 71, 0.15);
+    /* Navy Ring */
+    background-color: #fff;
+}
+
+/* --- BUTTONS --- */
+.d-grid.gap-2 {
+    gap: 12px !important;
+    /* Increase spacing slightly */
+}
+
+.btn {
+    border-radius: var(--radius-md);
+    padding: 12px 20px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    border: none;
+    text-transform: capitalize;
+    /* Cleaner look */
+}
+
+/* Primary Action (Navy) */
+.btn-primary {
+    background-color: var(--primary);
+    color: #ffffff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 33, 71, 0.2);
+}
+
+/* Info Action -> Converted to Outline Primary Style for Consistency */
+.btn-info {
+    background-color: transparent;
+    border: 2px solid var(--border);
+    color: var(--text);
+}
+
+.btn-info:hover {
+    background-color: #f7f9ff;
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* Warning Action -> Converted to Gold Accent Style */
+.btn-warning {
+    background-color: var(--accent);
+    color: var(--primary);
+    /* Navy text on Gold bg */
+}
+
+.btn-warning:hover {
+    background-color: var(--accent-hover);
+    color: var(--primary);
+    box-shadow: 0 4px 12px rgba(244, 208, 63, 0.3);
+}
+
+/* --- TOAST NOTIFICATIONS --- */
 .toast-container {
     position: fixed;
-    top: 90px; /* below fixed navbar */
+    top: 90px;
     right: 20px;
     display: flex;
     flex-direction: column;
     gap: 10px;
     z-index: 1080;
-    pointer-events: none; /* allow clicks through except the toasts */
+    pointer-events: none;
 }
 
 .toast-notification {
     min-width: 280px;
     max-width: 360px;
-    padding: 12px 16px;
-    border-radius: 8px;
+    padding: 16px;
+    border-radius: var(--radius-md);
     color: #fff;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    box-shadow: var(--shadow);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     opacity: 0;
     transform: translateY(-10px);
     transition: opacity 160ms ease, transform 160ms ease;
     pointer-events: auto;
+    font-size: 0.9rem;
 }
 
 .toast-notification.show {
@@ -116,20 +209,140 @@ body {
 
 .toast-notification .toast-title {
     font-weight: 700;
-    margin-right: 6px;
 }
 
-.toast-notification .toast-close {
-    margin-left: auto;
-    background: transparent;
-    border: 0;
-    color: inherit;
-    font-size: 16px;
-    line-height: 1;
-    cursor: pointer;
-    opacity: 0.8;
+.toast-success {
+    background-color: #059669;
 }
 
-.toast-success { background-color: #198754; }
-.toast-error { background-color: #dc3545; }
-.toast-warning { background-color: #fd7e14; }
+/* Green */
+.toast-error {
+    background-color: #dc2626;
+}
+
+/* Red */
+.toast-warning {
+    background-color: #d97706;
+}
+
+/* Orange */
+
+/* --- MOBILE OPTIMIZATION --- */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+}
+
+/* --- DATABASE PAGE STYLES --- */
+
+/* Main content spacing (replaces inline styles) */
+.main-content {
+    margin-top: 120px;
+    padding-bottom: 40px;
+}
+
+/* Page Title styling */
+h1.mb-4 {
+    font-family: var(--font-brand);
+    color: var(--primary);
+    font-weight: 900;
+    letter-spacing: -0.5px;
+}
+
+/* Section Dividers */
+.section-title {
+    margin-top: 32px;
+    margin-bottom: 20px;
+    color: var(--primary);
+    font-family: var(--font-brand);
+    font-weight: 700;
+    font-size: 1.5rem;
+    border-bottom: 3px solid var(--accent);
+    /* Gold underline */
+    display: inline-block;
+    padding-bottom: 5px;
+}
+
+/* Student Cards (Navy/Gold Theme) */
+.student-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+.student-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--primary);
+    /* Highlight on hover */
+}
+
+/* Text inside cards */
+.student-card strong {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.student-card .text-muted {
+    font-size: 0.85rem;
+    color: var(--muted) !important;
+}
+
+/* Barcode image spacing */
+.barcode-img {
+    margin: 0 10px 10px 0;
+}
+
+/* Override Secondary Button to fit theme (Back/Cancel) */
+.btn-secondary {
+    background-color: #fff;
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    background-color: #f1f5f9;
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* Override Danger Button (Delete) */
+.btn-danger {
+    background-color: #fff0f0;
+    color: #dc2626;
+    border: 1px solid #dc2626;
+}
+
+.btn-danger:hover {
+    background-color: #dc2626;
+    color: white;
+}
+
+/* Input Groups (Search Bar) */
+.input-group-text {
+    background-color: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.btn-outline-secondary {
+    border-color: var(--border);
+    color: var(--muted);
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--primary);
+    color: var(--accent);
+    border-color: var(--primary);
+}

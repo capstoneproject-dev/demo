@@ -1,130 +1,258 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&display=swap');
 
 :root {
-    --gold: #FFD700;
-    --gold-dark: #FFC107;
-    --black: #181818;
-    --white: #fff;
+    /* --- DASHBOARD IDENTITY VARIABLES --- */
+    --primary: #002147;
+    /* Navy */
+    --primary-hover: #003366;
+    /* Lighter Navy */
+    --accent: #f4d03f;
+    /* Gold */
+    --accent-hover: #d4b128;
+    /* Darker Gold */
+    --bg: #f3f6fb;
+    /* Dashboard Background */
+    --card-bg: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: rgba(15, 23, 42, 0.10);
+    --shadow: 0 14px 40px rgba(2, 6, 23, 0.10);
+
+    /* Layout */
+    --radius-lg: 18px;
+    --radius-md: 14px;
+    --font-main: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    --font-brand: 'Montserrat', sans-serif;
 }
 
-/* General Styles */
 body {
-    background-color: #f8f9fa;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-main);
 }
 
-/* Card Styles */
+/* --- NAVBAR OVERRIDES --- */
+.navbar {
+    background-color: var(--primary) !important;
+    /* Force Navy */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    height: 70px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.navbar-brand span {
+    font-family: var(--font-brand);
+    font-weight: 900;
+    color: var(--accent) !important;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.nav-link {
+    color: rgba(255, 255, 255, 0.8) !important;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.nav-link.active {
+    color: #ffffff !important;
+}
+
+/* --- CARD STYLING --- */
 .card {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border: none;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+    overflow: hidden;
 }
 
 .card-header {
-    background-color: #fff;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
 }
 
-/* Result Box Styles */
+.card-header h1,
+.card-header h2,
+.card-header h3,
+.card-title {
+    font-family: var(--font-main);
+    color: var(--primary);
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.5px;
+}
+
+.card-body {
+    padding: 24px;
+}
+
+/* --- RENTAL SYSTEM SPECIFIC: RESULT BOXES --- */
 .result-box {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 0.25rem;
-    padding: 1rem;
+    background-color: #f7f9ff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
 }
 
 .result-box .success {
-    color: #198754;
+    color: #059669;
+    /* Consistent Green */
+    font-weight: 600;
 }
 
 .result-box .error {
-    color: #dc3545;
+    color: #dc2626;
+    /* Consistent Red */
+    font-weight: 600;
 }
 
-/* Table Styles */
+/* --- RENTAL SYSTEM SPECIFIC: TABLES --- */
 .table {
     margin-bottom: 0;
 }
 
 .table th {
-    background-color: #f8f9fa;
-    border-bottom: 2px solid #dee2e6;
-}
-
-/* Button Styles */
-.btn-group {
-    margin-bottom: 1rem;
-}
-
-/* Form Styles */
-.form-label {
-    font-weight: 500;
-}
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
-    .container {
-        padding: 1rem;
-    }
-
-    .card {
-        margin-bottom: 1rem;
-    }
-}
-
-/* Merchandise-like header theme */
-.navbar {
-    background: var(--black) !important;
-    height: 70px;
-}
-
-.navbar-brand span {
-    font-family: 'Montserrat', Arial, sans-serif;
-    font-weight: 900;
-    color: var(--gold);
-    letter-spacing: 2px;
-}
-
-.btn-primary {
-    background: var(--gold);
-    color: var(--black);
-    border: none;
+    background-color: #f7f9ff;
+    color: var(--primary);
     font-weight: 700;
+    border-bottom: 2px solid var(--border);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    padding: 12px 16px;
+}
+
+.table td {
+    padding: 12px 16px;
+    vertical-align: middle;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+}
+
+/* --- FORM ELEMENTS --- */
+.form-label {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+}
+
+.form-control,
+.form-select {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    font-size: 0.95rem;
+    background-color: #f7f9ff;
+    color: var(--text);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 33, 71, 0.15);
+    background-color: #fff;
+}
+
+/* --- BUTTONS --- */
+.btn {
+    border-radius: var(--radius-md);
+    padding: 10px 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    border: none;
+    text-transform: capitalize;
+}
+
+.btn-lg {
+    padding: 14px 24px;
+    font-size: 1rem;
+}
+
+/* Primary Action (Navy) */
+.btn-primary {
+    background-color: var(--primary);
+    color: #ffffff !important;
 }
 
 .btn-primary:hover,
 .btn-primary:focus {
-    background: var(--black);
-    color: var(--gold);
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 33, 71, 0.2);
 }
 
-/* Outline buttons use gold theme */
+/* Secondary/Internal Actions -> Outline Style */
 .btn-outline-primary,
 .btn-outline-secondary,
-.btn-outline-info,
-.btn-outline-warning {
-    border-color: var(--gold) !important;
-    color: var(--black) !important;
-    background-color: #fff !important;
+.btn-outline-info {
+    background-color: transparent !important;
+    border: 2px solid var(--border) !important;
+    color: var(--text) !important;
 }
 
 .btn-outline-primary:hover,
 .btn-outline-secondary:hover,
-.btn-outline-info:hover,
+.btn-outline-info:hover {
+    background-color: #f7f9ff !important;
+    border-color: var(--primary) !important;
+    color: var(--primary) !important;
+}
+
+/* Warning Action -> Gold Accent Style */
+.btn-warning,
+.btn-outline-warning {
+    background-color: var(--accent) !important;
+    color: var(--primary) !important;
+    border: none !important;
+}
+
+.btn-warning:hover,
 .btn-outline-warning:hover {
-    background-color: var(--gold) !important;
-    color: var(--black) !important;
+    background-color: var(--accent-hover) !important;
+    color: var(--primary) !important;
+    box-shadow: 0 4px 12px rgba(244, 208, 63, 0.3);
 }
 
-/* Optional: make info/success buttons align with theme on hover */
-.btn-info:hover,
-.btn-success:hover {
-    background-color: var(--black) !important;
-    color: var(--gold) !important;
-    border-color: var(--black) !important;
+/* Modal Styling */
+.modal-content {
+    border-radius: var(--radius-lg);
+    border: none;
+    box-shadow: var(--shadow);
 }
 
-.card-header h1,
-.card-header h2,
-.card-header h3 {
-    font-family: 'Montserrat', Arial, sans-serif;
-    color: var(--black);
+.modal-header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+}
+
+.modal-title {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.modal-footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 24px;
+}
+
+/* --- MOBILE OPTIMIZATION --- */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+
+    .btn-lg {
+        width: 100%;
+    }
 }
