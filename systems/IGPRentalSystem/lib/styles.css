@@ -289,3 +289,83 @@ body {
         width: 100%;
     }
 }
+
+/* --- ZEUS UI INSPIRED NAVBAR --- */
+
+.custom-navbar {
+    background-color: var(--primary) !important;
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.tracking-wide {
+    letter-spacing: 1.5px;
+}
+
+/* Navigation Links */
+.nav-pills-custom .nav-link {
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 0.5rem 1.2rem;
+    border-radius: 50px;
+    /* Pill shape on hover */
+    transition: all 0.3s ease;
+}
+
+.nav-pills-custom .nav-link:hover,
+.nav-pills-custom .nav-link.show {
+    background-color: #f8f9fa;
+    color: var(--primary) !important;
+}
+
+/* Mega Menu / Enhanced Dropdown Styling */
+.mega-menu {
+    border-radius: 16px;
+    /* Soft rounded corners */
+    padding: 1rem;
+    min-width: 320px;
+    /* Wider than default */
+    margin-top: 15px !important;
+    /* Spacing from navbar */
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.mega-menu .dropdown-item {
+    padding: 12px;
+    border-radius: 12px;
+    transition: background-color 0.2s ease;
+    white-space: normal;
+    /* Allow text to wrap if needed */
+}
+
+.mega-menu .dropdown-item:hover {
+    background-color: var(--bg);
+    /* Light grey/blue hover */
+}
+
+/* Small Icon Boxes inside Dropdown */
+.icon-box-sm {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+/* Adjust Main Content Spacing (Resetting from Double Nav) */
+.main-content {
+    margin-top: 100px !important;
+    /* Enough space for the slightly taller single navbar */
+    padding-bottom: 40px;
+}
+
+/* Remove old sub-navbar styles if present to keep file clean */
+.sub-navbar,
+.main-content-double-nav {
+    display: none;
+}

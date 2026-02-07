@@ -395,3 +395,20 @@ h1.mb-4 {
     box-shadow: none !important;
     /* Removes Bootstrap default button shadow/glow */
 }
+
+/* Navigation Links (Zeus UI Standard) */
+.nav-pills-custom .nav-link {
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 0.5rem 1.2rem;
+    border-radius: 50px;
+    /* Pill shape on hover */
+    transition: all 0.3s ease;
+}
+
+.nav-pills-custom .nav-link:hover,
+.nav-pills-custom .nav-link.show {
+    background-color: #f8f9fa;
+    color: var(--primary) !important;
+}
