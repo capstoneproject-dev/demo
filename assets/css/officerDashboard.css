@@ -786,6 +786,13 @@ td {
         /* Ensure cards take full width */
     }
 
+    /* IFRAME mobile override */
+    #events .card,
+    #tracker .card {
+        width: 100%;
+        margin: 10px 0;
+    }
+
     /* Mobile Adjustments */
     .mobile-only {
         display: block;
@@ -829,6 +836,11 @@ body.dark .btn-outline:hover {
     padding: 0 !important;
     border-radius: var(--radius-lg);
     overflow: hidden;
+
+    /* NEW: Shared sizing (copied from Events logic) */
+    width: 90%;
+    height: 80vh;
+    margin: 20px auto;
 }
 
 #events iframe,
@@ -837,4 +849,7 @@ body.dark .btn-outline:hover {
     /* Removes bottom whitespace */
     background: var(--panel);
     /* Matches theme background while loading */
+    width: 100%;
+    height: 100%;
+    border: none;
 }
