@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- NAVIGATION LOGIC ---
 function navigate(viewId, element) {
-    // Sidebar active state
+    // 1. Sidebar active state
     if (element) {
         document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
         element.classList.add('active');
@@ -91,26 +91,41 @@ function navigate(viewId, element) {
         });
     }
 
-    // Section visibility
+    // 2. Section visibility
     document.querySelectorAll('.section-view').forEach(section => {
         section.classList.remove('active');
     });
     document.getElementById(viewId).classList.add('active');
 
-    // Title update
-    const titleMap = {
-        'dashboard': 'Dashboard',
-        'tracker': 'Services Tracker',
-        'documents': 'Document Organizer',
-        'analytics': 'Data Analytics',
-        'announcements': 'Manage Announcements',
-        'events': 'Events Management'
-    };
-    document.getElementById('page-title').innerText = titleMap[viewId] || 'Org Manager';
+    // 3. Title & Header Update
+    const titleEl = document.getElementById('page-title');
+    const dateEl = document.getElementById('current-date');
+    const mainHeaderTitle = document.querySelector('.header-title');
 
-    // Resize charts if Analytics tab is opened
+    // Ensure header is visible
+    if (mainHeaderTitle) mainHeaderTitle.style.display = 'block';
+
+    if (viewId === 'documents') {
+        // Custom Header for Documents Repository
+        if (titleEl) titleEl.innerText = 'Documents Repository';
+        if (dateEl) dateEl.innerText = 'Manage and track all organizational document submissions.';
+    } else {
+        // Standard Header for other views
+        const titleMap = {
+            'dashboard': 'Dashboard',
+            'tracker': 'Services Tracker',
+            'analytics': 'Data Analytics',
+            'announcements': 'Manage Announcements',
+            'events': 'Events Management'
+        };
+        if (titleEl) titleEl.innerText = titleMap[viewId] || 'Org Manager';
+
+        // Restore Date
+        setDate();
+    }
+
+    // 4. Resize charts if Analytics tab is opened
     if (viewId === 'analytics') {
-        // This forces Chart.js to resize correctly if hidden previously
         window.dispatchEvent(new Event('resize'));
     }
 }
@@ -130,76 +145,115 @@ function renderRentals() {
             <td><span class="status-badge ${badgeClass}">${item.status}</span></td>
         </tr>`;
     }).join('');
-
-    // Full Tracker Table
-    const trackTable = document.getElementById('tracker-table');
-    trackTable.innerHTML = rentalsData.map((item, index) => {
-        let badgeClass = item.status === 'Rented' ? 'status-borrowed' : (item.status === 'Overdue' ? 'status-overdue' : 'status-borrowed');
-        return `
-        <tr>
-            <td>${item.item}</td>
-            <td>${item.renter}</td>
-            <td>${item.due}</td>
-            <td>${item.status === 'Overdue' ? '<span style="color:#ef4444">Damaged</span>' : 'Good'}</td>
-            <td>
-                <button class="btn btn-outline btn-sm" onclick="returnItem(${index})">
-                    <i class="fa-solid fa-rotate-left"></i> Return
-                </button>
-            </td>
-        </tr>`;
-    }).join('');
 }
+
+// --- MODAL FUNCTIONS ---
+
+function openSubmitModal() {
+    const modal = document.getElementById('submit-doc-modal');
+    modal.classList.add('show');
+}
+
+function closeSubmitModal() {
+    const modal = document.getElementById('submit-doc-modal');
+    modal.classList.remove('show');
+    // Optional: Reset form on close if desired
+    // document.getElementById('doc-form').reset();
+}
+
+// Close modal when clicking outside content
+window.addEventListener('click', function (event) {
+    const modal = document.getElementById('submit-doc-modal');
+    if (event.target === modal) {
+        closeSubmitModal();
+    }
+});
+
+// --- REPOSITORY & SUBMIT LOGIC ---
 
 let currentDocFilter = 'All';
 
-function renderDocs(filter = 'All') {
+function renderRecentDocs() {
+    const list = document.getElementById('recent-docs-list');
+    if (!list) return;
+
+    // Take only the first 3 items for the sidebar
+    const recentItems = docsData.slice(0, 3);
+
+    list.innerHTML = recentItems.map(doc => `
+        <div class="recent-item">
+            <div class="recent-icon">
+                <i class="fa-solid fa-file-contract"></i>
+            </div>
+            <div class="recent-info">
+                <h5>${doc.title}</h5>
+                <span>${doc.date} • ${doc.status}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderDocs(filter = 'All', btnElement = null) {
     currentDocFilter = filter;
+
+    // Update active tab state
+    if (btnElement) {
+        // Select all tabs inside repo-filters
+        const buttons = document.querySelectorAll('.repo-filters .filter-tab');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        btnElement.classList.add('active');
+    } else if (filter === 'All') {
+        // Fallback for initial load
+        const firstTab = document.querySelector('.repo-filters .filter-tab');
+        if (firstTab) firstTab.classList.add('active');
+    }
+
     const list = document.getElementById('docs-list');
 
-    // Filter the data based on status/recipient
+    // Logic: 
+    // If 'All', show everything.
+    // If 'Pending', match 'Sent' or 'Pending'.
+    // Otherwise match exact status (Approved, Rejected).
     const filteredData = docsData.filter(doc => {
         if (filter === 'All') return true;
+        if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending');
         return doc.status.includes(filter);
     });
 
     if (filteredData.length === 0) {
-        list.innerHTML = `<p style="text-align:center; padding:20px; color:var(--muted);">No documents found for ${filter}.</p>`;
+        list.innerHTML = `
+            <div style="text-align:center; padding: 40px 20px; color:var(--muted);">
+                <i class="fa-regular fa-folder-open" style="font-size: 2rem; margin-bottom: 10px; display:block;"></i>
+                No documents found.
+            </div>`;
         return;
     }
 
     list.innerHTML = filteredData.map(doc => {
-        let badgeClass = doc.status.includes('Approved') ? 'status-completed' :
-            (doc.status.includes('Sent') ? 'status-sent' : 'status-pending');
+        // Determine Badge Color
+        let badgeClass = '';
+        if (doc.status.includes('Approved')) badgeClass = 'status-completed';
+        else if (doc.status.includes('Rejected')) badgeClass = 'status-rejected';
+        else badgeClass = 'status-sent'; // For 'Sent to...' statuses
+
         return `
-        <div class="list-item" style="padding: 12px 0; border-bottom: 1px solid var(--border);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div class="list-item">
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <div style="background: var(--panel-2); width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
+                    <i class="fa-solid fa-file-lines"></i>
+                </div>
                 <div>
-                    <h4 style="font-size:0.9rem;">${doc.title}</h4>
+                    <h4 style="font-size:0.95rem; margin-bottom: 2px;">${doc.title}</h4>
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
-                <span class="status-badge ${badgeClass}">${doc.status}</span>
             </div>
+            <span class="status-badge ${badgeClass}">${doc.status}</span>
         </div>`;
     }).join('');
 }
 
-// Handler for filter buttons
-function filterDocs(filter) {
-    // Update button visual state
-    document.querySelectorAll('.filter-group .btn-sm').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    // Find the button that was clicked (using event.currentTarget or matching the filter text)
-    if (event && event.target) {
-        event.target.classList.add('active');
-    } else {
-        // Fallback for initial render or direct calls
-        const filterId = `filter-${filter.toLowerCase()}`;
-        const btn = document.getElementById(filterId);
-        if (btn) btn.classList.add('active');
-    }
-
-    renderDocs(filter);
+function filterDocs(filter, btnElement) {
+    renderDocs(filter, btnElement);
 }
 
 function renderAnnouncements() {
@@ -255,6 +309,7 @@ window.onclick = function (event) {
 
 function handleDocSubmit(e) {
     e.preventDefault();
+
     const recipient = document.getElementById('doc-recipient').value;
     const type = document.getElementById('doc-type').value;
     const title = e.currentTarget.querySelector('input[type="text"]').value;
@@ -266,10 +321,15 @@ function handleDocSubmit(e) {
         status: `Sent to ${recipient}`
     });
 
-    // Re-render with the current active filter
-    renderDocs(currentDocFilter);
+    // Refresh list
+    // If we are currently on "Rejected" or "Approved", switch to "All" or "Pending" to see new item
+    const allBtn = document.querySelector('.repo-filters .filter-tab:first-child');
+    renderDocs('All', allBtn);
+    renderRecentDocs(); // Refresh the sidebar
+
     e.target.reset();
-    alert(`Document successfully sent to ${recipient} for checking.`);
+    closeSubmitModal();
+    alert(`Document successfully sent to ${recipient}.`);
 }
 
 function postAnnouncement(e) {
@@ -529,5 +589,6 @@ window.addEventListener('DOMContentLoaded', () => {
     setDate();
     renderRentals();
     renderDocs();
+    renderRecentDocs();
     renderAnnouncements();
 });
