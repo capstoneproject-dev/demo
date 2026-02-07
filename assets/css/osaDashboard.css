@@ -1757,3 +1757,32 @@ body.dark .verification-box i {
 body.dark .req-filter-controls select {
     background: var(--panel-2);
 }
+
+/* --- ORGANIZATIONS TAB DARK MODE ENHANCEMENTS --- */
+body.dark #organizations .btn-primary,
+body.dark #monitoring .btn-primary {
+    background: var(--panel-2);
+    color: var(--text);
+}
+
+body.dark #organizations .btn-primary:hover,
+body.dark #organizations .btn-primary.active,
+body.dark #monitoring .btn-primary:hover,
+body.dark #monitoring .btn-primary.active {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-color: #ffffff !important;
+}
+
+/* Specific Upload Button in Organizations Tab */
+body.dark #organizations label.btn-primary {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+body.dark #organizations label.btn-primary:hover {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-color: #ffffff !important;
+}

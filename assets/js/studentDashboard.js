@@ -245,13 +245,11 @@ function switchOrgTab(tabName, btn) {
         categories.forEach((cat, idx) => {
             const btn = document.createElement('button');
             btn.className = 'org-filter-btn';
-            btn.innerHTML = `<i class="fa-solid ${cat.icon}"></i> ${cat.label}`;
+            btn.innerText = cat.label;
             btn.setAttribute('data-category', cat.key);
             btn.style.padding = '8px 18px';
             btn.style.borderRadius = '20px';
             btn.style.border = 'none';
-            btn.style.background = idx === 0 ? 'var(--primary)' : 'var(--panel-2)';
-            btn.style.color = idx === 0 ? '#fff' : 'var(--text)';
             btn.style.fontWeight = '500';
             btn.style.fontSize = '1rem';
             btn.style.cursor = 'pointer';
@@ -329,13 +327,9 @@ function switchOrgTab(tabName, btn) {
                 // Remove active from all
                 filterBar.querySelectorAll('button').forEach(b => {
                     b.classList.remove('active');
-                    b.style.background = 'var(--panel-2)';
-                    b.style.color = 'var(--text)';
                 });
                 // Set active
                 this.classList.add('active');
-                this.style.background = 'var(--primary)';
-                this.style.color = '#fff';
                 renderOrgs(this.getAttribute('data-category'));
             });
         });

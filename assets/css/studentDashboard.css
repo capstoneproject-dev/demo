@@ -909,6 +909,14 @@ header {
     border-color: var(--primary);
 }
 
+/* Dark Mode Overrides for Organizations Tab */
+body.dark #organizations .tab-btn.active,
+body.dark #organizations .tab-btn:hover {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-color: #ffffff !important;
+}
+
 body.dark .tab-btn.active,
 body.dark .tab-btn:hover {
     color: #000;
@@ -2398,9 +2406,42 @@ button:focus-visible {
         width: 100%;
         justify-content: flex-start;
         /* Start from left to prevent scroll clipping */
-        padding-bottom: 4px;
         /* Space for scrollbar */
     }
+}
+
+/* --- ORGANIZATIONS TAB DARK MODE ENHANCEMENTS --- */
+body.dark #organizations .org-filter-btn {
+    background: var(--panel-2);
+    color: var(--text);
+}
+
+body.dark #organizations .org-filter-btn.active,
+body.dark #organizations .org-filter-btn:hover {
+    background: #ffffff !important;
+    color: #000000 !important;
+}
+
+/* Card Buttons in Organizations Tab */
+body.dark #organizations .card .btn-apply-recruit,
+body.dark #organizations .card .btn-register-card,
+body.dark #organizations .card .btn-view-details,
+body.dark #organizations .card .btn-share {
+    background: var(--panel-2);
+    color: var(--text);
+}
+
+body.dark #organizations .card .btn-apply-recruit:hover,
+body.dark #organizations .card .btn-register-card:hover,
+body.dark #organizations .card .btn-view-details:hover,
+body.dark #organizations .card .btn-share:hover,
+body.dark #organizations .card .btn-apply-recruit.active,
+body.dark #organizations .card .btn-register-card.active,
+body.dark #organizations .card .btn-view-details.active,
+body.dark #organizations .card .btn-share.active {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-color: #ffffff !important;
 }
 
 /* 2. Update Actions Container */
@@ -3493,31 +3534,37 @@ button:focus-visible {
 
 /* The buttons themselves */
 .time-filter-btn {
-    background: transparent;
-    border: none;
-    /* Removes the default gray border */
+    background: #ffffff;
+    /* White Background */
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    /* Light border for definition */
     padding: 8px 20px;
     border-radius: 30px;
-    /* Makes them pill-shaped */
     font-size: 0.95rem;
     font-weight: 600;
-    color: var(--muted);
+    color: #000000;
+    /* Black Text */
     cursor: pointer;
     position: relative;
     white-space: nowrap;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    /* Subtle shadow for depth */
 }
 
 /* Hover effect */
 .time-filter-btn:hover {
-    color: var(--primary);
-    background-color: var(--panel-2);
+    background-color: #f8fafc;
+    /* Very light gray hover */
+    color: #000000;
 }
 
 /* The Active State (Underline effect) */
 .time-filter-btn.active {
-    color: var(--primary);
-    background-color: rgba(0, 33, 71, 0.05);
+    background-color: #ffffff;
+    color: #000000;
+    border-color: #000000;
+    /* distinct black border for active item */
 }
 
 .time-filter-btn.active::after {
@@ -3528,8 +3575,9 @@ button:focus-visible {
     transform: translateX(-50%);
     width: 20px;
     height: 3px;
-    background-color: var(--primary);
+    background-color: #000000;
     border-radius: 3px;
+    display: none;
 }
 
 /* 2. Enhanced Event Card Design */
@@ -3568,13 +3616,17 @@ button:focus-visible {
     /* CRITICAL: This floats it on top of the image */
     top: 15px;
     left: 15px;
-    background: rgba(255, 255, 255, 0.95);
+    background-color: #002147;
+    /* Navy Blue */
     backdrop-filter: blur(4px);
     /* Glass effect */
     border-radius: 12px;
     padding: 8px 12px;
     text-align: center;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    /* Slightly stronger shadow for dark on dark */
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    /* Subtle border for contrast against dark images */
     z-index: 2;
     /* Ensures it sits above the image */
     min-width: 60px;
@@ -3585,7 +3637,8 @@ button:focus-visible {
     display: block;
     font-size: 0.75rem;
     text-transform: uppercase;
-    color: var(--primary);
+    color: rgba(255, 255, 255, 0.8);
+    /* Off-white for visual hierarchy */
     font-weight: 800;
     letter-spacing: 0.5px;
     line-height: 1;
@@ -3597,7 +3650,8 @@ button:focus-visible {
     display: block;
     font-size: 1.2rem;
     font-weight: 800;
-    color: var(--text);
+    color: #ffffff;
+    /* Pure white */
     line-height: 1;
 }
 
