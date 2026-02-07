@@ -6,37 +6,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generate Barcode - QR Attendance System</title>
     <link href="lib/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="lib/styles.css">
 </head>
 
 <body>
-    <!-- Navigation (matches merchandise header style) -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
                 <img src="../merchandise/Photos/PHILSCA-LOGO-WINGS.png" alt="AISERS Logo"
-                    style="height:48px;width:auto;margin-right:12px;">
-                <span class="fw-bold" style="letter-spacing:2px;font-size:1.5rem;">ALLIANCE APP</span>
+                    style="height:40px;width:auto;margin-right:12px;">
+                <span class="fw-bold tracking-wide">ALLIANCE APP</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
+
+            <div class="collapse navbar-collapse" id="mainNav">
+
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 nav-pills-custom">
+
                     <li class="nav-item">
-                        <a class="nav-link" href="welcome.html">Home</a>
+                        <a class="nav-link" href="events.html">History</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="generate-qr.html">Generate Barcodes</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="barcode-database.html">Database</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">Home</a>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-5" style="margin-top: 120px !important;">
+    <div class="container main-content">
         <h1 class="text-center mb-4">Generate Barcode</h1>
 
         <!-- Back to Home Button -->
         <div class="mb-4">
-            <a href="welcome.html" class="btn btn-secondary">← Back to Home</a>
+            <a href="index.html" class="btn btn-secondary">← Back to Home</a>
         </div>
 
         <!-- Bulk Upload Section -->
