@@ -687,6 +687,51 @@ td {
     width: 100%;
 }
 
+/* --- ANALYTICS EXPORT DROPDOWN --- */
+.export-wrapper {
+    position: relative;
+}
+
+.export-dropdown {
+    position: absolute;
+    top: 45px;
+    right: 0;
+    width: 180px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow);
+    display: none;
+    /* Hidden by default */
+    z-index: 200;
+    overflow: hidden;
+}
+
+.export-dropdown.show {
+    display: block;
+}
+
+.export-item {
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.2s;
+}
+
+.export-item:hover {
+    background-color: var(--panel-2);
+    color: var(--primary);
+}
+
+.export-item i {
+    width: 20px;
+    text-align: center;
+}
+
 @media (max-width: 768px) {
     .analytics-grid {
         grid-template-columns: 1fr;
