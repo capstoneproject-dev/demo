@@ -20,7 +20,7 @@ let announcementsData = [
 // --- LOGOUT HANDLER ---
 function handleLogout(e) {
     e.preventDefault();
-    if(confirm('Are you sure you want to logout?')) {
+    if (confirm('Are you sure you want to logout?')) {
         window.location.href = '../pages/login.html'; // Updated path per user code
     }
 }
@@ -29,7 +29,7 @@ function handleLogout(e) {
 function switchThemeLogic() {
     document.body.classList.toggle('dark');
     const isDark = document.body.classList.contains('dark');
-    
+
     // Update Mobile Icon
     const mobIcon = document.getElementById('mobile-theme-icon');
     if (mobIcon) {
@@ -39,7 +39,7 @@ function switchThemeLogic() {
     // Update Sidebar Icon
     const sbIcon = document.querySelector('#themeBtn .nav-icon');
     const sbText = document.querySelector('#themeBtn .nav-label');
-    
+
     if (sbIcon && sbText) {
         if (isDark) {
             sbIcon.className = 'fa-solid fa-sun nav-icon';
@@ -64,16 +64,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check if user previously selected dark mode
     if (localStorage.getItem('theme') === 'dark') {
         document.body.classList.add('dark');
-        
+
         // Set icons to Sun immediately
         const mobIcon = document.getElementById('mobile-theme-icon');
-        if(mobIcon) mobIcon.className = 'fa-solid fa-sun';
+        if (mobIcon) mobIcon.className = 'fa-solid fa-sun';
 
         // If sidebar exists
         const sbIcon = document.querySelector('#themeBtn .nav-icon');
         const sbText = document.querySelector('#themeBtn .nav-label');
-        if(sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
-        if(sbText) sbText.innerText = 'Light Mode';
+        if (sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
+        if (sbText) sbText.innerText = 'Light Mode';
     }
 });
 
@@ -86,7 +86,7 @@ function navigate(viewId, element) {
     } else {
         const links = document.querySelectorAll('.nav-link');
         links.forEach(l => {
-            if(l.getAttribute('onclick').includes(viewId)) l.classList.add('active');
+            if (l.getAttribute('onclick').includes(viewId)) l.classList.add('active');
             else l.classList.remove('active');
         });
     }
@@ -179,7 +179,7 @@ function toggleNotifs() {
 }
 
 // Close dropdown if clicked outside
-window.onclick = function(event) {
+window.onclick = function (event) {
     if (!event.target.closest('.notif-wrapper')) {
         var dropdowns = document.getElementsByClassName("notif-dropdown");
         for (var i = 0; i < dropdowns.length; i++) {
@@ -196,7 +196,7 @@ function handleDocSubmit(e) {
     // Simulate adding to list
     const type = e.target.querySelector('select').value;
     const title = e.target.querySelector('input').value;
-    
+
     docsData.unshift({
         title: title,
         type: type,
@@ -212,7 +212,7 @@ function postAnnouncement(e) {
     e.preventDefault();
     const title = document.getElementById('ann-title').value;
     const content = document.getElementById('ann-content').value;
-    
+
     announcementsData.unshift({
         title: title,
         content: content,
@@ -224,7 +224,7 @@ function postAnnouncement(e) {
 
 function returnItem(index) {
     const item = rentalsData[index];
-    if(confirm(`Mark ${item.item} as returned by ${item.renter}?`)) {
+    if (confirm(`Mark ${item.item} as returned by ${item.renter}?`)) {
         rentalsData.splice(index, 1);
         renderRentals(); // Re-render both tables
     }
@@ -233,12 +233,20 @@ function returnItem(index) {
 // --- UTILS ---
 function setDate() {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-US', options);
+    const dateString = new Date().toLocaleDateString('en-US', options);
+
+    // Update Main Header Date
+    const headerDate = document.getElementById('current-date');
+    if (headerDate) headerDate.innerText = dateString;
+
+    // Update Active Rentals Card Date
+    const rentalDate = document.getElementById('rentals-date');
+    if (rentalDate) rentalDate.innerText = dateString;
 }
 
 // Attach sidebar theme event listener
 const themeBtn = document.getElementById('themeBtn');
-if(themeBtn) {
+if (themeBtn) {
     themeBtn.addEventListener('click', switchThemeLogic);
 }
 
