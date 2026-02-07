@@ -943,6 +943,299 @@ td {
     transition: opacity 0.2s ease;
 }
 
+/* --- DOCUMENTS REPOSITORY LAYOUT --- */
+
+/* Header Area */
+.repo-header {
+    display: flex;
+    justify-content: flex-end;
+    /* changed from space-between */
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+/* Grid Layout (Desktop) */
+.docs-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    /* Main content takes space, sidebar is fixed width */
+    gap: 24px;
+    align-items: start;
+}
+
+/* Mobile Layout */
+@media (max-width: 900px) {
+    .docs-layout {
+        grid-template-columns: 1fr;
+        /* Stack vertically */
+    }
+
+    .repo-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .repo-header .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* --- REPO MAIN STYLES --- */
+.repo-main {
+    padding: 0 !important;
+    /* Override default card padding for flush list */
+    overflow: hidden;
+}
+
+/* Filter Tabs */
+.repo-filters {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+    padding: 0 16px;
+    overflow-x: auto;
+    /* Scroll on mobile if needed */
+}
+
+.filter-tab {
+    background: none;
+    border: none;
+    padding: 16px 20px;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.filter-tab:hover {
+    color: var(--primary);
+}
+
+.filter-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+/* List Styling */
+.list-header-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+#docs-list .list-item {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    transition: background 0.2s;
+}
+
+#docs-list .list-item:last-child {
+    border-bottom: none;
+}
+
+#docs-list .list-item:hover {
+    background-color: var(--panel-2);
+}
+
+/* --- RECENTLY SUBMITTED SIDEBAR --- */
+.recent-item {
+    display: flex;
+    gap: 12px;
+    align-items: start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.recent-item:last-child {
+    border-bottom: none;
+}
+
+.recent-icon {
+    min-width: 32px;
+    height: 32px;
+    background: var(--panel-2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 0.9rem;
+}
+
+.recent-info h5 {
+    font-size: 0.85rem;
+    color: var(--text);
+    margin-bottom: 2px;
+    line-height: 1.3;
+}
+
+.recent-info span {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+/* --- MODAL STYLES --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    /* Higher than sidebar */
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.show {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background: var(--panel);
+    width: 100%;
+    max-width: 500px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    /* Prevent overflow on small screens */
+    overflow-y: auto;
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.show .modal-content {
+    transform: translateY(0);
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    color: var(--text);
+    margin: 0;
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--muted);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* File Upload Box Styling */
+.file-upload-box {
+    border: 2px dashed var(--border);
+    padding: 20px;
+    text-align: center;
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: border-color 0.2s;
+}
+
+.file-upload-box:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* Repository List Tweaks */
+#docs-list .list-item {
+    transition: background-color 0.2s;
+}
+
+#docs-list .list-item:hover {
+    background-color: var(--panel-2);
+}
+
+/* --- FULL HEIGHT ADJUSTMENTS (Desktop Only) --- */
+@media (min-width: 900px) {
+
+    /* 1. Fix the height of the main grid container 
+       180px accounts for the top header, padding, and repo-header */
+    .docs-layout {
+        height: calc(100vh - 180px);
+        min-height: 500px;
+        /* Safety min-height */
+        overflow: hidden;
+        /* Prevent outer scroll */
+    }
+
+    /* 2. Make the Main Card take full height and structure as Flex column */
+    .repo-main.card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        /* Contains the scrollbar inside */
+    }
+
+    /* 3. Make the Sidebar Card take full height */
+    .repo-sidebar {
+        height: 100%;
+    }
+
+    .repo-sidebar .card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* 4. Make the Lists scrollable (occupy remaining space) */
+    #docs-list,
+    #recent-docs-list {
+        flex: 1;
+        overflow-y: auto;
+        /* Scroll vertically */
+        scrollbar-width: thin;
+        /* Modern thin scrollbar */
+    }
+}
+
 /* IFRAME mobile override */
 #events .card,
 #tracker .card {
