@@ -931,6 +931,18 @@ td {
     /* Ensure cards take full width */
 }
 
+/* --- DOCUMENT FILTER STYLING --- */
+.filter-group .btn-sm.active {
+    background-color: var(--primary);
+    color: white !important;
+    border-color: var(--primary);
+}
+
+#docs-list {
+    min-height: 200px;
+    transition: opacity 0.2s ease;
+}
+
 /* IFRAME mobile override */
 #events .card,
 #tracker .card {

@@ -150,19 +150,56 @@ function renderRentals() {
     }).join('');
 }
 
-function renderDocs() {
+let currentDocFilter = 'All';
+
+function renderDocs(filter = 'All') {
+    currentDocFilter = filter;
     const list = document.getElementById('docs-list');
-    list.innerHTML = docsData.map(doc => {
-        let badgeClass = doc.status === 'Approved' ? 'status-completed' : (doc.status === 'Sent to OSA' ? 'status-sent' : 'status-pending');
+
+    // Filter the data based on status/recipient
+    const filteredData = docsData.filter(doc => {
+        if (filter === 'All') return true;
+        return doc.status.includes(filter);
+    });
+
+    if (filteredData.length === 0) {
+        list.innerHTML = `<p style="text-align:center; padding:20px; color:var(--muted);">No documents found for ${filter}.</p>`;
+        return;
+    }
+
+    list.innerHTML = filteredData.map(doc => {
+        let badgeClass = doc.status.includes('Approved') ? 'status-completed' :
+            (doc.status.includes('Sent') ? 'status-sent' : 'status-pending');
         return `
         <div class="list-item" style="padding: 12px 0; border-bottom: 1px solid var(--border);">
-            <div>
-                <h4 style="font-size:0.9rem;">${doc.title}</h4>
-                <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h4 style="font-size:0.9rem;">${doc.title}</h4>
+                    <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
+                </div>
+                <span class="status-badge ${badgeClass}">${doc.status}</span>
             </div>
-            <span class="status-badge ${badgeClass}">${doc.status}</span>
         </div>`;
     }).join('');
+}
+
+// Handler for filter buttons
+function filterDocs(filter) {
+    // Update button visual state
+    document.querySelectorAll('.filter-group .btn-sm').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    // Find the button that was clicked (using event.currentTarget or matching the filter text)
+    if (event && event.target) {
+        event.target.classList.add('active');
+    } else {
+        // Fallback for initial render or direct calls
+        const filterId = `filter-${filter.toLowerCase()}`;
+        const btn = document.getElementById(filterId);
+        if (btn) btn.classList.add('active');
+    }
+
+    renderDocs(filter);
 }
 
 function renderAnnouncements() {
@@ -218,19 +255,21 @@ window.onclick = function (event) {
 
 function handleDocSubmit(e) {
     e.preventDefault();
-    // Simulate adding to list
-    const type = e.target.querySelector('select').value;
-    const title = e.target.querySelector('input').value;
+    const recipient = document.getElementById('doc-recipient').value;
+    const type = document.getElementById('doc-type').value;
+    const title = e.currentTarget.querySelector('input[type="text"]').value;
 
     docsData.unshift({
         title: title,
         type: type,
         date: "Just now",
-        status: "Sent to OSA"
+        status: `Sent to ${recipient}`
     });
-    renderDocs();
+
+    // Re-render with the current active filter
+    renderDocs(currentDocFilter);
     e.target.reset();
-    alert("Document successfully sent to OSA for checking.");
+    alert(`Document successfully sent to ${recipient} for checking.`);
 }
 
 function postAnnouncement(e) {
