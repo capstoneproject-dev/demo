@@ -237,58 +237,10 @@
 
         <!-- SERVICES TRACKER VIEW -->
         <div id="tracker" class="section-view">
-            <div class="content-row">
-                <!-- Rentals Table -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Inventory & Rentals</div>
-                        <div>
-                            <input type="text" placeholder="Search..."
-                                style="margin-bottom: 0; width: 200px; padding: 6px 12px;">
-                        </div>
-                    </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Item Name</th>
-                                    <th>Renter</th>
-                                    <th>Due Date</th>
-                                    <th>Condition</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tracker-table">
-                                <!-- JS Populated -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- QR Attendance Tool -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Attendance Tool</div>
-                    </div>
-                    <div class="qr-placeholder">
-                        <i class="fa-solid fa-qrcode"></i>
-                        <h3>QR Scanner</h3>
-                        <p style="color: var(--muted); margin-bottom: 15px;">Click to activate camera for event check-in
-                        </p>
-                        <button class="btn btn-primary" onclick="alert('Opening Camera Module...')">
-                            <i class="fa-solid fa-camera"></i> Start Scan
-                        </button>
-                    </div>
-                    <div style="margin-top: 20px;">
-                        <h4>Today's Stats</h4>
-                        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                            <span>Present:</span> <strong>42</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Absent:</span> <strong>5</strong>
-                        </div>
-                    </div>
-                </div>
+            <div class="card" style="height: calc(100vh - 140px); padding: 0; overflow: hidden;">
+                <iframe src="../systems/IGPRentalSystem/welcome.html" title="IGP Rental System"
+                    style="width: 100%; height: 100%; border: none;">
+                </iframe>
             </div>
         </div>
 
@@ -491,6 +443,11 @@
 
         <!-- EVENTS VIEW -->
         <div id="events" class="section-view">
+            <div class="card" style="height: calc(100vh - 140px); padding: 0; overflow: hidden;">
+                <iframe src="../systems/QR-Attendance/welcome.html" title="QR Attendance System"
+                    style="width: 100%; height: 100%; border: none;">
+                </iframe>
+            </div>
         </div>
 
     </main>

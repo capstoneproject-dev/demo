@@ -821,3 +821,20 @@ body.dark .icon-btn:hover,
 body.dark .btn-outline:hover {
     color: #fff !important;
 }
+
+/* --- IFRAME EMBED STYLES --- */
+#events .card,
+#tracker .card {
+    /* Removes default card padding for edge-to-edge embed */
+    padding: 0 !important;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+#events iframe,
+#tracker iframe {
+    display: block;
+    /* Removes bottom whitespace */
+    background: var(--panel);
+    /* Matches theme background while loading */
+}
