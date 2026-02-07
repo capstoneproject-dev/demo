@@ -945,15 +945,6 @@ td {
 
 /* --- DOCUMENTS REPOSITORY LAYOUT --- */
 
-/* Header Area */
-.repo-header {
-    display: flex;
-    justify-content: flex-end;
-    /* changed from space-between */
-    align-items: center;
-    margin-bottom: 24px;
-}
-
 /* Grid Layout (Desktop) */
 .docs-layout {
     display: grid;
@@ -969,17 +960,6 @@ td {
         grid-template-columns: 1fr;
         /* Stack vertically */
     }
-
-    .repo-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 15px;
-    }
-
-    .repo-header .btn {
-        width: 100%;
-        justify-content: center;
-    }
 }
 
 /* --- REPO MAIN STYLES --- */
@@ -989,27 +969,95 @@ td {
     overflow: hidden;
 }
 
-/* Filter Tabs */
+/* 1. Make the header a flex container */
 .repo-filters {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
     border-bottom: 1px solid var(--border);
     background: var(--panel-2);
     padding: 0 16px;
-    overflow-x: auto;
-    /* Scroll on mobile if needed */
+    gap: 10px;
+    height: 60px;
+    /* Fixed height ensures vertical alignment across columns */
 }
 
-.filter-tab {
-    background: none;
-    border: none;
-    padding: 16px 20px;
+/* Style for the text in the Sidebar Header to match Tab weight */
+.header-text-label {
     font-weight: 600;
     color: var(--muted);
-    border-bottom: 3px solid transparent;
-    cursor: pointer;
-    white-space: nowrap;
     font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+/* 2. Group the tabs to control their own scrolling */
+.filter-tabs-group {
+    display: flex;
+    height: 100%;
+    /* Fill the 60px container */
+    align-items: center;
+    /* Center text vertically */
+    overflow-x: auto;
+    /* Scroll horizontally if needed */
+    scrollbar-width: none;
+    /* Hide scrollbar for cleaner look */
+}
+
+.filter-tabs-group::-webkit-scrollbar {
+    display: none;
+}
+
+/* 3. Adjust Tab Styling to remove bottom border conflict */
+.filter-tab {
+    height: 100%;
+    /* Fill height */
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    /* Adjust padding since height is handled by flex */
+    border-bottom: 3px solid transparent;
+    margin-bottom: 0;
+    /* Remove negative margin */
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
     transition: all 0.2s;
+}
+
+/* 4. Mobile Responsiveness for Filters */
+@media (max-width: 600px) {
+    .repo-filters {
+        height: auto;
+        /* Allow auto height on mobile for stacking */
+        padding: 10px 16px;
+        flex-wrap: wrap;
+        flex-direction: column;
+        /* Match previous logic or stack if needed */
+        align-items: stretch;
+    }
+
+    .filter-tabs-group {
+        height: auto;
+        width: 100%;
+        margin-bottom: 5px;
+        justify-content: space-between;
+        overflow-x: auto;
+    }
+
+    .filter-tab {
+        height: 40px;
+        /* specific height for mobile tabs */
+        white-space: nowrap;
+    }
+
+    .repo-filters .btn {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 .filter-tab:hover {
@@ -1050,6 +1098,12 @@ td {
 
 #docs-list .list-item:hover {
     background-color: var(--panel-2);
+}
+
+/* --- SIDEBAR LIST SPACING --- */
+#recent-docs-list {
+    padding: 10px 16px;
+    /* Top/Bottom: 10px, Left/Right: 16px */
 }
 
 /* --- RECENTLY SUBMITTED SIDEBAR --- */
