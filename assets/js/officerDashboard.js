@@ -198,22 +198,21 @@ function renderDocs(filter = 'All', btnElement = null) {
 
     // Update active tab state
     if (btnElement) {
-        // Select all tabs inside repo-filters
         const buttons = document.querySelectorAll('.repo-filters .filter-tab');
         buttons.forEach(btn => btn.classList.remove('active'));
         btnElement.classList.add('active');
     } else if (filter === 'All') {
-        // Fallback for initial load
         const firstTab = document.querySelector('.repo-filters .filter-tab');
         if (firstTab) firstTab.classList.add('active');
     }
 
     const list = document.getElementById('docs-list');
 
-    // Logic: 
-    // If 'All', show everything.
-    // If 'Pending', match 'Sent' or 'Pending'.
-    // Otherwise match exact status (Approved, Rejected).
+    // DATA SIMULATION POOLS
+    const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
+    const sscOfficers = ["Pres. Cruz", "VP Santos", "Sec. Reyes"];
+    const osaAdmins = ["Dir. Fury", "Mrs. Potts", "Admin Stark"];
+
     const filteredData = docsData.filter(doc => {
         if (filter === 'All') return true;
         if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending');
@@ -222,7 +221,7 @@ function renderDocs(filter = 'All', btnElement = null) {
 
     if (filteredData.length === 0) {
         list.innerHTML = `
-            <div style="text-align:center; padding: 40px 20px; color:var(--muted);">
+            <div style="text-align:center; padding: 40px 20px; color:var(--muted); grid-column: 1 / -1;">
                 <i class="fa-regular fa-folder-open" style="font-size: 2rem; margin-bottom: 10px; display:block;"></i>
                 No documents found.
             </div>`;
@@ -230,24 +229,75 @@ function renderDocs(filter = 'All', btnElement = null) {
     }
 
     list.innerHTML = filteredData.map(doc => {
-        // Determine Badge Color
+        // --- WORKFLOW LOGIC ---
         let badgeClass = '';
-        if (doc.status.includes('Approved')) badgeClass = 'status-completed';
-        else if (doc.status.includes('Rejected')) badgeClass = 'status-rejected';
-        else badgeClass = 'status-sent'; // For 'Sent to...' statuses
+        let sscHtml = '';
+        let osaHtml = '';
+
+        // Deterministic random names based on title length (keeps it consistent per render)
+        const sender = senders[doc.title.length % senders.length];
+        const sscOfficer = sscOfficers[doc.title.length % sscOfficers.length];
+        const osaAdmin = osaAdmins[doc.title.length % osaAdmins.length];
+
+        if (doc.status.includes('Approved')) {
+            // Both Approved
+            badgeClass = 'status-completed';
+            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            osaHtml = `<span>${osaAdmin}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+        }
+        else if (doc.status.includes('Rejected')) {
+            // Logic: Randomly decide if SSC or OSA rejected it
+            badgeClass = 'status-rejected';
+            const rejectedBySSC = (doc.title.length % 2 === 0); // 50/50 chance
+
+            if (rejectedBySSC) {
+                sscHtml = `<span>${sscOfficer}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
+                osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Not reached</span>`;
+            } else {
+                sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+                osaHtml = `<span>${osaAdmin}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
+            }
+        }
+        else if (doc.status.includes('Sent to OSA')) {
+            // SSC Approved, OSA Pending
+            badgeClass = 'status-sent';
+            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
+        }
+        else {
+            // Pending / Sent to SSC
+            badgeClass = 'status-pending';
+            sscHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
+            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting for SSC</span>`;
+        }
 
         return `
         <div class="list-item">
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <div style="background: var(--panel-2); width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
+            <div class="col-name" style="display: flex; gap: 15px; align-items: center;">
+                <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
                     <i class="fa-solid fa-file-lines"></i>
                 </div>
-                <div>
-                    <h4 style="font-size:0.95rem; margin-bottom: 2px;">${doc.title}</h4>
+                <div style="overflow: hidden;">
+                    <h4 style="font-size:0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</h4>
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
             </div>
-            <span class="status-badge ${badgeClass}">${doc.status}</span>
+
+            <div class="col-sent mobile-hide">
+                ${sender}
+            </div>
+
+            <div class="col-ssc mobile-hide">
+                ${sscHtml}
+            </div>
+
+            <div class="col-osa mobile-hide">
+                ${osaHtml}
+            </div>
+
+            <div class="col-status">
+                <span class="status-badge ${badgeClass}">${doc.status}</span>
+            </div>
         </div>`;
     }).join('');
 }
