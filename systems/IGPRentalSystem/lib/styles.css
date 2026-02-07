@@ -320,16 +320,36 @@ body {
     color: var(--primary) !important;
 }
 
+/* Show dropdown on hover */
+@media (min-width: 992px) {
+    .nav-item.dropdown:hover>.mega-menu {
+        display: block;
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+}
+
 /* Mega Menu / Enhanced Dropdown Styling */
 .mega-menu {
     border-radius: 16px;
-    /* Soft rounded corners */
     padding: 1rem;
     min-width: 320px;
-    /* Wider than default */
-    margin-top: 15px !important;
-    /* Spacing from navbar */
+    margin-top: 0 !important;
+    /* Removed large margin for hover stability */
     border: 1px solid rgba(0, 0, 0, 0.05);
+
+    /* Animation setup */
+    display: block;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(15px);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+}
+
+.nav-item.dropdown:hover>.mega-menu {
+    pointer-events: auto;
 }
 
 .mega-menu .dropdown-item {
@@ -337,12 +357,10 @@ body {
     border-radius: 12px;
     transition: background-color 0.2s ease;
     white-space: normal;
-    /* Allow text to wrap if needed */
 }
 
 .mega-menu .dropdown-item:hover {
     background-color: var(--bg);
-    /* Light grey/blue hover */
 }
 
 /* Small Icon Boxes inside Dropdown */
