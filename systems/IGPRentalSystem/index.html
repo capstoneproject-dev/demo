@@ -177,7 +177,7 @@
         </div>
 
         <!-- Rental Records -->
-        <div class="card mt-4">
+        <div id="rental-records" class="card mt-4">
             <div class="card-header">
                 <h2 class="h5 mb-0">Rental Records</h2>
             </div>
@@ -274,6 +274,17 @@
 
 
 
+    <script>
+        // Smooth scrolling listener for parent dashboard
+        window.addEventListener('message', function (event) {
+            if (event.data.action === 'scrollTo') {
+                const element = document.getElementById(event.data.target);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+        });
+    </script>
     <audio id="beepSound" src="lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
 </body>
 

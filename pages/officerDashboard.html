@@ -169,7 +169,7 @@
                     <div class="stat-info">
                         <h3>14</h3>
                         <p>Active Rentals</p>
-                        <p id="rentals-date" style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
+                        <p id="rentals-stat-date" style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
                             Fetching date...
                         </p>
                     </div>
@@ -208,8 +208,13 @@
                 <!-- Recent Services/Rentals -->
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">Active Rentals & Services</div>
-                        <button class="btn btn-outline btn-sm" onclick="navigate('tracker')">View All</button>
+                        <div>
+                            <div class="card-title">Active Rentals & Services</div>
+                            <p id="rentals-date" style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
+                                Fetching date...
+                            </p>
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="viewAllRentals()">View All</button>
                     </div>
                     <div class="table-container">
                         <table>
@@ -253,7 +258,7 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">Upcoming Events</div>
-                        <button class="btn btn-outline btn-sm" onclick="navigate('events')">View Calendar</button>
+                        <button class="btn btn-outline btn-sm" onclick="viewEventsList()">View Events</button>
                     </div>
                     <div class="event-list">
                         <div class="event-item">
