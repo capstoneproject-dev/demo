@@ -254,7 +254,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Action Required</span>`;
             actionButtons = `
                 <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); submitToOSA(${index})">
-                    Submit to OSA <i class="fa-solid fa-paper-plane"></i>
+                    Submit <i class="fa-solid fa-paper-plane"></i>
                 </button>`;
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Ready</span>';
         }
@@ -290,7 +290,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting</span>`;
             actionButtons = `
                 <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
-                    <i class="fa-regular fa-eye"></i> View
+                    <i class="fa-solid fa-eye"></i> View
                 </button>`;
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
         }
