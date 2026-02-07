@@ -32,7 +32,7 @@ async function initializeFirebase() {
             // Save Firebase records to Local Storage if they don't exist there
             if (window.offlineSync) {
                 const localRecords = window.offlineSync.getFromLocalStorage('attendance');
-                const localRecordKeys = new Set(localRecords.map(r => 
+                const localRecordKeys = new Set(localRecords.map(r =>
                     `${r.studentId}_${r.date}_${r.event}`
                 ));
                 records.forEach(fbRecord => {
@@ -86,15 +86,15 @@ async function initializeFirebase() {
 }
 
 // Update offline status indicator (make it globally accessible)
-window.updateOfflineStatus = function() {
+window.updateOfflineStatus = function () {
     const offlineStatusEl = document.getElementById('offlineStatus');
     const pendingSyncCountEl = document.getElementById('pendingSyncCount');
-    
+
     if (!offlineStatusEl || !window.offlineSync) return;
-    
+
     const isOnline = window.offlineSync.isOnline;
     const pendingCount = window.offlineSync.getPendingSyncCount();
-    
+
     if (!isOnline) {
         offlineStatusEl.textContent = '● Offline';
         offlineStatusEl.className = 'ms-3 badge bg-danger';
@@ -104,7 +104,7 @@ window.updateOfflineStatus = function() {
         offlineStatusEl.className = 'ms-3 badge bg-success';
         offlineStatusEl.style.display = 'inline-block';
     }
-    
+
     if (pendingCount > 0) {
         pendingSyncCountEl.textContent = `${pendingCount} pending`;
         pendingSyncCountEl.style.display = 'inline-block';
@@ -114,17 +114,17 @@ window.updateOfflineStatus = function() {
 };
 
 // Listen for offline status changes
-window.addEventListener('offlineStatusChanged', function(event) {
+window.addEventListener('offlineStatusChanged', function (event) {
     if (typeof updateOfflineStatus === 'function') {
         updateOfflineStatus();
     }
 });
 
 // Initialize current event display
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
     // Initialize Firebase first
     const firebaseInitialized = await initializeFirebase();
-    
+
     // Always load from Local Storage first (for offline support)
     // getStudents() and getAttendanceRecords() already save Firebase data to Local Storage
     if (!firebaseInitialized) {
@@ -149,14 +149,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (currentEvent) {
         document.getElementById('eventNameDisplay').textContent = currentEvent;
     } else {
-        window.location.href = 'welcome.html';
+        document.getElementById('eventNameDisplay').textContent = 'No Event Selected';
     }
-    
+
     // Update offline status indicator
     updateOfflineStatus();
     // Update every 5 seconds
     setInterval(updateOfflineStatus, 5000);
-    
+
     updateEventFilter();
     const barcodeInput = document.getElementById('barcodeInput');
     const scanResult = document.getElementById('scanResult');
@@ -199,9 +199,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                         let existingRec = null;
                         if (firebaseDB) {
                             existingRec = await firebaseDB.findAttendanceRecord(
-                                foundStudent.studentId, 
-                                foundStudent.section, 
-                                currentEvent, 
+                                foundStudent.studentId,
+                                foundStudent.section,
+                                currentEvent,
                                 today
                             );
                         } else {
@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                                 // too soon to time-out
                             }
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                     markAttendance(foundStudent);
                 } else if (scanMode === 'timeIn') {
                     const updated = updateStudentTimeIn(foundStudent.studentId, foundStudent.section, currentEvent, today);
@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         // Debounced input: wait for short inactivity before processing
-        barcodeInput.addEventListener('input', function() {
+        barcodeInput.addEventListener('input', function () {
             if (scannerTimer) clearTimeout(scannerTimer);
             scannerTimer = setTimeout(() => {
                 const value = barcodeInput.value.trim();
@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
 
         // Enter/Tab completes the scan immediately
-        barcodeInput.addEventListener('keydown', function(e) {
+        barcodeInput.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === 'Tab') {
                 e.preventDefault();
                 if (scannerTimer) clearTimeout(scannerTimer);
@@ -283,7 +283,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
 
         // Keep focus on input
-        document.addEventListener('click', function() {
+        document.addEventListener('click', function () {
             if (!barcodeInput.disabled) barcodeInput.focus();
         });
     }
@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Track previous scanning state so we can restore it after closing
         let previousBarcodeDisabled = false;
         if (manualModalEl) {
-            manualModalEl.addEventListener('show.bs.modal', function() {
+            manualModalEl.addEventListener('show.bs.modal', function () {
                 if (barcodeInput) {
                     previousBarcodeDisabled = barcodeInput.disabled;
                     barcodeInput.disabled = true;
@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const idInput = document.getElementById('manualStudentId');
                 if (idInput) setTimeout(() => idInput.focus(), 50);
             });
-            manualModalEl.addEventListener('hidden.bs.modal', function() {
+            manualModalEl.addEventListener('hidden.bs.modal', function () {
                 if (barcodeInput) {
                     barcodeInput.disabled = previousBarcodeDisabled;
                     if (!barcodeInput.disabled) {
@@ -316,14 +316,14 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             });
         }
-        manualBtn.addEventListener('click', function() {
+        manualBtn.addEventListener('click', function () {
             if (manualModal) manualModal.show();
             const idInput = document.getElementById('manualStudentId');
             if (idInput) setTimeout(() => idInput.focus(), 150);
         });
         const manualForm = document.getElementById('manualCheckInForm');
         if (manualForm) {
-            manualForm.addEventListener('submit', async function(e) {
+            manualForm.addEventListener('submit', async function (e) {
                 e.preventDefault();
                 const studentId = (document.getElementById('manualStudentId')?.value || '').trim();
                 const studentName = (document.getElementById('manualStudentName')?.value || '').trim();
@@ -332,7 +332,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (!studentId || !studentName || !course || !yearSection) return;
                 const section = `${course} ${yearSection}`;
                 const student = { studentId, studentName, section };
-                
+
                 // Add/update student in database if using Firebase
                 if (firebaseDB) {
                     try {
@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         console.error('Error updating student database:', error);
                     }
                 }
-                
+
                 await markAttendance(student);
                 showToast('Manual Check-in', `${studentName} (${studentId})`, 'success');
                 // Clear and close modal
@@ -366,7 +366,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         let prevDisabled = false;
         if (outModalEl) {
-            outModalEl.addEventListener('show.bs.modal', function() {
+            outModalEl.addEventListener('show.bs.modal', function () {
                 if (barcodeInput) {
                     prevDisabled = barcodeInput.disabled;
                     barcodeInput.disabled = true;
@@ -375,19 +375,19 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const input = document.getElementById('manualCheckOutStudentId');
                 if (input) setTimeout(() => input.focus(), 50);
             });
-            outModalEl.addEventListener('hidden.bs.modal', function() {
+            outModalEl.addEventListener('hidden.bs.modal', function () {
                 if (barcodeInput) {
                     barcodeInput.disabled = prevDisabled;
                     if (!barcodeInput.disabled) setTimeout(() => barcodeInput.focus(), 50);
                 }
             });
         }
-        manualOutBtn.addEventListener('click', function() {
+        manualOutBtn.addEventListener('click', function () {
             if (outModal) outModal.show();
         });
         const outForm = document.getElementById('manualCheckOutForm');
         if (outForm) {
-            outForm.addEventListener('submit', async function(e) {
+            outForm.addEventListener('submit', async function (e) {
                 e.preventDefault();
                 const studentId = (document.getElementById('manualCheckOutStudentId')?.value || '').trim();
                 if (!studentId) return;
@@ -405,7 +405,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 let target = candidates.find(r => !r.timeOut);
                 if (!target) {
                     // If all timed-out, choose the most recent by checkInMs
-                    target = candidates.sort((a,b)=> (b.lastUpdateMs||b.checkInMs||0) - (a.lastUpdateMs||a.checkInMs||0))[0];
+                    target = candidates.sort((a, b) => (b.lastUpdateMs || b.checkInMs || 0) - (a.lastUpdateMs || a.checkInMs || 0))[0];
                 }
                 if (target) {
                     const updated = updateStudentTimeOut(target.studentId, target.section, target.event, target.date, 'manual');
@@ -421,13 +421,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
     if (activateScanBtn) {
-        activateScanBtn.addEventListener('click', function() {
+        activateScanBtn.addEventListener('click', function () {
             barcodeInput.disabled = false;
             barcodeInput.focus();
         });
     }
     if (deactivateScanBtn) {
-        deactivateScanBtn.addEventListener('click', function() {
+        deactivateScanBtn.addEventListener('click', function () {
             barcodeInput.blur();
             barcodeInput.disabled = true;
         });
@@ -502,7 +502,7 @@ function getStudentsBySectionFromStudents(students, section) {
 function updateSectionDropdownAndStudentList() {
     const dropdown = document.getElementById('sectionDropdown');
     if (!dropdown) return;
-    
+
     // Get the current event (not the event filter)
     const currentEvent = localStorage.getItem('currentEvent');
     if (!currentEvent) {
@@ -510,22 +510,22 @@ function updateSectionDropdownAndStudentList() {
         document.getElementById('studentListBySection').innerHTML = '';
         return;
     }
-    
+
     // Only get sections from attendance records for the current event
     const sections = new Set();
-    
+
     // Filter attendance records by current event only
     const filteredRecords = attendanceRecords.filter(r => r.event === currentEvent);
-    
+
     filteredRecords.forEach(record => {
         if (record.section && record.section !== 'undefined') {
             sections.add(record.section);
         }
     });
-    
+
     // Sort sections alphabetically
     const sortedSections = Array.from(sections).sort((a, b) => a.localeCompare(b));
-    
+
     // Update dropdown
     dropdown.innerHTML = '';
     sortedSections.forEach(section => {
@@ -534,7 +534,7 @@ function updateSectionDropdownAndStudentList() {
         option.textContent = section;
         dropdown.appendChild(option);
     });
-    
+
     // Show students for the first section by default
     if (sortedSections.length > 0) {
         updateStudentListBySection(sortedSections[0]);
@@ -547,23 +547,23 @@ function updateSectionDropdownAndStudentList() {
 function updateStudentListBySection(section) {
     const tbody = document.getElementById('studentListBySection');
     if (!tbody) return;
-    
+
     // Get the current event (not the event filter)
     const currentEvent = localStorage.getItem('currentEvent');
     if (!currentEvent) {
         tbody.innerHTML = '';
         return;
     }
-    
+
     // Only show students who have attendance records for the current event and selected section
-    const filteredRecords = attendanceRecords.filter(r => 
-        r.section === section && 
+    const filteredRecords = attendanceRecords.filter(r =>
+        r.section === section &&
         r.event === currentEvent
     );
-    
+
     // Get unique students from attendance records only
     const uniqueStudents = new Map();
-    
+
     filteredRecords.forEach(r => {
         if (r.studentId) {
             // Use the most recent record for each student (in case of duplicates)
@@ -577,12 +577,12 @@ function updateStudentListBySection(section) {
             }
         }
     });
-    
+
     // Sort by student ID
-    const sortedStudents = Array.from(uniqueStudents.values()).sort((a, b) => 
+    const sortedStudents = Array.from(uniqueStudents.values()).sort((a, b) =>
         a.studentId.localeCompare(b.studentId)
     );
-    
+
     tbody.innerHTML = '';
     sortedStudents.forEach((student, idx) => {
         const row = document.createElement('tr');
@@ -600,7 +600,7 @@ async function updateStudentTimeIn(studentId, section, event, date) {
     const now = new Date();
     const timeString = now.toLocaleTimeString();
     const nowMs = Date.now();
-    
+
     if (firebaseDB) {
         const record = await firebaseDB.findAttendanceRecord(studentId, section, event, date);
         if (record) {
@@ -626,10 +626,10 @@ async function updateStudentTimeIn(studentId, section, event, date) {
     } else {
         // Fallback to localStorage
         let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-        const recordIndex = attendanceRecords.findIndex(record => 
-            record.studentId === studentId && 
-            record.section === section && 
-            record.event === event && 
+        const recordIndex = attendanceRecords.findIndex(record =>
+            record.studentId === studentId &&
+            record.section === section &&
+            record.event === event &&
             record.date === date
         );
 
@@ -649,7 +649,7 @@ async function updateStudentTimeOut(studentId, section, event, date, source = 'a
     const now = new Date();
     const timeString = now.toLocaleTimeString();
     const nowMs = Date.now();
-    
+
     if (firebaseDB) {
         const record = await firebaseDB.findAttendanceRecord(studentId, section, event, date);
         if (record) {
@@ -673,7 +673,7 @@ async function updateStudentTimeOut(studentId, section, event, date, source = 'a
             try {
                 const title = source === 'manual' ? 'Updated time-out' : 'Time-out';
                 showToast(title, `${record.studentName} (${record.studentId})`, 'error');
-            } catch (e) {}
+            } catch (e) { }
             // Set the global variable for 2 seconds
             recentTimedOutKey = `${studentId}-${section}-${event}-${date}`;
             if (recentTimedOutTimeout) clearTimeout(recentTimedOutTimeout);
@@ -687,10 +687,10 @@ async function updateStudentTimeOut(studentId, section, event, date, source = 'a
     } else {
         // Fallback to localStorage
         let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-        const recordIndex = attendanceRecords.findIndex(record => 
-            record.studentId === studentId && 
-            record.section === section && 
-            record.event === event && 
+        const recordIndex = attendanceRecords.findIndex(record =>
+            record.studentId === studentId &&
+            record.section === section &&
+            record.event === event &&
             record.date === date
         );
 
@@ -702,7 +702,7 @@ async function updateStudentTimeOut(studentId, section, event, date, source = 'a
                 const r = attendanceRecords[recordIndex];
                 const title = source === 'manual' ? 'Updated time-out' : 'Time-out';
                 showToast(title, `${r.studentName} (${r.studentId})`, 'error');
-            } catch (e) {}
+            } catch (e) { }
             // Set the global variable for 2 seconds
             recentTimedOutKey = `${studentId}-${section}-${event}-${date}`;
             if (recentTimedOutTimeout) clearTimeout(recentTimedOutTimeout);
@@ -721,7 +721,7 @@ async function updateStudentTimeOut(studentId, section, event, date, source = 'a
 function updateAttendanceTable() {
     const tbody = document.getElementById('attendanceRecords');
     const eventFilter = document.getElementById('eventFilter').value;
-    
+
     // Use the global attendanceRecords array which is updated by Firebase listeners
     let filteredRecords = attendanceRecords;
     if (eventFilter !== 'all') {
@@ -782,13 +782,13 @@ function updateAttendanceTable() {
 // Section dropdown change event
 const sectionDropdown = document.getElementById('sectionDropdown');
 if (sectionDropdown) {
-    sectionDropdown.addEventListener('change', function() {
+    sectionDropdown.addEventListener('change', function () {
         updateStudentListBySection(this.value);
     });
 }
 
 // Add event listener for event filter
-document.getElementById('eventFilter').addEventListener('change', function() {
+document.getElementById('eventFilter').addEventListener('change', function () {
     updateAttendanceTable();
     updateSectionDropdownAndStudentList();
 });
@@ -799,7 +799,7 @@ updateAttendanceTable();
 // Add event listener for clear button
 const clearBtn = document.getElementById('clearRecords');
 if (clearBtn) {
-    clearBtn.addEventListener('click', async function() {
+    clearBtn.addEventListener('click', async function () {
         if (confirm('Are you sure you want to clear all attendance records?')) {
             if (firebaseDB) {
                 try {
@@ -823,7 +823,7 @@ if (clearBtn) {
 // Add event listener for export button
 const exportBtn = document.getElementById('exportRecords');
 if (exportBtn) {
-    exportBtn.addEventListener('click', function() {
+    exportBtn.addEventListener('click', function () {
         if (attendanceRecords.length === 0) {
             alert('No attendance records to export.');
             return;
@@ -899,7 +899,7 @@ async function markAttendance(student) {
     const currentTime = new Date().toLocaleTimeString();
     const nowMs = Date.now();
     const currentEvent = await firebaseDB?.getCurrentEvent() || localStorage.getItem('currentEvent');
-    
+
     // Check if there are any records for the current event before adding
     let eventRecordsBefore = [];
     if (firebaseDB) {
@@ -908,20 +908,20 @@ async function markAttendance(student) {
         eventRecordsBefore = attendanceRecords.filter(r => r.event === currentEvent);
     }
     const wasEventEmpty = eventRecordsBefore.length === 0;
-    
+
     // Find if student already checked in today for this event
     let existing = null;
     if (firebaseDB) {
         existing = await firebaseDB.findAttendanceRecord(student.studentId, student.section, currentEvent, today);
     } else {
         existing = attendanceRecords.find(
-            r => r.studentId === student.studentId && 
-                 r.section === student.section &&
-                 r.date === today &&
-                 r.event === currentEvent
+            r => r.studentId === student.studentId &&
+                r.section === student.section &&
+                r.date === today &&
+                r.event === currentEvent
         );
     }
-    
+
     if (!existing) {
         // First scan: check-in
         // Ensure record structure matches Firebase document format
@@ -937,7 +937,7 @@ async function markAttendance(student) {
             createdAt: new Date(),
             updatedAt: new Date()
         };
-        
+
         if (firebaseDB) {
             await firebaseDB.addAttendanceRecord(record);
             // Refresh attendanceRecords from Local Storage (which includes the newly added record)
@@ -958,7 +958,7 @@ async function markAttendance(student) {
             attendanceRecords = Array.from(uniqueMap.values());
             localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
         }
-        
+
         // Set event filter to current event and update table
         const eventFilter = document.getElementById('eventFilter');
         if (eventFilter && currentEvent) {
@@ -980,7 +980,7 @@ async function markAttendance(student) {
             // Do not call updateAttendanceTable or eventFilter change here
         }
     }
-    
+
     // Automatically select the student's section in the section dropdown and update the left table
     const sectionDropdown = document.getElementById('sectionDropdown');
     if (sectionDropdown && student.section) {
@@ -989,7 +989,7 @@ async function markAttendance(student) {
     } else {
         updateSectionDropdownAndStudentList();
     }
-    
+
     // Refresh page if this was the very first scan for the current event
     if (wasEventEmpty) {
         setTimeout(() => { location.reload(); }, 300);
