@@ -2026,12 +2026,17 @@ button:focus-visible {
     color: var(--primary);
 }
 
+/* Tighten the header spacing in the calendar */
+#event-calendar .card-header {
+    margin-bottom: 12px;
+    padding-bottom: 0;
+}
+
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    /* Reduced gap to save space */
-    gap: 2px;
-    margin-top: 10px;
+    gap: 1px;
+    margin-top: 5px;
 }
 
 .calendar-day-header {
@@ -2043,13 +2048,16 @@ button:focus-visible {
 }
 
 .calendar-day {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    /* Reduced from 36px */
+    height: 32px;
+    /* Reduced from 36px */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    margin: 2px auto;
+    margin: 1px auto;
+    /* Tighter margins */
     border-radius: 50%;
     font-size: 0.8rem;
     color: var(--text);
@@ -2538,6 +2546,7 @@ button:focus-visible {
     right: 10px;
 }
 
+
 /* --- MOBILE RESPONSIVENESS --- */
 @media (max-width: 900px) {
     .dashboard-layout-wrapper {
@@ -2557,50 +2566,50 @@ button:focus-visible {
 }
 
 /* --- DESKTOP DASHBOARD ALIGNMENT FIX --- */
-/* Applies Grid layout to align cards across columns without changing HTML structure */
 @media (min-width: 901px) {
     .dashboard-layout-wrapper {
         display: grid;
-        /* Matches the original 2:1 ratio (Main vs Sidebar) */
         grid-template-columns: 2fr 1fr;
-        /* Two auto-sized rows */
         grid-template-rows: auto auto;
         gap: 24px;
-        /* Forces cards in the same row to match height */
         align-items: stretch;
     }
 
-    /* "Dissolve" the intermediate column containers so their children (the cards) 
-       become direct participants of the main grid */
     .dashboard-main-column,
     .dashboard-sidebar-column {
         display: contents;
     }
 
-    /* --- ROW 1 ALIGNMENT --- */
+    /* Ensure the cards inside the split row fill the available height */
+    .dashboard-row-split .card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
 
-    /* Latest Announcements (Top-Left) */
+    /* Push calendar content to center/fill if needed */
+    #event-calendar {
+        justify-content: flex-start;
+    }
+
+    /* ROW 1 ALIGNMENT */
     .dashboard-main-column>.card:first-child {
         grid-column: 1 / 2;
         grid-row: 1 / 2;
         height: 100%;
     }
 
-    /* Event Today (Top-Right) */
     .dashboard-sidebar-column>.card:first-child {
         grid-column: 2 / 3;
         grid-row: 1 / 2;
         height: 100%;
     }
 
-    /* --- ROW 2 ALIGNMENT --- */
-
-    /* Recent Activity & Upcoming Events Split (Bottom-Left) */
+    /* ROW 2 ALIGNMENT */
     .dashboard-main-column>.dashboard-row-split {
         grid-column: 1 / 2;
         grid-row: 2 / 3;
         height: 100%;
-        /* Ensure the inner cards stretch too */
         align-items: stretch;
     }
 
@@ -2609,6 +2618,8 @@ button:focus-visible {
         grid-column: 2 / 3;
         grid-row: 2 / 3;
         height: 100%;
+        display: flex;
+        flex-direction: column;
     }
 }
 
@@ -3826,31 +3837,39 @@ button:focus-visible {
 /* --- EVENTS DASHBOARD GRID LAYOUT --- */
 
 /* The Container: Defines the Grid */
+/* --- CONTAINER: Fixed Height & Scroll --- */
 #events-preview-container {
-    display: grid;
-    /* Auto-fill creates as many columns as fit. Min 240px wide per card. */
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 16px;
-
-    /* OPTIONAL: Limit height and add scroll if you have MANY events */
-    max-height: 500px;
+    /* Height calculated to show exactly 3 cards + gaps */
+    height: 330px;
     overflow-y: auto;
-    padding-right: 4px;
+    /* Scrollbar if more than 3 */
+
+    /* Layout: Single Column Stack */
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+
+    padding-right: 6px;
     /* Space for scrollbar */
     padding-bottom: 4px;
 }
 
-/* Custom Scrollbar for the container */
+/* Styling the scrollbar for the events container */
 #events-preview-container::-webkit-scrollbar {
     width: 6px;
 }
 
 #events-preview-container::-webkit-scrollbar-thumb {
     background-color: var(--border);
-    border-radius: 10px;
+    border-radius: 4px;
+}
+
+#events-preview-container::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 /* The Card Design */
+/* --- CARD VISUAL DESIGN (Restored) --- */
 .dashboard-event-preview-card {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -3861,26 +3880,30 @@ button:focus-visible {
     cursor: pointer;
     display: flex;
     flex-direction: column;
+    min-height: 90px;
+    /* Ensure consistent height */
 }
 
 .dashboard-event-preview-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
     border-color: var(--primary);
 }
 
 /* Colored accent bar at top */
 .card-top-accent {
-    height: 6px;
+    height: 4px;
     background: var(--primary);
     width: 100%;
 }
 
 .card-content {
-    padding: 16px;
+    padding: 12px 16px;
     display: flex;
     gap: 12px;
-    align-items: flex-start;
+    align-items: center;
+    /* Center vertically */
+    flex: 1;
 }
 
 /* Date Badge Style */
@@ -3892,12 +3915,13 @@ button:focus-visible {
     background: var(--panel-2);
     border-radius: 8px;
     min-width: 50px;
-    padding: 8px 4px;
+    height: 50px;
     border: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
 .p-month {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     text-transform: uppercase;
     font-weight: 700;
     color: var(--primary);
@@ -3906,7 +3930,7 @@ button:focus-visible {
 }
 
 .p-day {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: 800;
     color: var(--text);
     line-height: 1;
@@ -3916,29 +3940,23 @@ button:focus-visible {
 .preview-details {
     flex: 1;
     min-width: 0;
-    /* Prevents text overflow issues */
 }
 
 .preview-title {
     font-size: 0.95rem;
     font-weight: 700;
     color: var(--text);
-    margin-bottom: 6px;
-    line-height: 1.3;
-
-    /* Truncate long titles */
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    /* Standard property */
-    -webkit-box-orient: vertical;
+    margin-bottom: 4px;
+    line-height: 1.2;
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .preview-meta {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    gap: 10px;
 }
 
 .preview-org,
@@ -3947,7 +3965,7 @@ button:focus-visible {
     color: var(--muted);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 
 /* Dark Mode Adjustment */

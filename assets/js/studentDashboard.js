@@ -946,6 +946,7 @@ function renderDashboard() {
                 <p>No upcoming events scheduled.</p>
             </div>`;
     } else {
+        // Map to the Detailed Card HTML
         eventContainer.innerHTML = upcomingEvents.map(ev => `
             <div class="dashboard-event-preview-card" onclick="navigateToEventDetails('${ev.title}')" title="View Details">
                 <div class="card-top-accent"></div>
