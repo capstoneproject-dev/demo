@@ -331,8 +331,14 @@
                         <div class="card-title">Compile Document for OSA</div>
                     </div>
                     <form id="doc-form" onsubmit="handleDocSubmit(event)">
+                        <label>Recipient</label>
+                        <select id="doc-recipient" required>
+                            <option value="OSA">OSA (Office of Student Affairs)</option>
+                            <option value="SSC">SSC (Supreme Student Council)</option>
+                        </select>
+
                         <label>Document Type</label>
-                        <select required>
+                        <select id="doc-type" required>
                             <option value="Activity Report">Activity Report</option>
                             <option value="Financial Statement">Financial Statement</option>
                             <option value="Proposal">Event Proposal</option>
@@ -352,7 +358,7 @@
                         </div>
 
                         <button type="submit" class="btn btn-primary">
-                            <i class="fa-solid fa-paper-plane"></i> Send to OSA
+                            <i class="fa-solid fa-paper-plane"></i> Send for Checking
                         </button>
                     </form>
                 </div>
@@ -361,6 +367,14 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">Submission History</div>
+                        <div class="filter-group" style="flex-direction: row; gap: 5px;">
+                            <button class="btn btn-outline btn-sm active" id="filter-all"
+                                onclick="filterDocs('All')">All</button>
+                            <button class="btn btn-outline btn-sm" id="filter-osa"
+                                onclick="filterDocs('OSA')">OSA</button>
+                            <button class="btn btn-outline btn-sm" id="filter-ssc"
+                                onclick="filterDocs('SSC')">SSC</button>
+                        </div>
                     </div>
                     <div id="docs-list">
                         <!-- Populated by JS -->
