@@ -330,8 +330,16 @@
 
         <!-- DOCUMENTS VIEW -->
         <div id="documents" class="section-view">
+            <div class="sub-view-nav">
+                <button class="sub-nav-btn active" onclick="switchDocsSubView('status', this)">
+                    <i class="fa-solid fa-list-check"></i> Track Status
+                </button>
+                <button class="sub-nav-btn" onclick="switchDocsSubView('repository', this)">
+                    <i class="fa-solid fa-folder-tree"></i> Repository
+                </button>
+            </div>
 
-            <div class="docs-layout">
+            <div id="docs-status-view" class="docs-layout">
 
                 <div class="repo-main card">
                     <div class="repo-filters">
@@ -379,6 +387,96 @@
 
                         </div>
                         <div id="recent-docs-list">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Repository View (Initially Hidden) -->
+            <div id="docs-repository-view" class="repository-container" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Document Repository</div>
+                    </div>
+
+                    <!-- Search & Filter Area -->
+                    <div class="repo-search-area">
+                        <div class="search-input-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="repo-search-input"
+                                placeholder="Search documents by name, tag, or year..." oninput="handleRepoSearch()">
+                        </div>
+                        <button class="btn btn-outline" onclick="renderRepoTable()">
+                            <i class="fa-solid fa-filter"></i> Filter
+                        </button>
+                    </div>
+
+                    <!-- Folder Categories -->
+                    <div class="repo-folders-grid">
+                        <div class="folder-card" onclick="filterRepoByCategory('Activity Report', this)">
+                            <div class="folder-icon color-blue">
+                                <i class="fa-solid fa-folder-open"></i>
+                            </div>
+                            <div class="folder-info">
+                                <h5>Activity Reports</h5>
+                                <span id="count-activity-report">Loading...</span>
+                            </div>
+                        </div>
+                        <div class="folder-card" onclick="filterRepoByCategory('Financial Statement', this)">
+                            <div class="folder-icon color-green">
+                                <i class="fa-solid fa-file-invoice-dollar"></i>
+                            </div>
+                            <div class="folder-info">
+                                <h5>Financial Statements</h5>
+                                <span id="count-financial-statement">Loading...</span>
+                            </div>
+                        </div>
+                        <div class="folder-card" onclick="filterRepoByCategory('Event Proposal', this)">
+                            <div class="folder-icon color-purple">
+                                <i class="fa-solid fa-calendar-star"></i>
+                            </div>
+                            <div class="folder-info">
+                                <h5>Event Proposals</h5>
+                                <span id="count-event-proposal">Loading...</span>
+                            </div>
+                        </div>
+                        <div class="folder-card" onclick="filterRepoByCategory('Resolution', this)">
+                            <div class="folder-icon color-red">
+                                <i class="fa-solid fa-gavel"></i>
+                            </div>
+                            <div class="folder-info">
+                                <h5>Resolutions</h5>
+                                <span id="count-resolution">Loading...</span>
+                            </div>
+                        </div>
+                        <div class="folder-card" onclick="filterRepoByCategory('Operational Plan', this)">
+                            <div class="folder-icon color-orange">
+                                <i class="fa-solid fa-clipboard-list"></i>
+                            </div>
+                            <div class="folder-info">
+                                <h5>Operational Plans</h5>
+                                <span id="count-operational-plan">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Repository Table -->
+                    <div class="repo-files-card">
+                        <div class="table-container">
+                            <table class="repo-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40%;">Document Name</th>
+                                        <th>Category</th>
+                                        <th>Organization</th>
+                                        <th>Date Archived</th>
+                                        <th style="text-align: right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="repository-table-body">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

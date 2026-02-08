@@ -482,55 +482,64 @@
                     <div class="search-input-wrapper">
                         <i class="fa-solid fa-magnifying-glass"></i>
                         <input type="text" id="repo-search-input" placeholder="Search by filename, org, or tag..."
-                            onkeyup="handleRepoSearch()">
+                            onkeyup="renderRepoTable()">
                     </div>
-                    <button class="btn btn-primary" onclick="handleRepoSearch()">Search</button>
-                </div>
-
-                <div class="repo-folders-grid">
-                    <div class="folder-card" onclick="filterRepoByCategory('Activity Report', this)">
-                        <div class="folder-icon color-blue"><i class="fa-solid fa-chart-line"></i></div>
-                        <div class="folder-info">
-                            <h5>Activity Report</h5>
-                            <span id="count-activity-report">0 Files</span>
-                        </div>
-                    </div>
-                    <div class="folder-card" onclick="filterRepoByCategory('Financial Statement', this)">
-                        <div class="folder-icon color-green"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-                        <div class="folder-info">
-                            <h5>Financial Statement</h5>
-                            <span id="count-financial-statement">0 Files</span>
-                        </div>
-                    </div>
-                    <div class="folder-card" onclick="filterRepoByCategory('Event Proposal', this)">
-                        <div class="folder-icon color-purple"><i class="fa-solid fa-calendar-star"></i></div>
-                        <div class="folder-info">
-                            <h5>Event Proposal</h5>
-                            <span id="count-event-proposal">0 Files</span>
-                        </div>
-                    </div>
-                    <div class="folder-card" onclick="filterRepoByCategory('Resolution', this)">
-                        <div class="folder-icon color-red"><i class="fa-solid fa-scale-balanced"></i></div>
-                        <div class="folder-info">
-                            <h5>Resolution</h5>
-                            <span id="count-resolution">0 Files</span>
-                        </div>
-                    </div>
-                    <div class="folder-card" onclick="filterRepoByCategory('Operational Plan', this)">
-                        <div class="folder-icon color-orange"><i class="fa-solid fa-clipboard-list"></i></div>
-                        <div class="folder-info">
-                            <h5>Operational Plan</h5>
-                            <span id="count-operational-plan">0 Files</span>
-                        </div>
-                    </div>
+                    <button class="btn btn-primary" onclick="renderRepoTable()">Search</button>
                 </div>
 
                 <div class="card repo-files-card">
                     <div class="card-header">
                         <div class="card-title" id="repo-current-view-label">All Documents</div>
-                        <button class="btn btn-sm btn-outline" onclick="filterRepoByCategory('All', null)">Show
-                            All</button>
                     </div>
+
+                    <div class="repo-filter-bar">
+                        <div class="repo-filter-row">
+                            <div class="repo-filter-group">
+                                <label>File Type:</label>
+                                <select id="repo-filter-type" onchange="renderRepoTable()">
+                                    <option value="All">All Types</option>
+                                    <option value="Activity Report">Activity Report</option>
+                                    <option value="Financial Statement">Financial Statement</option>
+                                    <option value="Event Proposal">Event Proposal</option>
+                                    <option value="Resolution">Resolution</option>
+                                    <option value="Operational Plan">Operational Plan</option>
+                                </select>
+                            </div>
+
+                            <div class="repo-filter-group">
+                                <label>Organization:</label>
+                                <select id="repo-filter-org" onchange="renderRepoTable()">
+                                    <option value="all">All Organizations</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="repo-filter-row">
+                            <div class="repo-filter-group">
+                                <label>Semester:</label>
+                                <select id="repo-filter-sem" onchange="renderRepoTable()">
+                                    <option value="all">All Semesters</option>
+                                    <option value="1st">1st Semester</option>
+                                    <option value="2nd">2nd Semester</option>
+                                </select>
+                            </div>
+
+                            <div class="repo-filter-group">
+                                <label>Month:</label>
+                                <input type="month" id="repo-filter-month" onchange="renderRepoTable()">
+                            </div>
+
+                            <div class="repo-filter-group">
+                                <label>Specific Date:</label>
+                                <input type="date" id="repo-filter-date" onchange="renderRepoTable()">
+                            </div>
+
+                            <button class="btn btn-sm btn-outline" onclick="resetRepoFilters()">
+                                <i class="fa-solid fa-rotate-left"></i> Reset Filters
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="table-container">
                         <table class="repo-table">
                             <thead>

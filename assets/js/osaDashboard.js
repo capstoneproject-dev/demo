@@ -949,28 +949,8 @@ document.addEventListener('pdfviewer:ready', () => {
 
 // --- DOCUMENT REPOSITORY LOGIC ---
 
-// 1. Switch View Function (Status Board <-> Repository)
-function switchDocsSubView(view, btn) {
-    // Toggle Button Active State
-    const buttons = document.querySelectorAll('.sub-nav-btn');
-    buttons.forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+// --- UPDATED REPOSITORY LOGIC ---
 
-    // Toggle Container Visibility
-    const statusView = document.getElementById('docs-status-view');
-    const repoView = document.getElementById('docs-repository-view');
-
-    if (view === 'repository') {
-        statusView.style.display = 'none';
-        repoView.style.display = 'block';
-        renderRepository(); // Initial render
-    } else {
-        statusView.style.display = 'grid'; // Restore grid layout
-        repoView.style.display = 'none';
-    }
-}
-
-// 2. Mock Data for Repository
 const repositoryData = [
     { id: 'r1', name: "Annual Activity Report 2023", category: "Activity Report", org: "Supreme Student Council", date: "Jan 10, 2024" },
     { id: 'r2', name: "Q4 Financial Statement", category: "Financial Statement", org: "AISERS", date: "Jan 15, 2024" },
@@ -986,48 +966,119 @@ const repositoryData = [
 
 let currentRepoCategory = 'All';
 
-// 3. Render Repository
-function renderRepository() {
-    updateFolderCounts();
+// --- UPDATED REPOSITORY LOGIC ---
+
+// 1. Initialize Repository
+function initRepository() {
+    initRepoOrgFilter();
+    updateRepoCategoryDropdown(); // Calculates counts and updates Dropdown text
     renderRepoTable();
 }
 
-// 4. Update Folder Counts based on data
-function updateFolderCounts() {
-    const categories = ["Activity Report", "Financial Statement", "Event Proposal", "Resolution", "Operational Plan"];
+// 2. Populate Organization Dropdown
+function initRepoOrgFilter() {
+    const orgSelect = document.getElementById('repo-filter-org');
+    if (!orgSelect) return;
 
-    categories.forEach(cat => {
-        const count = repositoryData.filter(item => item.category === cat).length;
-        // Create ID format from string (e.g., "Activity Report" -> "count-activity-report")
-        const id = 'count-' + cat.toLowerCase().replace(/\s+/g, '-');
-        const element = document.getElementById(id);
-        if (element) element.innerText = `${count} Files`;
+    // Check if we need to repopulate (avoid duplicates if already populated)
+    if (orgSelect.options.length > 1) return;
+
+    organizations.forEach(org => {
+        const option = document.createElement('option');
+        option.value = org.name;
+        option.innerText = org.name;
+        orgSelect.appendChild(option);
     });
 }
 
-// 5. Render Table (Filtered by Category and Search)
+// 3. Update File Type Dropdown with Counts
+function updateRepoCategoryDropdown() {
+    const typeSelect = document.getElementById('repo-filter-type');
+    if (!typeSelect) return;
+
+    const categories = [
+        "Activity Report",
+        "Financial Statement",
+        "Event Proposal",
+        "Resolution",
+        "Operational Plan"
+    ];
+
+    // Calculate total
+    const totalCount = repositoryData.length;
+
+    // Update "All" option
+    typeSelect.options[0].text = `All Types (${totalCount})`;
+
+    // Update specific category options
+    categories.forEach(cat => {
+        const count = repositoryData.filter(item => item.category === cat).length;
+
+        // Find the option with this value
+        for (let i = 0; i < typeSelect.options.length; i++) {
+            if (typeSelect.options[i].value === cat) {
+                typeSelect.options[i].text = `${cat} (${count})`;
+                break;
+            }
+        }
+    });
+}
+
+// 4. Render Repository Table
 function renderRepoTable() {
     const tbody = document.getElementById('repository-table-body');
-    const searchInput = document.getElementById('repo-search-input').value.toLowerCase();
-
     if (!tbody) return;
 
-    // Filter Data
+    // Get Filter Values
+    const searchInput = document.getElementById('repo-search-input')?.value.toLowerCase() || '';
+    const filterType = document.getElementById('repo-filter-type')?.value || 'All';
+    const filterOrg = document.getElementById('repo-filter-org')?.value || 'all';
+    const filterSem = document.getElementById('repo-filter-sem')?.value || 'all';
+    const filterMonth = document.getElementById('repo-filter-month')?.value || '';
+    const filterDate = document.getElementById('repo-filter-date')?.value || '';
+
+    // Filter Logic
     const filtered = repositoryData.filter(item => {
-        const matchesCategory = currentRepoCategory === 'All' || item.category === currentRepoCategory;
+        // 1. File Type
+        const matchesType = filterType === 'All' || item.category === filterType;
+
+        // 2. Organization
+        const matchesOrg = filterOrg === 'all' || item.org === filterOrg;
+
+        // 3. Search Text
         const matchesSearch = item.name.toLowerCase().includes(searchInput) ||
-            item.org.toLowerCase().includes(searchInput) ||
-            item.category.toLowerCase().includes(searchInput);
-        return matchesCategory && matchesSearch;
+            item.org.toLowerCase().includes(searchInput);
+
+        // 4. Date Logic
+        const itemDate = new Date(item.date);
+        let matchesDate = true;
+
+        if (filterDate) {
+            matchesDate = formatDateForComparison(itemDate) === filterDate;
+        } else if (filterMonth) {
+            const itemMonthStr = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}`;
+            matchesDate = itemMonthStr === filterMonth;
+        } else if (filterSem !== 'all') {
+            const month = itemDate.getMonth(); // 0 = Jan, 11 = Dec
+            if (filterSem === '1st') {
+                // Matches Aug to Dec
+                matchesDate = month >= 7 && month <= 11;
+            } else if (filterSem === '2nd') {
+                // Matches Jan to May
+                matchesDate = month >= 0 && month <= 4;
+            }
+        }
+
+        return matchesType && matchesOrg && matchesSearch && matchesDate;
     });
 
     // Update Header Label
-    document.getElementById('repo-current-view-label').innerText =
-        currentRepoCategory === 'All' ? 'All Archived Documents' : `${currentRepoCategory}s`;
+    const label = document.getElementById('repo-current-view-label');
+    if (label) label.innerText = filterType === 'All' ? 'All Documents' : filterType;
 
     // Render Rows
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--muted);">No documents found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--muted);">No documents match your filters.</td></tr>`;
         return;
     }
 
@@ -1051,28 +1102,34 @@ function renderRepoTable() {
     `).join('');
 }
 
-// 6. Handle Folder Click (Filter by Category)
-function filterRepoByCategory(category, element) {
-    currentRepoCategory = category;
+// 5. Reset Function
+function resetRepoFilters() {
+    document.getElementById('repo-filter-type').value = 'All';
+    document.getElementById('repo-filter-org').value = 'all';
+    document.getElementById('repo-filter-sem').value = 'all';
+    document.getElementById('repo-filter-month').value = '';
+    document.getElementById('repo-filter-date').value = '';
+    document.getElementById('repo-search-input').value = '';
 
-    // Update visual active state on folders
-    const folders = document.querySelectorAll('.folder-card');
-    folders.forEach(f => f.classList.remove('active'));
+    renderRepoTable();
+    showToast('Filters reset', 'info');
+}
 
-    if (element) {
-        element.classList.add('active');
+// Hook initRepository into the switch view logic (Same as before, ensuring init is called)
+function switchDocsSubView(view, btn) {
+    const buttons = document.querySelectorAll('.sub-nav-btn');
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const statusView = document.getElementById('docs-status-view');
+    const repoView = document.getElementById('docs-repository-view');
+
+    if (view === 'repository') {
+        statusView.style.display = 'none';
+        repoView.style.display = 'block';
+        initRepository(); // Recalculates counts and renders table
+    } else {
+        statusView.style.display = 'grid';
+        repoView.style.display = 'none';
     }
-
-    renderRepoTable();
 }
-
-// 7. Handle Search Input
-function handleRepoSearch() {
-    renderRepoTable();
-}
-
-// Call renderRepository initially to populate counts (if in background)
-window.addEventListener('DOMContentLoaded', () => {
-    updateFolderCounts();
-});
-
