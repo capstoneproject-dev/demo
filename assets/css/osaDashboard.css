@@ -3069,3 +3069,44 @@ body.dark .compliance-item {
         border-radius: var(--radius-md);
     }
 }
+
+/* --- FIX: STABILIZE MONITORING CARD HEIGHT --- */
+/* These rules prevent layout shifts when the sidebar expands */
+
+/* 1. Truncate Officer Roles to single line */
+.officer-role {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 2. Prevent Compliance Items from wrapping vertically */
+.compliance-item {
+    flex-wrap: nowrap;
+}
+
+.compliance-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    /* Allows text to truncate properly inside flex */
+    margin-right: 8px;
+}
+
+/* 3. Header Details Truncation */
+#monitoring-org-details {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
+}
+
+/* 4. Desktop Grid Adjustment */
+/* Lowers the threshold for breaking to a new row, preventing height jumps */
+@media (min-width: 769px) {
+    .officers-grid-container {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
+}
