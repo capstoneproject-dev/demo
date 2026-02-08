@@ -410,7 +410,16 @@
         <!-- DOCUMENTS VIEW -->
         <!-- DOCUMENTS VIEW -->
         <div id="documents" class="section-view">
-            <div class="docs-layout">
+            <div class="sub-view-nav">
+                <button class="sub-nav-btn active" onclick="switchDocsSubView('status', this)">
+                    <i class="fa-solid fa-list-check"></i> Track Status
+                </button>
+                <button class="sub-nav-btn" onclick="switchDocsSubView('repository', this)">
+                    <i class="fa-solid fa-folder-tree"></i> Repository
+                </button>
+            </div>
+
+            <div id="docs-status-view" class="docs-layout">
                 <div class="repo-main card">
                     <div class="repo-filters">
                         <div class="filter-tabs-group">
@@ -421,7 +430,6 @@
                         </div>
                     </div>
 
-                    <!-- Filter Bar with Organization and Dates -->
                     <div class="date-filters-bar">
                         <div class="date-input-group">
                             <label for="filter-by-org">Organization:</label>
@@ -445,7 +453,6 @@
                         </button>
                     </div>
 
-                    <!-- List Header (5 Columns) -->
                     <div class="list-header-row mobile-hide">
                         <div class="col-name">Name & Type</div>
                         <div class="col-sent">Sent By</div>
@@ -454,9 +461,7 @@
                         <div class="col-status">Status</div>
                     </div>
 
-                    <!-- Scrollable List Container -->
                     <div id="docs-list">
-                        <!-- Data populated via osaDashboard.js -->
                     </div>
                 </div>
 
@@ -466,8 +471,80 @@
                             <span class="header-text-label">Recent Activities</span>
                         </div>
                         <div id="recent-docs-list">
-                            <!-- Data populated via osaDashboard.js -->
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="docs-repository-view" class="repository-container" style="display: none;">
+
+                <div class="repo-search-area">
+                    <div class="search-input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="repo-search-input" placeholder="Search by filename, org, or tag..."
+                            onkeyup="handleRepoSearch()">
+                    </div>
+                    <button class="btn btn-primary" onclick="handleRepoSearch()">Search</button>
+                </div>
+
+                <div class="repo-folders-grid">
+                    <div class="folder-card" onclick="filterRepoByCategory('Activity Report', this)">
+                        <div class="folder-icon color-blue"><i class="fa-solid fa-chart-line"></i></div>
+                        <div class="folder-info">
+                            <h5>Activity Report</h5>
+                            <span id="count-activity-report">0 Files</span>
+                        </div>
+                    </div>
+                    <div class="folder-card" onclick="filterRepoByCategory('Financial Statement', this)">
+                        <div class="folder-icon color-green"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                        <div class="folder-info">
+                            <h5>Financial Statement</h5>
+                            <span id="count-financial-statement">0 Files</span>
+                        </div>
+                    </div>
+                    <div class="folder-card" onclick="filterRepoByCategory('Event Proposal', this)">
+                        <div class="folder-icon color-purple"><i class="fa-solid fa-calendar-star"></i></div>
+                        <div class="folder-info">
+                            <h5>Event Proposal</h5>
+                            <span id="count-event-proposal">0 Files</span>
+                        </div>
+                    </div>
+                    <div class="folder-card" onclick="filterRepoByCategory('Resolution', this)">
+                        <div class="folder-icon color-red"><i class="fa-solid fa-scale-balanced"></i></div>
+                        <div class="folder-info">
+                            <h5>Resolution</h5>
+                            <span id="count-resolution">0 Files</span>
+                        </div>
+                    </div>
+                    <div class="folder-card" onclick="filterRepoByCategory('Operational Plan', this)">
+                        <div class="folder-icon color-orange"><i class="fa-solid fa-clipboard-list"></i></div>
+                        <div class="folder-info">
+                            <h5>Operational Plan</h5>
+                            <span id="count-operational-plan">0 Files</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card repo-files-card">
+                    <div class="card-header">
+                        <div class="card-title" id="repo-current-view-label">All Documents</div>
+                        <button class="btn btn-sm btn-outline" onclick="filterRepoByCategory('All', null)">Show
+                            All</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="repo-table">
+                            <thead>
+                                <tr>
+                                    <th>Document Name</th>
+                                    <th>Category</th>
+                                    <th>Organization</th>
+                                    <th>Date Archived</th>
+                                    <th class="text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="repository-table-body">
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
