@@ -57,11 +57,6 @@
                     <span class="nav-label">Documents</span>
                 </a>
             </li>
-            <li class="nav-item">
-                <a href="#" class="nav-link" onclick="navigate('verification', this)">
-                    <i class="fa-solid fa-user-graduate nav-icon"></i>
-                    <span class="nav-label">Student Verification</span>
-                </a>
             </li>
         </ul>
 
@@ -118,21 +113,36 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-info">
-                        <h3>24</h3>
-                        <p>Active Organizations</p>
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <h3>24</h3>
+                            <span style="color: #059669; font-size: 0.8rem; font-weight: 600;">
+                                <i class="fa-solid fa-arrow-up"></i> Active
+                            </span>
+                        </div>
+                        <p>Total Organizations</p>
                     </div>
                     <div class="stat-icon"><i class="fa-solid fa-users-rectangle"></i></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-info">
-                        <h3>12</h3>
-                        <p>Pending Requests</p>
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <h3>12</h3>
+                            <span style="color: #d97706; font-size: 0.8rem; font-weight: 600;">
+                                <i class="fa-regular fa-clock"></i> Pending
+                            </span>
+                        </div>
+                        <p>Request Queue</p>
                     </div>
-                    <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+                    <div class="stat-icon"><i class="fa-solid fa-file-signature"></i></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-info">
-                        <h3>85%</h3>
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <h3>85%</h3>
+                            <span style="color: #059669; font-size: 0.8rem; font-weight: 600;">
+                                <i class="fa-solid fa-arrow-trend-up"></i> +5%
+                            </span>
+                        </div>
                         <p>Engagement Rate</p>
                     </div>
                     <div class="stat-icon"><i class="fa-solid fa-bolt"></i></div>
@@ -140,69 +150,63 @@
                 <div class="stat-card">
                     <div class="stat-info">
                         <h3>450</h3>
-                        <p>Total Active Members</p>
+                        <p>Total Members</p>
                     </div>
                     <div class="stat-icon"><i class="fa-solid fa-user-check"></i></div>
                 </div>
             </div>
 
             <div class="content-row">
-                <!-- Analytics Chart -->
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">Overall Engagement Analytics</div>
-                        <select style="width: auto; margin: 0;">
-                            <option>This Semester</option>
-                            <option>Last Semester</option>
-                        </select>
+                        <div>
+                            <div class="card-title">Recent Requests</div>
+                            <p style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
+                                Awaiting Admin Action
+                            </p>
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="navigate('requests')">View All</button>
                     </div>
-                    <div class="chart-container">
-                        <div class="bar-group">
-                            <div class="bar" style="height: 40%;"></div>
-                            <span class="bar-label">Acads</span>
-                        </div>
-                        <div class="bar-group">
-                            <div class="bar" style="height: 75%; background-color: var(--accent);"></div>
-                            <span class="bar-label">Socials</span>
-                        </div>
-                        <div class="bar-group">
-                            <div class="bar" style="height: 60%;"></div>
-                            <span class="bar-label">Sports</span>
-                        </div>
-                        <div class="bar-group">
-                            <div class="bar" style="height: 30%;"></div>
-                            <span class="bar-label">Arts</span>
-                        </div>
-                        <div class="bar-group">
-                            <div class="bar" style="height: 90%;"></div>
-                            <span class="bar-label">Community</span>
-                        </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Organization</th>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-requests-preview">
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <!-- Pending Tasks -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Priority Actions</div>
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 12px;">
-                        <div
-                            style="padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.9rem;">Event Proposal: "Tech Summit"</div>
-                                <div style="font-size: 0.75rem; color: var(--muted);">Computer Science Society</div>
-                            </div>
-                            <button class="btn btn-sm btn-primary" onclick="navigate('requests')">Review</button>
+                <div style="display: flex; flex-direction: column; gap: 24px;">
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Quick Actions</div>
                         </div>
-                        <div
-                            style="padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.9rem;">Post Approval: General Assembly</div>
-                                <div style="font-size: 0.75rem; color: var(--muted);">Student Council</div>
-                            </div>
-                            <button class="btn btn-sm btn-outline" onclick="navigate('requests')">Check</button>
+                        <div class="quick-action-grid">
+                            <button class="btn btn-primary" onclick="navigate('requests')">
+                                <i class="fa-solid fa-list-check"></i> Review Requests
+                            </button>
+                            <button class="btn btn-outline" onclick="navigate('organizations')">
+                                <i class="fa-solid fa-users-viewfinder"></i> Monitor Orgs
+                            </button>
                         </div>
                     </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Recent Activity</div>
+                        </div>
+                        <div id="activity-feed" class="activity-list">
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -422,38 +426,9 @@
             </div>
         </div>
 
-        <!-- VERIFICATION VIEW -->
-        <div id="verification" class="section-view">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Student Enrollment Verification</div>
-                </div>
-
-                <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 300px;">
-                        <label>Student ID Number</label>
-                        <input type="text" id="verify-input" placeholder="e.g., 2021-12345">
-
-                        <label>OR Full Name</label>
-                        <input type="text" id="verify-name" placeholder="Last Name, First Name">
-
-                        <button class="btn btn-primary" style="width: 100%;" onclick="verifyStudent()">
-                            <i class="fa-solid fa-magnifying-glass"></i> Verify Enrollment
-                        </button>
-                    </div>
-
-                    <div style="flex: 1; min-width: 300px;" id="verify-result-area">
-                        <div class="verification-box">
-                            <i class="fa-solid fa-id-card"
-                                style="font-size: 3rem; color: var(--muted); margin-bottom: 15px;"></i>
-                            <h3 style="color: var(--muted);">Enter details to verify</h3>
-                            <p style="font-size: 0.9rem; color: var(--muted);">Connects to University Registrar Database
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
+
+    </main>
 
     </main>
 
