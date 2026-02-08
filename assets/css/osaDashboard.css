@@ -1776,6 +1776,31 @@ body.dark #monitoring .btn-primary.active {
     border-color: #ffffff !important;
 }
 
+/* --- SENDER COLUMN STYLING --- */
+.sender-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sender-name {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.sender-position {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+/* Ensure the table doesn't feel cramped on smaller desktops */
+@media (min-width: 769px) {
+    #requests table {
+        min-width: 900px;
+    }
+}
+
 /* --- RECENT ACTIVITY FEED --- */
 .activity-list {
     display: flex;
