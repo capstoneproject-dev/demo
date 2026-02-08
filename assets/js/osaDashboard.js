@@ -283,9 +283,9 @@ function renderRequests() {
 
         // Date range filtering
         let matchesDate = true;
-        if (selectedFromDate && selectedToDate) {
+        if (reqDateFilter.from && reqDateFilter.to) {
             const reqDate = new Date(req.date);
-            matchesDate = reqDate >= selectedFromDate && reqDate <= selectedToDate;
+            matchesDate = reqDate >= reqDateFilter.from && reqDate <= reqDateFilter.to;
         }
 
         return matchesType && matchesOrg && matchesStatus && matchesDate;
@@ -434,7 +434,6 @@ function renderDocs(filter = 'All', btnElement = null) {
         // 2. Organization Filter
         const docOrg = organizations[doc.title.length % organizations.length].name;
         const matchesOrg = (orgVal === 'all') || (docOrg === orgVal);
-
         // 3. Date/Month Filter
         let matchesDate = true;
         let docDateObj;
@@ -447,11 +446,8 @@ function renderDocs(filter = 'All', btnElement = null) {
             docDateObj = new Date(`${doc.date}, 2026`);
         }
 
-        if (dateVal) {
-            matchesDate = formatDateForComparison(docDateObj) === dateVal;
-        } else if (monthVal) {
-            const docMonth = `${docDateObj.getFullYear()}-${String(docDateObj.getMonth() + 1).padStart(2, '0')}`;
-            matchesDate = docMonth === monthVal;
+        if (docsDateFilter.from && docsDateFilter.to) {
+            matchesDate = docDateObj >= docsDateFilter.from && docDateObj <= docsDateFilter.to;
         }
 
         return matchesStatus && matchesOrg && matchesDate;
@@ -513,26 +509,23 @@ function filterDocs(filter, btnElement) {
 }
 
 function resetDateFilters() {
-    const dateInput = document.getElementById('filter-by-date');
-    const monthInput = document.getElementById('filter-by-month');
     const orgInput = document.getElementById('filter-by-org');
-
-    if (dateInput) dateInput.value = '';
-    if (monthInput) monthInput.value = '';
     if (orgInput) orgInput.value = 'all';
+
+    // Reset Docs Date Filter
+    docsDateFilter.from = null;
+    docsDateFilter.to = null;
+
+    // Reset UI
+    const dateBtn = document.querySelector('#docs-status-view .date-range-btn');
+    const label = document.getElementById('docs-date-range-label');
+    if (label) label.innerText = 'Select Date Range';
+    if (dateBtn) dateBtn.classList.remove('active');
 
     renderDocs(currentDocFilter);
 }
 
-function formatDateForComparison(date) {
-    const d = new Date(date);
-    let month = '' + (d.getMonth() + 1);
-    let day = '' + d.getDate();
-    const year = d.getFullYear();
-    if (month.length < 2) month = '0' + month;
-    if (day.length < 2) day = '0' + day;
-    return [year, month, day].join('-');
-}
+
 
 
 function submitToOSA(index) {
@@ -691,15 +684,41 @@ function confirmRequestAction() {
 }
 
 // --- DATE PICKER CALENDAR FUNCTIONS ---
-function openDatePicker() {
+// Context-Aware Date Picker Logic
+let currentDateContext = 'requests'; // 'requests', 'docs', or 'repo'
+
+// Independent Date Filter States
+const reqDateFilter = { from: null, to: null };
+const docsDateFilter = { from: null, to: null };
+const repoDateFilter = { from: null, to: null };
+
+function openDatePicker(context = 'requests') {
+    currentDateContext = context;
     const modal = document.getElementById('date-picker-modal');
     modal.classList.add('active');
+
+    // Load existing state for the context
+    if (context === 'requests') {
+        selectedFromDate = reqDateFilter.from;
+        selectedToDate = reqDateFilter.to;
+    } else if (context === 'docs') {
+        selectedFromDate = docsDateFilter.from;
+        selectedToDate = docsDateFilter.to;
+    } else if (context === 'repo') {
+        selectedFromDate = repoDateFilter.from;
+        selectedToDate = repoDateFilter.to;
+    }
+
+    updateDateRangeDisplay();
     renderCalendar(calendarCurrentMonth, calendarCurrentYear);
 }
 
 function closeDatePicker() {
     const modal = document.getElementById('date-picker-modal');
     modal.classList.remove('active');
+    // We don't clear selected dates here because they might be pending application or cancellation
+    // But to be safe, if cancelled, we should probably reset internal state to saved state?
+    // For simplicity, we just close. Next open will re-load from saved state.
 }
 
 function renderCalendar(month, year) {
@@ -834,15 +853,42 @@ function clearDateRange() {
 
 function applyDateRange() {
     if (selectedFromDate && selectedToDate) {
-        const dateBtn = document.querySelector('.date-range-btn');
-        const label = document.getElementById('date-range-label');
-
         const fromStr = selectedFromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const toStr = selectedToDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        label.innerText = `${fromStr} - ${toStr}`;
-        dateBtn.classList.add('active');
+        const labelText = `${fromStr} - ${toStr}`;
 
-        renderRequests();
+        if (currentDateContext === 'requests') {
+            reqDateFilter.from = selectedFromDate;
+            reqDateFilter.to = selectedToDate;
+
+            const dateBtn = document.querySelector('.requests-filter-bar .date-range-btn');
+            const label = document.getElementById('date-range-label');
+            if (label) label.innerText = labelText;
+            if (dateBtn) dateBtn.classList.add('active');
+
+            renderRequests();
+        } else if (currentDateContext === 'docs') {
+            docsDateFilter.from = selectedFromDate;
+            docsDateFilter.to = selectedToDate;
+
+            const dateBtn = document.querySelector('#docs-status-view .date-range-btn');
+            const label = document.getElementById('docs-date-range-label');
+            if (label) label.innerText = labelText;
+            if (dateBtn) dateBtn.classList.add('active');
+
+            renderDocs(currentDocFilter);
+        } else if (currentDateContext === 'repo') {
+            repoDateFilter.from = selectedFromDate;
+            repoDateFilter.to = selectedToDate;
+
+            const dateBtn = document.querySelector('#docs-repository-view .date-range-btn');
+            const label = document.getElementById('repo-date-range-label');
+            if (label) label.innerText = labelText;
+            if (dateBtn) dateBtn.classList.add('active');
+
+            renderRepoTable();
+        }
+
         closeDatePicker();
         showToast('Date filter applied', 'success');
     } else {
@@ -855,13 +901,20 @@ function clearRequestFilters() {
     document.getElementById('req-type-filter').value = 'all';
     document.getElementById('req-org-filter').value = 'all';
 
-    // Clear date range
-    selectedFromDate = null;
-    selectedToDate = null;
-    const dateBtn = document.querySelector('.date-range-btn');
+    // Clear date range state for requests
+    reqDateFilter.from = null;
+    reqDateFilter.to = null;
+
+    // Clear global selection if we are in requests context (which we are if clicking this button)
+    if (currentDateContext === 'requests') {
+        selectedFromDate = null;
+        selectedToDate = null;
+    }
+
+    const dateBtn = document.querySelector('.requests-filter-bar .date-range-btn');
     const label = document.getElementById('date-range-label');
-    label.innerText = 'Select Date Range';
-    dateBtn.classList.remove('active');
+    if (label) label.innerText = 'Select Date Range';
+    if (dateBtn) dateBtn.classList.remove('active');
 
     // Re-render
     renderRequests();
@@ -1034,8 +1087,6 @@ function renderRepoTable() {
     const filterType = document.getElementById('repo-filter-type')?.value || 'All';
     const filterOrg = document.getElementById('repo-filter-org')?.value || 'all';
     const filterSem = document.getElementById('repo-filter-sem')?.value || 'all';
-    const filterMonth = document.getElementById('repo-filter-month')?.value || '';
-    const filterDate = document.getElementById('repo-filter-date')?.value || '';
 
     // Filter Logic
     const filtered = repositoryData.filter(item => {
@@ -1053,11 +1104,8 @@ function renderRepoTable() {
         const itemDate = new Date(item.date);
         let matchesDate = true;
 
-        if (filterDate) {
-            matchesDate = formatDateForComparison(itemDate) === filterDate;
-        } else if (filterMonth) {
-            const itemMonthStr = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}`;
-            matchesDate = itemMonthStr === filterMonth;
+        if (repoDateFilter.from && repoDateFilter.to) {
+            matchesDate = itemDate >= repoDateFilter.from && itemDate <= repoDateFilter.to;
         } else if (filterSem !== 'all') {
             const month = itemDate.getMonth(); // 0 = Jan, 11 = Dec
             if (filterSem === '1st') {
@@ -1107,9 +1155,16 @@ function resetRepoFilters() {
     document.getElementById('repo-filter-type').value = 'All';
     document.getElementById('repo-filter-org').value = 'all';
     document.getElementById('repo-filter-sem').value = 'all';
-    document.getElementById('repo-filter-month').value = '';
-    document.getElementById('repo-filter-date').value = '';
     document.getElementById('repo-search-input').value = '';
+
+    // Reset Date Filter
+    repoDateFilter.from = null;
+    repoDateFilter.to = null;
+
+    const dateBtn = document.querySelector('#docs-repository-view .date-range-btn');
+    const label = document.getElementById('repo-date-range-label');
+    if (label) label.innerText = 'Select Date Range';
+    if (dateBtn) dateBtn.classList.remove('active');
 
     renderRepoTable();
     showToast('Filters reset', 'info');

@@ -172,7 +172,160 @@ window.addEventListener('click', function (event) {
 
 // --- REPOSITORY & SUBMIT LOGIC ---
 
+// New Context-Aware Filter State
 let currentDocFilter = 'All';
+
+// Separate Filter States
+let docsDateFilter = { from: null, to: null };
+let repoDateFilter = { from: null, to: null };
+
+let currentDateContext = 'docs'; // 'docs' or 'repo'
+let selectedFromDate = null;
+let selectedToDate = null;
+let calendarCurrentMonth = new Date().getMonth();
+let calendarCurrentYear = new Date().getFullYear();
+
+// --- DATE PICKER LOGIC ---
+
+function openDatePicker(context = 'docs') {
+    currentDateContext = context;
+    const modal = document.getElementById('date-picker-modal');
+    modal.classList.add('active');
+
+    // Load existing state for the context
+    if (context === 'docs') {
+        selectedFromDate = docsDateFilter.from;
+        selectedToDate = docsDateFilter.to;
+    } else if (context === 'repo') {
+        selectedFromDate = repoDateFilter.from;
+        selectedToDate = repoDateFilter.to;
+    }
+
+    updateDateRangeDisplay();
+    renderCalendar(calendarCurrentMonth, calendarCurrentYear);
+}
+
+function closeDatePicker() {
+    document.getElementById('date-picker-modal').classList.remove('active');
+}
+
+function renderCalendar(month, year) {
+    const grid = document.getElementById('calendar-grid'); // Now targets .calendar-dates
+    grid.innerHTML = '';
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    document.getElementById('calendar-month-year').innerText = `${monthNames[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    // Empty slots
+    for (let i = 0; i < firstDay; i++) {
+        const div = document.createElement('div');
+        grid.appendChild(div);
+    }
+
+    // Days
+    for (let i = 1; i <= daysInMonth; i++) {
+        const date = new Date(year, month, i);
+        const div = document.createElement('div');
+        div.className = 'calendar-date';
+        div.innerText = i;
+        div.onclick = () => selectDate(date);
+
+        // Styling selection
+        if (selectedFromDate && date.getTime() === selectedFromDate.getTime()) div.classList.add('selected');
+        if (selectedToDate && date.getTime() === selectedToDate.getTime()) div.classList.add('selected');
+        if (selectedFromDate && selectedToDate && date > selectedFromDate && date < selectedToDate) div.classList.add('in-range');
+
+        grid.appendChild(div);
+    }
+}
+
+function changeCalendarMonth(step) {
+    calendarCurrentMonth += step;
+    if (calendarCurrentMonth > 11) {
+        calendarCurrentMonth = 0;
+        calendarCurrentYear++;
+    } else if (calendarCurrentMonth < 0) {
+        calendarCurrentMonth = 11;
+        calendarCurrentYear--;
+    }
+    renderCalendar(calendarCurrentMonth, calendarCurrentYear);
+}
+
+function selectDate(date) {
+    if (!selectedFromDate || (selectedFromDate && selectedToDate)) {
+        selectedFromDate = date;
+        selectedToDate = null;
+    } else {
+        if (date < selectedFromDate) {
+            selectedToDate = selectedFromDate;
+            selectedFromDate = date;
+        } else {
+            selectedToDate = date;
+        }
+    }
+    updateDateRangeDisplay();
+    renderCalendar(calendarCurrentMonth, calendarCurrentYear);
+}
+
+function updateDateRangeDisplay() {
+    const fromDisplay = document.getElementById('date-from-display');
+    const toDisplay = document.getElementById('date-to-display');
+
+    if (selectedFromDate) fromDisplay.innerText = selectedFromDate.toLocaleDateString();
+    else fromDisplay.innerText = 'Select Date';
+
+    if (selectedToDate) toDisplay.innerText = selectedToDate.toLocaleDateString();
+    else toDisplay.innerText = 'Select Date';
+}
+
+function clearDateRange() {
+    selectedFromDate = null;
+    selectedToDate = null;
+    updateDateRangeDisplay();
+    renderCalendar(calendarCurrentMonth, calendarCurrentYear);
+}
+
+function applyDateRange() {
+    if (!selectedFromDate || !selectedToDate) {
+        alert('Please select a valid date range.');
+        return;
+    }
+
+    const fromStr = selectedFromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const toStr = selectedToDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const labelText = `${fromStr} - ${toStr}`;
+
+    if (currentDateContext === 'docs') {
+        docsDateFilter.from = selectedFromDate;
+        docsDateFilter.to = selectedToDate;
+
+        const dateBtn = document.querySelector('#documents .date-range-btn');
+        const label = document.getElementById('docs-date-range-label');
+        if (label) label.innerText = labelText;
+        if (dateBtn) dateBtn.classList.add('active');
+
+        renderDocs(currentDocFilter);
+
+    } else if (currentDateContext === 'repo') {
+        repoDateFilter.from = selectedFromDate;
+        repoDateFilter.to = selectedToDate;
+
+        const dateBtn = document.querySelector('#docs-repository-view .date-range-btn');
+        const label = document.getElementById('repo-date-range-label');
+        if (label) label.innerText = labelText;
+        if (dateBtn) dateBtn.classList.add('active');
+
+        renderRepoTable();
+    }
+
+    closeDatePicker();
+    // Assuming showToast is similar to alert for now, or use alert if showToast not defined
+    // alert('Date filter applied'); 
+}
+
 
 function renderRecentDocs() {
     const list = document.getElementById('recent-docs-list');
@@ -225,12 +378,11 @@ function renderDocs(filter = 'All', btnElement = null) {
         return doc.status.includes(filter);
     });
 
-    // 2. Filter by Date/Month (New Logic)
-    if (dateVal || monthVal) {
+    // 2. Filter by Date Range (Updated)
+    const { from, to } = docsDateFilter;
+
+    if (from && to) {
         filteredData = filteredData.filter(doc => {
-            // Convert simulated dates ("Oct 18") to a comparable object
-            // Note: Since no year is in your simulation, we assume 2026 for comparison
-            // "Just now" or "Yesterday" cases need handling ideally, but strictly following user logic for now or defaulting to current date
             let docDate;
             if (doc.date === "Just now") {
                 docDate = new Date();
@@ -241,13 +393,12 @@ function renderDocs(filter = 'All', btnElement = null) {
                 docDate = new Date(`${doc.date}, 2026`);
             }
 
-            if (dateVal) {
-                return formatDateForComparison(docDate) === dateVal;
-            } else if (monthVal) {
-                const docMonth = `${docDate.getFullYear()}-${String(docDate.getMonth() + 1).padStart(2, '0')}`;
-                return docMonth === monthVal;
-            }
-            return true;
+            // Normalize times for accurate comparison
+            const checkDate = new Date(docDate.setHours(0, 0, 0, 0));
+            const fromDate = new Date(from.setHours(0, 0, 0, 0));
+            const toDate = new Date(to.setHours(23, 59, 59, 999));
+
+            return checkDate >= fromDate && checkDate <= toDate;
         });
     }
 
@@ -356,11 +507,18 @@ function renderDocs(filter = 'All', btnElement = null) {
 }
 
 // Helper: Clear filters
+// Helper: Clear filters
 function resetDateFilters() {
-    const dateInput = document.getElementById('filter-by-date');
-    const monthInput = document.getElementById('filter-by-month');
-    if (dateInput) dateInput.value = '';
-    if (monthInput) monthInput.value = '';
+    // Reset State
+    docsDateFilter.from = null;
+    docsDateFilter.to = null;
+
+    // Reset UI
+    const dateBtn = document.querySelector('#documents .date-range-btn');
+    const label = document.getElementById('docs-date-range-label');
+    if (label) label.innerText = 'Select Date Range';
+    if (dateBtn) dateBtn.classList.remove('active');
+
     renderDocs(currentDocFilter);
 }
 
@@ -891,15 +1049,17 @@ function renderRepoTable() {
         const matchesSearch = item.name.toLowerCase().includes(searchInput) ||
             item.category.toLowerCase().includes(searchInput);
 
-        // 3. Date Logic
+        // 3. Date Logic (Updated)
         const itemDate = new Date(item.date);
         let matchesDate = true;
 
-        if (filterDate) {
-            matchesDate = formatDateForComparison(itemDate) === filterDate;
-        } else if (filterMonth) {
-            const itemMonthStr = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}`;
-            matchesDate = itemMonthStr === filterMonth;
+        if (repoDateFilter.from && repoDateFilter.to) {
+            const checkDate = new Date(itemDate.setHours(0, 0, 0, 0));
+            const fromDate = new Date(repoDateFilter.from.setHours(0, 0, 0, 0));
+            const toDate = new Date(repoDateFilter.to.setHours(23, 59, 59, 999));
+
+            matchesDate = checkDate >= fromDate && checkDate <= toDate;
+
         } else if (filterSem !== 'all') {
             const month = itemDate.getMonth(); // 0-11
             if (filterSem === '1st') {
@@ -948,9 +1108,16 @@ function renderRepoTable() {
 function resetRepoFilters() {
     document.getElementById('repo-filter-type').value = 'All';
     document.getElementById('repo-filter-sem').value = 'all';
-    document.getElementById('repo-filter-month').value = '';
-    document.getElementById('repo-filter-date').value = '';
     document.getElementById('repo-search-input').value = '';
+
+    // Reset Date Filter
+    repoDateFilter.from = null;
+    repoDateFilter.to = null;
+
+    const dateBtn = document.querySelector('#docs-repository-view .date-range-btn');
+    const label = document.getElementById('repo-date-range-label');
+    if (label) label.innerText = 'Select Date Range';
+    if (dateBtn) dateBtn.classList.remove('active');
 
     renderRepoTable();
     // Assuming showToast exists in your main scripts, otherwise alert
