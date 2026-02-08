@@ -332,6 +332,22 @@ function renderRequests() {
     });
 }
 
+// Initialize Organization filter for Documents
+function initDocOrgFilter() {
+    const orgSelect = document.getElementById('filter-by-org');
+    if (!orgSelect) return;
+
+    // Clear existing except "All"
+    orgSelect.innerHTML = '<option value="all">All Organizations</option>';
+
+    organizations.forEach(org => {
+        const option = document.createElement('option');
+        option.value = org.name;
+        option.innerText = org.name;
+        orgSelect.appendChild(option);
+    });
+}
+
 // --- PORTED DOCUMENT LOGIC ---
 let currentDocFilter = 'All';
 
@@ -403,39 +419,43 @@ function renderDocs(filter = 'All', btnElement = null) {
 
     const dateVal = document.getElementById('filter-by-date')?.value || '';
     const monthVal = document.getElementById('filter-by-month')?.value || '';
+    const orgVal = document.getElementById('filter-by-org')?.value || 'all';
 
     // DATA SIMULATION POOLS
     const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
 
-    // 1. Filter by Status (Existing Logic)
+    // Filter Logic
     let filteredData = docsData.filter(doc => {
-        if (filter === 'All') return true;
-        if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending') || doc.status === 'SSC Approved';
-        return doc.status.includes(filter);
+        // 1. Status Filter
+        const matchesStatus = (filter === 'All') ||
+            (filter === 'Pending' && (doc.status.includes('Sent') || doc.status.includes('Pending') || doc.status === 'SSC Approved')) ||
+            (doc.status.includes(filter));
+
+        // 2. Organization Filter
+        const docOrg = organizations[doc.title.length % organizations.length].name;
+        const matchesOrg = (orgVal === 'all') || (docOrg === orgVal);
+
+        // 3. Date/Month Filter
+        let matchesDate = true;
+        let docDateObj;
+
+        if (doc.date === "Just now") docDateObj = new Date();
+        else if (doc.date === "Yesterday") {
+            docDateObj = new Date();
+            docDateObj.setDate(docDateObj.getDate() - 1);
+        } else {
+            docDateObj = new Date(`${doc.date}, 2026`);
+        }
+
+        if (dateVal) {
+            matchesDate = formatDateForComparison(docDateObj) === dateVal;
+        } else if (monthVal) {
+            const docMonth = `${docDateObj.getFullYear()}-${String(docDateObj.getMonth() + 1).padStart(2, '0')}`;
+            matchesDate = docMonth === monthVal;
+        }
+
+        return matchesStatus && matchesOrg && matchesDate;
     });
-
-    // 2. Filter by Date/Month (Maintained)
-    if (dateVal || monthVal) {
-        filteredData = filteredData.filter(doc => {
-            let docDate;
-            if (doc.date === "Just now") {
-                docDate = new Date();
-            } else if (doc.date === "Yesterday") {
-                docDate = new Date();
-                docDate.setDate(docDate.getDate() - 1);
-            } else {
-                docDate = new Date(`${doc.date}, 2026`);
-            }
-
-            if (dateVal) {
-                return formatDateForComparison(docDate) === dateVal;
-            } else if (monthVal) {
-                const docMonth = `${docDate.getFullYear()}-${String(docDate.getMonth() + 1).padStart(2, '0')}`;
-                return docMonth === monthVal;
-            }
-            return true;
-        });
-    }
 
     if (filteredData.length === 0) {
         list.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--muted); grid-column: 1/-1;">No documents match these filters.</div>`;
@@ -492,6 +512,17 @@ function filterDocs(filter, btnElement) {
     renderDocs(filter, btnElement);
 }
 
+function resetDateFilters() {
+    const dateInput = document.getElementById('filter-by-date');
+    const monthInput = document.getElementById('filter-by-month');
+    const orgInput = document.getElementById('filter-by-org');
+
+    if (dateInput) dateInput.value = '';
+    if (monthInput) monthInput.value = '';
+    if (orgInput) orgInput.value = 'all';
+
+    renderDocs(currentDocFilter);
+}
 
 function formatDateForComparison(date) {
     const d = new Date(date);
@@ -875,18 +906,21 @@ function showToast(message, type = 'info') {
 // Init
 window.addEventListener('DOMContentLoaded', () => {
     setDate();
+    resetDateFilters(); // Reset date filters on load
+
     // Initialize Dashboard
     renderRecentActivities();
     renderDashboardPreview();
+
+    // Initialize Documents Logic
+    initDocOrgFilter(); // Initialize document organization filter
+    renderDocs();
+    renderRecentDocs();
 
     // Initialize Requests
     initReqOrgFilter();
     renderRequests();
     renderOrgs();
-
-    // Initialize Documents Logic
-    renderDocs();
-    renderRecentDocs();
 
     // Initialize Date Picker defaults
     const today = new Date();
