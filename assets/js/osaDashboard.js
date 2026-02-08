@@ -86,11 +86,14 @@ const requests = [
     { id: 104, type: "Event Proposal", org: "SCHOLAR'S GUILD", sender: "PO Martinez", title: "Mental Health Week", date: "Oct 22, 2023", status: "Pending" }
 ];
 
-const documents = [
-    { name: "Constitution & By-Laws", org: "ELITECH", type: "Legal", status: "Approved" },
-    { name: "Q1 Financial Report", org: "CYC", type: "Financial", status: "Archived" },
-    { name: "List of Officers", org: "AERO-ATSO", type: "Admin", status: "Approved" }
+const docsData = [
+    { title: "September Financial Statement", type: "Financial Statement", date: "Oct 05", status: "Approved" },
+    { title: "Team Building Proposal", type: "Proposal", date: "Oct 18", status: "Sent to OSA" },
+    { title: "Election Guidelines", type: "Document", date: "Oct 20", status: "Pending" },
+    { title: "Constitution Amendment", type: "Legal", date: "Oct 24", status: "SSC Approved" }
 ];
+
+let currentDocFilter = 'All';
 
 const transactions = [
     { org: "Supreme Student Council", sender: "Juan Dela Cruz", doc: "Budget Proposal Q4", date: "Oct 25, 2023", status: "Pending" },
@@ -329,17 +332,160 @@ function renderRequests() {
     });
 }
 
-function renderDocs() {
-    const tbody = document.getElementById('docs-table');
-    tbody.innerHTML = documents.map(doc => `
-        <tr>
-            <td>${doc.name}</td>
-            <td>${doc.org}</td>
-            <td>${doc.type}</td>
-            <td><span class="status-badge status-${doc.status.toLowerCase()}">${doc.status}</span></td>
-            <td><button class="btn btn-sm btn-outline"><i class="fa-solid fa-download"></i></button></td>
-        </tr>
+// --- DOCUMENT REPOSITORY LOGIC ---
+
+// Renders the main document list with 5-column grid
+function renderDocs(filter = 'All', btnElement = null) {
+    currentDocFilter = filter;
+    const list = document.getElementById('docs-list');
+    if (!list) return; // Guard clause
+
+    // Update active tab UI
+    if (btnElement) {
+        document.querySelectorAll('.filter-tab').forEach(btn => btn.classList.remove('active'));
+        btnElement.classList.add('active');
+    }
+
+    const dateVal = document.getElementById('filter-by-date') ? document.getElementById('filter-by-date').value : '';
+    const monthVal = document.getElementById('filter-by-month') ? document.getElementById('filter-by-month').value : '';
+
+    // Data Simulation Pools
+    const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
+    const sscOfficers = ["Pres. Cruz", "VP Santos", "Sec. Reyes"];
+    const osaAdmins = ["Dir. Fury", "Mrs. Potts", "Admin Stark"];
+
+    // Filter Logic
+    let filteredData = docsData.filter(doc => {
+        if (filter === 'All') return true;
+        if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending') || doc.status === 'SSC Approved';
+        return doc.status.includes(filter);
+    });
+
+    // Date Filter Logic
+    if (dateVal || monthVal) {
+        filteredData = filteredData.filter(doc => {
+            let docDate = new Date(`${doc.date}, 2026`); // Simulating current year
+            if (dateVal) {
+                return formatDateForComparison(docDate) === dateVal;
+            } else if (monthVal) {
+                const docMonth = `${docDate.getFullYear()}-${String(docDate.getMonth() + 1).padStart(2, '0')}`;
+                return docMonth === monthVal;
+            }
+            return true;
+        });
+    }
+
+    if (filteredData.length === 0) {
+        list.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--muted); grid-column: 1/-1;">No documents match these filters.</div>`;
+        return;
+    }
+
+    list.innerHTML = filteredData.map((doc, index) => {
+        // Deterministic mock data for columns
+        const sender = senders[doc.title.length % senders.length];
+        const sscOfficer = sscOfficers[doc.title.length % sscOfficers.length];
+        const osaAdmin = osaAdmins[doc.title.length % osaAdmins.length];
+
+        let sscHtml = '', osaHtml = '', actionButtons = '', statusBadge = '';
+
+        if (doc.status === 'Approved') {
+            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            osaHtml = `<span>${osaAdmin}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            actionButtons = `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')"><i class="fa-solid fa-eye"></i> View</button>`;
+            statusBadge = '<span class="status-badge status-completed" style="margin-left:8px;">Approved</span>';
+        } else if (doc.status === 'SSC Approved') {
+            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Action Required</span>`;
+            actionButtons = `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); alert('Submit to OSA?')">Submit <i class="fa-solid fa-paper-plane"></i></button>`;
+            statusBadge = '<span class="status-badge status-pending" style="margin-left:8px;">Ready</span>';
+        } else if (doc.status.includes('Sent to OSA')) {
+            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
+            actionButtons = `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')"><i class="fa-solid fa-eye"></i> View</button>`;
+            statusBadge = '<span class="status-badge status-sent" style="margin-left:8px;">Sent to OSA</span>';
+        } else {
+            sscHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
+            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting</span>`;
+            actionButtons = `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')"><i class="fa-solid fa-eye"></i> View</button>`;
+            statusBadge = '<span class="status-badge status-pending" style="margin-left:8px;">Pending</span>';
+        }
+
+        return `
+        <div class="list-item" onclick="openPdfViewer('doc_${index}')">
+            <div class="col-name" style="display: flex; gap: 15px; align-items: center;">
+                <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
+                    <i class="fa-solid fa-file-pdf"></i>
+                </div>
+                <div style="overflow: hidden;">
+                    <div style="display:flex; align-items:center;">
+                        <h4 style="font-size:0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</h4>
+                        ${statusBadge}
+                    </div>
+                    <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
+                </div>
+            </div>
+            <div class="col-sent mobile-hide">${sender}</div>
+            <div class="col-ssc mobile-hide">${sscHtml}</div>
+            <div class="col-osa mobile-hide">${osaHtml}</div>
+            <div class="col-status">${actionButtons}</div>
+        </div>`;
+    }).join('');
+}
+
+// Renders the Sidebar Recent List
+function renderRecentDocs() {
+    const list = document.getElementById('recent-docs-list');
+    if (!list) return;
+    const recentItems = docsData.slice(0, 3);
+    list.innerHTML = recentItems.map(doc => `
+        <div class="recent-item">
+            <div class="recent-icon"><i class="fa-solid fa-file-contract"></i></div>
+            <div class="recent-info">
+                <h5>${doc.title}</h5>
+                <span>${doc.date} • ${doc.status}</span>
+            </div>
+        </div>
     `).join('');
+}
+
+// Helper: Format Date
+function formatDateForComparison(date) {
+    const d = new Date(date);
+    let month = '' + (d.getMonth() + 1), day = '' + d.getDate(), year = d.getFullYear();
+    if (month.length < 2) month = '0' + month;
+    if (day.length < 2) day = '0' + day;
+    return [year, month, day].join('-');
+}
+
+// Reset Filters
+function resetDateFilters() {
+    document.getElementById('filter-by-date').value = '';
+    document.getElementById('filter-by-month').value = '';
+    renderDocs(currentDocFilter);
+}
+
+// Modal & Submit Handlers
+function filterDocs(filter, btn) { renderDocs(filter, btn); }
+
+function openSubmitModal() {
+    document.getElementById('submit-doc-modal').classList.add('show');
+}
+function closeSubmitModal() {
+    document.getElementById('submit-doc-modal').classList.remove('show');
+}
+function handleDocSubmit(e) {
+    e.preventDefault();
+    const recipient = document.getElementById('doc-recipient').value;
+    const title = e.currentTarget.querySelector('input[type="text"]').value;
+    const type = document.getElementById('doc-type').value;
+
+    docsData.unshift({ title: title, type: type, date: "Just now", status: `Sent to ${recipient}` });
+
+    // Refresh
+    renderDocs('All', document.querySelector('.repo-filters .filter-tab:first-child'));
+    renderRecentDocs();
+    closeSubmitModal();
+    showToast(`Document sent to ${recipient}`, 'success');
 }
 
 function formatShortDate(isoDate) {
@@ -348,24 +494,6 @@ function formatShortDate(isoDate) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function syncPdfUploadsIntoTransactions() {
-    if (!window.PDFViewer || typeof PDFViewer.getUploadsMeta !== 'function') return;
-
-    const uploads = PDFViewer.getUploadsMeta();
-    uploads.forEach(upload => {
-        const exists = transactions.some(t => t.id === upload.id);
-        if (!exists) {
-            transactions.unshift({
-                id: upload.id,
-                org: 'Current User',
-                sender: 'Me',
-                doc: upload.name,
-                date: formatShortDate(upload.uploadDate),
-                status: 'Pending'
-            });
-        }
-    });
-}
 
 function renderTransactions() {
     const tbody = document.getElementById('transactions-table-body');
@@ -705,6 +833,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderOrgs();
     renderRequests();
     renderDocs();
+    renderRecentDocs();
     renderTransactions();
     initReqOrgFilter();
 
@@ -723,6 +852,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('pdfviewer:ready', () => {
-    syncPdfUploadsIntoTransactions();
+    // syncPdfUploadsIntoTransactions(); // Removed as we use docsData now
     renderTransactions();
 });
