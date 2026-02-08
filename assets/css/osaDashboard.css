@@ -1776,260 +1776,6 @@ body.dark #monitoring .btn-primary.active {
     border-color: #ffffff !important;
 }
 
-/* --- DOCUMENT REPOSITORY STYLES (MATCHING OFFICER DASHBOARD) --- */
-
-/* Layout Grid */
-.docs-layout {
-    display: grid;
-    grid-template-columns: 1fr 300px;
-    gap: 24px;
-    align-items: start;
-}
-
-/* Main Card Overrides */
-.repo-main {
-    padding: 0 !important;
-    overflow: hidden;
-}
-
-/* Header & Filters */
-.repo-filters {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel-2);
-    padding: 0 16px;
-    gap: 10px;
-    height: 60px;
-}
-
-.header-text-label {
-    font-weight: 600;
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-
-.filter-tabs-group {
-    display: flex;
-    height: 100%;
-    align-items: center;
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-
-.filter-tab {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    padding: 0 15px;
-    border-bottom: 3px solid transparent;
-    background: none;
-    border-top: none;
-    border-left: none;
-    border-right: none;
-    font-weight: 600;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.filter-tab:hover,
-.filter-tab.active {
-    color: var(--primary);
-}
-
-.filter-tab.active {
-    border-bottom-color: var(--primary);
-}
-
-/* Date Filters Bar */
-.date-filters-bar {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    padding: 12px 24px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-}
-
-.date-input-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.date-input-group label {
-    margin: 0;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.date-input-group input {
-    margin: 0;
-    padding: 6px 12px;
-    height: 38px;
-}
-
-/* List Grid System (5 Columns) */
-.list-header-row,
-#docs-list .list-item {
-    display: grid !important;
-    grid-template-columns: 2fr 1fr 1fr 1fr 110px;
-    gap: 15px;
-    align-items: center;
-}
-
-.list-header-row {
-    padding: 12px 24px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-weight: 600;
-}
-
-#docs-list .list-item {
-    padding: 16px 24px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-#docs-list .list-item:hover {
-    background-color: var(--panel-2);
-}
-
-/* Column Styles */
-.col-sent,
-.col-ssc,
-.col-osa {
-    font-size: 0.85rem;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.sub-status {
-    font-size: 0.75rem;
-    display: block;
-    margin-top: 2px;
-}
-
-.sub-status.approved {
-    color: #059669;
-}
-
-.sub-status.rejected {
-    color: #dc2626;
-}
-
-.sub-status.pending {
-    color: #d97706;
-}
-
-.sub-status.waiting {
-    color: var(--muted);
-}
-
-/* Sidebar List */
-#recent-docs-list {
-    padding: 10px 16px;
-}
-
-.recent-item {
-    display: flex;
-    gap: 12px;
-    align-items: start;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-}
-
-.recent-item:last-child {
-    border-bottom: none;
-}
-
-.recent-icon {
-    min-width: 32px;
-    height: 32px;
-    background: var(--panel-2);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--primary);
-}
-
-.recent-info h5 {
-    font-size: 0.85rem;
-    margin: 0 0 2px 0;
-}
-
-.recent-info span {
-    font-size: 0.75rem;
-    color: var(--muted);
-}
-
-/* Modal Overlay & Upload Box */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 3000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.modal-overlay.show {
-    display: flex;
-    opacity: 1;
-}
-
-.file-upload-box {
-    border: 2px dashed var(--border);
-    padding: 20px;
-    text-align: center;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    color: var(--muted);
-}
-
-.file-upload-box:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-/* Responsive */
-@media (max-width: 900px) {
-    .docs-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .list-header-row,
-    #docs-list .list-item {
-        grid-template-columns: 1fr auto !important;
-    }
-
-    .mobile-hide {
-        display: none !important;
-    }
-
-    .repo-filters {
-        height: auto;
-        flex-wrap: wrap;
-        padding: 10px;
-    }
-}
-
 /* --- SENDER COLUMN STYLING --- */
 .sender-info {
     display: flex;
@@ -2247,4 +1993,503 @@ body.dark #organizations label.btn-primary:hover {
     background: #ffffff !important;
     color: #000000 !important;
     border-color: #ffffff !important;
+}
+
+/* --- DOCUMENTS SECTION STYLES (Ported from officerDashboard) --- */
+
+/* --- STATUS BADGES --- */
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-completed,
+.status-returned {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+}
+
+.status-pending,
+.status-borrowed {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+
+.status-overdue,
+.status-rejected {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+}
+
+.status-sent {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+}
+
+/* --- DOCUMENT DATE FILTERS --- */
+.date-filters-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.date-input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.date-input-group label {
+    margin-bottom: 0;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.date-input-group input[type="date"],
+.date-input-group input[type="month"] {
+    margin-bottom: 0;
+    padding: 6px 12px;
+    height: 38px;
+    width: auto;
+    min-width: 150px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+}
+
+/* Mobile Responsiveness for Date Filters */
+@media (max-width: 768px) {
+    .date-filters-bar {
+        padding: 15px;
+        gap: 12px;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .date-input-group {
+        justify-content: space-between;
+    }
+
+    .date-input-group input[type="date"],
+    .date-input-group input[type="month"] {
+        flex: 1;
+        max-width: 200px;
+    }
+}
+
+/* --- DOCUMENTS REPOSITORY LAYOUT --- */
+
+/* Grid Layout (Desktop) */
+.docs-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    /* Main content takes space, sidebar is fixed width */
+    gap: 24px;
+    align-items: start;
+}
+
+/* Mobile Layout */
+@media (max-width: 900px) {
+    .docs-layout {
+        grid-template-columns: 1fr;
+        /* Stack vertically */
+    }
+}
+
+/* --- REPO MAIN STYLES --- */
+.repo-main {
+    padding: 0 !important;
+    /* Override default card padding for flush list */
+    overflow: hidden;
+}
+
+/* 1. Make the header a flex container */
+.repo-filters {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+    padding: 0 16px;
+    gap: 10px;
+    height: 60px;
+    /* Fixed height ensures vertical alignment across columns */
+}
+
+/* Style for the text in the Sidebar Header to match Tab weight */
+.header-text-label {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+/* 2. Group the tabs to control their own scrolling */
+.filter-tabs-group {
+    display: flex;
+    height: 100%;
+    /* Fill the 60px container */
+    align-items: center;
+    /* Center text vertically */
+    overflow-x: auto;
+    /* Scroll horizontally if needed */
+    scrollbar-width: none;
+    /* Hide scrollbar for cleaner look */
+}
+
+.filter-tabs-group::-webkit-scrollbar {
+    display: none;
+}
+
+/* 3. Adjust Tab Styling to remove bottom border conflict */
+.filter-tab {
+    height: 100%;
+    /* Fill height */
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    /* Adjust padding since height is handled by flex */
+    border-bottom: 3px solid transparent;
+    margin-bottom: 0;
+    /* Remove negative margin */
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-tab:hover {
+    color: var(--primary);
+}
+
+.filter-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+/* 4. Mobile Responsiveness for Filters */
+@media (max-width: 600px) {
+    .repo-filters {
+        height: auto;
+        /* Allow auto height on mobile for stacking */
+        padding: 10px 16px;
+        flex-wrap: wrap;
+        flex-direction: column;
+        /* Match previous logic or stack if needed */
+        align-items: stretch;
+    }
+
+    .filter-tabs-group {
+        height: auto;
+        width: 100%;
+        margin-bottom: 5px;
+        justify-content: space-between;
+        overflow-x: auto;
+    }
+
+    .filter-tab {
+        height: 40px;
+        /* specific height for mobile tabs */
+        white-space: nowrap;
+    }
+
+    .repo-filters .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* --- UPDATED LIST GRID SYSTEM (5 Columns) --- */
+
+/* 1. Define the Grid Layout for both Header and Items */
+.list-header-row,
+#docs-list .list-item {
+    display: grid !important;
+    /* Columns: Name (2fr), Sent (1fr), SSC (1fr), OSA (1fr), Status (110px) */
+    grid-template-columns: 2fr 1fr 1fr 1fr 110px;
+    gap: 15px;
+    align-items: center;
+}
+
+/* 2. Remove old Flex styles to prevent conflicts */
+.list-header-row {
+    justify-content: unset;
+    /* Reset flex property */
+    padding: 12px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+#docs-list .list-item {
+    justify-content: unset;
+    /* Reset flex property */
+    text-decoration: none;
+    color: inherit;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+    cursor: pointer;
+}
+
+#docs-list .list-item:hover {
+    background-color: var(--panel-2);
+}
+
+#docs-list .list-item:last-child {
+    border-bottom: none;
+}
+
+/* 3. Text Alignment & Styling for Columns */
+.col-sent,
+.col-ssc,
+.col-osa {
+    font-size: 0.85rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Style for the internal status text in columns */
+.sub-status {
+    font-size: 0.75rem;
+    display: block;
+    margin-top: 2px;
+}
+
+.sub-status.approved {
+    color: #059669;
+}
+
+.sub-status.rejected {
+    color: #dc2626;
+}
+
+.sub-status.pending {
+    color: #d97706;
+}
+
+.sub-status.waiting {
+    color: var(--muted);
+}
+
+.col-status {
+    text-align: right;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* 4. MOBILE RESPONSIVENESS */
+@media (max-width: 900px) {
+
+    /* Switch back to a simple 2-column layout on mobile/tablet */
+    .list-header-row,
+    #docs-list .list-item {
+        grid-template-columns: 1fr auto !important;
+        /* Name takes space, Status takes remaining */
+    }
+
+    /* Hide the extra details on smaller screens */
+    .mobile-hide {
+        display: none !important;
+    }
+}
+
+/* --- SIDEBAR LIST SPACING --- */
+#recent-docs-list {
+    padding: 10px 16px;
+    /* Top/Bottom: 10px, Left/Right: 16px */
+}
+
+/* --- RECENTLY SUBMITTED SIDEBAR --- */
+.recent-item {
+    display: flex;
+    gap: 12px;
+    align-items: start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.recent-item:last-child {
+    border-bottom: none;
+}
+
+.recent-icon {
+    min-width: 32px;
+    height: 32px;
+    background: var(--panel-2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 0.9rem;
+}
+
+.recent-info h5 {
+    font-size: 0.85rem;
+    color: var(--text);
+    margin-bottom: 2px;
+    line-height: 1.3;
+}
+
+.recent-info span {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+/* --- MODAL STYLES (Submit Document) --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    /* Higher than sidebar */
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.show {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background: var(--panel);
+    width: 100%;
+    max-width: 500px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    /* Prevent overflow on small screens */
+    overflow-y: auto;
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.show .modal-content {
+    transform: translateY(0);
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    color: var(--text);
+    margin: 0;
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--muted);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* File Upload Box Styling */
+.file-upload-box {
+    border: 2px dashed var(--border);
+    padding: 20px;
+    text-align: center;
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: border-color 0.2s;
+}
+
+.file-upload-box:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* --- FULL HEIGHT ADJUSTMENTS (Desktop Only) --- */
+@media (min-width: 900px) {
+
+    /* 1. Fix the height of the main grid container 
+       180px accounts for the top header, padding, and repo-header */
+    .docs-layout {
+        height: calc(100vh - 180px);
+        min-height: 500px;
+        /* Safety min-height */
+        overflow: hidden;
+        /* Prevent outer scroll */
+    }
+
+    /* 2. Make the Main Card take full height and structure as Flex column */
+    .repo-main.card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        /* Contains the scrollbar inside */
+    }
+
+    /* 3. Make the Sidebar Card take full height */
+    .repo-sidebar {
+        height: 100%;
+    }
+
+    .repo-sidebar .card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* 4. Make the Lists scrollable (occupy remaining space) */
+    #docs-list,
+    #recent-docs-list {
+        flex: 1;
+        overflow-y: auto;
+        /* Scroll vertically */
+        scrollbar-width: thin;
+        /* Modern thin scrollbar */
+    }
 }
