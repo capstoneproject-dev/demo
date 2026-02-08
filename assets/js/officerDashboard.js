@@ -117,7 +117,9 @@ function navigate(viewId, element) {
             'tracker': 'Services Tracker',
             'analytics': 'Data Analytics',
             'announcements': 'Manage Announcements',
-            'events': 'Events Management'
+            'announcements': 'Manage Announcements',
+            'events': 'Events Management',
+            'profile': 'My Profile'
         };
         if (titleEl) titleEl.innerText = titleMap[viewId] || 'Org Manager';
 

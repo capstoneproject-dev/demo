@@ -69,6 +69,12 @@
                     <span class="nav-label">Analytics</span>
                 </a>
             </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('profile', this)">
+                    <i class="fa-solid fa-user-gear nav-icon"></i>
+                    <span class="nav-label">Profile</span>
+                </a>
+            </li>
         </ul>
 
         <div class="sidebar-footer">
@@ -643,6 +649,107 @@
                 </iframe>
             </div>
         </div>
+
+        <!-- PROFILE VIEW -->
+        <div id="profile" class="section-view">
+            <div class="split-view-grid profile-layout">
+
+                <div class="card profile-card">
+                    <div class="profile-header-center">
+                        <div class="profile-avatar-wrapper">
+                            <img src="https://picsum.photos/seed/officer1/150/150" alt="Profile"
+                                class="profile-avatar-lg">
+                            <button class="btn-icon-only edit-avatar-btn" title="Change Photo">
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
+                        </div>
+                        <h3 class="profile-name">Juan Dela Cruz</h3>
+                        <span class="profile-role">Admin Officer • Head of Operations</span>
+                        <span class="status-badge status-completed" style="margin-top: 12px;">Active Status</span>
+                    </div>
+
+                    <hr style="border:0; border-top:1px solid var(--border); width:100%; margin: 24px 0;">
+
+                    <div class="profile-stats-row">
+                        <div class="p-stat">
+                            <strong>3</strong>
+                            <span>Years Active</span>
+                        </div>
+                        <div class="profile-divider-vert"></div>
+                        <div class="p-stat">
+                            <strong>42</strong>
+                            <span>Events Managed</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 24px; width: 100%;">
+                        <label style="margin-bottom: 8px;">Bio / Note</label>
+                        <textarea rows="3" placeholder="Add a note..."
+                            readonly>Committed to serving the student body through efficient operations.</textarea>
+                    </div>
+                </div>
+
+                <div class="profile-details-stack">
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Personal Information</div>
+                            <button class="btn btn-sm btn-outline">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                            </button>
+                        </div>
+                        <div class="profile-form-grid">
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input type="text" value="Juan Dela Cruz" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Student Number</label>
+                                <input type="text" value="2021-12345" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input type="email" value="juan.delacruz@student.philsca.edu.ph" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Organization</label>
+                                <input type="text" value="Supreme Student Council" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input type="text" value="+63 912 345 6789" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Course & Year</label>
+                                <input type="text" value="BS Aeronautical Engineering - 4th Year" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Security & Preferences</div>
+                        </div>
+                        <form onsubmit="event.preventDefault(); alert('Password updated successfully');">
+                            <div class="form-group">
+                                <label>Change Password</label>
+                                <input type="password" placeholder="Current Password">
+                                <div
+                                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                    <input type="password" placeholder="New Password">
+                                    <input type="password" placeholder="Confirm New Password">
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                                <button type="submit" class="btn btn-primary">Update Password</button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
 
     </main>
 
