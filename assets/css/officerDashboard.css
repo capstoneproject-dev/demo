@@ -798,6 +798,91 @@ td {
 /* --- ANALYTICS CARD SEPARATION --- */
 /* Use these classes to customize individual card sizes or behaviors */
 /* --- DOCUMENT SUB-NAVIGATION --- */
+
+/* --- REPOSITORY FILTER BAR --- */
+.repo-filter-bar {
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.repo-filter-row {
+    display: flex;
+    align-items: flex-end;
+    /* Align inputs to bottom */
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.repo-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 150px;
+    /* Ensure inputs don't get too small */
+}
+
+.repo-filter-group label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 0;
+}
+
+.repo-filter-group select,
+.repo-filter-group input {
+    margin-bottom: 0;
+    /* Remove default margin */
+    height: 38px;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+}
+
+/* Specific button alignment in the row */
+.repo-filter-row .btn {
+    height: 38px;
+    white-space: nowrap;
+}
+
+/* Search Area Spacing adjustment */
+.repo-search-area {
+    margin-bottom: 20px;
+}
+
+/* Dark Mode Adjustments */
+body.dark .repo-filter-bar {
+    background: var(--panel-2);
+}
+
+/* Mobile Responsiveness for Repo Filters */
+@media (max-width: 768px) {
+    .repo-filter-bar {
+        padding: 12px;
+    }
+
+    .repo-filter-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .repo-filter-group {
+        width: 100%;
+        min-width: 0;
+        max-width: none !important;
+        /* Override inline styles on mobile */
+    }
+
+    .repo-filter-row .btn {
+        width: 100%;
+    }
+}
+
 .sub-view-nav {
     display: flex;
     gap: 15px;
