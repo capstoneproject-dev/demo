@@ -216,7 +216,8 @@ function navigate(viewId, element) {
         'monitoring': 'Organization Monitoring Panel',
         'requests': 'Requests & Approvals',
         'documents': 'Document Repository',
-        'account': 'Account Management'
+        'account': 'Account Management',
+        'profile': 'My Profile' // <-- Add this line
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'OSA Portal';
 }
