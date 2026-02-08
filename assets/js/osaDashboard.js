@@ -298,14 +298,35 @@ function renderRequests() {
 
     filtered.forEach(req => {
         let actionButtons = '';
+
+        // New: View Button (Always available)
+        // Uses the existing btn-outline class to differentiate from the main actions
+        const viewBtn = `
+            <button class="btn btn-sm btn-outline" onclick="openPdfViewer('req_doc_${req.id}')" title="View Document">
+                <i class="fa-solid fa-eye"></i>
+            </button>
+        `;
+
         if (req.status === 'Pending') {
+            // Added wrapper div .req-action-group for styling
             actionButtons = `
-                <button class="btn btn-sm btn-success" onclick="handleRequest(${req.id}, 'Approved')"><i class="fa-solid fa-check"></i></button>
-                <button class="btn btn-sm btn-danger" onclick="handleRequest(${req.id}, 'Rejected')"><i class="fa-solid fa-xmark"></i></button>
+                <div class="req-action-group">
+                    ${viewBtn}
+                    <button class="btn btn-sm btn-success" onclick="handleRequest(${req.id}, 'Approved')" title="Approve">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="handleRequest(${req.id}, 'Rejected')" title="Reject">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
             `;
         } else {
+            // For completed items, show status badge + view button
             actionButtons = `
-                <span class="status-badge status-${req.status.toLowerCase()}">${req.status}</span>
+                <div class="req-action-group">
+                    ${viewBtn}
+                    <span class="status-badge status-${req.status.toLowerCase()}">${req.status}</span>
+                </div>
             `;
         }
 
