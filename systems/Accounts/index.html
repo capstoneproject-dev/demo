@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,46 +8,18 @@
     <link href="lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-    <!-- Navigation (matches merchandise header style) -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
-                <img src="Photos/PHILSCA-LOGO-WINGS.png" alt="AISERS Logo" style="height:48px;width:auto;margin-right:12px;">
-                <span class="fw-bold" style="letter-spacing:2px;font-size:1.5rem;">ALLIANCE APP</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="index.html">Account Management</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="student-numbers.html">Student Numbers</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    <div class="container mt-5" style="margin-top: 120px !important;">
+<body>
+    <div class="container iframe-view">
         <!-- Toasts -->
         <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="mb-0">Student Account Management</h1>
+        <div class="d-flex justify-content-end align-items-center mb-4">
             <div>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentModal">Add Student</button>
-                <button class="btn btn-outline-success" onclick="refreshPendingRequests()">Refresh Pending Requests</button>
+                <a href="student-numbers.html" class="btn btn-primary">
+                    Manage Student Numbers Database
+                </a>
             </div>
-        </div>
-        
-        <!-- Current Status Display -->
-        <div class="alert alert-info mb-4" id="currentStatusDisplay">
-            System Status: <span id="statusDisplay">Ready</span> | 
-            Pending Account Requests: <span id="headerPendingCount">0</span>
         </div>
 
         <!-- Student Management Section -->
@@ -58,11 +31,14 @@
                 <div class="mb-3">
                     <div class="btn-group mb-2" role="group" style="margin-bottom: 0.5rem;">
                         <button id="refreshData" class="btn btn-success btn-sm" type="button">Refresh Data</button>
-                        <button id="exportData" class="btn btn-outline-primary btn-sm" type="button">Export Data</button>
-                        <button id="importData" class="btn btn-outline-secondary btn-sm" type="button">Import Data</button>
+                        <button id="exportData" class="btn btn-outline-primary btn-sm" type="button">Export
+                            Data</button>
+                        <button id="importData" class="btn btn-outline-secondary btn-sm" type="button">Import
+                            Data</button>
                     </div>
                     <div class="mb-2">
-                        <input type="text" class="form-control" id="searchInput" placeholder="Search by student number, name, or section...">
+                        <input type="text" class="form-control" id="searchInput"
+                            placeholder="Search by student number, name, or section...">
                     </div>
                 </div>
             </div>
@@ -80,7 +56,8 @@
                         <div class="modal-body">
                             <div class="mb-3">
                                 <label for="studentId" class="form-label">Student Number</label>
-                                <input type="text" class="form-control" id="studentId" required autocomplete="off" autofocus>
+                                <input type="text" class="form-control" id="studentId" required autocomplete="off"
+                                    autofocus>
                             </div>
                             <div class="mb-3">
                                 <label for="studentName" class="form-label">Full Name</label>
@@ -90,15 +67,18 @@
                                 <label class="form-label">Course & Section</label>
                                 <div class="mb-2">
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="course" id="courseBsisAis" value="BSIS-AIS" checked>
+                                        <input class="form-check-input" type="radio" name="course" id="courseBsisAis"
+                                            value="BSIS-AIS" checked>
                                         <label class="form-check-label" for="courseBsisAis">BSIS-AIS</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="course" id="courseAis" value="BSAIS">
+                                        <input class="form-check-input" type="radio" name="course" id="courseAis"
+                                            value="BSAIS">
                                         <label class="form-check-label" for="courseAis">BSAIS</label>
                                     </div>
                                 </div>
-                                <input type="text" class="form-control" id="yearSection" placeholder="Year-Section, e.g., 3-3 or 1-2" required autocomplete="off">
+                                <input type="text" class="form-control" id="yearSection"
+                                    placeholder="Year-Section, e.g., 3-3 or 1-2" required autocomplete="off">
                             </div>
                             <div class="mb-3">
                                 <label for="email" class="form-label">Email Address</label>
@@ -135,21 +115,25 @@
                             </div>
                             <div class="mb-3">
                                 <label for="editStudentName" class="form-label">Full Name</label>
-                                <input type="text" class="form-control" id="editStudentName" required autocomplete="off">
+                                <input type="text" class="form-control" id="editStudentName" required
+                                    autocomplete="off">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Course & Section</label>
                                 <div class="mb-2">
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="editCourse" id="editCourseBsisAis" value="BSIS-AIS">
+                                        <input class="form-check-input" type="radio" name="editCourse"
+                                            id="editCourseBsisAis" value="BSIS-AIS">
                                         <label class="form-check-label" for="editCourseBsisAis">BSIS-AIS</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="editCourse" id="editCourseAis" value="BSAIS">
+                                        <input class="form-check-input" type="radio" name="editCourse"
+                                            id="editCourseAis" value="BSAIS">
                                         <label class="form-check-label" for="editCourseAis">BSAIS</label>
                                     </div>
                                 </div>
-                                <input type="text" class="form-control" id="editYearSection" placeholder="Year-Section, e.g., 3-3 or 1-2" required autocomplete="off">
+                                <input type="text" class="form-control" id="editYearSection"
+                                    placeholder="Year-Section, e.g., 3-3 or 1-2" required autocomplete="off">
                             </div>
                             <div class="mb-3">
                                 <label for="editEmail" class="form-label">Email Address</label>
@@ -181,17 +165,20 @@
                 <!-- Tab Navigation -->
                 <ul class="nav nav-tabs" id="requestTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab">
+                        <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending"
+                            type="button" role="tab">
                             Pending <span class="badge bg-warning ms-1" id="pendingCount">0</span>
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="approved-tab" data-bs-toggle="tab" data-bs-target="#approved" type="button" role="tab">
+                        <button class="nav-link" id="approved-tab" data-bs-toggle="tab" data-bs-target="#approved"
+                            type="button" role="tab">
                             Approved <span class="badge bg-success ms-1" id="approvedCount">0</span>
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected" type="button" role="tab">
+                        <button class="nav-link" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected"
+                            type="button" role="tab">
                             Rejected <span class="badge bg-danger ms-1" id="rejectedCount">0</span>
                         </button>
                     </li>
@@ -305,10 +292,11 @@
                             </table>
                         </div>
                     </div>
-                    <!-- Right: All Student Records -->  
+                    <!-- Right: All Student Records -->
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <input type="text" class="form-control" id="studentSearch" placeholder="Search by student number, name, or section...">
+                            <input type="text" class="form-control" id="studentSearch"
+                                placeholder="Search by student number, name, or section...">
                         </div>
                         <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                             <table class="table">
@@ -343,14 +331,14 @@
     <script src="script.js"></script>
     <script>
         // Search functionality for Student Records
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const studentSearch = document.getElementById('studentSearch');
             if (studentSearch) {
-                studentSearch.addEventListener('input', function() {
+                studentSearch.addEventListener('input', function () {
                     const searchTerm = this.value.toLowerCase();
                     const tbody = document.getElementById('studentRecords');
                     const rows = Array.from(tbody.querySelectorAll('tr'));
-                    
+
                     // Filter the rows based on search term
                     rows.forEach(row => {
                         const text = row.textContent.toLowerCase();
@@ -361,4 +349,5 @@
         });
     </script>
 </body>
+
 </html>
