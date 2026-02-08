@@ -35,6 +35,12 @@ The administrative portal for university staff to oversee student organizations.
 *   **Filtering**: Sort requests by Type, Organization, Status, or Date Range.
 *   **Bulk Actions**: Efficiently handle multiple requests (implied future feature, currently single-action).
 
+### **Document Workflow**
+*   **Repository**: Centralized storage for all organizational documents (Proposals, Reports, Resolutions).
+*   **Submission Portal**: Upload PDFs and categorize them (Activity Report, Financial Statement, etc.).
+*   **Status Tracking**: Track approval status (Pending, SSC Review, OSA Review, Approved/Rejected).
+*   **PDF Viewer**: Integrated viewer with annotation tools (Highlight, Comment) and zoom controls.
+
 ### **Student Verification**
 *   **Enrollment Check**: Verify a student's enrollment status via ID Number or Name (connects to Registrar DB).
 
