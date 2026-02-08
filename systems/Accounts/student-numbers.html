@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,46 +8,24 @@
     <link href="lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-    <!-- Navigation (matches merchandise header style) -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
-                <img src="Photos/PHILSCA-LOGO-WINGS.png" alt="AISERS Logo" style="height:48px;width:auto;margin-right:12px;">
-                <span class="fw-bold" style="letter-spacing:2px;font-size:1.5rem;">ALLIANCE APP</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="index.html">Account Management</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="student-numbers.html">Student Numbers</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    <div class="container mt-5" style="margin-top: 120px !important;">
+<body>
+    <div class="container iframe-view">
         <!-- Toasts -->
         <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="mb-0">Student Numbers Management</h1>
+        <div class="d-flex justify-content-end align-items-center mb-4">
             <div>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentNumberModal">Add Student Number</button>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentNumberModal">Add
+                    Student Number</button>
                 <button class="btn btn-outline-success" onclick="importStudentNumbers()">Import XLSX</button>
                 <button class="btn btn-outline-info" onclick="exportStudentNumbers()">Export XLSX</button>
             </div>
         </div>
-        
+
         <!-- Current Status Display -->
         <div class="alert alert-info mb-4" id="currentStatusDisplay">
-            System Status: <span id="statusDisplay">Ready</span> | 
+            System Status: <span id="statusDisplay">Ready</span> |
             Total Student Numbers: <span id="totalStudentCount">0</span>
         </div>
 
@@ -58,7 +37,8 @@
             <div class="card-body">
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <input type="text" class="form-control" id="searchStudentNumbers" placeholder="Search by student number, name, or section...">
+                        <input type="text" class="form-control" id="searchStudentNumbers"
+                            placeholder="Search by student number, name, or section...">
                     </div>
                     <div class="col-md-3">
                         <select id="sectionFilter" class="form-select">
@@ -69,7 +49,7 @@
                         <button class="btn btn-outline-secondary" onclick="clearFilters()">Clear Filters</button>
                     </div>
                 </div>
-                
+
                 <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
                     <table class="table table-hover">
                         <thead class="table-dark">
@@ -107,11 +87,13 @@
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="newStudentId" class="form-label">Student Number *</label>
-                                    <input type="text" class="form-control" id="newStudentId" required autocomplete="off" autofocus>
+                                    <input type="text" class="form-control" id="newStudentId" required
+                                        autocomplete="off" autofocus>
                                 </div>
                                 <div class="mb-3">
                                     <label for="newStudentName" class="form-label">Full Name *</label>
-                                    <input type="text" class="form-control" id="newStudentName" required autocomplete="off">
+                                    <input type="text" class="form-control" id="newStudentName" required
+                                        autocomplete="off">
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -128,7 +110,8 @@
                                 </div>
                                 <div class="mb-3">
                                     <label for="newYearSection" class="form-label">Year-Section</label>
-                                    <input type="text" class="form-control" id="newYearSection" placeholder="e.g., 3-3 or 1-2" autocomplete="off">
+                                    <input type="text" class="form-control" id="newYearSection"
+                                        placeholder="e.g., 3-3 or 1-2" autocomplete="off">
                                 </div>
                             </div>
                         </div>
@@ -165,11 +148,13 @@
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="editStudentNumber" class="form-label">Student Number *</label>
-                                    <input type="text" class="form-control" id="editStudentNumber" required autocomplete="off">
+                                    <input type="text" class="form-control" id="editStudentNumber" required
+                                        autocomplete="off">
                                 </div>
                                 <div class="mb-3">
                                     <label for="editStudentName" class="form-label">Full Name *</label>
-                                    <input type="text" class="form-control" id="editStudentName" required autocomplete="off">
+                                    <input type="text" class="form-control" id="editStudentName" required
+                                        autocomplete="off">
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -186,7 +171,8 @@
                                 </div>
                                 <div class="mb-3">
                                     <label for="editYearSection" class="form-label">Year-Section *</label>
-                                    <input type="text" class="form-control" id="editYearSection" placeholder="e.g., 3-3 or 1-2" required autocomplete="off">
+                                    <input type="text" class="form-control" id="editYearSection"
+                                        placeholder="e.g., 3-3 or 1-2" required autocomplete="off">
                                 </div>
                             </div>
                         </div>
@@ -224,7 +210,8 @@
                     <div class="alert alert-info">
                         <strong>XLSX Format:</strong><br>
                         <strong>Format 1 (Recommended):</strong> uniqueId, studentId, studentName, section<br>
-                        <strong>Format 2 (Alternative):</strong> StudentNumber, Name, Course, YearSection, Email, Phone<br>
+                        <strong>Format 2 (Alternative):</strong> StudentNumber, Name, Course, YearSection, Email,
+                        Phone<br>
                         The first row should contain column headers. Example:<br>
                         uniqueId | studentId | studentName | section
                     </div>
@@ -246,4 +233,5 @@
     <script src="lib/bootstrap.bundle.min.js"></script>
     <script src="student-numbers.js"></script>
 </body>
+
 </html>

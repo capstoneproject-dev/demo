@@ -49,7 +49,7 @@ body {
     background-color: #ffbf00 !important;
     border-color: #b38600 !important;
     color: rgb(0, 0, 0) !important;
-} 
+}
 
 /* Merchandise-like header theme */
 .navbar {
@@ -71,26 +71,38 @@ body {
     font-weight: 700;
 }
 
-.btn-primary:hover, .btn-primary:focus {
+.btn-primary:hover,
+.btn-primary:focus {
     background: var(--black);
     color: var(--gold);
 }
 
-.card-header h1, .card-header h2, .card-header h3 {
+.card-header h1,
+.card-header h2,
+.card-header h3 {
     font-family: 'Montserrat', Arial, sans-serif;
     color: var(--black);
 }
 
-/* Toast notifications */
+/* --- IFRAME VIEW ADJUSTMENTS --- */
+.iframe-view {
+    margin-top: 20px;
+    /* Replaces the inline 120px margin */
+    padding-bottom: 40px;
+}
+
+/* Update Toast Position since Navbar is gone */
 .toast-container {
     position: fixed;
-    top: 90px; /* below fixed navbar */
+    top: 20px !important;
+    /* Move to top of screen/iframe */
     right: 20px;
     display: flex;
     flex-direction: column;
     gap: 10px;
     z-index: 1080;
-    pointer-events: none; /* allow clicks through except the toasts */
+    pointer-events: none;
+    /* allow clicks through except the toasts */
 }
 
 .toast-notification {
@@ -99,7 +111,7 @@ body {
     padding: 12px 16px;
     border-radius: 8px;
     color: #fff;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -130,6 +142,14 @@ body {
     opacity: 0.8;
 }
 
-.toast-success { background-color: #198754; }
-.toast-error { background-color: #dc3545; }
-.toast-warning { background-color: #fd7e14; }
+.toast-success {
+    background-color: #198754;
+}
+
+.toast-error {
+    background-color: #dc3545;
+}
+
+.toast-warning {
+    background-color: #fd7e14;
+}

@@ -215,7 +215,8 @@ function navigate(viewId, element) {
         'organizations': 'Student Organizations',
         'monitoring': 'Organization Monitoring Panel',
         'requests': 'Requests & Approvals',
-        'documents': 'Document Repository'
+        'documents': 'Document Repository',
+        'account': 'Account Management'
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'OSA Portal';
 }
@@ -608,11 +609,75 @@ function renderTransactions() {
 function openMonitoring(orgId) {
     currentOrgId = orgId;
     const org = organizations.find(o => o.id === orgId);
-    if (org) {
-        document.getElementById('monitoring-org-name').innerText = org.name;
-        document.getElementById('monitoring-org-details').innerText = `${org.category} • President: ${org.president}`;
 
-        // Mock event history for this org
+    if (org) {
+        // 1. Basic Info
+        document.getElementById('monitoring-org-name').innerText = org.name;
+        document.getElementById('monitoring-org-details').innerText = `${org.category} • ID: ${org.id}`;
+
+        // 2. Activity Recency (Simulated logic based on ID)
+        const activityDates = ["Oct 24, 2023", "Oct 20, 2023", "Just now", "Yesterday"];
+        document.getElementById('monitoring-recency').innerText = `Last recorded activity: ${activityDates[org.id % activityDates.length]}`;
+
+        // 3. Render Compliance Overview
+        const complianceContainer = document.getElementById('monitoring-compliance-list');
+        // Simulating status based on org ID for variety
+        const isCompliant = org.id % 2 === 0;
+
+        complianceContainer.innerHTML = `
+            <div class="compliance-item">
+                <span class="compliance-label">Financial Report</span>
+                <span class="status-badge ${isCompliant ? 'status-completed' : 'status-pending'}">
+                    ${isCompliant ? 'Submitted' : 'Pending'}
+                </span>
+            </div>
+            <div class="compliance-item">
+                <span class="compliance-label">Activity Reports</span>
+                <span class="status-badge ${isCompliant ? 'status-completed' : 'status-pending'}">
+                    ${isCompliant ? 'Complete' : 'Incomplete'}
+                </span>
+            </div>
+            <div class="compliance-item">
+                <span class="compliance-label">Audit Status</span>
+                <span class="status-badge ${isCompliant ? 'status-completed' : 'status-pending'}">
+                    ${isCompliant ? 'Passed' : 'Pending'}
+                </span>
+            </div>
+        `;
+
+        // 4. Render Officers & Adviser List
+        const officersContainer = document.getElementById('monitoring-officers-grid');
+
+        // Define the required roles
+        const roles = [
+            "President", "Vice President (Internal)", "Vice President (External)",
+            "Secretary", "Treasurer", "Auditor",
+            "Business Manager", "Public Information Officer", "Peace Officer",
+            "4th Year Rep", "3rd Year Rep", "2nd Year Rep", "1st Year Rep",
+            "Faculty Adviser"
+        ];
+
+        // Generate mock names (some TBD for realism)
+        let officersHTML = '';
+        roles.forEach((role, index) => {
+            // Simulate some missing officers (TBD)
+            let name = "Student Name";
+            if (role === "Faculty Adviser") name = "Prof. Adviser Name";
+            if (index > 8 && org.id % 3 === 0) name = "TBD"; // Randomly unassigned reps
+
+            // Special styling for TBD
+            const nameStyle = name === "TBD" ? 'color: var(--muted); font-style: italic;' : '';
+
+            officersHTML += `
+                <div class="officer-card">
+                    <span class="officer-role">${role}</span>
+                    <div class="officer-name" style="${nameStyle}">${name}</div>
+                </div>
+            `;
+        });
+        officersContainer.innerHTML = officersHTML;
+
+        // 5. Event History (Keep existing mock logic)
         const eventTable = document.getElementById('monitoring-events-table');
         eventTable.innerHTML = `
             <tr>
