@@ -1,155 +1,235 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&display=swap');
 
+/* --- UPDATED THEME VARIABLES (Matches OSA Dashboard) --- */
 :root {
-    --gold: #FFD700;
-    --gold-dark: #FFC107;
-    --black: #181818;
-    --white: #fff;
+    --bg: #f3f6fb;
+    --panel: #ffffff;
+    --panel-2: #f7f9ff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: rgba(15, 23, 42, 0.10);
+    --shadow: 0 14px 40px rgba(2, 6, 23, 0.10);
+
+    --primary: #002147;
+    /* Navy */
+    --primary-2: #003366;
+    /* Hover Navy */
+    --accent: #f4d03f;
+    /* Gold */
+    --ring: rgba(0, 33, 71, 0.25);
+
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+
+    --radius-lg: 18px;
+    --radius-md: 14px;
+    --radius-sm: 12px;
+
+    --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    --transition-speed: 0.3s;
 }
 
 body {
-    background-color: #f8f9fa;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
 }
 
+/* --- CARD STYLING --- */
 .card {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
 }
 
 .card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-#qrCode {
-    padding: 20px;
-    background-color: white;
-    border-radius: 8px;
-    display: inline-block;
-}
-
-#scanner {
-    max-width: 300px;
-    margin: 0 auto;
-}
-
-.table {
-    margin-bottom: 0;
-}
-
-.btn {
-    padding: 8px 20px;
-}
-
-.form-control:focus {
-    border-color: #80bdff;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-.btn-warning:hover {
-    background-color: #ffbf00 !important;
-    border-color: #b38600 !important;
-    color: rgb(0, 0, 0) !important;
-}
-
-/* Merchandise-like header theme */
-.navbar {
-    background: var(--black) !important;
-    height: 70px;
-}
-
-.navbar-brand span {
-    font-family: 'Montserrat', Arial, sans-serif;
-    font-weight: 900;
-    color: var(--gold);
-    letter-spacing: 2px;
-}
-
-.btn-primary {
-    background: var(--gold);
-    color: var(--black);
-    border: none;
-    font-weight: 700;
-}
-
-.btn-primary:hover,
-.btn-primary:focus {
-    background: var(--black);
-    color: var(--gold);
+    background-color: transparent;
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+    /* Flex Layout for Header Controls */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    /* Prevents breaking on mobile */
+    gap: 10px;
+    /* Spacing between title and button on small screens */
 }
 
 .card-header h1,
 .card-header h2,
-.card-header h3 {
-    font-family: 'Montserrat', Arial, sans-serif;
-    color: var(--black);
+.card-header h3,
+.card-header h5 {
+    color: var(--text);
+    font-family: var(--font);
+    /* Reset Montserrat */
+    font-weight: 600;
+    margin: 0;
+}
+
+.card-body {
+    padding: 24px;
+}
+
+/* --- BUTTON STYLING --- */
+.btn {
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+/* Primary Button (Navy) */
+.btn-primary {
+    background-color: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: white !important;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--primary-2) !important;
+    border-color: var(--primary-2) !important;
+    color: white !important;
+}
+
+/* Success Button (Green) */
+.btn-success {
+    background-color: var(--success) !important;
+    border-color: var(--success) !important;
+    color: white;
+}
+
+/* Outline Buttons */
+.btn-outline-primary {
+    color: var(--primary);
+    border-color: var(--border);
+    background: transparent;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--panel-2);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.btn-outline-success {
+    color: var(--success);
+    border-color: var(--border);
+    background: transparent;
+}
+
+.btn-outline-success:hover {
+    background-color: rgba(16, 185, 129, 0.1);
+    border-color: var(--success);
+    color: var(--success);
+}
+
+.btn-outline-secondary {
+    color: var(--muted);
+    border-color: var(--border);
+    background: transparent;
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--panel-2);
+    color: var(--text);
+}
+
+/* --- TABLE STYLING --- */
+.table {
+    color: var(--text);
+    border-color: var(--border);
+    margin-bottom: 0;
+}
+
+.table th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    background-color: var(--panel-2) !important;
+    padding: 14px 16px;
+    border-top: none;
+}
+
+.table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+/* Override Bootstrap .table-dark to match new theme */
+.table-dark {
+    background-color: var(--panel-2);
+    color: var(--text);
+}
+
+.table-dark th {
+    background-color: var(--panel-2);
+    color: var(--muted);
+    border-color: var(--border);
+}
+
+.table-hover tbody tr:hover {
+    background-color: var(--panel-2);
+    color: var(--text);
+}
+
+/* --- BADGES --- */
+.badge {
+    font-weight: 600;
+    padding: 0.5em 0.8em;
+    border-radius: 6px;
+}
+
+.bg-warning {
+    background-color: rgba(245, 158, 11, 0.1) !important;
+    color: #d97706 !important;
+}
+
+.bg-success {
+    background-color: rgba(16, 185, 129, 0.1) !important;
+    color: #059669 !important;
+}
+
+.bg-danger {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    color: #dc2626 !important;
+}
+
+/* --- FORM CONTROLS --- */
+.form-control,
+.form-select {
+    background-color: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--ring);
 }
 
 /* --- IFRAME VIEW ADJUSTMENTS --- */
 .iframe-view {
     margin-top: 20px;
-    /* Replaces the inline 120px margin */
     padding-bottom: 40px;
 }
 
-/* Update Toast Position since Navbar is gone */
-.toast-container {
-    position: fixed;
-    top: 20px !important;
-    /* Move to top of screen/iframe */
-    right: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    z-index: 1080;
-    pointer-events: none;
-    /* allow clicks through except the toasts */
-}
-
-.toast-notification {
-    min-width: 280px;
-    max-width: 360px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    color: #fff;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    opacity: 0;
-    transform: translateY(-10px);
-    transition: opacity 160ms ease, transform 160ms ease;
-    pointer-events: auto;
-}
-
-.toast-notification.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.toast-notification .toast-title {
-    font-weight: 700;
-    margin-right: 6px;
-}
-
-.toast-notification .toast-close {
-    margin-left: auto;
-    background: transparent;
-    border: 0;
-    color: inherit;
-    font-size: 16px;
-    line-height: 1;
-    cursor: pointer;
-    opacity: 0.8;
-}
-
-.toast-success {
-    background-color: #198754;
-}
-
-.toast-error {
-    background-color: #dc3545;
-}
-
-.toast-warning {
-    background-color: #fd7e14;
+/* QR Scanner placeholders */
+#qrCode {
+    padding: 20px;
+    background-color: var(--panel);
+    border-radius: var(--radius-sm);
+    display: inline-block;
 }
