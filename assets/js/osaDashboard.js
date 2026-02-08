@@ -101,6 +101,59 @@ const transactions = [
     { org: "AETSO", sender: "Emilio Aguinaldo", doc: "Flight Simulation Log", date: "Oct 23, 2023", status: "Approved" }
 ];
 
+// --- RECENT ACTIVITY DATA & RENDER ---
+const recentActivities = [
+    { type: 'upload', icon: 'fa-file-arrow-up', title: 'New Proposal Submitted', desc: 'Computer Science Society submitted "Tech Week 2026"', time: '10 mins ago' },
+    { type: 'user', icon: 'fa-user-plus', title: 'New Student Registration', desc: 'Mark Santos (2023-10023) verified enrollment', time: '25 mins ago' },
+    { type: 'success', icon: 'fa-check-double', title: 'Audit Approved', desc: 'JPIA Financial Report Q1 marked as Passed', time: '1 hour ago' },
+    { type: 'alert', icon: 'fa-triangle-exclamation', title: 'Late Submission Warning', desc: 'Sent automated reminder to Junior Marketing Assn', time: '2 hours ago' },
+    { type: 'upload', icon: 'fa-file-signature', title: 'Constitution Updated', desc: 'Supreme Student Council uploaded v2.0', time: 'Yesterday' }
+];
+
+// --- DASHBOARD MOCK DATA ---
+const dashboardRequestsMock = [
+    { type: "Event Proposal", org: "AISERS", title: "Tech Summit 2026", status: "Pending" },
+    { type: "Posting", org: "Supreme Student Council", title: "Election Guidelines", status: "Pending" },
+    { type: "Document", org: "ELITECH", title: "Constitution v2", status: "Pending" },
+    { type: "Event Proposal", org: "RCYC", title: "Blood Drive", status: "Pending" }
+];
+
+function renderRecentActivities() {
+    const container = document.getElementById('activity-feed');
+    if (!container) return;
+
+    container.innerHTML = recentActivities.map(act => `
+        <div class="activity-item">
+            <div class="activity-icon ${act.type}">
+                <i class="fa-solid ${act.icon}"></i>
+            </div>
+            <div class="activity-info">
+                <h5>${act.title}</h5>
+                <p>${act.desc}</p>
+                <div class="activity-meta">
+                    <i class="fa-regular fa-clock"></i> ${act.time}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// --- UPDATED DASHBOARD PREVIEW RENDER ---
+function renderDashboardPreview() {
+    const tbody = document.getElementById('dashboard-requests-preview');
+    if (!tbody) return;
+
+    // Use the mock data for visualization
+    tbody.innerHTML = dashboardRequestsMock.map(req => `
+        <tr>
+            <td><span class="status-badge status-submitted">${req.type}</span></td>
+            <td style="font-weight:600;">${req.org}</td>
+            <td>${req.title}</td>
+            <td><span class="status-badge status-pending">${req.status}</span></td>
+        </tr>
+    `).join('');
+}
+
 // --- PDF UPLOAD HANDLER (uses PDFViewer module) ---
 async function handlePdfUpload(event) {
     const file = event.target.files[0];
@@ -690,6 +743,9 @@ window.addEventListener('DOMContentLoaded', () => {
     renderTransactions();
     initReqOrgFilter();
 
+    // NEW FUNCTION CALL
+    renderDashboardPreview();
+    renderRecentActivities();
     // Add Enter key listener for confirmation modal
     const actionInput = document.getElementById('request-action-input');
     if (actionInput) {
