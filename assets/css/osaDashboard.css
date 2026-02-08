@@ -2787,7 +2787,35 @@ body.dark .sub-nav-btn.active {
     gap: 6px;
     flex: 1;
     min-width: 150px;
-    /* Ensure inputs don't get too small */
+}
+
+/* --- REQUESTS TABLE ACTIONS --- */
+.req-action-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.req-action-group .btn-sm {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+}
+
+/* Mobile Adjustment for the buttons */
+@media (max-width: 768px) {
+    .req-action-group {
+        gap: 6px;
+    }
+
+    /* Icon-only adjustments for mobile to save space */
+    .req-action-group .btn-sm {
+        padding: 6px;
+        width: 32px;
+        height: 32px;
+    }
 }
 
 .repo-filter-group label {
