@@ -339,20 +339,50 @@ function renderRecentDocs() {
     const list = document.getElementById('recent-docs-list');
     if (!list) return;
 
-    // Take only the first 3 items for the sidebar
-    const recentItems = docsData.slice(0, 3);
+    const recentItems = docsData.slice(0, 5);
 
-    list.innerHTML = recentItems.map(doc => `
-        <div class="recent-item">
-            <div class="recent-icon">
-                <i class="fa-solid fa-file-contract"></i>
+    list.innerHTML = recentItems.map((doc, index) => {
+        let statusText = '';
+        let statusClass = '';
+
+        // Mapping statuses to specific requirements: Approved, Rejected, For Revision
+        if (doc.status === 'Approved') {
+            statusText = 'Approved';
+            statusClass = 'status-approved';
+        } else if (doc.status.includes('Rejected')) {
+            statusText = 'Rejected';
+            statusClass = 'status-rejected';
+        } else {
+            // Treat Pending, SSC Approved, or Sent to OSA as "For Revision" for OSA view
+            statusText = 'For Revision';
+            statusClass = 'status-pending';
+        }
+
+        const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
+        const sender = senders[doc.title.length % senders.length];
+
+        return `
+            <div class="recent-activity-item">
+                <div class="recent-activity-content">
+                    <div class="recent-icon">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <div class="recent-info">
+                        <h5>${doc.title}</h5>
+                        <p>Sent by: <strong>${sender}</strong></p>
+                        <span class="status-badge ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </div>
+                </div>
+                <div class="recent-activity-actions">
+                    <button class="btn btn-primary btn-sm icon-only-btn" onclick="openPdfViewer('doc_${index}')" title="View Document">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                </div>
             </div>
-            <div class="recent-info">
-                <h5>${doc.title}</h5>
-                <span>${doc.date} • ${doc.status}</span>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function renderDocs(filter = 'All', btnElement = null) {
@@ -371,13 +401,11 @@ function renderDocs(filter = 'All', btnElement = null) {
     const list = document.getElementById('docs-list');
     if (!list) return;
 
-    const dateVal = document.getElementById('filter-by-date') ? document.getElementById('filter-by-date').value : '';
-    const monthVal = document.getElementById('filter-by-month') ? document.getElementById('filter-by-month').value : '';
+    const dateVal = document.getElementById('filter-by-date')?.value || '';
+    const monthVal = document.getElementById('filter-by-month')?.value || '';
 
     // DATA SIMULATION POOLS
     const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
-    const sscOfficers = ["Pres. Cruz", "VP Santos", "Sec. Reyes"];
-    const osaAdmins = ["Dir. Fury", "Mrs. Potts", "Admin Stark"];
 
     // 1. Filter by Status (Existing Logic)
     let filteredData = docsData.filter(doc => {
@@ -386,7 +414,7 @@ function renderDocs(filter = 'All', btnElement = null) {
         return doc.status.includes(filter);
     });
 
-    // 2. Filter by Date/Month (New Logic)
+    // 2. Filter by Date/Month (Maintained)
     if (dateVal || monthVal) {
         filteredData = filteredData.filter(doc => {
             let docDate;
@@ -415,66 +443,24 @@ function renderDocs(filter = 'All', btnElement = null) {
     }
 
     list.innerHTML = filteredData.map((doc, index) => {
-        let sscHtml = '';
-        let osaHtml = '';
-        let actionButtons = '';
         let statusBadge = '';
-
-        const sender = senders[doc.title.length % senders.length];
-        const sscOfficer = sscOfficers[doc.title.length % sscOfficers.length];
-        const osaAdmin = osaAdmins[doc.title.length % osaAdmins.length];
+        let actionButtons = `
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
+                <i class="fa-solid fa-eye"></i> View
+            </button>`;
 
         if (doc.status === 'Approved') {
-            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-            osaHtml = `<span>${osaAdmin}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-            actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
-                    <i class="fa-solid fa-eye"></i> View
-                </button>`;
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
-        }
-        else if (doc.status === 'SSC Approved') {
-            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Action Required</span>`;
-            actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); submitToOSA(${index})">
-                    Submit <i class="fa-solid fa-paper-plane"></i>
-                </button>`;
-            statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Ready</span>';
-        }
-        else if (doc.status.includes('Sent to OSA')) {
-            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
-            actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
-                    <i class="fa-solid fa-eye"></i> View
-                </button>`;
-            statusBadge = '<span class="status-badge status-sent" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Sent to OSA</span>';
-        }
-        else if (doc.status.includes('Rejected')) {
-            const rejectedBySSC = (doc.title.length % 2 === 0);
-            if (rejectedBySSC) {
-                sscHtml = `<span>${sscOfficer}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
-                osaHtml = `<span style="color:var(--muted)">--</span>`;
-            } else {
-                sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-                osaHtml = `<span>${osaAdmin}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
-            }
-            actionButtons = `
-                <button class="btn btn-outline btn-sm" style="color:#dc2626; border-color:#dc2626;" onclick="event.stopPropagation(); alert('Redirect to edit...')">
-                    <i class="fa-solid fa-rotate-right"></i> Resubmit
-                </button>`;
+        } else if (doc.status.includes('Sent to OSA')) {
+            // Update: Changed from "Sent to OSA" to "Pending Review" for the OSA view
+            statusBadge = '<span class="status-badge status-sent" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending Review</span>';
+        } else if (doc.status.includes('Rejected')) {
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
-        }
-        else {
-            sscHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
-            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting</span>`;
-            actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
-                    <i class="fa-solid fa-eye"></i> View
-                </button>`;
+        } else {
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
         }
+
+        const sender = senders[doc.title.length % senders.length];
 
         return `
         <div class="list-item" onclick="openPdfViewer('doc_${index}')">
@@ -491,8 +477,8 @@ function renderDocs(filter = 'All', btnElement = null) {
                 </div>
             </div>
             <div class="col-sent mobile-hide">${sender}</div>
-            <div class="col-ssc mobile-hide">${sscHtml}</div>
-            <div class="col-osa mobile-hide">${osaHtml}</div>
+            <div class="col-ssc mobile-hide">Organization Name</div>
+            <div class="col-osa mobile-hide">OSA Internal</div>
             <div class="col-status">
                 <div class="action-btn-group">
                     ${actionButtons}
@@ -506,13 +492,6 @@ function filterDocs(filter, btnElement) {
     renderDocs(filter, btnElement);
 }
 
-function resetDateFilters() {
-    const dateInput = document.getElementById('filter-by-date');
-    const monthInput = document.getElementById('filter-by-month');
-    if (dateInput) dateInput.value = '';
-    if (monthInput) monthInput.value = '';
-    renderDocs(currentDocFilter);
-}
 
 function formatDateForComparison(date) {
     const d = new Date(date);
@@ -524,41 +503,6 @@ function formatDateForComparison(date) {
     return [year, month, day].join('-');
 }
 
-function openSubmitModal() {
-    const modal = document.getElementById('submit-doc-modal');
-    modal.classList.add('show');
-}
-
-function closeSubmitModal() {
-    const modal = document.getElementById('submit-doc-modal');
-    modal.classList.remove('show');
-}
-
-window.addEventListener('click', function (event) {
-    const modal = document.getElementById('submit-doc-modal');
-    if (event.target === modal) {
-        closeSubmitModal();
-    }
-});
-
-function handleDocSubmit(e) {
-    e.preventDefault();
-    const recipient = document.getElementById('doc-recipient').value;
-    const type = document.getElementById('doc-type').value;
-    const title = e.currentTarget.querySelector('input[type="text"]').value;
-    docsData.unshift({
-        title: title,
-        type: type,
-        date: "Just now",
-        status: `Sent to ${recipient}`
-    });
-    const allBtn = document.querySelector('.repo-filters .filter-tab:first-child');
-    renderDocs('All', allBtn);
-    renderRecentDocs();
-    e.target.reset();
-    closeSubmitModal();
-    alert(`Document successfully sent to ${recipient}.`);
-}
 
 function submitToOSA(index) {
     if (confirm('Submit this approved document to OSA for final review?')) {

@@ -411,7 +411,6 @@
         <!-- DOCUMENTS VIEW -->
         <div id="documents" class="section-view">
             <div class="docs-layout">
-
                 <div class="repo-main card">
                     <div class="repo-filters">
                         <div class="filter-tabs-group">
@@ -420,93 +419,35 @@
                             <button class="filter-tab" onclick="filterDocs('Rejected', this)">Rejected</button>
                             <button class="filter-tab" onclick="filterDocs('Pending', this)">Pending</button>
                         </div>
-                        <button class="btn btn-primary btn-sm" onclick="openSubmitModal()">
-                            <i class="fa-solid fa-cloud-arrow-up"></i> Submit New
-                        </button>
                     </div>
 
-                    <div class="date-filters-bar">
-                        <div class="date-input-group">
-                            <label for="filter-by-date">Filter by Date:</label>
-                            <input type="date" id="filter-by-date" onchange="renderDocs(currentDocFilter)">
-                        </div>
-                        <div class="date-input-group">
-                            <label for="filter-by-month">Filter by Month:</label>
-                            <input type="month" id="filter-by-month" onchange="renderDocs(currentDocFilter)">
-                        </div>
-                        <button class="btn btn-outline btn-sm" onclick="resetDateFilters()">
-                            <i class="fa-solid fa-calendar-check"></i> Show All Dates
-                        </button>
+                    <!-- List Header (5 Columns) -->
+                    <div class="list-header-row mobile-hide">
+                        <div class="col-name">Name & Type</div>
+                        <div class="col-sent">Sent By</div>
+                        <div class="col-ssc">SSC Review</div>
+                        <div class="col-osa">OSA Approval</div>
+                        <div class="col-status">Status</div>
                     </div>
 
-                    <div class="list-header-row">
-                        <span class="col-name">Document Name</span>
-                        <span class="col-sent mobile-hide">Sent By</span>
-                        <span class="col-ssc mobile-hide">Organization</span>
-                        <span class="col-osa mobile-hide">OSA Review</span>
-                        <span class="col-status" style="text-align: right;">Actions</span>
-                    </div>
-
+                    <!-- Scrollable List Container -->
                     <div id="docs-list">
+                        <!-- Data populated via osaDashboard.js -->
                     </div>
                 </div>
 
                 <div class="repo-sidebar">
                     <div class="card" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
                         <div class="repo-filters">
-                            <span class="header-text-label">Recently Submitted</span>
-
+                            <span class="header-text-label">Recent Activities</span>
                         </div>
                         <div id="recent-docs-list">
+                            <!-- Data populated via osaDashboard.js -->
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
-        <!-- Submit Document Modal -->
-        <div id="submit-doc-modal" class="modal-overlay">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Submit Documents</h3>
-                    <button class="close-modal" onclick="closeSubmitModal()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <form id="doc-form" onsubmit="handleDocSubmit(event)">
-                        <label>Send To</label>
-                        <select id="doc-recipient" required>
-                            <option value="OSA">Office of Student Affairs (OSA)</option>
-                            <option value="SSC">Supreme Student Council (SSC)</option>
-                        </select>
-
-                        <label>Document Type</label>
-                        <select id="doc-type" required>
-                            <option value="Activity Report">Activity Report</option>
-                            <option value="Financial Statement">Financial Statement</option>
-                            <option value="Proposal">Event Proposal</option>
-                            <option value="Resolution">Resolution</option>
-                            <option value="Operational Plan">Operational Plan</option>
-                        </select>
-
-                        <label>Title</label>
-                        <input type="text" placeholder="e.g., Semestral Financial Report" required>
-
-                        <label>Description/Notes</label>
-                        <textarea rows="3" placeholder="Brief details..."></textarea>
-
-                        <label>Attach File</label>
-                        <div class="file-upload-box">
-                            <i class="fa-solid fa-cloud-arrow-up"></i> Click to upload PDF
-                        </div>
-
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-outline" onclick="closeSubmitModal()">Cancel</button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fa-solid fa-paper-plane"></i> Submit
-                            </button>
-                        </div>
-                    </form>
-                </div>
     </main>
 
     <!-- Request Action Confirmation Modal -->
