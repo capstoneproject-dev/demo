@@ -632,46 +632,160 @@ td {
     color: #2563eb;
 }
 
-/* --- NEW ANALYTICS FILTER TOOLBAR --- */
-.analytics-toolbar {
+/* --- DOCUMENT DATE FILTERS --- */
+.date-filters-bar {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    gap: 15px;
-}
-
-.filters {
-    display: flex;
-    gap: 15px;
+    gap: 20px;
+    padding: 12px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
 }
 
-.filter-group {
+.date-input-group {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 10px;
 }
 
-.filter-group label {
-    font-size: 0.75rem;
-    color: var(--muted);
-    margin-bottom: 4px;
+.date-input-group label {
+    margin-bottom: 0;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    color: var(--text);
+    font-weight: 600;
 }
 
-/* Include input[type="month"] to match select styles */
-.filter-group select,
-.filter-group input[type="month"] {
+.date-input-group input[type="date"],
+.date-input-group input[type="month"] {
+    margin-bottom: 0;
+    padding: 6px 12px;
+    height: 38px;
+    width: auto;
+    min-width: 150px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+}
+
+/* Mobile Responsiveness for Date Filters */
+@media (max-width: 768px) {
+    .date-filters-bar {
+        padding: 15px;
+        gap: 12px;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .date-input-group {
+        justify-content: space-between;
+    }
+
+    .date-input-group input[type="date"],
+    .date-input-group input[type="month"] {
+        flex: 1;
+        max-width: 200px;
+    }
+}
+
+/* --- ANALYTICS FILTER TWEAKS --- */
+.analytics-toolbar .filters {
+    display: flex;
+    align-items: flex-end;
+    /* Aligns button with inputs */
+    gap: 15px;
+}
+
+.analytics-toolbar .filter-group input[type="date"] {
     margin-bottom: 0;
     padding: 8px 12px;
-    min-width: 140px;
-    font-size: 0.85rem;
+    min-width: 160px;
     height: 38px;
-    /* Force height match */
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    color: var(--text);
 }
 
-/* --- NEW ANALYTICS GRID & CHARTS --- */
+@media (max-width: 768px) {
+    .analytics-toolbar .filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .analytics-toolbar .filter-group input[type="date"] {
+        width: 100%;
+    }
+}
+
+/* --- ANALYTICS TOOLBAR SINGLE ROW LAYOUT --- */
+.analytics-toolbar {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 15px 24px;
+    gap: 20px;
+    flex-wrap: nowrap;
+    /* Forces one row on desktop */
+}
+
+.analytics-toolbar .filters {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 12px;
+    flex: 1;
+}
+
+.analytics-toolbar .filter-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 140px;
+}
+
+.analytics-toolbar .filter-group select,
+.analytics-toolbar .filter-group input[type="date"],
+.analytics-toolbar .filter-group input[type="month"] {
+    margin-bottom: 0;
+    height: 38px;
+    padding: 8px 10px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+/* MOBILE RESPONSIVENESS */
+@media (max-width: 1100px) {
+    .analytics-toolbar {
+        flex-wrap: wrap;
+        /* Wraps on smaller laptops */
+    }
+}
+
+@media (max-width: 768px) {
+
+    .analytics-toolbar,
+    .analytics-toolbar .filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .analytics-toolbar .filter-group {
+        width: 100%;
+    }
+
+    .analytics-toolbar .filter-group label {
+        visibility: visible !important;
+        display: block;
+    }
+}
+
+/* --- NEW ANALYTICS FILTER TOOLBAR --- */
 /* --- ANALYTICS GRID (Strict 2x2) --- */
 .analytics-grid {
     display: grid;

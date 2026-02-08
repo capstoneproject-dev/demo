@@ -119,7 +119,7 @@
                         <span class="notif-badge" id="notif-count">3</span>
                     </div>
                     <div class="notif-dropdown" id="notif-dropdown">
-                        <div class="notif-item">
+                        <div class=em">
                             <strong>New Event Proposal</strong>
                             <small>Submitted by Sports Club • 5m ago</small>
                         </div>
@@ -346,6 +346,20 @@
                         </button>
                     </div>
 
+                    <div class="date-filters-bar">
+                        <div class="date-input-group">
+                            <label for="filter-by-date">Filter by Date:</label>
+                            <input type="date" id="filter-by-date" onchange="renderDocs(currentDocFilter)">
+                        </div>
+                        <div class="date-input-group">
+                            <label for="filter-by-month">Filter by Month:</label>
+                            <input type="month" id="filter-by-month" onchange="renderDocs(currentDocFilter)">
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="resetDateFilters()">
+                            <i class="fa-solid fa-calendar-check"></i> Show All Dates
+                        </button>
+                    </div>
+
                     <div class="list-header-row">
                         <span class="col-name">Document Name</span>
                         <span class="col-sent mobile-hide">Sent By</span>
@@ -362,10 +376,7 @@
                     <div class="card" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
                         <div class="repo-filters">
                             <span class="header-text-label">Recently Submitted</span>
-                            <button class="btn btn-primary btn-sm"
-                                onclick="filterDocs('All', document.querySelector('.filter-tab'))">
-                                View All
-                            </button>
+
                         </div>
                         <div id="recent-docs-list">
                         </div>
@@ -381,16 +392,27 @@
                 <div class="filters">
                     <div class="filter-group">
                         <label>Academic Year</label>
-                        <select id="filter-year">
-                            <option>2023-2024</option>
-                            <option>2022-2023</option>
+                        <select id="filter-year" onchange="resetAnalyticsFilters()">
+                            <option>2025-2026</option>
+                            <option>2024-2025</option>
                         </select>
                     </div>
                     <div class="filter-group">
+                        <label>Filter by Date</label>
+                        <input type="date" id="analytics-date" onchange="filterAnalyticsByDate()">
+                    </div>
+                    <div class="filter-group">
                         <label>Select Month</label>
-                        <input type="month" id="filter-month">
+                        <input type="month" id="filter-month" onchange="filterAnalyticsByMonth()">
+                    </div>
+                    <div class="filter-group">
+                        <label style="visibility: hidden;">Reset</label>
+                        <button class="btn btn-outline btn-sm" onclick="resetAnalyticsFilters()" style="height: 38px;">
+                            <i class="fa-solid fa-calendar-check"></i> Show All
+                        </button>
                     </div>
                 </div>
+
                 <div class="export-wrapper">
                     <button class="btn btn-outline btn-sm" onclick="toggleExportMenu()">
                         <i class="fa-solid fa-download"></i> Export Report <i class="fa-solid fa-caret-down ms-2"></i>
