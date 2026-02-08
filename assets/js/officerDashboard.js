@@ -779,4 +779,138 @@ window.addEventListener('DOMContentLoaded', () => {
     renderDocs();
     renderRecentDocs();
     renderAnnouncements();
+    // Initialize repository counts
+    if (typeof updateFolderCounts === 'function') {
+        updateFolderCounts();
+    }
 });
+
+
+// --- DOCUMENT REPOSITORY LOGIC ---
+
+// 1. Switch View Function (Status Board <-> Repository)
+function switchDocsSubView(view, btn) {
+    // Toggle Button Active State
+    const buttons = document.querySelectorAll('.sub-nav-btn');
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Toggle Container Visibility
+    const statusView = document.getElementById('docs-status-view');
+    const repoView = document.getElementById('docs-repository-view');
+
+    if (view === 'repository') {
+        statusView.style.display = 'none';
+        repoView.style.display = 'block';
+        renderRepository(); // Initial render
+    } else {
+        statusView.style.display = 'flex'; // Restore flex layout (or grid if that's what it was)
+        /* calculated css uses flex for .docs-layout in officer dashboard context? 
+           Checking officerDashboard.html: .docs-layout contains .repo-main and .repo-sidebar. 
+           In officerDashboard.css it might not be explicitly grid.
+           Let's check the container style. 
+           Wait, looking at my previous read of officerDashboard.html, .docs-layout is the container.
+           Standard display for it should be Block or Flex/Grid depending on CSS.
+           Safest is to remove display:none to revert to stylesheet.
+        */
+        statusView.style.display = '';
+        repoView.style.display = 'none';
+    }
+}
+
+// 2. Mock Data for Repository
+const repositoryData = [
+    { id: 'r1', name: "Annual Activity Report 2023", category: "Activity Report", org: "Supreme Student Council", date: "Jan 10, 2024" },
+    { id: 'r2', name: "Q4 Financial Statement", category: "Financial Statement", org: "AISERS", date: "Jan 15, 2024" },
+    { id: 'r3', name: "Tech Week Proposal", category: "Event Proposal", org: "ELITECH", date: "Feb 01, 2024" },
+    { id: 'r4', name: "Res. 2024-001: Budget Allocation", category: "Resolution", org: "SSC", date: "Jan 05, 2024" },
+    { id: 'r5', name: "Semestral Operational Plan", category: "Operational Plan", org: "ILASSO", date: "Aug 12, 2023" },
+    { id: 'r6', name: "Outreach Activity Report", category: "Activity Report", org: "RCYC", date: "Dec 20, 2023" },
+    { id: 'r7', name: "Audit Report 2023", category: "Financial Statement", org: "AETSO", date: "Dec 15, 2023" },
+    { id: 'r8', name: "General Assembly Proposal", category: "Event Proposal", org: "AERO-ATSO", date: "Feb 05, 2024" },
+    { id: 'r9', name: "Res. 2023-09: Constitution Amendment", category: "Resolution", org: "SSC", date: "Nov 10, 2023" },
+    { id: 'r10', name: "Year-End Operational Plan", category: "Operational Plan", org: "Scholars Guild", date: "Dec 01, 2023" }
+];
+
+let currentRepoCategory = 'All';
+
+// 3. Render Repository
+function renderRepository() {
+    updateFolderCounts();
+    renderRepoTable();
+}
+
+// 4. Update Folder Counts based on data
+function updateFolderCounts() {
+    const categories = ["Activity Report", "Financial Statement", "Event Proposal", "Resolution", "Operational Plan"];
+
+    categories.forEach(cat => {
+        const count = repositoryData.filter(item => item.category === cat).length;
+        // Create ID format from string (e.g., "Activity Report" -> "count-activity-report")
+        const id = 'count-' + cat.toLowerCase().replace(/\s+/g, '-');
+        const element = document.getElementById(id);
+        if (element) element.innerText = `${count} Files`;
+    });
+}
+
+// 5. Render Table (Filtered by Category and Search)
+function renderRepoTable() {
+    const tbody = document.getElementById('repository-table-body');
+    const searchInput = document.getElementById('repo-search-input').value.toLowerCase();
+
+    if (!tbody) return;
+
+    // Filter Data
+    const filtered = repositoryData.filter(item => {
+        const matchesCategory = currentRepoCategory === 'All' || item.category === currentRepoCategory;
+        const matchesSearch = item.name.toLowerCase().includes(searchInput) ||
+            item.org.toLowerCase().includes(searchInput) ||
+            item.category.toLowerCase().includes(searchInput);
+        return matchesCategory && matchesSearch;
+    });
+
+    // Render Rows
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--muted);">No documents found.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(item => `
+        <tr>
+            <td>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i>
+                    <span style="font-weight:500;">${item.name}</span>
+                </div>
+            </td>
+            <td><span class="repo-category-tag">${item.category}</span></td>
+            <td>${item.org}</td>
+            <td>${item.date}</td>
+            <td class="text-right">
+                <button class="btn btn-sm btn-outline" onclick="openPdfViewer('repo_${item.id}')">
+                    <i class="fa-solid fa-download"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 6. Handle Folder Click (Filter by Category)
+function filterRepoByCategory(category, element) {
+    currentRepoCategory = category;
+
+    // Update visual active state on folders
+    const folders = document.querySelectorAll('.folder-card');
+    folders.forEach(f => f.classList.remove('active'));
+
+    if (element) {
+        element.classList.add('active');
+    }
+
+    renderRepoTable();
+}
+
+// 7. Handle Search Input
+function handleRepoSearch() {
+    renderRepoTable();
+}
