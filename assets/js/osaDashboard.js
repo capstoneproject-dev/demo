@@ -214,8 +214,7 @@ function navigate(viewId, element) {
         'organizations': 'Student Organizations',
         'monitoring': 'Organization Monitoring Panel',
         'requests': 'Requests & Approvals',
-        'documents': 'Document Repository',
-        'verification': 'Student Verification'
+        'documents': 'Document Repository'
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'OSA Portal';
 }
@@ -656,51 +655,6 @@ function clearRequestFilters() {
 
 // function filterRequests() {} // Removed as it is replaced by renderRequests internal logic
 
-// --- VERIFICATION LOGIC ---
-function verifyStudent() {
-    const idInput = document.getElementById('verify-input').value;
-    const nameInput = document.getElementById('verify-name').value;
-    const resultArea = document.getElementById('verify-result-area');
-
-    if (!idInput || !nameInput) {
-        showToast('Please enter both ID and Name', 'error');
-        return;
-    }
-
-    // Simulate Loading
-    resultArea.innerHTML = `<div style="text-align:center; padding: 40px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:2rem; color:var(--primary);"></i><p style="margin-top:10px;">Checking Database...</p></div>`;
-
-    setTimeout(() => {
-        // Logic: Mock validation. If ID starts with 2023, assume enrolled.
-        const isEnrolled = idInput.startsWith("2023") || idInput.startsWith("2022");
-
-        if (isEnrolled) {
-            resultArea.innerHTML = `
-                <div class="verification-box" style="background: rgba(16, 185, 129, 0.1); border-color: #10b981; border-style: solid;">
-                    <i class="fa-solid fa-circle-check" style="font-size: 3rem; color: #059669; margin-bottom: 15px;"></i>
-                    <h3 style="color: #059669;">Verified Enrolled</h3>
-                    <p style="font-size: 0.9rem;"><strong>${nameInput}</strong></p>
-                    <p style="font-size: 0.9rem;">ID: ${idInput}</p>
-                    <div style="margin-top: 15px; font-size: 0.8rem; color: var(--muted);">
-                        Course: BS Computer Science<br>
-                        Year: 2nd Year<br>
-                        Status: No Balances
-                    </div>
-                </div>
-            `;
-            showToast('Student verified successfully', 'success');
-        } else {
-            resultArea.innerHTML = `
-                <div class="verification-box" style="background: rgba(239, 68, 68, 0.1); border-color: #ef4444; border-style: solid;">
-                    <i class="fa-solid fa-circle-xmark" style="font-size: 3rem; color: #dc2626; margin-bottom: 15px;"></i>
-                    <h3 style="color: #dc2626;">Not Enrolled / Not Found</h3>
-                    <p style="font-size: 0.9rem;">Student record does not exist for current semester.</p>
-                </div>
-            `;
-            showToast('Verification failed', 'error');
-        }
-    }, 1000); // 1 second simulated delay
-}
 
 // --- UTILS ---
 function setDate() {
