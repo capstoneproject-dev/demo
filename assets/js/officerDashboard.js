@@ -194,6 +194,8 @@ function renderRecentDocs() {
     `).join('');
 }
 
+// --- UPDATED RENDERING LOGIC WITH DATE FILTERS ---
+
 function renderDocs(filter = 'All', btnElement = null) {
     currentDocFilter = filter;
 
@@ -208,21 +210,49 @@ function renderDocs(filter = 'All', btnElement = null) {
     }
 
     const list = document.getElementById('docs-list');
+    const dateVal = document.getElementById('filter-by-date') ? document.getElementById('filter-by-date').value : '';
+    const monthVal = document.getElementById('filter-by-month') ? document.getElementById('filter-by-month').value : '';
 
     // DATA SIMULATION POOLS
     const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
     const sscOfficers = ["Pres. Cruz", "VP Santos", "Sec. Reyes"];
     const osaAdmins = ["Dir. Fury", "Mrs. Potts", "Admin Stark"];
 
-    // Update filter logic to handle "SSC Approved" status
-    const filteredData = docsData.filter(doc => {
+    // 1. Filter by Status (Existing Logic)
+    let filteredData = docsData.filter(doc => {
         if (filter === 'All') return true;
         if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending') || doc.status === 'SSC Approved';
         return doc.status.includes(filter);
     });
 
+    // 2. Filter by Date/Month (New Logic)
+    if (dateVal || monthVal) {
+        filteredData = filteredData.filter(doc => {
+            // Convert simulated dates ("Oct 18") to a comparable object
+            // Note: Since no year is in your simulation, we assume 2026 for comparison
+            // "Just now" or "Yesterday" cases need handling ideally, but strictly following user logic for now or defaulting to current date
+            let docDate;
+            if (doc.date === "Just now") {
+                docDate = new Date();
+            } else if (doc.date === "Yesterday") {
+                docDate = new Date();
+                docDate.setDate(docDate.getDate() - 1);
+            } else {
+                docDate = new Date(`${doc.date}, 2026`);
+            }
+
+            if (dateVal) {
+                return formatDateForComparison(docDate) === dateVal;
+            } else if (monthVal) {
+                const docMonth = `${docDate.getFullYear()}-${String(docDate.getMonth() + 1).padStart(2, '0')}`;
+                return docMonth === monthVal;
+            }
+            return true;
+        });
+    }
+
     if (filteredData.length === 0) {
-        list.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--muted); grid-column: 1/-1;">No documents found.</div>`;
+        list.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--muted); grid-column: 1/-1;">No documents match these filters.</div>`;
         return;
     }
 
@@ -323,6 +353,26 @@ function renderDocs(filter = 'All', btnElement = null) {
             </div>
         </div>`;
     }).join('');
+}
+
+// Helper: Clear filters
+function resetDateFilters() {
+    const dateInput = document.getElementById('filter-by-date');
+    const monthInput = document.getElementById('filter-by-month');
+    if (dateInput) dateInput.value = '';
+    if (monthInput) monthInput.value = '';
+    renderDocs(currentDocFilter);
+}
+
+// Helper: Format Date to YYYY-MM-DD
+function formatDateForComparison(date) {
+    const d = new Date(date);
+    let month = '' + (d.getMonth() + 1);
+    let day = '' + d.getDate();
+    const year = d.getFullYear();
+    if (month.length < 2) month = '0' + month;
+    if (day.length < 2) day = '0' + day;
+    return [year, month, day].join('-');
 }
 
 function filterDocs(filter, btnElement) {
@@ -474,6 +524,57 @@ function viewEventsList() {
     if (eventsFrame) {
         eventsFrame.src = "../systems/QR-Attendance/events.html";
     }
+}
+
+// --- ANALYTICS FILTERING & CHART SYNC ---
+
+function filterAnalyticsByDate() {
+    const dateVal = document.getElementById('analytics-date').value;
+    if (dateVal) {
+        document.getElementById('filter-month').value = '';
+        syncCharts(dateVal, 'day');
+    }
+}
+
+function filterAnalyticsByMonth() {
+    const monthVal = document.getElementById('filter-month').value;
+    if (monthVal) {
+        document.getElementById('analytics-date').value = '';
+        syncCharts(monthVal, 'month');
+    }
+}
+
+function resetAnalyticsFilters() {
+    const dateInput = document.getElementById('analytics-date');
+    const monthInput = document.getElementById('filter-month');
+    if (dateInput) dateInput.value = '';
+    if (monthInput) monthInput.value = '';
+    syncCharts(null, 'all');
+}
+
+/**
+ * Sends the selected filter to the Analytics logic.
+ */
+function syncCharts(value, type) {
+    console.log(`Syncing charts for ${type}: ${value}`);
+
+    // Update Stat Cards UI immediately
+    const revenueDisplay = document.querySelector('.stat-card h3');
+    if (revenueDisplay) {
+        if (type === 'day') {
+            revenueDisplay.innerText = "₱1,050"; // Simulated filtered value
+        } else if (type === 'all') {
+            revenueDisplay.innerText = "₱12.5k"; // Original value
+        }
+    }
+
+    // Call the refresh function in officerAnalytics.js
+    if (typeof refreshAnalyticsCharts === 'function') {
+        refreshAnalyticsCharts(value, type);
+    }
+
+    // Force chart container resize to prevent layout glitches
+    window.dispatchEvent(new Event('resize'));
 }
 
 // --- EXPORT FUNCTIONS ---
