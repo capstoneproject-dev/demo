@@ -2320,6 +2320,34 @@ body.dark #organizations label.btn-primary:hover {
 }
 
 /* --- RECENTLY SUBMITTED SIDEBAR --- */
+/* Ensure uniformity in the filters bar */
+.date-input-group select {
+    margin-bottom: 0;
+    padding: 6px 12px;
+    height: 38px;
+    width: auto;
+    min-width: 180px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.date-input-group select:focus {
+    border-color: var(--primary);
+    outline: none;
+}
+
+/* Mobile adjustments for the expanded filter bar */
+@media (max-width: 768px) {
+    .date-input-group select {
+        width: 100%;
+        max-width: none;
+    }
+}
+
 /* Sidebar Activity Item Layout */
 .recent-activity-item {
     display: flex;

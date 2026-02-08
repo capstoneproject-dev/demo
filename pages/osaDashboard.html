@@ -421,6 +421,30 @@
                         </div>
                     </div>
 
+                    <!-- Filter Bar with Organization and Dates -->
+                    <div class="date-filters-bar">
+                        <div class="date-input-group">
+                            <label for="filter-by-org">Organization:</label>
+                            <select id="filter-by-org" onchange="renderDocs(currentDocFilter)">
+                                <option value="all">All Organizations</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="filter-by-date">Date:</label>
+                            <input type="date" id="filter-by-date" onchange="renderDocs(currentDocFilter)">
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="filter-by-month">Month:</label>
+                            <input type="month" id="filter-by-month" onchange="renderDocs(currentDocFilter)">
+                        </div>
+
+                        <button class="btn btn-outline btn-sm" onclick="resetDateFilters()">
+                            <i class="fa-solid fa-calendar-check"></i> Show All Dates
+                        </button>
+                    </div>
+
                     <!-- List Header (5 Columns) -->
                     <div class="list-header-row mobile-hide">
                         <div class="col-name">Name & Type</div>
