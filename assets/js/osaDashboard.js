@@ -80,10 +80,10 @@ const organizations = [
 ];
 
 const requests = [
-    { id: 101, type: "Event Proposal", org: "AISERS", title: "AIS-AHAN: Constituency Check", date: "Oct 24, 2023", status: "Pending" },
-    { id: 102, type: "Posting", org: "Supreme Student Council", title: "Love Surge", date: "Oct 24, 2023", status: "Pending" },
-    { id: 103, type: "Document", org: "AERO-ATSO", title: "Semestral Financial Report", date: "Oct 23, 2023", status: "Pending" },
-    { id: 104, type: "Event Proposal", org: "SCHOLAR'S GUILD", title: "Mental Health Week", date: "Oct 22, 2023", status: "Pending" }
+    { id: 101, type: "Event Proposal", org: "AISERS", sender: "Pres. Alano", title: "AIS-AHAN: Constituency Check", date: "Oct 24, 2023", status: "Pending" },
+    { id: 102, type: "Posting", org: "Supreme Student Council", sender: "VPI Flores", title: "Love Surge", date: "Oct 24, 2023", status: "Pending" },
+    { id: 103, type: "Document", org: "AERO-ATSO", sender: "Tres. Beltrano", title: "Semestral Financial Report", date: "Oct 23, 2023", status: "Pending" },
+    { id: 104, type: "Event Proposal", org: "SCHOLAR'S GUILD", sender: "PO Martinez", title: "Mental Health Week", date: "Oct 22, 2023", status: "Pending" }
 ];
 
 const documents = [
@@ -289,7 +289,7 @@ function renderRequests() {
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: var(--muted);">No requests found matching your criteria.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: var(--muted);">No requests found matching your criteria.</td></tr>`;
         return;
     }
 
@@ -306,12 +306,23 @@ function renderRequests() {
             `;
         }
 
+        // Split sender name and position for styling (assumes format: "Pos. Name")
+        const senderParts = (req.sender || 'TBD User').split(' ');
+        const position = senderParts[0];
+        const name = senderParts.slice(1).join(' ');
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><span class="status-badge status-submitted">${req.type}</span></td>
-            <td>${req.org}</td>
-            <td>${req.title}</td>
-            <td>${req.date}</td>
+            <td style="font-weight: 600;">${req.org}</td>
+            <td>
+                <div class="sender-info">
+                    <span class="sender-name">${name}</span>
+                    <span class="sender-position">${position}</span>
+                </div>
+            </td>
+            <td>${req.title || req.name}</td>
+            <td>${req.date || '---'}</td>
             <td>${actionButtons}</td>
         `;
         tbody.appendChild(tr);
