@@ -1389,6 +1389,10 @@ body.dark .sub-nav-btn.active {
 /* --- MOBILE RESPONSIVE (UPDATED FROM REFERENCE) --- */
 @media (max-width: 768px) {
 
+    .mobile-only {
+        display: block;
+    }
+
     /* 1. FIX: Sidebar to Fixed Bottom */
     .sidebar {
         bottom: 0;
@@ -1967,7 +1971,7 @@ body.dark .sub-nav-btn.active {
 
 /* Mobile Adjustments */
 .mobile-only {
-    display: block;
+    display: none;
 }
 
 .user-info {
