@@ -72,3 +72,24 @@ This document maps essential production-grade algorithms directly to the specifi
 *   **Where to Apply**:
     *   **OfflineQueueService**: When syncing queued rentals/attendance scans back to the SQL database.
     *   **Logic**: If the API is unreachable (e.g. server restart), wait 1s, then 2s, then 4s... instead of retrying every 10ms. This prevents crashing the server when it comes back online.
+
+## 5. Barcode Generation & Reading Algorithms
+**Context**: Creating student/officer IDs and scanning them efficiently.
+
+### A. Generation: **Code 128 (Standard)**
+*   **Current State**: Your system currently uses a custom "Base62 Hash" (`encoder.js`).
+    *   **Problem**: It is **lossy/non-reversible** (you can't get the ID back from the barcode) and requires an O(n) search to find a match.
+*   **Recommendation**: Use **Code 128** or **QR Code** standard to encode the *actual* Student ID string (e.g., "2023-10523").
+*   **Algorithm**: No custom hashing.
+    *   Input: "2023-10523"
+    *   Output: `|| ||| || |||` (The visual representation of that string).
+
+### B. Reading/Lookup: **Direct Index Lookup (O(1))**
+*   **Current State**: The system iterates through *every* student, re-encodes their ID, and compares it until a match is found.
+    *   Complexity: **O(N * L)** where N=Students, L=ID Length. Very slow for 5000+ students.
+*   **Recommendation**:
+    *   **Step 1**: Scanner reads string "2023-10523" directly.
+    *   **Step 2**: API Query: `SELECT * FROM students WHERE student_id = '2023-10523'`.
+    *   **Step 3**: Database uses the **B-Tree Index** on `student_id` to find the record instantly.
+    *   Complexity: **O(log N)** (Near instant).
+
