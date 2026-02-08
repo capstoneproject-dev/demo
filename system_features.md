@@ -41,9 +41,6 @@ The administrative portal for university staff to oversee student organizations.
 *   **Status Tracking**: Track approval status (Pending, SSC Review, OSA Review, Approved/Rejected).
 *   **PDF Viewer**: Integrated viewer with annotation tools (Highlight, Comment) and zoom controls.
 
-### **Student Verification**
-*   **Enrollment Check**: Verify a student's enrollment status via ID Number or Name (connects to Registrar DB).
-
 ## 3. Student Dashboard
 The student-facing portal for engagement and information.
 
