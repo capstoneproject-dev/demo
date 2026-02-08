@@ -411,6 +411,7 @@
         <!-- DOCUMENTS VIEW -->
         <div id="documents" class="section-view">
             <div class="docs-layout">
+
                 <div class="repo-main card">
                     <div class="repo-filters">
                         <div class="filter-tabs-group">
@@ -441,13 +442,12 @@
                     <div class="list-header-row">
                         <span class="col-name">Document Name</span>
                         <span class="col-sent mobile-hide">Sent By</span>
-                        <span class="col-ssc mobile-hide">SSC Review</span>
+                        <span class="col-ssc mobile-hide">Organization</span>
                         <span class="col-osa mobile-hide">OSA Review</span>
                         <span class="col-status" style="text-align: right;">Actions</span>
                     </div>
 
                     <div id="docs-list">
-                        <!-- JS Populated -->
                     </div>
                 </div>
 
@@ -455,14 +455,58 @@
                     <div class="card" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
                         <div class="repo-filters">
                             <span class="header-text-label">Recently Submitted</span>
+
                         </div>
                         <div id="recent-docs-list">
-                            <!-- JS Populated -->
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Submit Document Modal -->
+        <div id="submit-doc-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Submit Documents</h3>
+                    <button class="close-modal" onclick="closeSubmitModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="doc-form" onsubmit="handleDocSubmit(event)">
+                        <label>Send To</label>
+                        <select id="doc-recipient" required>
+                            <option value="OSA">Office of Student Affairs (OSA)</option>
+                            <option value="SSC">Supreme Student Council (SSC)</option>
+                        </select>
+
+                        <label>Document Type</label>
+                        <select id="doc-type" required>
+                            <option value="Activity Report">Activity Report</option>
+                            <option value="Financial Statement">Financial Statement</option>
+                            <option value="Proposal">Event Proposal</option>
+                            <option value="Resolution">Resolution</option>
+                            <option value="Operational Plan">Operational Plan</option>
+                        </select>
+
+                        <label>Title</label>
+                        <input type="text" placeholder="e.g., Semestral Financial Report" required>
+
+                        <label>Description/Notes</label>
+                        <textarea rows="3" placeholder="Brief details..."></textarea>
+
+                        <label>Attach File</label>
+                        <div class="file-upload-box">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Click to upload PDF
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline" onclick="closeSubmitModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa-solid fa-paper-plane"></i> Submit
+                            </button>
+                        </div>
+                    </form>
+                </div>
     </main>
 
     <!-- Request Action Confirmation Modal -->
@@ -645,52 +689,6 @@
             <div class="pdf-comment-modal-actions">
                 <button class="btn btn-sm btn-outline" onclick="cancelPdfComment()">Cancel</button>
                 <button class="btn btn-sm btn-primary" onclick="savePdfComment()">Save</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Submit Document Modal -->
-    <div id="submit-doc-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Submit Documents</h3>
-                <button class="modal-close-btn" onclick="closeSubmitModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="doc-form" onsubmit="handleDocSubmit(event)">
-                    <label>Send To</label>
-                    <select id="doc-recipient" required>
-                        <option value="OSA">Office of Student Affairs (OSA)</option>
-                        <option value="SSC">Supreme Student Council (SSC)</option>
-                    </select>
-
-                    <label>Document Type</label>
-                    <select id="doc-type" required>
-                        <option value="Activity Report">Activity Report</option>
-                        <option value="Financial Statement">Financial Statement</option>
-                        <option value="Proposal">Event Proposal</option>
-                        <option value="Resolution">Resolution</option>
-                        <option value="Operational Plan">Operational Plan</option>
-                    </select>
-
-                    <label>Title</label>
-                    <input type="text" placeholder="e.g., Semestral Financial Report" required>
-
-                    <label>Description/Notes</label>
-                    <textarea rows="3" placeholder="Brief details..."></textarea>
-
-                    <label>Attach File</label>
-                    <div class="file-upload-box">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> Click to upload PDF
-                    </div>
-
-                    <div class="request-action-modal-footer" style="margin-top: 20px;">
-                        <button type="button" class="btn btn-outline" onclick="closeSubmitModal()">Cancel</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fa-solid fa-paper-plane"></i> Submit
-                        </button>
-                    </div>
-                </form>
             </div>
         </div>
     </div>
