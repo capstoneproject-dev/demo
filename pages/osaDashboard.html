@@ -375,7 +375,7 @@
                             <!-- Populated via JS -->
                         </select>
 
-                        <button class="date-range-btn" onclick="openDatePicker()">
+                        <button class="date-range-btn" onclick="openDatePicker('requests')">
                             <i class="fa-solid fa-calendar-days"></i>
                             <span id="date-range-label">Select Date Range</span>
                         </button>
@@ -438,15 +438,10 @@
                             </select>
                         </div>
 
-                        <div class="date-input-group">
-                            <label for="filter-by-date">Date:</label>
-                            <input type="date" id="filter-by-date" onchange="renderDocs(currentDocFilter)">
-                        </div>
-
-                        <div class="date-input-group">
-                            <label for="filter-by-month">Month:</label>
-                            <input type="month" id="filter-by-month" onchange="renderDocs(currentDocFilter)">
-                        </div>
+                        <button class="date-range-btn" onclick="openDatePicker('docs')">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span id="docs-date-range-label">Select Date Range</span>
+                        </button>
 
                         <button class="btn btn-outline btn-sm" onclick="resetDateFilters()">
                             <i class="fa-solid fa-calendar-check"></i> Show All Dates
@@ -493,51 +488,45 @@
                     </div>
 
                     <div class="repo-filter-bar">
-                        <div class="repo-filter-row">
-                            <div class="repo-filter-group">
-                                <label>File Type:</label>
-                                <select id="repo-filter-type" onchange="renderRepoTable()">
-                                    <option value="All">All Types</option>
-                                    <option value="Activity Report">Activity Report</option>
-                                    <option value="Financial Statement">Financial Statement</option>
-                                    <option value="Event Proposal">Event Proposal</option>
-                                    <option value="Resolution">Resolution</option>
-                                    <option value="Operational Plan">Operational Plan</option>
-                                </select>
-                            </div>
-
-                            <div class="repo-filter-group">
-                                <label>Organization:</label>
-                                <select id="repo-filter-org" onchange="renderRepoTable()">
-                                    <option value="all">All Organizations</option>
-                                </select>
-                            </div>
+                        <div class="repo-filter-group">
+                            <label>File Type:</label>
+                            <select id="repo-filter-type" onchange="renderRepoTable()">
+                                <option value="All">All Types</option>
+                                <option value="Resolution">Resolution</option>
+                                <option value="Memo">Memorandum</option>
+                                <option value="Letter">Letter</option>
+                                <option value="Proposal">Project Proposal</option>
+                                <option value="Report">Accomplishment Report</option>
+                                <option value="Financial">Financial Statement</option>
+                                <option value="Constitution">Constitution & By-Laws</option>
+                                <option value="Operational Plan">Operational Plan</option>
+                            </select>
                         </div>
 
-                        <div class="repo-filter-row">
-                            <div class="repo-filter-group">
-                                <label>Semester:</label>
-                                <select id="repo-filter-sem" onchange="renderRepoTable()">
-                                    <option value="all">All Semesters</option>
-                                    <option value="1st">1st Semester</option>
-                                    <option value="2nd">2nd Semester</option>
-                                </select>
-                            </div>
-
-                            <div class="repo-filter-group">
-                                <label>Month:</label>
-                                <input type="month" id="repo-filter-month" onchange="renderRepoTable()">
-                            </div>
-
-                            <div class="repo-filter-group">
-                                <label>Specific Date:</label>
-                                <input type="date" id="repo-filter-date" onchange="renderRepoTable()">
-                            </div>
-
-                            <button class="btn btn-sm btn-outline" onclick="resetRepoFilters()">
-                                <i class="fa-solid fa-rotate-left"></i> Reset Filters
-                            </button>
+                        <div class="repo-filter-group">
+                            <label>Organization:</label>
+                            <select id="repo-filter-org" onchange="renderRepoTable()">
+                                <option value="all">All Organizations</option>
+                            </select>
                         </div>
+
+                        <div class="repo-filter-group">
+                            <label>Semester:</label>
+                            <select id="repo-filter-sem" onchange="renderRepoTable()">
+                                <option value="all">All Semesters</option>
+                                <option value="1st">1st Semester</option>
+                                <option value="2nd">2nd Semester</option>
+                            </select>
+                        </div>
+
+                        <button class="date-range-btn" onclick="openDatePicker('repo')">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span id="repo-date-range-label">Select Date Range</span>
+                        </button>
+
+                        <button class="btn btn-sm btn-outline" onclick="resetRepoFilters()">
+                            <i class="fa-solid fa-rotate-left"></i> Reset Filters
+                        </button>
                     </div>
 
                     <div class="table-container">
