@@ -795,6 +795,33 @@ td {
     margin-bottom: 30px;
 }
 
+/* --- ANALYTICS CARD SEPARATION --- */
+/* Use these classes to customize individual card sizes or behaviors */
+.card-financial,
+.card-participation,
+.card-inventory,
+.card-workflow {
+    grid-column: span 1;
+    min-width: 0;
+    /* Prevents grid blowout from wide content (charts) */
+    overflow: hidden;
+    /* Ensures content stays within rounded corners */
+}
+
+/* Specific internal layout fixes */
+.card-workflow .chart-wrapper,
+.card-inventory .chart-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.card-workflow .legend-wrapper,
+.card-inventory .legend-wrapper {
+    flex: 1;
+    min-width: 0;
+    padding-left: 10px;
+}
+
 .chart-container-relative {
     position: relative;
     height: 220px;
