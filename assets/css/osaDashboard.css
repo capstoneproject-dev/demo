@@ -2320,40 +2320,67 @@ body.dark #organizations label.btn-primary:hover {
 }
 
 /* --- RECENTLY SUBMITTED SIDEBAR --- */
-.recent-item {
+/* Sidebar Activity Item Layout */
+.recent-activity-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* Vertically centers the View button */
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+    gap: 12px;
+}
+
+.recent-activity-item:hover {
+    background-color: var(--panel-2);
+}
+
+.recent-activity-content {
     display: flex;
     gap: 12px;
-    align-items: start;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+    flex: 1;
 }
 
-.recent-item:last-child {
-    border-bottom: none;
+.recent-activity-actions {
+    flex-shrink: 0;
 }
 
-.recent-icon {
-    min-width: 32px;
+/* Icon-only button styling for the sidebar */
+.icon-only-btn {
+    width: 32px;
     height: 32px;
-    background: var(--panel-2);
-    border-radius: 8px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--primary);
-    font-size: 0.9rem;
+    border-radius: var(--radius-sm);
 }
 
-.recent-info h5 {
-    font-size: 0.85rem;
-    color: var(--text);
-    margin-bottom: 2px;
-    line-height: 1.3;
-}
-
-.recent-info span {
+/* Adjustments for typography inside the sidebar activity */
+.recent-info p {
     font-size: 0.75rem;
+    margin: 2px 0 4px 0;
     color: var(--muted);
+}
+
+.recent-info .status-badge {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    display: inline-block;
+}
+
+/* Mobile Responsiveness for Sidebar Buttons */
+@media (max-width: 768px) {
+    .recent-activity-item {
+        padding: 12px;
+    }
+
+    .icon-only-btn {
+        width: 30px;
+        height: 30px;
+    }
 }
 
 /* --- MODAL STYLES (Submit Document) --- */
