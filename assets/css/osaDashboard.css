@@ -2875,3 +2875,9 @@ body.dark .repo-filter-bar {
         min-width: 0;
     }
 }
+
+/* --- ORGANIZATIONS TAB LAYOUT ADJUSTMENT --- */
+/* Forces the grid to be a single full-width column since the right card was removed */
+#organizations .split-view-grid {
+    grid-template-columns: 1fr;
+}
