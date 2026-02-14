@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './Login.module.css';
 import linesBg from '../photos/lines.png';
 
 const Login = () => {
+  const navigate = useNavigate();
+  
   // State Management
   const [isRightPanelActive, setIsRightPanelActive] = useState(false);
   const [isForgotMode, setIsForgotMode] = useState(false);
@@ -44,12 +47,13 @@ const Login = () => {
   const handleLogin = (e) => {
     e.preventDefault();
     const type = loginType.trim().toLowerCase();
+    
     if (type === 'student') {
-      window.location.href = 'studentDashboard.html';
+      navigate('/student'); // Goes to StudentDashboard component
     } else if (type === 'org') {
-      window.location.href = 'officerDashboard.html';
+      navigate('/officer'); // Goes to OfficerDashboard component
     } else if (type === 'osa') {
-      window.location.href = 'osaDashboard.html';
+      navigate('/osa');     // Goes to OsaDashboard component
     } else {
       alert('Please enter a valid user type: student, org, or osa.');
     }
@@ -60,12 +64,9 @@ const Login = () => {
   const signInContainerClasses = `${styles.formContainer} ${styles.signInContainer} ${isForgotMode ? styles.forgotMode : ''}`;
   const signUpContainerClasses = `${styles.formContainer} ${styles.signUpContainer}`;
 
-  // Overlay background style with imported image
+  // We pass the image as a variable so it doesn't overwrite the gradient
   const overlayStyle = {
-    backgroundImage: `url(${linesBg})`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat'
+    '--overlay-lines': `url(${linesBg})`
   };
 
   return (
