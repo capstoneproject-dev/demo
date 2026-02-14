@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
+import StudentDashboard from './pages/StudentDashboard';
 
 function App() {
   return (
@@ -8,8 +9,10 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         
+        {/* Student Dashboard Route */}
+        <Route path="/student" element={<StudentDashboard />} />
+        
         {/* Placeholder Routes */}
-        <Route path="/student" element={<h1>Student Dashboard</h1>} />
         <Route path="/officer" element={<h1>Officer Dashboard</h1>} />
         <Route path="/osa" element={<h1>OSA Dashboard</h1>} />
       </Routes>

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './Login.module.css';
-import linesBg from '../photos/lines.png';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -63,11 +62,6 @@ const Login = () => {
   const containerClasses = `${styles.container} ${isRightPanelActive ? styles.rightPanelActive : ''}`;
   const signInContainerClasses = `${styles.formContainer} ${styles.signInContainer} ${isForgotMode ? styles.forgotMode : ''}`;
   const signUpContainerClasses = `${styles.formContainer} ${styles.signUpContainer}`;
-
-  // We pass the image as a variable so it doesn't overwrite the gradient
-  const overlayStyle = {
-    '--overlay-lines': `url(${linesBg})`
-  };
 
   return (
     <div className={styles.pageWrapper}>
@@ -213,7 +207,7 @@ const Login = () => {
         </div>
 
         {/* NAVY BLUE SLIDING PANEL (DISCONNECTED & ROUNDED) */}
-        <div className={styles.overlayContainer} style={overlayStyle}>
+        <div className={styles.overlayContainer}>
           <div className={styles.overlay}>
 
             {/* RIGHT PANEL (Visible when Login is Active) */}
