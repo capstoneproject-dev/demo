@@ -26,9 +26,7 @@ The command center for student organization officers to manage their operations.
 The administrative portal for university staff to oversee student organizations.
 
 ### **Organization Oversight**
-*   **Accreditation Monitoring**: Track status of all student organizations (Good Standing, Probation).
-*   **Financial Auditing**: View summary of organization funds, last audit status, and pending dues.
-*   **Sanctioning**: Issue warnings or sanctions to organizations for non-compliance.
+*   **Financial Auditing**: View summary of organization funds and last audit status.
 
 ### **Request Management**
 *   **Approval System**: Review and Approve/Reject Event Proposals, Postings, and Document Submissions.
