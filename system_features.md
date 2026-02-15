@@ -61,7 +61,7 @@ A specialized module for efficient event attendance tracking.
 A Point-of-Sale (POS) style system for equipment rentals.
 
 ### **Inventory & Rentals**
-*   **Catalog**: View available items (Uniforms, Equipment) with real-time stock status.
+*   **Catalog**: View available items (Lockers, Equipment, Printing) with real-time stock status.
 *   **Cart System**: Add multiple items to a rental transaction.
 *   **Barcode Checkout**: Scan items and student IDs for fast processing.
 *   **Rental History**: Track active rentals, overdue items, and returned assets.
