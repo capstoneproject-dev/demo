@@ -13,6 +13,12 @@ let lastBeepTime = 0;
 let recentTimedOutKey = null;
 let recentTimedOutTimeout = null;
 
+function getCurrentEvent() {
+    const params = new URLSearchParams(window.location.search);
+    const eventName = params.get('event');
+    return eventName ? String(eventName).trim() : '';
+}
+
 async function initializeLocalData() {
     attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
     students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
@@ -59,7 +65,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
     students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
 
-    const currentEvent = localStorage.getItem('currentEvent');
+    localStorage.removeItem('currentEvent');
+    const currentEvent = getCurrentEvent();
     if (currentEvent) {
         document.getElementById('eventNameDisplay').textContent = currentEvent;
     } else {
@@ -90,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             const scanMode = document.querySelector('input[name="scanMode"]:checked').value;
             const today = new Date().toLocaleDateString();
-            const currentEvent = localStorage.getItem('currentEvent');
+            const currentEvent = getCurrentEvent();
 
             // Lookup student by barcode
             let foundStudent = null;
@@ -314,7 +321,7 @@ function updateEventFilter() {
         }
     });
     // Set current event as selected
-    const currentEvent = localStorage.getItem('currentEvent');
+    const currentEvent = getCurrentEvent();
     if (currentEvent) {
         eventFilter.value = currentEvent;
     }
@@ -340,7 +347,7 @@ function updateSectionDropdownAndStudentList() {
     if (!dropdown) return;
 
     // Get the current event (not the event filter)
-    const currentEvent = localStorage.getItem('currentEvent');
+    const currentEvent = getCurrentEvent();
     if (!currentEvent) {
         dropdown.innerHTML = '';
         document.getElementById('studentListBySection').innerHTML = '';
@@ -385,7 +392,7 @@ function updateStudentListBySection(section) {
     if (!tbody) return;
 
     // Get the current event (not the event filter)
-    const currentEvent = localStorage.getItem('currentEvent');
+    const currentEvent = getCurrentEvent();
     if (!currentEvent) {
         tbody.innerHTML = '';
         return;
@@ -681,7 +688,7 @@ async function markAttendance(student) {
     const today = new Date().toLocaleDateString();
     const currentTime = new Date().toLocaleTimeString();
     const nowMs = Date.now();
-    const currentEvent = localStorage.getItem('currentEvent');
+    const currentEvent = getCurrentEvent();
 
     // Check if there are any records for the current event before adding
     let eventRecordsBefore = attendanceRecords.filter(r => r.event === currentEvent);

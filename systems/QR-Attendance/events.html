@@ -431,8 +431,8 @@
 
         // Function to start attendance for an event
         async function startEventAttendance(eventName) {
-            localStorage.setItem('currentEvent', eventName);
-            window.location.href = 'index.html';
+            localStorage.removeItem('currentEvent');
+            window.location.href = `index.html?event=${encodeURIComponent(eventName || '')}`;
         }
 
         // Show event details in modal
@@ -801,31 +801,46 @@
         confirmDeleteEvent.addEventListener('click', async function () {
             if (deleteEventConfirmation.value === 'Delete' && window.eventToDelete) {
                 const { eventName, eventId } = window.eventToDelete;
+                const normalizedTargetName = normalizeEventName(eventName);
 
                 try {
                     // Delete from Local Storage immediately (works offline)
+                    let filteredEvents = [];
                     if (window.offlineSync) {
                         const localRecords = window.offlineSync.getFromLocalStorage('attendance');
-                        const filtered = localRecords.filter(r => r.event !== eventName);
+                        const filtered = localRecords.filter(r => normalizeEventName(r.event) !== normalizedTargetName);
                         localStorage.setItem(window.offlineSync.localStoragePrefix + 'attendance', JSON.stringify(filtered));
                         localStorage.setItem('attendanceRecords', JSON.stringify(filtered));
 
-                        // Also delete event from Local Storage if it exists
-                        const localEvents = window.offlineSync.getFromLocalStorage('events');
-                        const filteredEvents = localEvents.filter(e => e.name !== eventName && e.id !== eventId);
+                        // Also delete event from both plain and prefixed local storage
+                        const localEvents = JSON.parse(localStorage.getItem('events')) || [];
+                        filteredEvents = localEvents.filter(e => {
+                            const normalizedName = normalizeEventName(e.name || e.eventName);
+                            const idMatches = String(e.id || '') === String(eventId || '');
+                            return normalizedName !== normalizedTargetName && !idMatches;
+                        });
+                        localStorage.setItem('events', JSON.stringify(filteredEvents));
                         localStorage.setItem(window.offlineSync.localStoragePrefix + 'events', JSON.stringify(filteredEvents));
                     } else {
                         // Fallback to localStorage
-                        attendanceRecords = attendanceRecords.filter(record => record.event !== eventName);
+                        attendanceRecords = attendanceRecords.filter(record => normalizeEventName(record.event) !== normalizedTargetName);
                         localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+                        const localEvents = JSON.parse(localStorage.getItem('events')) || [];
+                        filteredEvents = localEvents.filter(e => {
+                            const normalizedName = normalizeEventName(e.name || e.eventName);
+                            const idMatches = String(e.id || '') === String(eventId || '');
+                            return normalizedName !== normalizedTargetName && !idMatches;
+                        });
+                        localStorage.setItem('events', JSON.stringify(filteredEvents));
                     }
 
                     // Refresh attendance records from Local Storage
                     if (window.offlineSync) {
                         attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
                     } else {
-                        attendanceRecords = attendanceRecords.filter(record => record.event !== eventName);
+                        attendanceRecords = attendanceRecords.filter(record => normalizeEventName(record.event) !== normalizedTargetName);
                     }
+                    events = filteredEvents;
 
                     // Hide modal and reset
                     deleteEventModal.hide();
@@ -885,8 +900,10 @@
                         localStorage.removeItem(window.offlineSync.localStoragePrefix + 'attendance');
                         localStorage.removeItem(window.offlineSync.localStoragePrefix + 'events');
                         localStorage.removeItem('attendanceRecords');
+                        localStorage.removeItem('events');
                     } else {
                         localStorage.removeItem('attendanceRecords');
+                        localStorage.removeItem('events');
                     }
 
                     // Queue deletions for sync (works offline)
@@ -1059,9 +1076,12 @@
                     });
                     localStorage.setItem('events', JSON.stringify(localEvents));
                 }
+                events = localEvents;
+                updateEventsList();
 
-                localStorage.setItem('currentEvent', normalizedEventName);
-                window.location.href = 'index.html';
+                if (createEventModal) {
+                    createEventModal.hide();
+                }
             });
         }
     </script>
