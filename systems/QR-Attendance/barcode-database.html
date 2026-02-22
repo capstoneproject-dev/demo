@@ -216,7 +216,7 @@
 
         function sanitizeStudents(input) {
             const normalized = (Array.isArray(input) ? input : []).map(normalizeStudent)
-                .filter(s => s.studentId && s.studentName && s.section);
+                .filter(s => s.studentId);
             const byId = new Map();
             normalized.forEach(s => {
                 byId.set(s.studentId, { ...s, uniqueId: s.studentId });
@@ -326,7 +326,6 @@
                     deleteStudentModal.show();
                 });
             });
-            saveStudents();
         }
 
         // Excel import handler
