@@ -256,65 +256,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
     }
 
-    // Manual check-out modal wiring
-    const manualOutBtn = document.getElementById('manualCheckOutBtn');
-    if (manualOutBtn) {
-        const outModalEl = document.getElementById('manualCheckOutModal');
-        let outModal = null;
-        if (outModalEl && typeof bootstrap !== 'undefined') {
-            outModal = new bootstrap.Modal(outModalEl);
-        }
-        let prevDisabled = false;
-        if (outModalEl) {
-            outModalEl.addEventListener('show.bs.modal', function () {
-                if (barcodeInput) {
-                    prevDisabled = barcodeInput.disabled;
-                    barcodeInput.disabled = true;
-                    barcodeInput.blur();
-                }
-                const input = document.getElementById('manualCheckOutStudentId');
-                if (input) setTimeout(() => input.focus(), 50);
-            });
-            outModalEl.addEventListener('hidden.bs.modal', function () {
-                if (barcodeInput) {
-                    barcodeInput.disabled = prevDisabled;
-                    if (!barcodeInput.disabled) setTimeout(() => barcodeInput.focus(), 50);
-                }
-            });
-        }
-        manualOutBtn.addEventListener('click', function () {
-            if (outModal) outModal.show();
-        });
-        const outForm = document.getElementById('manualCheckOutForm');
-        if (outForm) {
-            outForm.addEventListener('submit', async function (e) {
-                e.preventDefault();
-                const studentId = (document.getElementById('manualCheckOutStudentId')?.value || '').trim();
-                if (!studentId) return;
-                const currentEvent = localStorage.getItem('currentEvent');
-                const today = new Date().toLocaleDateString();
-                const records = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-                // Find the student's section from today's record in current event
-                // Prefer the record with no timeOut yet; otherwise last record today
-                const candidates = records.filter(r => r.studentId === studentId && r.event === currentEvent && r.date === today);
-                let target = candidates.find(r => !r.timeOut);
-                if (!target) {
-                    // If all timed-out, choose the most recent by checkInMs
-                    target = candidates.sort((a, b) => (b.lastUpdateMs || b.checkInMs || 0) - (a.lastUpdateMs || a.checkInMs || 0))[0];
-                }
-                if (target) {
-                    const updated = updateStudentTimeOut(target.studentId, target.section, target.event, target.date, 'manual');
-                    if (updated) {
-                        showToast('Manual Time-out', `${target.studentName || ''} (${target.studentId})`, 'error');
-                    }
-                } else {
-                    showToast('Student Not Found', `No record for ${studentId} today`, 'error');
-                }
-                outForm.reset();
-                if (outModal) outModal.hide();
-            });
-        }
-    }
     if (activateScanBtn) {
         activateScanBtn.addEventListener('click', function () {
             barcodeInput.disabled = false;
@@ -597,7 +538,18 @@ function updateAttendanceTable() {
         if (recentTimedOutKey && key === recentTimedOutKey) {
             row.style.backgroundColor = '#fff3cd'; // Bootstrap warning highlight
         }
+        const disableCheckout = !!record.timeOut;
         row.innerHTML = `
+            <td>
+                <button type="button" class="btn btn-danger btn-sm py-0 px-2 text-nowrap attendance-checkout-btn"
+                    data-student-id="${record.studentId}"
+                    data-section="${record.section}"
+                    data-event="${record.event || ''}"
+                    data-date="${record.date}"
+                    ${disableCheckout ? 'disabled' : ''}>
+                    Check-Out
+                </button>
+            </td>
             <td>${idx + 1}</td>
             <td>${record.studentId}</td>
             <td>${record.studentName}</td>
@@ -608,6 +560,15 @@ function updateAttendanceTable() {
             <td>${record.timeOut || ''}</td>
         `;
         tbody.appendChild(row);
+    });
+    tbody.querySelectorAll('.attendance-checkout-btn').forEach(button => {
+        button.addEventListener('click', async function () {
+            const studentId = this.getAttribute('data-student-id');
+            const section = this.getAttribute('data-section');
+            const event = this.getAttribute('data-event');
+            const date = this.getAttribute('data-date');
+            await updateStudentTimeOut(studentId, section, event, date, 'manual');
+        });
     });
     // Update section dropdown and student list to reflect latest students
     updateSectionDropdownAndStudentList();

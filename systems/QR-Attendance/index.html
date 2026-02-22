@@ -72,8 +72,6 @@
                             Scanning</button>
                         <button id="manualCheckInBtn" class="btn btn-primary btn-sm" type="button">Manual
                             Check-in</button>
-                        <button id="manualCheckOutBtn" class="btn btn-warning btn-sm" type="button">Manual
-                            Check-out</button>
                     </div>
                     <div class="mb-2">
                         <div class="form-check form-check-inline">
@@ -154,32 +152,6 @@
             </div>
         </div>
 
-        <!-- Manual Check-out Modal -->
-        <div class="modal fade" id="manualCheckOutModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <form id="manualCheckOutForm">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Manual Check-out</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="mb-3">
-                                <label for="manualCheckOutStudentId" class="form-label">Student Number</label>
-                                <input type="text" class="form-control" id="manualCheckOutStudentId" required
-                                    autocomplete="off" autofocus>
-                            </div>
-                            <div class="text-muted small">Checks out the student's most recent check-in for today's date
-                                and current event.</div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-warning">Time Out</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
 
         <!-- Attendance Records (Two Tables Side by Side) -->
         <div class="card mt-4">
@@ -223,6 +195,7 @@
                             <table class="table">
                                 <thead>
                                     <tr>
+                                        <th>Action</th>
                                         <th>#</th>
                                         <th>Student#</th>
                                         <th>Name</th>
@@ -268,8 +241,8 @@
                     const visibleRows = rows.filter(row => row.style.display !== 'none');
                     visibleRows.sort((a, b) => {
                         // Get the time-out values (last column)
-                        const timeOutA = a.cells[7].textContent.trim();
-                        const timeOutB = b.cells[7].textContent.trim();
+                        const timeOutA = a.cells[8].textContent.trim();
+                        const timeOutB = b.cells[8].textContent.trim();
 
                         // If both have time-out, keep original order
                         if (timeOutA && timeOutB) return 0;
