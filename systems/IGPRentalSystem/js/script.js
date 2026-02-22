@@ -4,9 +4,6 @@ let inventoryItems = [];
 let students = [];
 let officers = [];
 
-// Local-only mode: remote sync service disabled
-let rentalLocalService = null;
-
 // Initialize barcode scanner
 let html5QrcodeScanner = null;
 let html5Qrcode = null;
@@ -22,8 +19,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
     officers = JSON.parse(localStorage.getItem('barcodeOfficers')) || [];
 
-    // Local-only mode: keep using localStorage as source of truth.
-    rentalLocalService = null;
     // Initialize inventory if empty
     if (inventoryItems.length === 0) {
         initializeDefaultInventory();
@@ -442,11 +437,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     updateRentalHistoryTable();
 });
 
-// Local-only mode: no realtime remote listeners.
-function setupRealtimeListeners() {
-    return;
-}
-
 // Initialize default inventory items
 function initializeDefaultInventory() {
     inventoryItems = [
@@ -484,52 +474,21 @@ async function checkUnpaidTransactions(studentId) {
     if (!studentId) {
         return false;
     }
+    const recordsToCheck = rentalRecords && rentalRecords.length > 0
+        ? rentalRecords
+        : JSON.parse(localStorage.getItem('rentalRecords') || '[]');
 
-    try {
-        // Check local in-memory records first, then localStorage.
-        let recordsToCheck = rentalRecords && rentalRecords.length > 0
-            ? rentalRecords
-            : JSON.parse(localStorage.getItem('rentalRecords') || '[]');
-
-        const hasUnpaid = recordsToCheck.some(record =>
-            record.renterId === studentId &&
-            (record.status || '').toLowerCase().trim() === 'returned' &&
-            (record.paymentStatus || '').toLowerCase().trim() === 'unpaid'
-        );
-
-        return hasUnpaid;
-    } catch (error) {
-        console.error('Error checking unpaid transactions:', error);
-        // On error, still check localStorage as fallback
-        try {
-            // First try global rentalRecords array (updated in real-time)
-            if (typeof rentalRecords !== 'undefined' && rentalRecords && rentalRecords.length > 0) {
-                const hasUnpaid = rentalRecords.some(record =>
-                    record.renterId === studentId &&
-                    (record.status || '').toLowerCase().trim() === 'returned' &&
-                    (record.paymentStatus || '').toLowerCase().trim() === 'unpaid'
-                );
-                if (hasUnpaid) return true;
-            }
-
-            // Fallback to localStorage
-            let localRecords = JSON.parse(localStorage.getItem('rentalRecords') || '[]');
-            return localRecords.some(record =>
-                record.renterId === studentId &&
-                (record.status || '').toLowerCase().trim() === 'returned' &&
-                (record.paymentStatus || '').toLowerCase().trim() === 'unpaid'
-            );
-        } catch (e) {
-            console.error('Error in fallback check:', e);
-            return false; // Allow rental if check fails to avoid blocking legitimate transactions
-        }
-    }
+    return recordsToCheck.some(record =>
+        record.renterId === studentId &&
+        (record.status || '').toLowerCase().trim() === 'returned' &&
+        (record.paymentStatus || '').toLowerCase().trim() === 'unpaid'
+    );
 }
 
 function handleRental(item) {
     const scanResult = document.getElementById('scanResult');
 
-    // Check item status from Local (source of truth)
+    // Check item status from current data
     const itemStatus = (item.status || '').toLowerCase();
 
     // Get student and officer info from session storage
@@ -720,25 +679,10 @@ async function processRentalHours(item, modal) {
     item.status = 'rented';
     item.currentRenter = `${tempRenter.studentName} (${tempRenter.studentId})`;
 
-    // Save to Local or localStorage
-    if (rentalLocalService) {
-        try {
-            await rentalLocalService.updateInventoryItem(item.id, item);
-            await rentalLocalService.addRentalRecord(rental);
-            console.log('Rental record saved to Local');
-        } catch (error) {
-            console.error('Error saving to Local:', error);
-            // Fallback to localStorage
-            localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
-            rentalRecords.push(rental);
-            localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-        }
-    } else {
-        // Fallback to localStorage
-        localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
-        rentalRecords.push(rental);
-        localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-    }
+    // Save to localStorage
+    localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
+    rentalRecords.push(rental);
+    localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
 
     // Clear temporary info
     sessionStorage.removeItem('tempRenter');
@@ -840,23 +784,9 @@ async function handleReturn(item) {
     item.rentalEndTime = null;
     item.rentalHours = null;
 
-    // Save to Local or localStorage
-    if (rentalLocalService) {
-        try {
-            await rentalLocalService.updateInventoryItem(item.id, item);
-            await rentalLocalService.updateRentalRecord(activeRental.id, activeRental);
-            console.log('Item status and rental record updated in Local');
-        } catch (error) {
-            console.error('Error updating Local:', error);
-            // Fallback to localStorage
-            localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
-            localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-        }
-    } else {
-        // Fallback to localStorage
-        localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
-        localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-    }
+    // Save to localStorage
+    localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
+    localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
 
     // Create and show custom payment popup
     // Disable scanning while popup is open
@@ -957,20 +887,8 @@ async function handlePayment(itemId, returnDate, customTotal) {
         }
         rental.paymentStatus = 'paid';
 
-        // Save to Local or localStorage
-        if (rentalLocalService) {
-            try {
-                await rentalLocalService.updateRentalRecord(rental.id, rental);
-                console.log('Payment status updated in Local');
-            } catch (error) {
-                console.error('Error updating payment in Local:', error);
-                // Fallback to localStorage
-                localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-            }
-        } else {
-            // Fallback to localStorage
-            localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-        }
+        // Save to localStorage
+        localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
 
         updateRentalRecordsTable();
         // Show success message
@@ -1030,20 +948,8 @@ async function closePaymentDialog(itemId, returnDate, customTotal) {
         // Ensure payment status is unpaid
         rental.paymentStatus = 'unpaid';
 
-        // Save to Local or localStorage
-        if (rentalLocalService) {
-            try {
-                await rentalLocalService.updateRentalRecord(rental.id, rental);
-                console.log('Payment status set to unpaid in Local');
-            } catch (error) {
-                console.error('Error updating payment in Local:', error);
-                // Fallback to localStorage
-                localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-            }
-        } else {
-            // Fallback to localStorage
-            localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-        }
+        // Save to localStorage
+        localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
 
         updateRentalRecordsTable();
         // Update history table if it exists (for rental-history.html page)
@@ -1055,16 +961,16 @@ async function closePaymentDialog(itemId, returnDate, customTotal) {
     }
 }
 
-// Helper function to format Local Timestamp or Date
+// Helper function to format date input
 function formatDateTime(dateValue) {
     if (!dateValue) return '';
 
     let date;
-    // Handle Local Timestamp object
+    // Handle timestamp-like object
     if (dateValue.toDate && typeof dateValue.toDate === 'function') {
         date = dateValue.toDate();
     }
-    // Handle Firestore Timestamp with seconds/nanoseconds
+    // Handle object with seconds/nanoseconds
     else if (dateValue.seconds) {
         date = new Date(dateValue.seconds * 1000 + (dateValue.nanoseconds || 0) / 1000000);
     }
@@ -1109,13 +1015,11 @@ function updateAvailableItemsTable() {
         filtered = filtered.filter(item => item.name === filter.value);
     }
 
-    // Ensure all items have required fields and preserve Local status
+    // Ensure all items have required fields and preserve current status
     filtered = filtered.map(item => {
-        // Preserve Local status as source of truth
-        const LocalStatus = (item.status || '').toLowerCase();
+        const itemStatus = (item.status || '').toLowerCase();
 
-        // Only check local rental records if Local doesn't have a status
-        if (!LocalStatus || LocalStatus === 'available') {
+        if (!itemStatus || itemStatus === 'available') {
             const isRented = rentalRecords.some(r => r.itemId === item.id && r.status === 'active');
             if (isRented) {
                 return {
@@ -1125,7 +1029,7 @@ function updateAvailableItemsTable() {
             }
         }
 
-        // Preserve Local status and rental times
+        // Preserve status and rental times
         return {
             ...item,
             status: item.status || 'available',
@@ -1225,6 +1129,10 @@ function updateRentalRecordsTable() {
 
         const row = document.createElement('tr');
         row.innerHTML = `
+            <td>
+                <button type="button" class="btn btn-danger btn-sm return-btn"
+                    data-item-id="${record.itemId}" data-item-name="${record.itemName}">Return</button>
+            </td>
             <td>${record.itemId}</td>
             <td>${record.itemName}</td>
             <td>${record.renterName}</td>
@@ -1236,6 +1144,17 @@ function updateRentalRecordsTable() {
             <td>${record.status}</td>
         `;
         tbody.appendChild(row);
+
+        const returnBtn = row.querySelector('.return-btn');
+        if (returnBtn) {
+            returnBtn.addEventListener('click', () => {
+                confirmReturn({
+                    id: returnBtn.dataset.itemId,
+                    name: returnBtn.dataset.itemName
+                });
+            });
+        }
+
         // Initial update
         updateTimeRemainingSpan(timeRemainingId, dueDate);
     });
@@ -1576,9 +1495,143 @@ function confirmReturn(item) {
     if (confirmBtn) {
         confirmBtn.addEventListener('click', () => {
             modal.remove();
-            if (barcodeInput) { barcodeInput.disabled = false; barcodeInput.focus(); }
-            handleReturn(item);
+            showOfficerReturnConfirmationModal(item);
         });
+    }
+}
+
+// Show officer barcode confirmation modal before completing return
+function showOfficerReturnConfirmationModal(item) {
+    const barcodeInput = document.getElementById('barcodeInput');
+    if (barcodeInput) barcodeInput.disabled = true;
+
+    const modal = document.createElement('div');
+    modal.className = 'modal fade show';
+    modal.style.display = 'block';
+    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    modal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Officer Confirmation</h5>
+                    <button type="button" class="btn-close" id="closeOfficerConfirmModalBtn"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Please scan officer barcode to confirm return of <strong>${item.name} (${item.id})</strong>.</p>
+                    <label for="officerConfirmBarcodeInput" class="form-label">Officer Barcode</label>
+                    <input type="text" class="form-control" id="officerConfirmBarcodeInput"
+                        placeholder="Scan officer barcode here..." autocomplete="off">
+                    <div id="officerConfirmMessage" class="small mt-2"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelOfficerConfirmBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="verifyOfficerConfirmBtn">Verify and Return</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const closeOfficerModal = () => {
+        if (scanValidationTimeout) clearTimeout(scanValidationTimeout);
+        modal.remove();
+        if (barcodeInput) {
+            barcodeInput.disabled = false;
+            barcodeInput.focus();
+        }
+    };
+
+    const closeBtn = modal.querySelector('#closeOfficerConfirmModalBtn');
+    const cancelBtn = modal.querySelector('#cancelOfficerConfirmBtn');
+    const verifyBtn = modal.querySelector('#verifyOfficerConfirmBtn');
+    const officerInput = modal.querySelector('#officerConfirmBarcodeInput');
+    const officerMessage = modal.querySelector('#officerConfirmMessage');
+    let isConfirmed = false;
+    let scanValidationTimeout = null;
+
+    const findOfficerByScannedValue = (scannedValue) => {
+        return officers.find(officer =>
+            encodeStudentData(officer.officerId) === scannedValue ||
+            officer.officerId === scannedValue
+        );
+    };
+
+    const playScannerBeep = () => {
+        const beep = document.getElementById('beepSound');
+        if (!beep) return;
+        const now = Date.now();
+        if (now - lastBeepTime < 120) return;
+        lastBeepTime = now;
+        beep.currentTime = 0;
+        beep.play().catch(() => { });
+    };
+
+    const verifyOfficerAndReturn = () => {
+        if (!officerInput || !officerMessage || isConfirmed) return;
+
+        const scannedValue = officerInput.value.trim();
+        if (!scannedValue) {
+            officerMessage.innerHTML = `<span class='error'>✗ Please scan officer barcode</span>`;
+            officerInput.focus();
+            return;
+        }
+
+        const foundOfficer = findOfficerByScannedValue(scannedValue);
+
+        if (!foundOfficer) {
+            officerMessage.innerHTML = `<span class='error' style='color:#dc3545;'>✗ Invalid officer barcode: ${scannedValue}</span>`;
+            officerInput.focus();
+            officerInput.select();
+            return;
+        }
+
+        isConfirmed = true;
+        sessionStorage.setItem('tempOfficer', JSON.stringify(foundOfficer));
+        modal.remove();
+        handleReturn(item);
+    };
+
+    if (closeBtn) closeBtn.addEventListener('click', closeOfficerModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeOfficerModal);
+    if (verifyBtn) verifyBtn.addEventListener('click', verifyOfficerAndReturn);
+    if (officerInput) {
+        // Debounced validation allows keyboard-like scanners to finish typing first.
+        officerInput.addEventListener('input', () => {
+            if (isConfirmed) return;
+            const scannedValue = officerInput.value.trim();
+            if (!scannedValue) {
+                if (officerMessage) officerMessage.innerHTML = '';
+                return;
+            }
+            if (scanValidationTimeout) clearTimeout(scanValidationTimeout);
+            scanValidationTimeout = setTimeout(() => {
+                if (isConfirmed || !officerInput || !officerMessage) return;
+                const currentValue = officerInput.value.trim();
+                if (!currentValue) {
+                    officerMessage.innerHTML = '';
+                    return;
+                }
+
+                playScannerBeep();
+                const foundOfficer = findOfficerByScannedValue(currentValue);
+                if (foundOfficer) {
+                    isConfirmed = true;
+                    sessionStorage.setItem('tempOfficer', JSON.stringify(foundOfficer));
+                    modal.remove();
+                    handleReturn(item);
+                    return;
+                }
+
+                officerMessage.innerHTML = `<span class='error' style='color:#dc3545;'>✗ Invalid officer barcode: ${currentValue}</span>`;
+            }, 220);
+        });
+        officerInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                verifyOfficerAndReturn();
+            }
+        });
+        setTimeout(() => officerInput.focus(), 0);
     }
 }
 
@@ -1587,4 +1640,3 @@ const historyDateFilter = document.getElementById('historyDateFilter');
 if (historyDateFilter) {
     historyDateFilter.addEventListener('input', updateRentalHistoryTable);
 }
-

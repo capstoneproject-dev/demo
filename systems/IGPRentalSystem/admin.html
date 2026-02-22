@@ -184,8 +184,6 @@
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/encoder.js"></script>
     <script>
-        const rentalLocalService = null;
-
         // Sample data (replace with your real data or import from Excel)
         const SAMPLE_OFFICERS = [
             { officerId: 'OFF001', officerName: 'John Smith', department: 'IT' },
@@ -195,40 +193,8 @@
             { officerId: 'OFF005', officerName: 'Robert Wilson', department: 'HR' }
         ];
 
-        async function saveOfficers() {
-            if (rentalLocalService) {
-                try {
-                    // Save each officer to Local (this will update existing or create new)
-                    for (const officer of officers) {
-                        await rentalLocalService.addOfficer(officer);
-                    }
-                    console.log('Officers saved to Local');
-                } catch (error) {
-                    console.error('Error saving officers to Local:', error);
-                    // Fallback to localStorage
-                    localStorage.setItem('barcodeOfficers', JSON.stringify(officers));
-                }
-            } else {
-                // Fallback to localStorage
-                localStorage.setItem('barcodeOfficers', JSON.stringify(officers));
-            }
-        }
-
-        // Add individual officer to Local
-        async function addOfficerToLocal(officer) {
-            if (rentalLocalService) {
-                try {
-                    await rentalLocalService.addOfficer(officer);
-                    console.log('Officer added to Local:', officer.officerId);
-                } catch (error) {
-                    console.error('Error adding officer to Local:', error);
-                    // Fallback to localStorage
-                    localStorage.setItem('barcodeOfficers', JSON.stringify(officers));
-                }
-            } else {
-                // Fallback to localStorage
-                localStorage.setItem('barcodeOfficers', JSON.stringify(officers));
-            }
+        function saveOfficers() {
+            localStorage.setItem('barcodeOfficers', JSON.stringify(officers));
         }
 
         function loadOfficers() {
@@ -406,7 +372,7 @@
             }
         });
 
-        addOfficerForm.addEventListener('submit', async function (e) {
+        addOfficerForm.addEventListener('submit', function (e) {
             e.preventDefault();
             const officerId = document.getElementById('addOfficerId').value.trim();
             const officerName = document.getElementById('addOfficerName').value.trim();
@@ -426,20 +392,6 @@
             if (!found) {
                 const newOfficer = { uniqueId: officerId, officerId, officerName, department };
                 officers.push(newOfficer);
-
-                // Add to Local immediately
-                await addOfficerToLocal(newOfficer);
-            } else {
-                // Update existing officer in Local
-                const updatedOfficer = officers.find(o => o.officerId === officerId);
-                if (updatedOfficer && rentalLocalService) {
-                    try {
-                        await rentalLocalService.updateOfficer(updatedOfficer.id || updatedOfficer.officerId, updatedOfficer);
-                        console.log('Officer updated in Local:', officerId);
-                    } catch (error) {
-                        console.error('Error updating officer in Local:', error);
-                    }
-                }
             }
 
             officers = ensureUniqueIds(officers);
@@ -473,27 +425,9 @@
             async function confirmDelete() {
                 const val = document.getElementById('deleteConfirmInput').value.trim();
                 if (val === 'Delete') {
-                    // Clear from Local first
-                    if (rentalLocalService) {
-                        try {
-                            // Get all officers and delete them from Local
-                            const allOfficers = await rentalLocalService.getOfficers();
-                            for (const officer of allOfficers) {
-                                await rentalLocalService.deleteOfficer(officer.id || officer.officerId);
-                            }
-                            console.log('All officers deleted from Local');
-                        } catch (error) {
-                            console.error('Error clearing officers from Local:', error);
-                        }
-                    }
-
                     officers = [];
                     renderDatabase();
-
-                    // Fallback to localStorage if Local not available
-                    if (!rentalLocalService) {
-                        saveOfficers();
-                    }
+                    saveOfficers();
 
                     deleteModal.hide();
                 } else {
@@ -521,25 +455,10 @@
             if (val === 'Delete') {
                 const officerToDelete = window._officerToDelete;
                 if (officerToDelete) {
-                    // Remove from Local first
-                    if (rentalLocalService) {
-                        try {
-                            await rentalLocalService.deleteOfficer(officerToDelete.id || officerToDelete.officerId);
-                            console.log('Officer deleted from Local:', officerToDelete.officerId);
-                        } catch (error) {
-                            console.error('Error deleting officer from Local:', error);
-                            // Still remove from local array even if Local fails
-                        }
-                    }
-
                     // Remove from officers array by officerId
                     officers = officers.filter(o => o.officerId !== officerToDelete.officerId);
                     renderDatabase();
-
-                    // Fallback to localStorage if Local not available
-                    if (!rentalLocalService) {
-                        saveOfficers();
-                    }
+                    saveOfficers();
 
                     // Hide modal
                     const deleteModal = bootstrap.Modal.getInstance(document.getElementById('deleteOfficerModal'));
@@ -580,4 +499,3 @@
 </body>
 
 </html>
-

@@ -100,7 +100,6 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <a href="welcome.html" class="btn btn-secondary">← Back</a>
             <div>
-                <button id="syncLocal" class="btn btn-info me-2">Sync with Local</button>
                 <button id="clearAll" class="btn btn-danger me-2">Clear All</button>
                 <button id="exportExcel" class="btn btn-success">Export to Excel</button>
             </div>
@@ -192,8 +191,6 @@
     <script src="lib/encoder.js"></script>
     <script src="lib/bootstrap.bundle.min.js"></script>
     <script>
-        const rentalLocalService = null;
-
         // Sample data (replace with your real data or import from Excel)
         const SAMPLE_STUDENTS = [
             { studentId: '2023001', studentName: 'Alice Smith', section: 'A' },
@@ -456,24 +453,9 @@
 
         confirmDeleteStudentBtn.addEventListener('click', async function () {
             if (studentToDeleteId) {
-                // Remove from Local first
-                if (rentalLocalService) {
-                    try {
-                        await rentalLocalService.deleteStudent(studentToDeleteId);
-                        console.log('Student deleted from Local:', studentToDeleteId);
-                    } catch (error) {
-                        console.error('Error deleting student from Local:', error);
-                        // Still remove from local array even if Local fails
-                    }
-                }
-
                 students = students.filter(s => s.studentId !== studentToDeleteId);
                 renderDatabase();
-
-                // Fallback to localStorage if Local not available
-                if (!rentalLocalService) {
-                    saveStudents();
-                }
+                saveStudents();
 
                 deleteStudentModal.hide();
             }
@@ -487,4 +469,3 @@
 </body>
 
 </html>
-

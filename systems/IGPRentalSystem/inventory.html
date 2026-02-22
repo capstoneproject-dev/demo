@@ -185,26 +185,24 @@
                 ...item,
                 lastRenter: item.lastRenter || '',
                 currentRenter: item.currentRenter || '',
-                reservedBy: item.reservedBy || item.currentRenter || '', // Support reservedBy field
-                status: item.status || 'available', // Preserve status from Local
-                rentalStartTime: item.rentalStartTime || null, // Preserve rentalStartTime from Local
-                rentalEndTime: item.rentalEndTime || null, // Preserve rentalEndTime from Local
-                rentalHours: item.rentalHours || null // Preserve rentalHours from Local
+                reservedBy: item.reservedBy || item.currentRenter || '',
+                status: item.status || 'available',
+                rentalStartTime: item.rentalStartTime || null,
+                rentalEndTime: item.rentalEndTime || null,
+                rentalHours: item.rentalHours || null
             }));
 
-            // Only override status if Local status is not set and item is actively rented
-            // Local is the source of truth, so we trust its status field
-            // This allows reserved status from Android app to be displayed correctly
+            // Only override status if it is not set and item is actively rented
             let rentalRecords = JSON.parse(localStorage.getItem('rentalRecords')) || [];
             inventoryItems = inventoryItems.map(item => {
                 // Normalize status to lowercase for consistency
                 const currentStatus = (item.status || '').toLowerCase();
 
-                // If Local already has a status (rented, reserved, etc.), use it
+                // If status is already set (rented, reserved, etc.), use it
                 if (currentStatus && currentStatus !== 'available') {
                     return {
                         ...item,
-                        status: item.status // Keep original case from Local
+                        status: item.status
                     };
                 }
                 // Otherwise, check local rental records for active rentals
@@ -215,7 +213,7 @@
                 };
             });
 
-            // Update localStorage for consistency (but Local is primary source)
+            // Update localStorage for consistency
             localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
 
             const tbody = document.getElementById('inventoryList');
@@ -301,16 +299,16 @@
                             return numA - numB;
                         })
                         .map(item => {
-                            // Helper function to format Local Timestamp or Date
+                            // Helper function to format timestamp or Date
                             function formatDateTime(dateValue) {
                                 if (!dateValue) return '';
 
                                 let date;
-                                // Handle Local Timestamp object
+                                // Handle timestamp-like object
                                 if (dateValue.toDate && typeof dateValue.toDate === 'function') {
                                     date = dateValue.toDate();
                                 }
-                                // Handle Firestore Timestamp with seconds/nanoseconds
+                                // Handle object with seconds/nanoseconds
                                 else if (dateValue.seconds) {
                                     date = new Date(dateValue.seconds * 1000 + (dateValue.nanoseconds || 0) / 1000000);
                                 }
