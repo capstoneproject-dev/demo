@@ -26,7 +26,7 @@ The command center for student organization officers to manage their operations.
 The administrative portal for university staff to oversee student organizations.
 
 ### **Organization Oversight**
-*   **Financial Auditing**: View summary of organization funds and last audit status.
+*   **Financial Auditing**: View summary of last audit status.
 
 ### **Request Management**
 *   **Approval System**: Review and Approve/Reject Event Proposals, Postings, and Document Submissions.

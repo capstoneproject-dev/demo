@@ -102,9 +102,11 @@ function navigate(viewId, element) {
     const titleEl = document.getElementById('page-title');
     const dateEl = document.getElementById('current-date');
     const mainHeaderTitle = document.querySelector('.header-title');
+    const mainContent = document.querySelector('.main-content');
 
     // Ensure header is visible
     if (mainHeaderTitle) mainHeaderTitle.style.display = 'block';
+    if (mainContent) mainContent.classList.remove('tracker-fullscreen');
 
     if (viewId === 'documents') {
         // Custom Header for Documents Repository
@@ -125,6 +127,11 @@ function navigate(viewId, element) {
 
         // Restore Date
         setDate();
+    }
+
+    // Fullscreen embed mode for tracker/events: hide top header and fill content region
+    if ((viewId === 'tracker' || viewId === 'events') && mainContent) {
+        mainContent.classList.add('tracker-fullscreen');
     }
 
     // 4. Resize charts if Analytics tab is opened
