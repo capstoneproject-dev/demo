@@ -47,7 +47,7 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="mb-0">Events Overview</h1>
             <div>
-                <a href="index.html" class="btn btn-primary me-2">Create New Event</a>
+                <button type="button" class="btn btn-primary me-2" id="openCreateEventModal">Create New Event</button>
                 <a href="index.html" class="btn btn-warning">Back to Scanner</a>
             </div>
         </div>
@@ -175,6 +175,31 @@
                         <button type="button" class="btn btn-danger" id="confirmDeleteAll" disabled>Delete All
                             Events</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Event Modal -->
+        <div class="modal fade" id="createEventModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form id="createEventForm">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Create New Event</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="newEventNameInput" class="form-label">Event Name</label>
+                                <input type="text" class="form-control" id="newEventNameInput" maxlength="100"
+                                    placeholder="Enter event name" required>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create Event</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -986,6 +1011,59 @@
             // Clear the file input
             e.target.value = '';
         });
+
+        // Create New Event modal and submit flow
+        const createEventModalEl = document.getElementById('createEventModal');
+        const createEventModal = createEventModalEl ? new bootstrap.Modal(createEventModalEl) : null;
+        const openCreateEventModalBtn = document.getElementById('openCreateEventModal');
+        const createEventForm = document.getElementById('createEventForm');
+        const newEventNameInput = document.getElementById('newEventNameInput');
+
+        if (openCreateEventModalBtn && createEventModal) {
+            openCreateEventModalBtn.addEventListener('click', function () {
+                if (newEventNameInput) {
+                    newEventNameInput.value = '';
+                }
+                createEventModal.show();
+                setTimeout(function () {
+                    if (newEventNameInput) newEventNameInput.focus();
+                }, 120);
+            });
+        }
+
+        if (createEventForm) {
+            createEventForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const rawEventName = (newEventNameInput?.value || '').trim();
+                if (!rawEventName) {
+                    alert('Please enter an event name.');
+                    return;
+                }
+
+                const normalizedEventName = normalizeEventName(rawEventName);
+                const localEvents = JSON.parse(localStorage.getItem('events')) || [];
+
+                const alreadyExists = localEvents.some(event => normalizeEventName(event.name).toLowerCase() === normalizedEventName.toLowerCase());
+                if (!alreadyExists) {
+                    const nowIso = new Date().toISOString();
+                    localEvents.push({
+                        id: Date.now().toString(),
+                        name: normalizedEventName,
+                        description: '',
+                        status: 'active',
+                        createdAt: nowIso,
+                        firstDate: null,
+                        lastDate: null,
+                        records: []
+                    });
+                    localStorage.setItem('events', JSON.stringify(localEvents));
+                }
+
+                localStorage.setItem('currentEvent', normalizedEventName);
+                window.location.href = 'index.html';
+            });
+        }
     </script>
     <script>
         window.addEventListener('message', async function (event) {
