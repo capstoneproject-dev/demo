@@ -184,6 +184,8 @@
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/encoder.js"></script>
     <script>
+        const rentalLocalService = null;
+
         // Sample data (replace with your real data or import from Excel)
         const SAMPLE_OFFICERS = [
             { officerId: 'OFF001', officerName: 'John Smith', department: 'IT' },
@@ -194,15 +196,15 @@
         ];
 
         async function saveOfficers() {
-            if (rentalFirebaseService) {
+            if (rentalLocalService) {
                 try {
-                    // Save each officer to Firebase (this will update existing or create new)
+                    // Save each officer to Local (this will update existing or create new)
                     for (const officer of officers) {
-                        await rentalFirebaseService.addOfficer(officer);
+                        await rentalLocalService.addOfficer(officer);
                     }
-                    console.log('Officers saved to Firebase');
+                    console.log('Officers saved to Local');
                 } catch (error) {
-                    console.error('Error saving officers to Firebase:', error);
+                    console.error('Error saving officers to Local:', error);
                     // Fallback to localStorage
                     localStorage.setItem('barcodeOfficers', JSON.stringify(officers));
                 }
@@ -212,14 +214,14 @@
             }
         }
 
-        // Add individual officer to Firebase
-        async function addOfficerToFirebase(officer) {
-            if (rentalFirebaseService) {
+        // Add individual officer to Local
+        async function addOfficerToLocal(officer) {
+            if (rentalLocalService) {
                 try {
-                    await rentalFirebaseService.addOfficer(officer);
-                    console.log('Officer added to Firebase:', officer.officerId);
+                    await rentalLocalService.addOfficer(officer);
+                    console.log('Officer added to Local:', officer.officerId);
                 } catch (error) {
-                    console.error('Error adding officer to Firebase:', error);
+                    console.error('Error adding officer to Local:', error);
                     // Fallback to localStorage
                     localStorage.setItem('barcodeOfficers', JSON.stringify(officers));
                 }
@@ -425,17 +427,17 @@
                 const newOfficer = { uniqueId: officerId, officerId, officerName, department };
                 officers.push(newOfficer);
 
-                // Add to Firebase immediately
-                await addOfficerToFirebase(newOfficer);
+                // Add to Local immediately
+                await addOfficerToLocal(newOfficer);
             } else {
-                // Update existing officer in Firebase
+                // Update existing officer in Local
                 const updatedOfficer = officers.find(o => o.officerId === officerId);
-                if (updatedOfficer && rentalFirebaseService) {
+                if (updatedOfficer && rentalLocalService) {
                     try {
-                        await rentalFirebaseService.updateOfficer(updatedOfficer.id || updatedOfficer.officerId, updatedOfficer);
-                        console.log('Officer updated in Firebase:', officerId);
+                        await rentalLocalService.updateOfficer(updatedOfficer.id || updatedOfficer.officerId, updatedOfficer);
+                        console.log('Officer updated in Local:', officerId);
                     } catch (error) {
-                        console.error('Error updating officer in Firebase:', error);
+                        console.error('Error updating officer in Local:', error);
                     }
                 }
             }
@@ -471,25 +473,25 @@
             async function confirmDelete() {
                 const val = document.getElementById('deleteConfirmInput').value.trim();
                 if (val === 'Delete') {
-                    // Clear from Firebase first
-                    if (rentalFirebaseService) {
+                    // Clear from Local first
+                    if (rentalLocalService) {
                         try {
-                            // Get all officers and delete them from Firebase
-                            const allOfficers = await rentalFirebaseService.getOfficers();
+                            // Get all officers and delete them from Local
+                            const allOfficers = await rentalLocalService.getOfficers();
                             for (const officer of allOfficers) {
-                                await rentalFirebaseService.deleteOfficer(officer.id || officer.officerId);
+                                await rentalLocalService.deleteOfficer(officer.id || officer.officerId);
                             }
-                            console.log('All officers deleted from Firebase');
+                            console.log('All officers deleted from Local');
                         } catch (error) {
-                            console.error('Error clearing officers from Firebase:', error);
+                            console.error('Error clearing officers from Local:', error);
                         }
                     }
 
                     officers = [];
                     renderDatabase();
 
-                    // Fallback to localStorage if Firebase not available
-                    if (!rentalFirebaseService) {
+                    // Fallback to localStorage if Local not available
+                    if (!rentalLocalService) {
                         saveOfficers();
                     }
 
@@ -519,14 +521,14 @@
             if (val === 'Delete') {
                 const officerToDelete = window._officerToDelete;
                 if (officerToDelete) {
-                    // Remove from Firebase first
-                    if (rentalFirebaseService) {
+                    // Remove from Local first
+                    if (rentalLocalService) {
                         try {
-                            await rentalFirebaseService.deleteOfficer(officerToDelete.id || officerToDelete.officerId);
-                            console.log('Officer deleted from Firebase:', officerToDelete.officerId);
+                            await rentalLocalService.deleteOfficer(officerToDelete.id || officerToDelete.officerId);
+                            console.log('Officer deleted from Local:', officerToDelete.officerId);
                         } catch (error) {
-                            console.error('Error deleting officer from Firebase:', error);
-                            // Still remove from local array even if Firebase fails
+                            console.error('Error deleting officer from Local:', error);
+                            // Still remove from local array even if Local fails
                         }
                     }
 
@@ -534,8 +536,8 @@
                     officers = officers.filter(o => o.officerId !== officerToDelete.officerId);
                     renderDatabase();
 
-                    // Fallback to localStorage if Firebase not available
-                    if (!rentalFirebaseService) {
+                    // Fallback to localStorage if Local not available
+                    if (!rentalLocalService) {
                         saveOfficers();
                     }
 
@@ -578,3 +580,4 @@
 </body>
 
 </html>
+

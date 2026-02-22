@@ -4,8 +4,8 @@ let inventoryItems = [];
 let students = [];
 let officers = [];
 
-// Firebase service
-let rentalFirebaseService = null;
+// Local-only mode: remote sync service disabled
+let rentalLocalService = null;
 
 // Initialize barcode scanner
 let html5QrcodeScanner = null;
@@ -22,41 +22,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
     officers = JSON.parse(localStorage.getItem('barcodeOfficers')) || [];
 
-    // Initialize Firebase
-    try {
-        if (window.firebaseDb) {
-            rentalFirebaseService = new RentalSystemFirebaseService();
-
-            // 2. Sync with Firebase in BACKGROUND (updates localStorage + UI)
-            Promise.all([
-                rentalFirebaseService.getRentalRecords(),
-                rentalFirebaseService.getInventoryItems(),
-                rentalFirebaseService.getStudents(),
-                rentalFirebaseService.getOfficers()
-            ]).then(([records, items, studentList, officerList]) => {
-                rentalRecords = records;
-                inventoryItems = items;
-                students = studentList;
-                officers = officerList;
-
-                console.log('Firebase data synced & saved to localStorage');
-
-                // Update tables with fresh data
-                updateAvailableItemsTable();
-                updateRentalRecordsTable();
-                updateRentalHistoryTable();
-            }).catch(err => {
-                console.warn('Background sync failed, staying with local data:', err);
-            });
-
-            // Set up real-time listeners
-            setupRealtimeListeners();
-        } else {
-            console.warn('Firebase not available, running in offline mode');
-        }
-    } catch (error) {
-        console.error('Firebase initialization error:', error);
-    }
+    // Local-only mode: keep using localStorage as source of truth.
+    rentalLocalService = null;
     // Initialize inventory if empty
     if (inventoryItems.length === 0) {
         initializeDefaultInventory();
@@ -475,60 +442,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     updateRentalHistoryTable();
 });
 
-// Set up real-time listeners for Firebase
+// Local-only mode: no realtime remote listeners.
 function setupRealtimeListeners() {
-    if (!rentalFirebaseService || !window.firebaseDb) {
-        console.log('Firebase service not available for real-time listeners');
-        return;
-    }
-
-    try {
-        // Listen to inventory changes
-        window.firebaseDb.collection('RentalSystem_inventory').onSnapshot((snapshot) => {
-            console.log('Inventory updated in Firebase');
-            inventoryItems = [];
-            snapshot.forEach((doc) => {
-                const itemData = doc.data();
-                // Preserve all fields including rental times and reservation info
-                inventoryItems.push({
-                    id: doc.id,
-                    ...itemData,
-                    rentalStartTime: itemData.rentalStartTime || null,
-                    rentalEndTime: itemData.rentalEndTime || null,
-                    rentalHours: itemData.rentalHours || null,
-                    reservedBy: itemData.reservedBy || itemData.currentRenter || '',
-                    status: itemData.status || 'available'
-                });
-            });
-            updateAvailableItemsTable();
-            // Save to localStorage
-            localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
-            console.log(`Updated inventory: ${inventoryItems.length} items`);
-        }, (error) => {
-            console.error('Error listening to inventory:', error);
-        });
-
-        // Listen to rental records changes
-        window.firebaseDb.collection('RentalSystem_rentalRecords').onSnapshot((snapshot) => {
-            console.log('Rental records updated in Firebase');
-            rentalRecords = [];
-            snapshot.forEach((doc) => {
-                rentalRecords.push({ id: doc.id, ...doc.data() });
-            });
-            updateRentalRecordsTable();
-            updateRentalRecordsTable();
-            updateRentalHistoryTable();
-            // Save to localStorage
-            localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
-            console.log(`Updated rental records: ${rentalRecords.length} records`);
-        }, (error) => {
-            console.error('Error listening to rental records:', error);
-        });
-
-        console.log('Real-time listeners set up successfully');
-    } catch (error) {
-        console.error('Error setting up real-time listeners:', error);
-    }
+    return;
 }
 
 // Initialize default inventory items
@@ -570,40 +486,7 @@ async function checkUnpaidTransactions(studentId) {
     }
 
     try {
-        // Check Firebase first if available
-        if (rentalFirebaseService && window.firebaseDb) {
-            try {
-                // Query Firebase for all rental records for this student (both active and returned)
-                // We filter by renterId first, then check status and paymentStatus in JavaScript
-                // This avoids needing a composite index
-                const querySnapshot = await window.firebaseDb.collection('RentalSystem_rentalRecords')
-                    .where('renterId', '==', studentId)
-                    .get();
-
-                // Check if any returned records have paymentStatus === 'unpaid'
-                let hasUnpaid = false;
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const status = (data.status || '').toLowerCase().trim();
-                    const paymentStatus = (data.paymentStatus || '').toLowerCase().trim();
-
-                    // Check if record is returned and unpaid
-                    if (status === 'returned' && paymentStatus === 'unpaid') {
-                        hasUnpaid = true;
-                    }
-                });
-
-                if (hasUnpaid) {
-                    return true;
-                }
-            } catch (firebaseError) {
-                console.error('Error querying Firebase for unpaid transactions:', firebaseError);
-                // If Firebase query fails (e.g., no index), fall through to localStorage check
-            }
-        }
-
-        // Fallback to check against the global rentalRecords array (updated in real-time)
-        // or localStorage if the global array is not available
+        // Check local in-memory records first, then localStorage.
         let recordsToCheck = rentalRecords && rentalRecords.length > 0
             ? rentalRecords
             : JSON.parse(localStorage.getItem('rentalRecords') || '[]');
@@ -646,7 +529,7 @@ async function checkUnpaidTransactions(studentId) {
 function handleRental(item) {
     const scanResult = document.getElementById('scanResult');
 
-    // Check item status from Firebase (source of truth)
+    // Check item status from Local (source of truth)
     const itemStatus = (item.status || '').toLowerCase();
 
     // Get student and officer info from session storage
@@ -837,14 +720,14 @@ async function processRentalHours(item, modal) {
     item.status = 'rented';
     item.currentRenter = `${tempRenter.studentName} (${tempRenter.studentId})`;
 
-    // Save to Firebase or localStorage
-    if (rentalFirebaseService) {
+    // Save to Local or localStorage
+    if (rentalLocalService) {
         try {
-            await rentalFirebaseService.updateInventoryItem(item.id, item);
-            await rentalFirebaseService.addRentalRecord(rental);
-            console.log('Rental record saved to Firebase');
+            await rentalLocalService.updateInventoryItem(item.id, item);
+            await rentalLocalService.addRentalRecord(rental);
+            console.log('Rental record saved to Local');
         } catch (error) {
-            console.error('Error saving to Firebase:', error);
+            console.error('Error saving to Local:', error);
             // Fallback to localStorage
             localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
             rentalRecords.push(rental);
@@ -957,14 +840,14 @@ async function handleReturn(item) {
     item.rentalEndTime = null;
     item.rentalHours = null;
 
-    // Save to Firebase or localStorage
-    if (rentalFirebaseService) {
+    // Save to Local or localStorage
+    if (rentalLocalService) {
         try {
-            await rentalFirebaseService.updateInventoryItem(item.id, item);
-            await rentalFirebaseService.updateRentalRecord(activeRental.id, activeRental);
-            console.log('Item status and rental record updated in Firebase');
+            await rentalLocalService.updateInventoryItem(item.id, item);
+            await rentalLocalService.updateRentalRecord(activeRental.id, activeRental);
+            console.log('Item status and rental record updated in Local');
         } catch (error) {
-            console.error('Error updating Firebase:', error);
+            console.error('Error updating Local:', error);
             // Fallback to localStorage
             localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
             localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
@@ -1074,13 +957,13 @@ async function handlePayment(itemId, returnDate, customTotal) {
         }
         rental.paymentStatus = 'paid';
 
-        // Save to Firebase or localStorage
-        if (rentalFirebaseService) {
+        // Save to Local or localStorage
+        if (rentalLocalService) {
             try {
-                await rentalFirebaseService.updateRentalRecord(rental.id, rental);
-                console.log('Payment status updated in Firebase');
+                await rentalLocalService.updateRentalRecord(rental.id, rental);
+                console.log('Payment status updated in Local');
             } catch (error) {
-                console.error('Error updating payment in Firebase:', error);
+                console.error('Error updating payment in Local:', error);
                 // Fallback to localStorage
                 localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
             }
@@ -1147,13 +1030,13 @@ async function closePaymentDialog(itemId, returnDate, customTotal) {
         // Ensure payment status is unpaid
         rental.paymentStatus = 'unpaid';
 
-        // Save to Firebase or localStorage
-        if (rentalFirebaseService) {
+        // Save to Local or localStorage
+        if (rentalLocalService) {
             try {
-                await rentalFirebaseService.updateRentalRecord(rental.id, rental);
-                console.log('Payment status set to unpaid in Firebase');
+                await rentalLocalService.updateRentalRecord(rental.id, rental);
+                console.log('Payment status set to unpaid in Local');
             } catch (error) {
-                console.error('Error updating payment in Firebase:', error);
+                console.error('Error updating payment in Local:', error);
                 // Fallback to localStorage
                 localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
             }
@@ -1172,12 +1055,12 @@ async function closePaymentDialog(itemId, returnDate, customTotal) {
     }
 }
 
-// Helper function to format Firebase Timestamp or Date
+// Helper function to format Local Timestamp or Date
 function formatDateTime(dateValue) {
     if (!dateValue) return '';
 
     let date;
-    // Handle Firebase Timestamp object
+    // Handle Local Timestamp object
     if (dateValue.toDate && typeof dateValue.toDate === 'function') {
         date = dateValue.toDate();
     }
@@ -1226,13 +1109,13 @@ function updateAvailableItemsTable() {
         filtered = filtered.filter(item => item.name === filter.value);
     }
 
-    // Ensure all items have required fields and preserve Firebase status
+    // Ensure all items have required fields and preserve Local status
     filtered = filtered.map(item => {
-        // Preserve Firebase status as source of truth
-        const firebaseStatus = (item.status || '').toLowerCase();
+        // Preserve Local status as source of truth
+        const LocalStatus = (item.status || '').toLowerCase();
 
-        // Only check local rental records if Firebase doesn't have a status
-        if (!firebaseStatus || firebaseStatus === 'available') {
+        // Only check local rental records if Local doesn't have a status
+        if (!LocalStatus || LocalStatus === 'available') {
             const isRented = rentalRecords.some(r => r.itemId === item.id && r.status === 'active');
             if (isRented) {
                 return {
@@ -1242,7 +1125,7 @@ function updateAvailableItemsTable() {
             }
         }
 
-        // Preserve Firebase status and rental times
+        // Preserve Local status and rental times
         return {
             ...item,
             status: item.status || 'available',
@@ -1704,3 +1587,4 @@ const historyDateFilter = document.getElementById('historyDateFilter');
 if (historyDateFilter) {
     historyDateFilter.addEventListener('input', updateRentalHistoryTable);
 }
+
