@@ -355,29 +355,29 @@
                     document.getElementById('deleteConfirmBtn').onclick = async function () {
                         const val = document.getElementById('deleteConfirmInput').value.trim();
                         if (val === 'Delete') {
-                            // Clear from Firebase first
-                            if (rentalFirebaseService && window.firebaseDb) {
+                            // Clear from Local first
+                            if (rentalLocalService && window.localDb) {
                                 try {
-                                    console.log('Starting Firebase deletion...');
+                                    console.log('Starting Local deletion...');
 
-                                    // First, try to use the current rentalRecords array (already loaded with Firebase IDs)
+                                    // First, try to use the current rentalRecords array (already loaded with Local IDs)
                                     let recordsToDelete = rentalRecords.filter(record => record.id);
 
-                                    // If no records have IDs, fetch from Firebase to get the IDs
+                                    // If no records have IDs, fetch from Local to get the IDs
                                     if (recordsToDelete.length === 0 && rentalRecords.length > 0) {
-                                        console.log('Local records missing IDs, fetching from Firebase...');
-                                        recordsToDelete = await rentalFirebaseService.getRentalRecords();
+                                        console.log('Local records missing IDs, fetching from Local...');
+                                        recordsToDelete = await rentalLocalService.getRentalRecords();
                                     }
 
                                     if (recordsToDelete.length > 0) {
-                                        console.log(`Deleting ${recordsToDelete.length} records from Firebase...`);
+                                        console.log(`Deleting ${recordsToDelete.length} records from Local...`);
 
                                         // Delete records in parallel for better performance
                                         // Each promise handles its own errors, so Promise.all will wait for all to complete
                                         const deletePromises = recordsToDelete.map(async (record) => {
                                             try {
                                                 if (record.id) {
-                                                    await rentalFirebaseService.deleteRentalRecord(record.id);
+                                                    await rentalLocalService.deleteRentalRecord(record.id);
                                                     console.log(`Deleted record: ${record.id}`);
                                                     return { success: true, id: record.id };
                                                 } else {
@@ -394,21 +394,21 @@
                                         const successCount = results.filter(r => r.success).length;
                                         const failCount = results.filter(r => !r.success).length;
 
-                                        console.log(`Firebase deletion complete: ${successCount} succeeded, ${failCount} failed`);
+                                        console.log(`Local deletion complete: ${successCount} succeeded, ${failCount} failed`);
 
                                         if (failCount > 0) {
-                                            console.warn('Some records failed to delete from Firebase:', results.filter(r => !r.success));
+                                            console.warn('Some records failed to delete from Local:', results.filter(r => !r.success));
                                         }
                                     } else {
-                                        console.log('No records found to delete from Firebase');
+                                        console.log('No records found to delete from Local');
                                     }
                                 } catch (error) {
-                                    console.error('Error deleting rental records from Firebase:', error);
-                                    alert('Warning: Error occurred while deleting from Firebase. Some records may not have been deleted. Please check the console for details.');
-                                    // Still clear localStorage even if Firebase fails
+                                    console.error('Error deleting rental records from Local:', error);
+                                    alert('Warning: Error occurred while deleting from Local. Some records may not have been deleted. Please check the console for details.');
+                                    // Still clear localStorage even if Local fails
                                 }
                             } else {
-                                console.log('Firebase service not available, skipping Firebase deletion');
+                                console.log('Local service not available, skipping Local deletion');
                             }
 
                             // Clear from localStorage
@@ -687,24 +687,24 @@
                     }
                 }
                 if (newRecords.length) {
-                    if (confirm('Importing will overwrite all current rental history in both Firebase and local storage. Continue?')) {
+                    if (confirm('Importing will overwrite all current rental history in both Local and local storage. Continue?')) {
                         try {
-                            if (rentalFirebaseService && window.firebaseDb) {
+                            if (rentalLocalService && window.localDb) {
                                 // Show loading state if needed
-                                console.log('Starting Firebase sync for import...');
+                                console.log('Starting Local sync for import...');
 
                                 // 1. Clear existing records
-                                await rentalFirebaseService.clearRentalRecords();
+                                await rentalLocalService.clearRentalRecords();
 
                                 // 2. Batch import new records
-                                await rentalFirebaseService.batchImportRentalRecords(newRecords);
+                                await rentalLocalService.batchImportRentalRecords(newRecords);
 
-                                alert('Rental history imported and synced to Firebase successfully!');
+                                alert('Rental history imported and synced to Local successfully!');
                             } else {
-                                // Fallback to localStorage if Firebase not available
+                                // Fallback to localStorage if Local not available
                                 localStorage.setItem('rentalRecords', JSON.stringify(newRecords));
                                 updateRentalHistoryTableStandalone();
-                                alert('Rental history imported to local storage (Firebase not available).');
+                                alert('Rental history imported to local storage (Local not available).');
                             }
                         } catch (error) {
                             console.error('Error during import sync:', error);
@@ -729,35 +729,35 @@
                     // Always update localStorage first
                     localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
 
-                    // Then update Firebase if available
-                    if (rentalFirebaseService && rental.id) {
-                        await rentalFirebaseService.updateRentalRecord(rental.id, rental);
-                        console.log('Payment status updated in Firebase');
-                    } else if (rentalFirebaseService && !rental.id) {
-                        console.warn('Rental record missing Firebase ID, cannot update Firebase directly');
-                        // Try to find the record in Firebase by matching fields
+                    // Then update Local if available
+                    if (rentalLocalService && rental.id) {
+                        await rentalLocalService.updateRentalRecord(rental.id, rental);
+                        console.log('Payment status updated in Local');
+                    } else if (rentalLocalService && !rental.id) {
+                        console.warn('Rental record missing Local ID, cannot update Local directly');
+                        // Try to find the record in Local by matching fields
                         try {
-                            const firebaseRecords = await rentalFirebaseService.getRentalRecords();
-                            const firebaseRecord = firebaseRecords.find(fr =>
+                            const LocalRecords = await rentalLocalService.getRentalRecords();
+                            const LocalRecord = LocalRecords.find(fr =>
                                 fr.itemId === itemId &&
                                 fr.returnDate === returnDate
                             );
-                            if (firebaseRecord) {
-                                await rentalFirebaseService.updateRentalRecord(firebaseRecord.id, { ...firebaseRecord, paymentStatus: 'paid' });
-                                console.log('Payment status updated in Firebase (found by matching)');
-                                // Update the local record with the Firebase ID
-                                rental.id = firebaseRecord.id;
+                            if (LocalRecord) {
+                                await rentalLocalService.updateRentalRecord(LocalRecord.id, { ...LocalRecord, paymentStatus: 'paid' });
+                                console.log('Payment status updated in Local (found by matching)');
+                                // Update the local record with the Local ID
+                                rental.id = LocalRecord.id;
                                 localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
                             } else {
-                                console.warn('Could not find matching record in Firebase');
+                                console.warn('Could not find matching record in Local');
                             }
                         } catch (findError) {
-                            console.error('Error finding record in Firebase:', findError);
+                            console.error('Error finding record in Local:', findError);
                         }
                     }
                 } catch (error) {
                     console.error('Error updating payment status:', error);
-                    // Rollback the change if Firebase update failed
+                    // Rollback the change if Local update failed
                     rental.paymentStatus = oldPaymentStatus;
                     localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
                     alert('Failed to update payment status. Please try again.');
@@ -781,20 +781,20 @@
                     record.paymentStatus = 'paid';
                     changed = true;
 
-                    // Save to Firebase
-                    if (rentalFirebaseService) {
+                    // Save to Local
+                    if (rentalLocalService) {
                         try {
-                            await rentalFirebaseService.updateRentalRecord(record.id, record);
+                            await rentalLocalService.updateRentalRecord(record.id, record);
                         } catch (error) {
-                            console.error('Error updating payment in Firebase:', error);
+                            console.error('Error updating payment in Local:', error);
                         }
                     }
                 }
             }
 
             if (changed) {
-                // Fallback to localStorage if Firebase not available
-                if (!rentalFirebaseService) {
+                // Fallback to localStorage if Local not available
+                if (!rentalLocalService) {
                     localStorage.setItem('rentalRecords', JSON.stringify(rentalRecords));
                 }
                 updateRentalHistoryTableStandalone();
@@ -1022,14 +1022,14 @@
                 if (recordToDelete) {
                     const recordId = recordToDelete.id;
 
-                    // Remove from Firebase first
-                    if (rentalFirebaseService && recordId) {
+                    // Remove from Local first
+                    if (rentalLocalService && recordId) {
                         try {
-                            await rentalFirebaseService.deleteRentalRecord(recordId);
-                            console.log('Rental record deleted from Firebase:', recordId);
+                            await rentalLocalService.deleteRentalRecord(recordId);
+                            console.log('Rental record deleted from Local:', recordId);
                         } catch (error) {
-                            console.error('Error deleting rental record from Firebase:', error);
-                            // Still remove from local array even if Firebase fails
+                            console.error('Error deleting rental record from Local:', error);
+                            // Still remove from local array even if Local fails
                         }
                     }
 
