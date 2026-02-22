@@ -205,28 +205,39 @@
             return sections;
         }
 
-        // Fallback functions for localStorage
-        const SAMPLE_STUDENTS = [
-            { studentId: '2023001', studentName: 'Alice Smith', section: 'A' },
-            { studentId: '2023002', studentName: 'Bob Johnson', section: 'A' },
-            { studentId: '2023003', studentName: 'Charlie Lee', section: 'B' },
-            { studentId: '2023004', studentName: 'Diana King', section: 'B' },
-            { studentId: '2023005', studentName: 'Evan Wright', section: 'C' }
-        ];
+        function normalizeStudent(student) {
+            return {
+                uniqueId: String(student.uniqueId || student.studentId || '').trim(),
+                studentId: String(student.studentId || '').trim(),
+                studentName: String(student.studentName || '').trim(),
+                section: String(student.section || '').trim()
+            };
+        }
+
+        function sanitizeStudents(input) {
+            const normalized = (Array.isArray(input) ? input : []).map(normalizeStudent)
+                .filter(s => s.studentId && s.studentName && s.section);
+            const byId = new Map();
+            normalized.forEach(s => {
+                byId.set(s.studentId, { ...s, uniqueId: s.studentId });
+            });
+            return Array.from(byId.values());
+        }
 
         function loadStudents() {
             const data = localStorage.getItem('barcodeStudents');
             if (data) {
                 try {
-                    return JSON.parse(data);
+                    return sanitizeStudents(JSON.parse(data));
                 } catch (e) {
-                    return [...SAMPLE_STUDENTS];
+                    return [];
                 }
             }
-            return [...SAMPLE_STUDENTS];
+            return [];
         }
 
         function saveStudents() {
+            students = sanitizeStudents(students);
             localStorage.setItem('barcodeStudents', JSON.stringify(students));
         }
 
@@ -257,9 +268,9 @@
             let filteredStudents = deduplicatedStudents;
             if (searchTerm) {
                 filteredStudents = deduplicatedStudents.filter(student =>
-                    student.studentId.toLowerCase().includes(searchTerm) ||
-                    student.studentName.toLowerCase().includes(searchTerm) ||
-                    student.section.toLowerCase().includes(searchTerm)
+                    String(student.studentId || '').toLowerCase().includes(searchTerm) ||
+                    String(student.studentName || '').toLowerCase().includes(searchTerm) ||
+                    String(student.section || '').toLowerCase().includes(searchTerm)
                 );
             }
 
@@ -349,6 +360,7 @@
                 newStudents.forEach(s => { studentMap[s.studentId] = s; });
                 students = Object.values(studentMap);
                 students = ensureUniqueIds(students);
+                students = sanitizeStudents(students);
 
                 saveStudents();
 
