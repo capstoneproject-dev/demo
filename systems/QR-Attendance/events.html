@@ -184,8 +184,7 @@
     <script src="lib/bootstrap.bundle.min.js"></script>
     <script src="lib/xlsx.full.min.js"></script>
     <script>
-        // Firebase database service
-        let firebaseDB = null;
+        // Local-only data source
         let attendanceRecords = [];
         let events = [];
         let currentEventDetails = null;
@@ -196,151 +195,10 @@
             return String(name).trim();
         }
 
-        // Initialize Firebase
-        async function initializeFirebase() {
-            try {
-                firebaseDB = window.firebaseDB;
-                if (!firebaseDB) {
-                    console.error('Firebase not initialized. Please check firebase-config.js');
-                    return false;
-                }
-
-                // Load initial data
-                const allEvents = await firebaseDB.getEventsWithAttendanceCounts();
-                // Deduplicate events by name (keep the first occurrence)
-                const eventsMap = new Map();
-                allEvents.forEach(event => {
-                    const normalizedName = normalizeEventName(event.name);
-                    if (normalizedName && !eventsMap.has(normalizedName)) {
-                        eventsMap.set(normalizedName, event);
-                    }
-                });
-                events = Array.from(eventsMap.values());
-                attendanceRecords = await firebaseDB.getAttendanceRecords();
-
-                // Set up real-time listener for attendance records
-                firebaseDB.listenToAttendanceRecords((records) => {
-                    // Check if this is a deletion notification
-                    if (records && records.type === 'removed') {
-                        // Document was deleted in Firebase - remove from Local Storage
-                        if (window.offlineSync) {
-                            const localRecords = window.offlineSync.getFromLocalStorage('attendance');
-                            const deletedData = records.data;
-                            // Remove by Firebase ID or by matching fields
-                            const filtered = localRecords.filter(r => {
-                                if (r.id === records.id) return false; // Match by Firebase ID
-                                // Also match by studentId, date, and event if available
-                                if (deletedData && r.studentId === deletedData.studentId &&
-                                    r.date === deletedData.date && r.event === deletedData.event) {
-                                    return false;
-                                }
-                                return true;
-                            });
-                            localStorage.setItem(window.offlineSync.localStoragePrefix + 'attendance', JSON.stringify(filtered));
-                            localStorage.setItem('attendanceRecords', JSON.stringify(filtered));
-                            attendanceRecords = filtered;
-                            console.log('Removed attendance record from Local Storage:', records.id);
-                        }
-                        updateEventsList();
-                        return;
-                    }
-
-                    // Handle additions/updates
-                    if (Array.isArray(records)) {
-                        // Save Firebase records to Local Storage if they don't exist there
-                        if (window.offlineSync) {
-                            const localRecords = window.offlineSync.getFromLocalStorage('attendance');
-                            const localRecordKeys = new Set(localRecords.map(r =>
-                                `${r.studentId}_${r.date}_${r.event}`
-                            ));
-                            records.forEach(fbRecord => {
-                                const key = `${fbRecord.studentId}_${fbRecord.date}_${fbRecord.event}`;
-                                if (!localRecordKeys.has(key)) {
-                                    // Save to Local Storage
-                                    window.offlineSync.saveToLocalStorage('attendance', fbRecord, 'add');
-                                }
-                            });
-                        }
-                        // Merge with Local Storage data
-                        if (window.offlineSync) {
-                            const localRecords = window.offlineSync.getFromLocalStorage('attendance');
-                            attendanceRecords = window.offlineSync.mergeData(localRecords, records, 'studentId');
-                        } else {
-                            attendanceRecords = records;
-                        }
-                        updateEventsList();
-                    }
-                });
-
-                // Set up real-time listener for events
-                firebaseDB.listenToEvents((eventList) => {
-                    // Check if this is a deletion notification
-                    if (eventList && eventList.type === 'removed') {
-                        // Document was deleted in Firebase - remove from Local Storage
-                        if (window.offlineSync) {
-                            const localEvents = window.offlineSync.getFromLocalStorage('events');
-                            const filtered = localEvents.filter(e => e.id !== eventList.id);
-                            localStorage.setItem(window.offlineSync.localStoragePrefix + 'events', JSON.stringify(filtered));
-
-                            // Also remove associated attendance records if event name is available
-                            const deletedData = eventList.data;
-                            if (deletedData && deletedData.name) {
-                                const localRecords = window.offlineSync.getFromLocalStorage('attendance');
-                                const filteredRecords = localRecords.filter(r => r.event !== deletedData.name);
-                                localStorage.setItem(window.offlineSync.localStoragePrefix + 'attendance', JSON.stringify(filteredRecords));
-                                localStorage.setItem('attendanceRecords', JSON.stringify(filteredRecords));
-                                attendanceRecords = filteredRecords;
-                            }
-
-                            events = filtered;
-                            console.log('Removed event from Local Storage:', eventList.id);
-                        }
-                        updateEventsList();
-                        return;
-                    }
-
-                    // Handle additions/updates
-                    if (Array.isArray(eventList)) {
-                        // Save Firebase events to Local Storage if they don't exist there
-                        if (window.offlineSync) {
-                            const localEvents = window.offlineSync.getFromLocalStorage('events');
-                            const localEventIds = new Set(localEvents.map(e => e.id));
-                            eventList.forEach(fbEvent => {
-                                if (fbEvent.id && !localEventIds.has(fbEvent.id)) {
-                                    // Save to Local Storage
-                                    window.offlineSync.saveToLocalStorage('events', fbEvent, 'add');
-                                }
-                            });
-                        }
-                        // Merge with Local Storage data and reload events with attendance counts
-                        if (window.offlineSync) {
-                            const localEvents = window.offlineSync.getFromLocalStorage('events');
-                            const mergedEvents = window.offlineSync.mergeData(localEvents, eventList, 'id');
-                            // Reload events with attendance counts
-                            firebaseDB.getEventsWithAttendanceCounts().then(allEvents => {
-                                const eventsMap = new Map();
-                                allEvents.forEach(event => {
-                                    const normalizedName = normalizeEventName(event.name);
-                                    if (normalizedName && !eventsMap.has(normalizedName)) {
-                                        eventsMap.set(normalizedName, event);
-                                    }
-                                });
-                                events = Array.from(eventsMap.values());
-                                updateEventsList();
-                            });
-                        } else {
-                            events = eventList;
-                            updateEventsList();
-                        }
-                    }
-                });
-
-                console.log('Firebase initialized successfully');
-                return true;
-            } catch (error) {
-                console.error('Error initializing Firebase:', error);
-                return false;
-            }
+        // Initialize local-only mode (Cloud removed)
+        async function initializeLocalData() {
+            events = JSON.parse(localStorage.getItem('events')) || [];
+            attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
         }
 
         // Update offline status indicator (make it globally accessible)
@@ -380,32 +238,9 @@
 
         // Initialize the page
         document.addEventListener('DOMContentLoaded', async function () {
-            // Initialize Firebase first
-            const firebaseInitialized = await initializeFirebase();
-
-            // Always load from Local Storage first (for offline support)
-            // getEventsWithAttendanceCounts() and getAttendanceRecords() already save Firebase data to Local Storage
-            if (!firebaseInitialized) {
-                console.error('Failed to initialize Firebase. Falling back to localStorage.');
-                // Fallback to localStorage
-                if (window.offlineSync) {
-                    events = window.offlineSync.getFromLocalStorage('events');
-                    attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
-                } else {
-                    attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-                    events = [];
-                }
-            } else {
-                // Refresh from Local Storage (which now includes Firebase data)
-                if (window.offlineSync) {
-                    events = window.offlineSync.getFromLocalStorage('events');
-                    attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
-                } else {
-                    // Fallback: reload from Firebase
-                    events = await firebaseDB.getEvents();
-                    attendanceRecords = await firebaseDB.getAttendanceRecords();
-                }
-            }
+            await initializeLocalData();
+            events = JSON.parse(localStorage.getItem('events')) || [];
+            attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
 
             // Update offline status indicator
             updateOfflineStatus();
@@ -425,7 +260,7 @@
             const eventsMap = new Map();
             const searchTerm = (document.getElementById('eventSearchInput')?.value || '').toLowerCase();
 
-            // First, add all Firebase events (normalize names to avoid duplicates)
+            // First, add all Cloud events (normalize names to avoid duplicates)
             events.forEach(event => {
                 const normalizedName = normalizeEventName(event.name);
                 if (!normalizedName) return; // Skip events with empty names
@@ -452,7 +287,7 @@
                 if (!normalizedEventName) return;
 
                 if (!eventsMap.has(normalizedEventName)) {
-                    // Create event from attendance record if it doesn't exist in Firebase
+                    // Create event from attendance record if it doesn't exist in Cloud
                     eventsMap.set(normalizedEventName, {
                         id: null,
                         name: normalizedEventName,
@@ -571,11 +406,7 @@
 
         // Function to start attendance for an event
         async function startEventAttendance(eventName) {
-            if (firebaseDB) {
-                await firebaseDB.setCurrentEvent(eventName);
-            } else {
-                localStorage.setItem('currentEvent', eventName);
-            }
+            localStorage.setItem('currentEvent', eventName);
             window.location.href = 'index.html';
         }
 
@@ -964,38 +795,8 @@
                         localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
                     }
 
-                    // Delete from Firebase if available (will queue for sync if offline)
-                    if (firebaseDB) {
-                        try {
-                            if (eventId && eventId !== 'undefined' && eventId !== 'null' && eventId !== '') {
-                                // Delete Firebase event (this will also delete attendance records and queue for sync if offline)
-                                // Pass eventName to ensure it works offline
-                                await firebaseDB.deleteEvent(eventId, eventName);
-                            } else {
-                                // Delete attendance records by event name (for events created from attendance records)
-                                await firebaseDB.deleteAttendanceRecordsByEvent(eventName);
-                            }
-                            // Reload events from Local Storage (which includes Firebase data)
-                            const allEvents = await firebaseDB.getEventsWithAttendanceCounts();
-                            // Deduplicate events by name (keep the first occurrence)
-                            const eventsMap = new Map();
-                            allEvents.forEach(event => {
-                                const normalizedName = normalizeEventName(event.name);
-                                if (normalizedName && !eventsMap.has(normalizedName)) {
-                                    eventsMap.set(normalizedName, event);
-                                }
-                            });
-                            events = Array.from(eventsMap.values());
-                        } catch (error) {
-                            console.error('Error deleting from Firebase:', error);
-                            // Continue - Local Storage is already updated and will sync when online
-                        }
-                    }
-
                     // Refresh attendance records from Local Storage
-                    if (firebaseDB) {
-                        attendanceRecords = await firebaseDB.getAttendanceRecords();
-                    } else if (window.offlineSync) {
+                    if (window.offlineSync) {
                         attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
                     } else {
                         attendanceRecords = attendanceRecords.filter(record => record.event !== eventName);
@@ -1042,9 +843,9 @@
         confirmDeleteAll.addEventListener('click', async function () {
             if (deleteConfirmation.value === 'Delete') {
                 try {
-                    // Get all events and attendance records before clearing
-                    const allEvents = await firebaseDB.getEvents();
-                    const allRecords = await firebaseDB.getAttendanceRecords();
+                    // Get all local events and attendance records before clearing
+                    const allEvents = JSON.parse(localStorage.getItem('events')) || [];
+                    const allRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
 
                     // Get unique event names from attendance records (for events created from records)
                     const eventNamesFromRecords = new Set();
@@ -1064,7 +865,7 @@
                     }
 
                     // Queue deletions for sync (works offline)
-                    if (window.offlineSync && firebaseDB) {
+                    if (window.offlineSync) {
                         // Queue each event deletion
                         for (const event of allEvents) {
                             if (event.id && event.id !== 'undefined' && event.id !== 'null' && event.id !== '') {
@@ -1076,7 +877,7 @@
                                     }
                                 });
                             } else if (event.name) {
-                                // Event without Firebase ID - queue by name
+                                // Event without Cloud ID - queue by name
                                 window.offlineSync.addToPendingQueue({
                                     type: 'deleteAttendanceRecordsByEvent',
                                     data: { eventName: event.name }
@@ -1095,29 +896,6 @@
                                 });
                             }
                         });
-                    }
-
-                    // Clear Firebase if online
-                    if (firebaseDB && window.offlineSync && window.offlineSync.isOnline) {
-                        try {
-                            // Delete all events
-                            for (const event of allEvents) {
-                                if (event.id && event.id !== 'undefined' && event.id !== 'null' && event.id !== '') {
-                                    await firebaseDB.deleteEvent(event.id, event.name || event.eventName);
-                                }
-                            }
-
-                            // Delete attendance records by event name (for events created from records)
-                            for (const eventName of eventNamesFromRecords) {
-                                const eventExists = allEvents.find(e => e.name === eventName || e.eventName === eventName);
-                                if (!eventExists) {
-                                    await firebaseDB.deleteAttendanceRecordsByEvent(eventName);
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error clearing Firebase:', error);
-                            // Continue even if Firebase fails - Local Storage is already cleared and queued for sync
-                        }
                     }
 
                     // Clear local arrays
@@ -1183,7 +961,7 @@
                     });
 
                     // Merge with existing records
-                    const existingRecords = firebaseDB ? await firebaseDB.getAttendanceRecords() : JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+                    const existingRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
                     const mergedRecords = [...existingRecords, ...importedRecords];
 
                     // Remove duplicates (keep existing records if there's a conflict)
@@ -1195,20 +973,7 @@
                         }
                     });
 
-                    // Save to Firebase or localStorage
-                    if (firebaseDB) {
-                        // Add new records to Firebase
-                        for (const record of Array.from(uniqueRecords.values())) {
-                            try {
-                                await firebaseDB.addAttendanceRecord(record);
-                            } catch (error) {
-                                console.warn(`Failed to import record for ${record.studentId}:`, error);
-                            }
-                        }
-                    } else {
-                        // Fallback to localStorage
-                        localStorage.setItem('attendanceRecords', JSON.stringify(Array.from(uniqueRecords.values())));
-                    }
+                    localStorage.setItem('attendanceRecords', JSON.stringify(Array.from(uniqueRecords.values())));
 
                     // Refresh the page
                     location.reload();
@@ -1239,14 +1004,7 @@
                     records: []
                 };
 
-                // 1. Save to Firebase (if available)
-                if (window.firebaseDB) {
-                    try {
-                        await window.firebaseDB.addEvent(newEvent);
-                    } catch (e) { console.warn("Firebase save failed:", e); }
-                }
-
-                // 2. Save to LocalStorage (Offline Support)
+                // 1. Save to LocalStorage (Offline Support)
                 if (window.offlineSync) {
                     window.offlineSync.saveToLocalStorage('events', newEvent, 'add');
                 } else {
@@ -1256,7 +1014,7 @@
                     localStorage.setItem('events', JSON.stringify(localEvents));
                 }
 
-                // 3. Refresh the List if function exists
+                // 2. Refresh the List if function exists
                 if (typeof updateEventsList === 'function') {
                     if (typeof events !== 'undefined') events.push(newEvent);
                     updateEventsList();
@@ -1267,3 +1025,4 @@
 </body>
 
 </html>
+

@@ -316,14 +316,7 @@
                     console.error("Error saving to LocalStorage:", e);
                 }
 
-                // 2. Save to Firebase (if available)
-                if (window.firebaseDB) {
-                    try {
-                        await window.firebaseDB.addEvent(newEvent);
-                    } catch (e) { console.warn("Firebase save failed:", e); }
-                }
-
-                // 3. OfflineSync Support
+                // 2. OfflineSync Support
                 if (window.offlineSync) {
                     window.offlineSync.saveToLocalStorage('events', newEvent, 'add');
                 }
