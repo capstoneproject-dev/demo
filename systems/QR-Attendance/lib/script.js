@@ -1,5 +1,4 @@
-// Firebase database service
-let firebaseDB = null;
+// Local-only storage mode
 let attendanceRecords = [];
 let students = [];
 
@@ -14,75 +13,9 @@ let lastBeepTime = 0;
 let recentTimedOutKey = null;
 let recentTimedOutTimeout = null;
 
-// Initialize Firebase and load data
-async function initializeFirebase() {
-    try {
-        firebaseDB = window.firebaseDB;
-        if (!firebaseDB) {
-            console.error('Firebase not initialized. Please check firebase-config.js');
-            return false;
-        }
-
-        // Load initial data (getStudents and getAttendanceRecords already handle Local Storage)
-        attendanceRecords = await firebaseDB.getAttendanceRecords();
-        students = await firebaseDB.getStudents();
-
-        // Set up real-time listeners
-        firebaseDB.listenToAttendanceRecords((records) => {
-            // Save Firebase records to Local Storage if they don't exist there
-            if (window.offlineSync) {
-                const localRecords = window.offlineSync.getFromLocalStorage('attendance');
-                const localRecordKeys = new Set(localRecords.map(r =>
-                    `${r.studentId}_${r.date}_${r.event}`
-                ));
-                records.forEach(fbRecord => {
-                    const key = `${fbRecord.studentId}_${fbRecord.date}_${fbRecord.event}`;
-                    if (!localRecordKeys.has(key)) {
-                        // Save to Local Storage
-                        window.offlineSync.saveToLocalStorage('attendance', fbRecord, 'add');
-                    }
-                });
-            }
-            // Merge with Local Storage data
-            if (window.offlineSync) {
-                const localRecords = window.offlineSync.getFromLocalStorage('attendance');
-                attendanceRecords = window.offlineSync.mergeData(localRecords, records, 'studentId');
-            } else {
-                attendanceRecords = records;
-            }
-            updateAttendanceTable();
-            updateSectionDropdownAndStudentList();
-        });
-
-        firebaseDB.listenToStudents((studentList) => {
-            // Save Firebase students to Local Storage if they don't exist there
-            if (window.offlineSync) {
-                const localStudents = window.offlineSync.getFromLocalStorage('students');
-                const localStudentIds = new Set(localStudents.map(s => s.studentId));
-                studentList.forEach(fbStudent => {
-                    if (!localStudentIds.has(fbStudent.studentId)) {
-                        // Save to Local Storage
-                        window.offlineSync.saveToLocalStorage('students', fbStudent, 'add');
-                    }
-                });
-            }
-            // Merge with Local Storage data
-            if (window.offlineSync) {
-                const localStudents = window.offlineSync.getFromLocalStorage('students');
-                students = window.offlineSync.mergeData(localStudents, studentList, 'studentId');
-            } else {
-                students = studentList;
-            }
-            // Update UI when students change
-            updateSectionDropdownAndStudentList();
-        });
-
-        console.log('Firebase initialized successfully');
-        return true;
-    } catch (error) {
-        console.error('Error initializing Firebase:', error);
-        return false;
-    }
+async function initializeLocalData() {
+    attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+    students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
 }
 
 // Update offline status indicator (make it globally accessible)
@@ -122,30 +55,11 @@ window.addEventListener('offlineStatusChanged', function (event) {
 
 // Initialize current event display
 document.addEventListener('DOMContentLoaded', async function () {
-    // Initialize Firebase first
-    const firebaseInitialized = await initializeFirebase();
+    await initializeLocalData();
+    attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+    students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
 
-    // Always load from Local Storage first (for offline support)
-    // getStudents() and getAttendanceRecords() already save Firebase data to Local Storage
-    if (!firebaseInitialized) {
-        console.error('Failed to initialize Firebase. Falling back to localStorage.');
-        // Fallback to localStorage
-        if (window.offlineSync) {
-            attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
-            students = window.offlineSync.getFromLocalStorage('students');
-        } else {
-            attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-            students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
-        }
-    } else {
-        // Refresh from Local Storage (which now includes Firebase data)
-        if (window.offlineSync) {
-            attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
-            students = window.offlineSync.getFromLocalStorage('students');
-        }
-    }
-
-    const currentEvent = await firebaseDB?.getCurrentEvent() || localStorage.getItem('currentEvent');
+    const currentEvent = localStorage.getItem('currentEvent');
     if (currentEvent) {
         document.getElementById('eventNameDisplay').textContent = currentEvent;
     } else {
@@ -180,15 +94,10 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             // Lookup student by barcode
             let foundStudent = null;
-            if (firebaseDB) {
-                foundStudent = await firebaseDB.findStudentByBarcode(scannedValue);
-            } else {
-                // Fallback to localStorage
-                for (const s of students) {
-                    if (encodeStudentData(s.studentId) === scannedValue) {
-                        foundStudent = s;
-                        break;
-                    }
+            for (const s of students) {
+                if (encodeStudentData(s.studentId) === scannedValue) {
+                    foundStudent = s;
+                    break;
                 }
             }
 
@@ -196,24 +105,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 if (scanMode === 'normal') {
                     scanResult.innerHTML = `<span class='success'>✓ Found: ${foundStudent.studentName} (${foundStudent.studentId}) - ${foundStudent.section}</span>`;
                     try {
-                        let existingRec = null;
-                        if (firebaseDB) {
-                            existingRec = await firebaseDB.findAttendanceRecord(
-                                foundStudent.studentId,
-                                foundStudent.section,
-                                currentEvent,
-                                today
-                            );
-                        } else {
-                            // Fallback to localStorage
-                            const allRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-                            existingRec = allRecords.find(r =>
-                                r.studentId === foundStudent.studentId &&
-                                r.section === foundStudent.section &&
-                                r.date === today &&
-                                r.event === currentEvent
-                            );
-                        }
+                        const allRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+                        const existingRec = allRecords.find(r =>
+                            r.studentId === foundStudent.studentId &&
+                            r.section === foundStudent.section &&
+                            r.date === today &&
+                            r.event === currentEvent
+                        );
                         if (!existingRec) {
                             showToast('Student Found', `${foundStudent.studentName} (${foundStudent.studentId})`, 'success');
                         } else if (existingRec && existingRec.timeOut) {
@@ -333,19 +231,21 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const section = `${course} ${yearSection}`;
                 const student = { studentId, studentName, section };
 
-                // Add/update student in database if using Firebase
-                if (firebaseDB) {
-                    try {
-                        const existingStudent = await firebaseDB.findStudentByBarcode(firebaseDB.encodeStudentData(studentId));
-                        if (!existingStudent) {
-                            await firebaseDB.addStudent(student);
-                        } else {
-                            await firebaseDB.updateStudent(studentId, { studentName, section });
-                        }
-                    } catch (error) {
-                        console.error('Error updating student database:', error);
+                // Add/update student in local student database
+                let localStudents = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
+                let found = false;
+                localStudents = localStudents.map(s => {
+                    if (s.studentId === studentId) {
+                        found = true;
+                        return { ...s, studentName, section, uniqueId: studentId };
                     }
+                    return s;
+                });
+                if (!found) {
+                    localStudents.push({ uniqueId: studentId, studentId, studentName, section });
                 }
+                localStorage.setItem('barcodeStudents', JSON.stringify(localStudents));
+                students = localStudents;
 
                 await markAttendance(student);
                 showToast('Manual Check-in', `${studentName} (${studentId})`, 'success');
@@ -391,14 +291,9 @@ document.addEventListener('DOMContentLoaded', async function () {
                 e.preventDefault();
                 const studentId = (document.getElementById('manualCheckOutStudentId')?.value || '').trim();
                 if (!studentId) return;
-                const currentEvent = await firebaseDB?.getCurrentEvent() || localStorage.getItem('currentEvent');
+                const currentEvent = localStorage.getItem('currentEvent');
                 const today = new Date().toLocaleDateString();
-                let records = [];
-                if (firebaseDB) {
-                    records = await firebaseDB.getAttendanceRecords();
-                } else {
-                    records = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-                }
+                const records = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
                 // Find the student's section from today's record in current event
                 // Prefer the record with no timeOut yet; otherwise last record today
                 const candidates = records.filter(r => r.studentId === studentId && r.event === currentEvent && r.date === today);
@@ -601,45 +496,21 @@ async function updateStudentTimeIn(studentId, section, event, date) {
     const timeString = now.toLocaleTimeString();
     const nowMs = Date.now();
 
-    if (firebaseDB) {
-        const record = await firebaseDB.findAttendanceRecord(studentId, section, event, date);
-        if (record) {
-            await firebaseDB.updateAttendanceRecord(record.id, {
-                studentId: studentId,
-                studentName: record.studentName || '', // Preserve existing studentName
-                section: section,
-                event: event,
-                date: date,
-                timeIn: timeString,
-                checkInMs: record.checkInMs || nowMs, // Preserve existing checkInMs or use current time
-                lastUpdateMs: nowMs
-            });
-            // Refresh attendanceRecords from Local Storage after update
-            if (window.offlineSync) {
-                attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
-            } else {
-                attendanceRecords = await firebaseDB.getAttendanceRecords();
-            }
-            updateAttendanceTable();
-            return true;
-        }
-    } else {
-        // Fallback to localStorage
-        let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-        const recordIndex = attendanceRecords.findIndex(record =>
-            record.studentId === studentId &&
-            record.section === section &&
-            record.event === event &&
-            record.date === date
-        );
+    let localAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+    const recordIndex = localAttendanceRecords.findIndex(record =>
+        record.studentId === studentId &&
+        record.section === section &&
+        record.event === event &&
+        record.date === date
+    );
 
-        if (recordIndex !== -1) {
-            attendanceRecords[recordIndex].timeIn = timeString;
-            attendanceRecords[recordIndex].lastUpdateMs = nowMs;
-            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-            updateAttendanceTable();
-            return true;
-        }
+    if (recordIndex !== -1) {
+        localAttendanceRecords[recordIndex].timeIn = timeString;
+        localAttendanceRecords[recordIndex].lastUpdateMs = nowMs;
+        localStorage.setItem('attendanceRecords', JSON.stringify(localAttendanceRecords));
+        attendanceRecords = localAttendanceRecords;
+        updateAttendanceTable();
+        return true;
     }
     return false;
 }
@@ -650,69 +521,32 @@ async function updateStudentTimeOut(studentId, section, event, date, source = 'a
     const timeString = now.toLocaleTimeString();
     const nowMs = Date.now();
 
-    if (firebaseDB) {
-        const record = await firebaseDB.findAttendanceRecord(studentId, section, event, date);
-        if (record) {
-            await firebaseDB.updateAttendanceRecord(record.id, {
-                studentId: studentId,
-                studentName: record.studentName || '', // Preserve existing studentName
-                section: section,
-                event: event,
-                date: date,
-                timeIn: record.timeIn || '', // Preserve existing timeIn
-                timeOut: timeString,
-                checkInMs: record.checkInMs || Date.now(), // Preserve existing checkInMs
-                lastUpdateMs: nowMs
-            });
-            // Refresh attendanceRecords from Local Storage after update
-            if (window.offlineSync) {
-                attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
-            } else {
-                attendanceRecords = await firebaseDB.getAttendanceRecords();
-            }
-            try {
-                const title = source === 'manual' ? 'Updated time-out' : 'Time-out';
-                showToast(title, `${record.studentName} (${record.studentId})`, 'error');
-            } catch (e) { }
-            // Set the global variable for 2 seconds
-            recentTimedOutKey = `${studentId}-${section}-${event}-${date}`;
-            if (recentTimedOutTimeout) clearTimeout(recentTimedOutTimeout);
-            recentTimedOutTimeout = setTimeout(() => {
-                recentTimedOutKey = null;
-                updateAttendanceTable();
-            }, 2000);
-            updateAttendanceTable();
-            return true;
-        }
-    } else {
-        // Fallback to localStorage
-        let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-        const recordIndex = attendanceRecords.findIndex(record =>
-            record.studentId === studentId &&
-            record.section === section &&
-            record.event === event &&
-            record.date === date
-        );
+    let localAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+    const recordIndex = localAttendanceRecords.findIndex(record =>
+        record.studentId === studentId &&
+        record.section === section &&
+        record.event === event &&
+        record.date === date
+    );
 
-        if (recordIndex !== -1) {
-            attendanceRecords[recordIndex].timeOut = timeString;
-            attendanceRecords[recordIndex].lastUpdateMs = nowMs;
-            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-            try {
-                const r = attendanceRecords[recordIndex];
-                const title = source === 'manual' ? 'Updated time-out' : 'Time-out';
-                showToast(title, `${r.studentName} (${r.studentId})`, 'error');
-            } catch (e) { }
-            // Set the global variable for 2 seconds
-            recentTimedOutKey = `${studentId}-${section}-${event}-${date}`;
-            if (recentTimedOutTimeout) clearTimeout(recentTimedOutTimeout);
-            recentTimedOutTimeout = setTimeout(() => {
-                recentTimedOutKey = null;
-                updateAttendanceTable();
-            }, 2000);
+    if (recordIndex !== -1) {
+        localAttendanceRecords[recordIndex].timeOut = timeString;
+        localAttendanceRecords[recordIndex].lastUpdateMs = nowMs;
+        localStorage.setItem('attendanceRecords', JSON.stringify(localAttendanceRecords));
+        attendanceRecords = localAttendanceRecords;
+        try {
+            const r = localAttendanceRecords[recordIndex];
+            const title = source === 'manual' ? 'Updated time-out' : 'Time-out';
+            showToast(title, `${r.studentName} (${r.studentId})`, 'error');
+        } catch (e) { }
+        recentTimedOutKey = `${studentId}-${section}-${event}-${date}`;
+        if (recentTimedOutTimeout) clearTimeout(recentTimedOutTimeout);
+        recentTimedOutTimeout = setTimeout(() => {
+            recentTimedOutKey = null;
             updateAttendanceTable();
-            return true;
-        }
+        }, 2000);
+        updateAttendanceTable();
+        return true;
     }
     return false;
 }
@@ -722,7 +556,7 @@ function updateAttendanceTable() {
     const tbody = document.getElementById('attendanceRecords');
     const eventFilter = document.getElementById('eventFilter').value;
 
-    // Use the global attendanceRecords array which is updated by Firebase listeners
+    // Use the global localStorage-backed attendance records array
     let filteredRecords = attendanceRecords;
     if (eventFilter !== 'all') {
         filteredRecords = attendanceRecords.filter(record => record.event === eventFilter);
@@ -801,21 +635,9 @@ const clearBtn = document.getElementById('clearRecords');
 if (clearBtn) {
     clearBtn.addEventListener('click', async function () {
         if (confirm('Are you sure you want to clear all attendance records?')) {
-            if (firebaseDB) {
-                try {
-                    await firebaseDB.clearAllData();
-                    attendanceRecords = [];
-                    updateAttendanceTable();
-                } catch (error) {
-                    console.error('Error clearing records:', error);
-                    alert('Error clearing records. Please try again.');
-                }
-            } else {
-                // Fallback to localStorage
-                attendanceRecords = [];
-                localStorage.removeItem('attendanceRecords');
-                updateAttendanceTable();
-            }
+            attendanceRecords = [];
+            localStorage.removeItem('attendanceRecords');
+            updateAttendanceTable();
         }
     });
 }
@@ -898,33 +720,23 @@ async function markAttendance(student) {
     const today = new Date().toLocaleDateString();
     const currentTime = new Date().toLocaleTimeString();
     const nowMs = Date.now();
-    const currentEvent = await firebaseDB?.getCurrentEvent() || localStorage.getItem('currentEvent');
+    const currentEvent = localStorage.getItem('currentEvent');
 
     // Check if there are any records for the current event before adding
-    let eventRecordsBefore = [];
-    if (firebaseDB) {
-        eventRecordsBefore = await firebaseDB.getAttendanceRecordsByEvent(currentEvent);
-    } else {
-        eventRecordsBefore = attendanceRecords.filter(r => r.event === currentEvent);
-    }
+    let eventRecordsBefore = attendanceRecords.filter(r => r.event === currentEvent);
     const wasEventEmpty = eventRecordsBefore.length === 0;
 
     // Find if student already checked in today for this event
-    let existing = null;
-    if (firebaseDB) {
-        existing = await firebaseDB.findAttendanceRecord(student.studentId, student.section, currentEvent, today);
-    } else {
-        existing = attendanceRecords.find(
-            r => r.studentId === student.studentId &&
-                r.section === student.section &&
-                r.date === today &&
-                r.event === currentEvent
-        );
-    }
+    let existing = attendanceRecords.find(
+        r => r.studentId === student.studentId &&
+            r.section === student.section &&
+            r.date === today &&
+            r.event === currentEvent
+    );
 
     if (!existing) {
         // First scan: check-in
-        // Ensure record structure matches Firebase document format
+        // Ensure record structure matches local document format
         const record = {
             studentId: student.studentId || '',
             studentName: student.studentName || '',
@@ -938,26 +750,14 @@ async function markAttendance(student) {
             updatedAt: new Date()
         };
 
-        if (firebaseDB) {
-            await firebaseDB.addAttendanceRecord(record);
-            // Refresh attendanceRecords from Local Storage (which includes the newly added record)
-            if (window.offlineSync) {
-                attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
-            } else {
-                attendanceRecords = await firebaseDB.getAttendanceRecords();
-            }
-        } else {
-            // Fallback to localStorage
-            attendanceRecords.push(record);
-            // Remove any duplicate records for the same student, event, and date (keep the latest)
-            const uniqueMap = new Map();
-            attendanceRecords.forEach(rec => {
-                const key = `${rec.studentId}-${rec.section}-${rec.event}-${rec.date}`;
-                uniqueMap.set(key, rec);
-            });
-            attendanceRecords = Array.from(uniqueMap.values());
-            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-        }
+        attendanceRecords.push(record);
+        const uniqueMap = new Map();
+        attendanceRecords.forEach(rec => {
+            const key = `${rec.studentId}-${rec.section}-${rec.event}-${rec.date}`;
+            uniqueMap.set(key, rec);
+        });
+        attendanceRecords = Array.from(uniqueMap.values());
+        localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
 
         // Set event filter to current event and update table
         const eventFilter = document.getElementById('eventFilter');
@@ -971,12 +771,6 @@ async function markAttendance(student) {
         if (nowMs - (existing.checkInMs || 0) >= 5000) {
             // Only call updateStudentTimeOut, do not update table here
             await updateStudentTimeOut(student.studentId, student.section, currentEvent, today, 'auto');
-            // Refresh attendanceRecords from Local Storage after update (updateStudentTimeOut already calls updateAttendanceTable)
-            if (firebaseDB && window.offlineSync) {
-                attendanceRecords = window.offlineSync.getFromLocalStorage('attendance');
-            } else if (firebaseDB) {
-                attendanceRecords = await firebaseDB.getAttendanceRecords();
-            }
             // Do not call updateAttendanceTable or eventFilter change here
         }
     }
@@ -996,4 +790,3 @@ async function markAttendance(student) {
     }
 }
 
-;

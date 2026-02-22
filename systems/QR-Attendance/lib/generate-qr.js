@@ -1,28 +1,8 @@
-// Firebase database service
-let firebaseDB = null;
-
-// Initialize Firebase
-async function initializeFirebase() {
-    try {
-        firebaseDB = window.firebaseDB;
-        if (!firebaseDB) {
-            console.error('Firebase not initialized. Please check firebase-config.js');
-            return false;
-        }
-        console.log('Firebase initialized successfully');
-        return true;
-    } catch (error) {
-        console.error('Error initializing Firebase:', error);
-        return false;
-    }
-}
-
 // Store generated barcodes for bulk download
 let generatedBarcodes = [];
 
-// Initialize Firebase on page load
+// Initialize page in local-only mode
 document.addEventListener('DOMContentLoaded', async function() {
-    await initializeFirebase();
 });
 
 // Handle bulk barcode generation from Excel file
@@ -255,33 +235,24 @@ document.getElementById('downloadBarcode').addEventListener('click', function() 
 // Utility to update/add student in database
 async function updateStudentDatabase(studentId, studentName, section) {
     try {
-        if (firebaseDB) {
-            const existingStudent = await firebaseDB.findStudentByBarcode(firebaseDB.encodeStudentData(studentId));
-            if (!existingStudent) {
-                await firebaseDB.addStudent({ studentId, studentName, section });
-            } else {
-                await firebaseDB.updateStudent(studentId, { studentName, section });
+        let students = [];
+        try {
+            students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
+        } catch (e) {}
+        let found = false;
+        students = students.map(s => {
+            if (s.studentId === studentId) {
+                found = true;
+                return { ...s, studentName, section, uniqueId: studentId };
             }
-        } else {
-            // Fallback to localStorage
-            let students = [];
-            try {
-                students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
-            } catch (e) {}
-            let found = false;
-            students = students.map(s => {
-                if (s.studentId === studentId) {
-                    found = true;
-                    return { ...s, studentName, section, uniqueId: studentId };
-                }
-                return s;
-            });
-            if (!found) {
-                students.push({ uniqueId: studentId, studentId, studentName, section });
-            }
-            localStorage.setItem('barcodeStudents', JSON.stringify(students));
+            return s;
+        });
+        if (!found) {
+            students.push({ uniqueId: studentId, studentId, studentName, section });
         }
+        localStorage.setItem('barcodeStudents', JSON.stringify(students));
     } catch (error) {
         console.error('Error updating student database:', error);
     }
 } 
+

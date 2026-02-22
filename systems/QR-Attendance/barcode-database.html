@@ -132,39 +132,15 @@
         </div>
     </div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="firebase-config.js"></script>
-    <script src="offline-sync-service.js"></script>
-    <script src="firebase-database-service.js"></script>
     <script src="lib/bootstrap.bundle.min.js"></script>
     <script src="lib/JsBarcode.all.min.js"></script>
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/encoder.js"></script>
     <script>
-        // Firebase database service
-        let firebaseDB = null;
         let students = [];
 
-        // Function to sync students from Firebase (only called when Sync button is pressed)
-        async function syncFromFirebase() {
-            try {
-                firebaseDB = window.firebaseDB;
-                if (!firebaseDB) {
-                    console.error('Firebase not initialized. Please check firebase-config.js');
-                    return;
-                }
-                // Fetch latest students from Firebase
-                const fetchedStudents = await firebaseDB.getStudents();
-                if (fetchedStudents && fetchedStudents.length > 0) {
-                    students = fetchedStudents;
-                    saveStudents(); // Update localStorage with synced data
-                    renderDatabase();
-                    console.log('Students synced from Firebase');
-                }
-            } catch (error) {
-                console.error('Error syncing from Firebase:', error);
-            }
+        // Local mode: no remote sync.
+        async function syncFromLocalData() {
         }
 
         // Update offline status indicator (make it globally accessible)
@@ -214,9 +190,9 @@
             renderDatabase();
 
             // Attach sync button handler
-            const syncButton = document.getElementById('syncFirebase');
+            const syncButton = document.getElementById('syncLocalData');
             if (syncButton) {
-                syncButton.addEventListener('click', syncFromFirebase);
+                syncButton.addEventListener('click', syncFromLocalData);
             }
         });
 
@@ -374,29 +350,7 @@
                 students = Object.values(studentMap);
                 students = ensureUniqueIds(students);
 
-                // Save to Firebase or localStorage
-                if (firebaseDB) {
-                    for (const student of students) {
-                        try {
-                            const existingStudent = await firebaseDB.findStudentByBarcode(firebaseDB.encodeStudentData(student.studentId));
-                            if (!existingStudent) {
-                                await firebaseDB.addStudent(student);
-                            } else {
-                                await firebaseDB.updateStudent(student.studentId, {
-                                    studentName: student.studentName,
-                                    section: student.section
-                                });
-                            }
-                        } catch (error) {
-                            console.warn(`Failed to save student ${student.studentId}:`, error);
-                        }
-                    }
-                    // Refresh students from Local Storage (which was updated by offline sync)
-                    students = await firebaseDB.getStudents();
-                } else {
-                    // Fallback to localStorage
-                    saveStudents();
-                }
+                saveStudents();
 
                 renderDatabase();
             };
@@ -432,31 +386,19 @@
             if (!studentId || !studentName || !section) return;
 
             try {
-                if (firebaseDB) {
-                    const existingStudent = await firebaseDB.findStudentByBarcode(firebaseDB.encodeStudentData(studentId));
-                    if (!existingStudent) {
-                        await firebaseDB.addStudent({ studentId, studentName, section });
-                    } else {
-                        await firebaseDB.updateStudent(studentId, { studentName, section });
+                let found = false;
+                students = students.map(s => {
+                    if (s.studentId === studentId) {
+                        found = true;
+                        return { ...s, studentName, section };
                     }
-                    // Refresh students from Local Storage (which was updated by offline sync)
-                    students = await firebaseDB.getStudents();
-                } else {
-                    // Fallback to localStorage
-                    let found = false;
-                    students = students.map(s => {
-                        if (s.studentId === studentId) {
-                            found = true;
-                            return { ...s, studentName, section };
-                        }
-                        return s;
-                    });
-                    if (!found) {
-                        students.push({ uniqueId: studentId, studentId, studentName, section });
-                    }
-                    students = ensureUniqueIds(students);
-                    saveStudents();
+                    return s;
+                });
+                if (!found) {
+                    students.push({ uniqueId: studentId, studentId, studentName, section });
                 }
+                students = ensureUniqueIds(students);
+                saveStudents();
                 renderDatabase();
                 addStudentForm.reset();
             } catch (error) {
@@ -525,17 +467,8 @@
         confirmDeleteStudent.addEventListener('click', async function () {
             if (deleteStudentConfirmation.value === 'Delete' && studentToDelete) {
                 try {
-                    if (firebaseDB) {
-                        // Delete from Firebase (will delete from Local Storage and queue for sync if offline)
-                        await firebaseDB.deleteStudent(studentToDelete.studentId);
-
-                        // Refresh students from Local Storage (which was updated by deleteStudent)
-                        students = await firebaseDB.getStudents();
-                    } else {
-                        // Fallback to localStorage
-                        students = students.filter(s => s.studentId !== studentToDelete.studentId);
-                        saveStudents();
-                    }
+                    students = students.filter(s => s.studentId !== studentToDelete.studentId);
+                    saveStudents();
 
                     // Close modal immediately after successful deletion
                     deleteStudentModal.hide();
@@ -557,33 +490,11 @@
         confirmDeleteAll.addEventListener('click', async function () {
             if (deleteConfirmation.value === 'Delete') {
                 try {
-                    // Clear all students (will handle Local Storage and queue for Firebase sync)
-                    if (firebaseDB) {
-                        try {
-                            // Get all students first
-                            const allStudents = await firebaseDB.getStudents();
-
-                            // Delete each student individually (handles Local Storage and queuing)
-                            for (const student of allStudents) {
-                                if (student.studentId) {
-                                    await firebaseDB.deleteStudent(student.studentId);
-                                }
-                            }
-
-                            // Refresh students list
-                            students = await firebaseDB.getStudents();
-                        } catch (error) {
-                            console.error('Error clearing Firebase:', error);
-                            // Continue even if Firebase fails - Local Storage is already cleared
-                        }
-                    } else {
-                        // Fallback: clear Local Storage manually
-                        if (window.offlineSync) {
-                            localStorage.removeItem(window.offlineSync.localStoragePrefix + 'students');
-                        }
-                        localStorage.removeItem('barcodeStudents');
-                        students = [];
+                    if (window.offlineSync) {
+                        localStorage.removeItem(window.offlineSync.localStoragePrefix + 'students');
                     }
+                    localStorage.removeItem('barcodeStudents');
+                    students = [];
 
                     // Clear local array and refresh
                     students = [];
@@ -619,3 +530,4 @@
 </body>
 
 </html>
+
