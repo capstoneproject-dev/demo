@@ -54,6 +54,11 @@ CREATE TABLE users (
     CONSTRAINT chk_user_id_number CHECK (
         (role = 'student' AND student_number IS NOT NULL AND employee_number IS NULL) OR
         (role = 'osa_staff' AND employee_number IS NOT NULL AND student_number IS NULL)
+    ),
+    -- OSA staff must not carry academic profile fields
+    CONSTRAINT chk_user_academic_fields CHECK (
+        (role = 'student') OR
+        (role = 'osa_staff' AND course IS NULL AND year_level IS NULL AND section IS NULL)
     )
 );
 GO
@@ -159,14 +164,29 @@ CREATE TABLE documents (
     submitted_by INT NOT NULL,
     title VARCHAR(255) NOT NULL,
     document_type VARCHAR(30) NOT NULL CHECK (document_type IN ('proposal', 'activity_report', 'financial_statement', 'resolution', 'other')),
+    -- Store relative private path/key only (e.g., org_1/2026/02/uuid.pdf).
+    -- Resolve against an application-configured private upload root outside web root.
     file_path VARCHAR(500) NOT NULL,
-    file_size INT NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL DEFAULT 'application/octet-stream',
+    file_extension VARCHAR(20) NOT NULL CHECK (file_extension IN ('pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'jpg', 'jpeg', 'png')),
+    storage_scope VARCHAR(20) NOT NULL DEFAULT 'private' CHECK (storage_scope IN ('private')),
+    file_size INT NOT NULL CHECK (file_size > 0),
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'ssc_review', 'osa_review', 'approved', 'rejected')),
     reviewed_by INT NULL,
     review_notes NVARCHAR(MAX),
     reviewed_at DATETIME2 NULL,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
+    CONSTRAINT chk_documents_private_path CHECK (
+        file_path NOT LIKE '/%' AND
+        file_path NOT LIKE '\%' AND
+        file_path NOT LIKE 'http%' AND
+        file_path NOT LIKE '%..%' AND
+        file_path NOT LIKE '%wwwroot%' AND
+        file_path NOT LIKE '%public%' AND
+        file_path NOT LIKE '%htdocs%'
+    ),
     CONSTRAINT fk_documents_orgs FOREIGN KEY (org_id) REFERENCES organizations(org_id),
     CONSTRAINT fk_documents_submitted FOREIGN KEY (submitted_by) REFERENCES users(user_id),
     CONSTRAINT fk_documents_reviewed FOREIGN KEY (reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
@@ -175,6 +195,7 @@ GO
 
 CREATE INDEX idx_org_status ON documents(org_id, status);
 CREATE INDEX idx_status ON documents(status);
+CREATE UNIQUE INDEX idx_documents_file_path ON documents(file_path);
 GO
 
 CREATE TRIGGER trg_documents_updated_at
@@ -206,17 +227,25 @@ CREATE TABLE events (
     end_time TIME NOT NULL,
     event_type VARCHAR(20) DEFAULT 'other' CHECK (event_type IN ('meeting', 'seminar', 'workshop', 'competition', 'social', 'other')),
     qr_code_url VARCHAR(500),
+    approval_status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (approval_status IN ('draft', 'pending', 'ssc_review', 'osa_review', 'approved', 'rejected')),
+    reviewed_by INT NULL,
+    review_notes NVARCHAR(MAX),
+    reviewed_at DATETIME2 NULL,
     is_published BIT DEFAULT 0,
     max_participants INT NULL,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
+    CONSTRAINT chk_events_time_range CHECK (end_time > start_time),
+    CONSTRAINT chk_events_publish_requires_approval CHECK (is_published = 0 OR approval_status = 'approved'),
     CONSTRAINT fk_events_orgs FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE NO ACTION,
-    CONSTRAINT fk_events_created FOREIGN KEY (created_by) REFERENCES users(user_id)
+    CONSTRAINT fk_events_created FOREIGN KEY (created_by) REFERENCES users(user_id),
+    CONSTRAINT fk_events_reviewed FOREIGN KEY (reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
 );
 GO
 
 CREATE INDEX idx_event_date_published ON events(event_date, is_published);
 CREATE INDEX idx_org_events ON events(org_id);
+CREATE INDEX idx_events_approval_status ON events(approval_status);
 GO
 
 CREATE TRIGGER trg_events_updated_at
@@ -251,6 +280,7 @@ CREATE TABLE attendance_logs (
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     CONSTRAINT unique_attendance UNIQUE (event_id, user_id),
+    CONSTRAINT chk_attendance_time_range CHECK (time_out IS NULL OR time_out >= time_in),
     CONSTRAINT fk_attendance_events FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE NO ACTION,
     CONSTRAINT fk_attendance_users FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
@@ -291,7 +321,10 @@ CREATE TABLE inventory_items (
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     CONSTRAINT fk_inventory_orgs FOREIGN KEY (org_id) REFERENCES organizations(org_id),
-    CONSTRAINT chk_available_quantity CHECK (available_quantity <= stock_quantity)
+    CONSTRAINT chk_stock_quantity_positive CHECK (stock_quantity >= 0),
+    CONSTRAINT chk_available_quantity_nonnegative CHECK (available_quantity >= 0),
+    CONSTRAINT chk_available_quantity CHECK (available_quantity <= stock_quantity),
+    CONSTRAINT chk_hourly_rate_nonnegative CHECK (hourly_rate >= 0)
 );
 GO
 
@@ -334,6 +367,11 @@ CREATE TABLE rentals (
     modified_at DATETIME2 DEFAULT GETDATE(),
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
+    CONSTRAINT chk_rentals_time_order CHECK (
+        expected_return_time >= rent_time AND
+        (actual_return_time IS NULL OR actual_return_time >= rent_time)
+    ),
+    CONSTRAINT chk_rentals_total_cost_nonnegative CHECK (total_cost >= 0),
     CONSTRAINT fk_rentals_users FOREIGN KEY (user_id) REFERENCES users(user_id),
     CONSTRAINT fk_rentals_processed FOREIGN KEY (processed_by) REFERENCES users(user_id)
 );
@@ -371,6 +409,9 @@ CREATE TABLE rental_items (
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     CONSTRAINT unique_rental_item UNIQUE (rental_id, item_id),
+    CONSTRAINT chk_rental_items_quantity_positive CHECK (quantity > 0),
+    CONSTRAINT chk_rental_items_unit_rate_nonnegative CHECK (unit_rate >= 0),
+    CONSTRAINT chk_rental_items_item_cost_nonnegative CHECK (item_cost >= 0),
     CONSTRAINT fk_rentalitems_rentals FOREIGN KEY (rental_id) REFERENCES rentals(rental_id) ON DELETE CASCADE,
     CONSTRAINT fk_rentalitems_inventory FOREIGN KEY (item_id) REFERENCES inventory_items(item_id)
 );
@@ -405,19 +446,26 @@ CREATE TABLE announcements (
     content NVARCHAR(MAX) NOT NULL,
     audience_type VARCHAR(20) DEFAULT 'all_students' CHECK (audience_type IN ('all_students', 'members_only', 'officers_only')),
     priority VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    approval_status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (approval_status IN ('draft', 'pending', 'ssc_review', 'osa_review', 'approved', 'rejected')),
+    reviewed_by INT NULL,
+    review_notes NVARCHAR(MAX),
+    reviewed_at DATETIME2 NULL,
     is_published BIT DEFAULT 0,
     published_at DATETIME2 NULL,
     expires_at DATETIME2 NULL,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
+    CONSTRAINT chk_announcements_publish_requires_approval CHECK (is_published = 0 OR approval_status = 'approved'),
     CONSTRAINT fk_announcements_orgs FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
     CONSTRAINT fk_announcements_created FOREIGN KEY (created_by) REFERENCES users(user_id),
-    CONSTRAINT fk_announcements_events FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE NO ACTION
+    CONSTRAINT fk_announcements_events FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE NO ACTION,
+    CONSTRAINT fk_announcements_reviewed FOREIGN KEY (reviewed_by) REFERENCES users(user_id) ON DELETE SET NULL
 );
 GO
 
 CREATE INDEX idx_org_published ON announcements(org_id, is_published, published_at);
 CREATE INDEX idx_event_announcements ON announcements(event_id);
+CREATE INDEX idx_announcements_approval_status ON announcements(approval_status);
 GO
 
 CREATE TRIGGER trg_announcements_updated_at
@@ -430,6 +478,114 @@ BEGIN
     SET updated_at = GETDATE()
     FROM announcements a
     INNER JOIN inserted i ON a.announcement_id = i.announcement_id;
+END;
+GO
+
+-- Prevent rental creation for students with unpaid debt
+CREATE TRIGGER trg_rentals_block_unpaid_debt
+ON rentals
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN users u ON u.user_id = i.user_id
+        WHERE u.role = 'student' AND u.has_unpaid_debt = 1
+    )
+    BEGIN
+        RAISERROR ('Rental blocked: student account has unpaid debt.', 16, 1);
+        ROLLBACK TRANSACTION;
+        RETURN;
+    END
+END;
+GO
+
+-- -----------------------------------------------------
+-- Table: document_annotations
+-- Purpose: Persist PDF annotation metadata (highlight/comment markers)
+-- -----------------------------------------------------
+CREATE TABLE document_annotations (
+    annotation_id INT IDENTITY(1,1) PRIMARY KEY,
+    document_id INT NOT NULL,
+    user_id INT NOT NULL,
+    annotation_type VARCHAR(20) NOT NULL CHECK (annotation_type IN ('highlight', 'comment')),
+    page_number INT NOT NULL CHECK (page_number > 0),
+    x_position DECIMAL(10,4) NOT NULL,
+    y_position DECIMAL(10,4) NOT NULL,
+    width DECIMAL(10,4) NULL,
+    height DECIMAL(10,4) NULL,
+    comment_text NVARCHAR(MAX) NULL,
+    color_hex VARCHAR(7) NULL CHECK (color_hex LIKE '#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]'),
+    is_resolved BIT DEFAULT 0,
+    created_at DATETIME2 DEFAULT GETDATE(),
+    updated_at DATETIME2 DEFAULT GETDATE(),
+    CONSTRAINT chk_document_annotations_nonnegative_coords CHECK (
+        x_position >= 0 AND y_position >= 0 AND
+        (width IS NULL OR width >= 0) AND
+        (height IS NULL OR height >= 0)
+    ),
+    CONSTRAINT chk_document_annotations_comment_required CHECK (
+        (annotation_type = 'comment' AND comment_text IS NOT NULL) OR
+        (annotation_type = 'highlight')
+    ),
+    CONSTRAINT fk_doc_annotations_documents FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE,
+    CONSTRAINT fk_doc_annotations_users FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE NO ACTION
+);
+GO
+
+CREATE INDEX idx_doc_annotations_document_page ON document_annotations(document_id, page_number);
+CREATE INDEX idx_doc_annotations_user ON document_annotations(user_id);
+GO
+
+CREATE TRIGGER trg_document_annotations_updated_at
+ON document_annotations
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE document_annotations
+    SET updated_at = GETDATE()
+    FROM document_annotations da
+    INNER JOIN inserted i ON da.annotation_id = i.annotation_id;
+END;
+GO
+
+-- -----------------------------------------------------
+-- Table: organization_audits
+-- Purpose: OSA audit status history per organization (no fund ledger)
+-- -----------------------------------------------------
+CREATE TABLE organization_audits (
+    audit_id INT IDENTITY(1,1) PRIMARY KEY,
+    org_id INT NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('not_audited', 'in_progress', 'passed', 'passed_with_findings', 'failed')),
+    audit_scope VARCHAR(100) NULL,
+    audited_by INT NULL,
+    audited_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    notes NVARCHAR(MAX) NULL,
+    created_at DATETIME2 DEFAULT GETDATE(),
+    updated_at DATETIME2 DEFAULT GETDATE(),
+    CONSTRAINT fk_org_audits_orgs FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
+    CONSTRAINT fk_org_audits_users FOREIGN KEY (audited_by) REFERENCES users(user_id) ON DELETE SET NULL
+);
+GO
+
+CREATE INDEX idx_org_audits_org_date ON organization_audits(org_id, audited_at DESC);
+CREATE INDEX idx_org_audits_status ON organization_audits(status);
+GO
+
+CREATE TRIGGER trg_organization_audits_updated_at
+ON organization_audits
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE organization_audits
+    SET updated_at = GETDATE()
+    FROM organization_audits oa
+    INNER JOIN inserted i ON oa.audit_id = i.audit_id;
 END;
 GO
 
@@ -593,14 +749,14 @@ GO
 -- Sample Events
 -- -----------------------------------------------------
 SET IDENTITY_INSERT events ON;
-INSERT INTO events (event_id, org_id, created_by, event_name, description, location, event_date, start_time, end_time, event_type, is_published, max_participants) VALUES
+INSERT INTO events (event_id, org_id, created_by, event_name, description, location, event_date, start_time, end_time, event_type, approval_status, is_published, max_participants) VALUES
 -- Upcoming Events
-(1, 1, 1, 'Tech Summit 2026', 'Annual technology conference featuring industry speakers and workshop sessions', 'Engineering Building Auditorium', '2026-03-15', '09:00:00', '17:00:00', 'seminar', 1, 200),
-(2, 2, 2, 'Leadership Training Workshop', 'Developing leadership skills for student organization officers', 'Student Center Room 201', '2026-02-25', '14:00:00', '18:00:00', 'workshop', 1, 50),
-(3, 3, 2, 'General Assembly', 'Monthly student council meeting to discuss campus initiatives', 'Main Campus Gym', '2026-02-20', '15:00:00', '17:00:00', 'meeting', 1, NULL),
-(4, 4, 3, 'Engineering Fair 2026', 'Showcase of student engineering projects and innovations', 'Engineering Building Lobby', '2026-04-10', '08:00:00', '18:00:00', 'competition', 1, 150),
+(1, 1, 1, 'Tech Summit 2026', 'Annual technology conference featuring industry speakers and workshop sessions', 'Engineering Building Auditorium', '2026-03-15', '09:00:00', '17:00:00', 'seminar', 'approved', 1, 200),
+(2, 2, 2, 'Leadership Training Workshop', 'Developing leadership skills for student organization officers', 'Student Center Room 201', '2026-02-25', '14:00:00', '18:00:00', 'workshop', 'approved', 1, 50),
+(3, 3, 2, 'General Assembly', 'Monthly student council meeting to discuss campus initiatives', 'Main Campus Gym', '2026-02-20', '15:00:00', '17:00:00', 'meeting', 'approved', 1, NULL),
+(4, 4, 3, 'Engineering Fair 2026', 'Showcase of student engineering projects and innovations', 'Engineering Building Lobby', '2026-04-10', '08:00:00', '18:00:00', 'competition', 'approved', 1, 150),
 -- Past Events
-(5, 1, 1, 'Web Development Bootcamp', 'Intensive 2-day workshop on modern web technologies', 'Computer Lab 3', '2026-02-01', '09:00:00', '16:00:00', 'workshop', 1, 30);
+(5, 1, 1, 'Web Development Bootcamp', 'Intensive 2-day workshop on modern web technologies', 'Computer Lab 3', '2026-02-01', '09:00:00', '16:00:00', 'workshop', 'approved', 1, 30);
 SET IDENTITY_INSERT events OFF;
 GO
 
@@ -645,25 +801,44 @@ GO
 -- -----------------------------------------------------
 -- Sample Announcements
 -- -----------------------------------------------------
-INSERT INTO announcements (org_id, created_by, event_id, title, content, audience_type, priority, is_published, published_at) VALUES
-(1, 1, 1, 'Tech Summit 2026 Registration Now Open!', 'We are excited to announce that registration for Tech Summit 2026 is now open! Join us for a day filled with inspiring talks, hands-on workshops, and networking opportunities with industry professionals. Limited slots available!', 'all_students', 'high', 1, '2026-02-10 08:00:00'),
-(2, 2, 2, 'Leadership Workshop Reminder', 'Reminder: Leadership Training Workshop is happening this February 25! All organization officers are encouraged to attend. Certificates will be provided.', 'officers_only', 'normal', 1, '2026-02-12 10:00:00'),
-(3, 2, NULL, 'New Campus Guidelines', 'Please be informed of the updated campus guidelines effective March 1, 2026. All students are expected to comply with the new policies. Details will be sent to your university email.', 'all_students', 'urgent', 1, '2026-02-13 14:00:00'),
-(2, 2, NULL, 'Equipment Rental Available', 'IGP equipment rental services are now available for all student activities. Visit our office or check the online system for available items and rates.', 'all_students', 'low', 1, '2026-02-01 09:00:00');
+INSERT INTO announcements (org_id, created_by, event_id, title, content, audience_type, priority, approval_status, is_published, published_at) VALUES
+(1, 1, 1, 'Tech Summit 2026 Registration Now Open!', 'We are excited to announce that registration for Tech Summit 2026 is now open! Join us for a day filled with inspiring talks, hands-on workshops, and networking opportunities with industry professionals. Limited slots available!', 'all_students', 'high', 'approved', 1, '2026-02-10 08:00:00'),
+(2, 2, 2, 'Leadership Workshop Reminder', 'Reminder: Leadership Training Workshop is happening this February 25! All organization officers are encouraged to attend. Certificates will be provided.', 'officers_only', 'normal', 'approved', 1, '2026-02-12 10:00:00'),
+(3, 2, NULL, 'New Campus Guidelines', 'Please be informed of the updated campus guidelines effective March 1, 2026. All students are expected to comply with the new policies. Details will be sent to your university email.', 'all_students', 'urgent', 'approved', 1, '2026-02-13 14:00:00'),
+(2, 2, NULL, 'Equipment Rental Available', 'IGP equipment rental services are now available for all student activities. Visit our office or check the online system for available items and rates.', 'all_students', 'low', 'approved', 1, '2026-02-01 09:00:00');
 GO
 
 -- -----------------------------------------------------
 -- Sample Documents
 -- -----------------------------------------------------
-INSERT INTO documents (org_id, submitted_by, title, document_type, file_path, file_size, status, reviewed_by, review_notes, reviewed_at) VALUES
+INSERT INTO documents (org_id, submitted_by, title, document_type, file_path, original_filename, mime_type, file_extension, storage_scope, file_size, status, reviewed_by, review_notes, reviewed_at) VALUES
 -- Approved documents
-(1, 1, 'Tech Summit 2026 Proposal', 'proposal', '/documents/acm/tech_summit_2026_proposal.pdf', 2458930, 'approved', 4, 'Approved. Budget allocation confirmed.', '2026-01-20 15:30:00'),
-(2, 2, 'Q4 2025 Financial Statement', 'financial_statement', '/documents/igp/financial_q4_2025.pdf', 1523487, 'approved', 5, 'Financial records verified and approved.', '2026-01-15 11:00:00'),
+(1, 1, 'Tech Summit 2026 Proposal', 'proposal', 'org_1/2026/01/tech_summit_2026_proposal.pdf', 'tech_summit_2026_proposal.pdf', 'application/pdf', 'pdf', 'private', 2458930, 'approved', 4, 'Approved. Budget allocation confirmed.', '2026-01-20 15:30:00'),
+(2, 2, 'Q4 2025 Financial Statement', 'financial_statement', 'org_2/2026/01/financial_q4_2025.pdf', 'financial_q4_2025.pdf', 'application/pdf', 'pdf', 'private', 1523487, 'approved', 5, 'Financial records verified and approved.', '2026-01-15 11:00:00'),
 -- Pending documents
-(1, 3, 'ACM General Assembly Minutes - February 2026', 'activity_report', '/documents/acm/ga_minutes_feb_2026.pdf', 856234, 'pending', NULL, NULL, NULL),
-(4, 3, 'Engineering Fair 2026 Budget Proposal', 'proposal', '/documents/engsoc/engfair_budget_2026.pdf', 1985643, 'ssc_review', NULL, NULL, NULL),
+(1, 3, 'ACM General Assembly Minutes - February 2026', 'activity_report', 'org_1/2026/02/ga_minutes_feb_2026.pdf', 'ga_minutes_feb_2026.pdf', 'application/pdf', 'pdf', 'private', 856234, 'pending', NULL, NULL, NULL),
+(4, 3, 'Engineering Fair 2026 Budget Proposal', 'proposal', 'org_4/2026/02/engfair_budget_2026.pdf', 'engfair_budget_2026.pdf', 'application/pdf', 'pdf', 'private', 1985643, 'ssc_review', NULL, NULL, NULL),
 -- Rejected document
-(3, 2, 'Campus Renovation Proposal', 'proposal', '/documents/sc/renovation_proposal.pdf', 3256789, 'rejected', 4, 'Budget exceeds allocation. Please revise and resubmit with adjusted costs.', '2026-02-05 16:45:00');
+(3, 2, 'Campus Renovation Proposal', 'proposal', 'org_3/2026/02/renovation_proposal.pdf', 'renovation_proposal.pdf', 'application/pdf', 'pdf', 'private', 3256789, 'rejected', 4, 'Budget exceeds allocation. Please revise and resubmit with adjusted costs.', '2026-02-05 16:45:00');
+GO
+
+-- -----------------------------------------------------
+-- Sample Organization Audit Status History
+-- -----------------------------------------------------
+INSERT INTO organization_audits (org_id, status, audit_scope, audited_by, audited_at, notes) VALUES
+(1, 'passed', 'Annual compliance review', 4, '2026-01-12 10:00:00', 'All required compliance documents were complete and valid.'),
+(2, 'passed_with_findings', 'Operational process review', 5, '2026-01-18 14:30:00', 'Minor process findings were issued for follow-up next cycle.'),
+(3, 'in_progress', 'Policy and governance review', 4, '2026-02-10 09:00:00', 'Audit started. Pending final assessor notes.'),
+(4, 'not_audited', NULL, NULL, '2026-01-01 00:00:00', 'No completed audit yet for this period.');
+GO
+
+-- -----------------------------------------------------
+-- Sample Document Annotations
+-- -----------------------------------------------------
+INSERT INTO document_annotations (document_id, user_id, annotation_type, page_number, x_position, y_position, width, height, comment_text, color_hex) VALUES
+(1, 4, 'highlight', 2, 124.5000, 342.2500, 180.0000, 20.0000, NULL, '#FFF59D'),
+(1, 4, 'comment', 2, 320.0000, 360.0000, NULL, NULL, 'Please confirm if this budget line already includes logistics.', '#64B5F6'),
+(2, 5, 'comment', 1, 210.0000, 410.0000, NULL, NULL, 'Attach supporting receipt summary in the next revision.', '#81C784');
 GO
 
 -- =====================================================
@@ -689,7 +864,11 @@ SELECT 'rentals', COUNT(*) FROM rentals
 UNION ALL
 SELECT 'rental_items', COUNT(*) FROM rental_items
 UNION ALL
-SELECT 'announcements', COUNT(*) FROM announcements;
+SELECT 'announcements', COUNT(*) FROM announcements
+UNION ALL
+SELECT 'organization_audits', COUNT(*) FROM organization_audits
+UNION ALL
+SELECT 'document_annotations', COUNT(*) FROM document_annotations;
 GO
 
 -- =====================================================
@@ -764,6 +943,7 @@ GO
 
 -- View pending documents for OSA approval
 -- SELECT d.document_id, o.org_code, d.title, d.document_type, d.status,
+--        d.original_filename, d.file_extension, d.mime_type,
 --        CONCAT(u.first_name, ' ', u.last_name) AS submitted_by, d.created_at
 -- FROM documents d
 -- JOIN organizations o ON d.org_id = o.org_id
@@ -771,11 +951,22 @@ GO
 -- WHERE d.status IN ('pending', 'ssc_review', 'osa_review')
 -- ORDER BY d.created_at ASC;
 
+-- View latest audit status per organization (no fund monitoring)
+-- SELECT o.org_code, o.org_name, oa.status, oa.audited_at, oa.audit_scope, oa.notes
+-- FROM organizations o
+-- OUTER APPLY (
+--     SELECT TOP 1 a.status, a.audited_at, a.audit_scope, a.notes
+--     FROM organization_audits a
+--     WHERE a.org_id = o.org_id
+--     ORDER BY a.audited_at DESC, a.audit_id DESC
+-- ) oa
+-- ORDER BY o.org_code;
+
 -- =====================================================
 -- Setup Complete!
 -- =====================================================
 -- Database: aisers_db
--- Tables: 10 core tables created with triggers for auto-update timestamps
+-- Tables: 12 core tables created with triggers for auto-update timestamps
 -- Sample Data: Loaded successfully (3 students, 2 OSA staff)
 -- Indexes: All performance indexes applied
 -- 
