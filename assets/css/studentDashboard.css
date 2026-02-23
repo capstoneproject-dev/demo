@@ -946,6 +946,13 @@ body.dark .tab-btn:hover {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    --my-org-primary: var(--primary);
+    --my-org-secondary: var(--primary-2);
+    --my-org-surface: var(--panel-2);
+    --my-org-primary-soft: rgba(0, 33, 71, 0.12);
+    --my-org-on-primary: #ffffff;
+    --my-org-text: var(--text);
+    --my-org-muted: var(--muted);
 }
 
 .my-org-hero {
@@ -997,7 +1004,7 @@ body.dark .tab-btn:hover {
     font-weight: 700;
     border-radius: 999px;
     margin-bottom: 14px;
-    color: #fff;
+    color: var(--my-org-on-primary);
     background: var(--my-org-primary);
 }
 
@@ -1047,7 +1054,7 @@ body.dark .tab-btn:hover {
 }
 
 .my-org-card p {
-    color: var(--text);
+    color: var(--my-org-text);
     line-height: 1.55;
 }
 
@@ -1056,7 +1063,7 @@ body.dark .tab-btn:hover {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    color: var(--text);
+    color: var(--my-org-text);
 }
 
 .my-org-card li {
@@ -1101,7 +1108,7 @@ body.dark .tab-btn:hover {
 
 .my-org-list-title {
     font-weight: 700;
-    color: var(--text);
+    color: var(--my-org-text);
     margin-bottom: 6px;
 }
 
@@ -1109,7 +1116,7 @@ body.dark .tab-btn:hover {
     display: flex;
     flex-wrap: wrap;
     gap: 14px;
-    color: var(--muted);
+    color: var(--my-org-muted);
     font-size: 0.85rem;
 }
 
@@ -1121,7 +1128,7 @@ body.dark .tab-btn:hover {
 
 .my-org-list-item.empty {
     text-align: center;
-    color: var(--muted);
+    color: var(--my-org-muted);
 }
 
 @media (max-width: 900px) {
