@@ -524,6 +524,16 @@
     background: #f9f9f9;
   }
 
+  .dashboard-choice-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .dashboard-choice-actions button {
+    margin-top: 0;
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     .container {
@@ -559,6 +569,10 @@
     .sign-in-container.forgot-mode #panel-login,
     .sign-in-container.forgot-mode #panel-forgot {
       transform: none;
+    }
+
+    .dashboard-choice-actions {
+      grid-template-columns: 1fr;
     }
   }
   @media (min-width: 769px) { .mobile-toggle { display: none; } }
