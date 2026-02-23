@@ -44,8 +44,9 @@
     --my-org-primary: #ffc300;
     --my-org-secondary: #000814;
     --my-org-surface: #fff8e0;
+    --my-org-gradient-end: #d8c27a;
     --my-org-primary-soft: rgba(255, 195, 0, 0.20);
-    --my-org-on-primary: #1a1300;
+    --my-org-on-primary: #0f1b2d;
     --my-org-text: #111824;
     --my-org-muted: #5f6879;
 }
@@ -145,8 +146,9 @@ body.dark .my-org-page.org-theme-aisers {
     --my-org-primary: #ffcf33;
     --my-org-secondary: #ffe796;
     --my-org-surface: #1a1505;
+    --my-org-gradient-end: #a48f4e;
     --my-org-primary-soft: rgba(255, 207, 51, 0.24);
-    --my-org-on-primary: #1d1600;
+    --my-org-on-primary: #1a2433;
     --my-org-text: #fff4cf;
     --my-org-muted: #dbc88a;
 }

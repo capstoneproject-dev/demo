@@ -356,71 +356,116 @@ function renderMyOrganizationTab(contentDiv) {
 
     const profileConfig = orgProfileConfig[targetOrgName] || orgProfileConfig["Supreme Student Council"];
     const orgThemeClass = orgThemeClassMap[targetOrgName] || "org-theme-ssc";
-    const relevantEvents = extendedEvents.filter(event => normalizeOrgName(event.org) === targetOrgName).slice(0, 3);
+    const relevantEvents = extendedEvents.filter(event => normalizeOrgName(event.org) === targetOrgName);
     const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
+    const announcementEvents = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 2);
+    const recentActivities = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 3);
+    const fullOrgName = (profileConfig.fullName || profileConfig.tagline || organization.name).toUpperCase();
+    const formattedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-    const eventMarkup = relevantEvents.length
-        ? relevantEvents.map(event => `
-            <div class="my-org-list-item">
-                <div class="my-org-list-title">${event.title}</div>
-                <div class="my-org-list-meta">
-                    <span><i class="fa-regular fa-calendar"></i> ${event.date}</span>
-                    <span><i class="fa-regular fa-clock"></i> ${event.time}</span>
-                </div>
+    const announcementMarkup = announcementEvents.map(event => `
+        <div class="my-org-ref-ann-item">
+            <img src="${organization.image}" alt="${organization.name} logo" class="my-org-ref-ann-thumb">
+            <div>
+                <div class="my-org-ref-ann-title">Upcoming Event: ${event.title}</div>
+                <div class="my-org-ref-ann-date">${event.date}</div>
             </div>
-        `).join("")
-        : `<div class="my-org-list-item empty">No upcoming events yet.</div>`;
+            <button class="my-org-ref-pill-btn" type="button">Read More</button>
+        </div>
+    `).join("");
 
-    const serviceMarkup = relevantServices.length
-        ? relevantServices.map(service => `
-            <div class="my-org-chip">${service.name}</div>
-        `).join("")
-        : `<div class="my-org-chip">No active services yet</div>`;
+    const activitiesMarkup = recentActivities.map(event => `
+        <article class="my-org-ref-activity-card">
+            <img src="${event.img}" alt="${event.title}">
+            <div class="my-org-ref-activity-caption">${event.title}</div>
+        </article>
+    `).join("");
 
-    const officerMarkup = profileConfig.officers.map(officer => `<li>${officer}</li>`).join("");
-    const highlightMarkup = profileConfig.highlights.map(item => `<li>${item}</li>`).join("");
+    const quickFactsMarkup = `
+        <ul>
+            <li><strong>Course:</strong> ${currentStudentProfile.course}</li>
+            <li><strong>Associated Org:</strong> ${organization.name}</li>
+            <li><strong>Services:</strong> ${relevantServices.map(service => service.name).join(", ") || "No active services yet"}</li>
+            <li><strong>Core Mission:</strong> ${profileConfig.about}</li>
+        </ul>
+    `;
 
     contentDiv.innerHTML = `
         <div class="my-org-page ${orgThemeClass}">
-            <section class="my-org-hero">
-                <div class="my-org-hero-overlay"></div>
-                <img class="my-org-hero-banner" src="${organization.banner}" alt="${organization.name} banner">
-                <div class="my-org-hero-content">
-                    <div class="my-org-badge">Associated Organization</div>
-                    <h2>${organization.name}</h2>
-                    <p>${profileConfig.tagline}</p>
-                    <div class="my-org-meta">
-                        <span><i class="fa-solid fa-user"></i> ${currentStudentProfile.fullName}</span>
-                        <span><i class="fa-solid fa-graduation-cap"></i> ${currentStudentProfile.course}</span>
+            <section class="my-org-ref-topbar">
+                <div class="my-org-ref-portal">Student Portal</div>
+                <div class="my-org-ref-top-actions">
+                    <div class="my-org-ref-search">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" placeholder="Search">
                     </div>
+                    <div class="my-org-ref-badge">${organization.name}</div>
+                    <img src="${organization.image}" alt="${organization.name} logo" class="my-org-ref-top-logo">
                 </div>
-                <img class="my-org-logo" src="${organization.image}" alt="${organization.name} logo">
             </section>
 
-            <section class="my-org-grid">
-                <article class="my-org-card">
-                    <h3>About</h3>
-                    <p>${profileConfig.about}</p>
+            <section class="my-org-ref-orgbar">
+                <div class="my-org-ref-orgtitle">
+                    <img src="${organization.image}" alt="${organization.name} logo">
+                    <span>${fullOrgName}</span>
+                </div>
+                <nav class="my-org-ref-links">
+                    <a href="#">Home</a>
+                    <a href="#">Events</a>
+                    <a href="#">About</a>
+                    <a href="#">Officers</a>
+                    <a href="#">Contact</a>
+                </nav>
+            </section>
+
+            <section class="my-org-ref-main">
+                <article class="my-org-ref-hero">
+                    <img src="${organization.banner}" alt="${organization.name} banner">
+                    <div class="my-org-ref-hero-overlay"></div>
+                    <div class="my-org-ref-chip">${organization.category}</div>
+                    <div class="my-org-ref-date">${formattedDate}</div>
+                    <div class="my-org-ref-hero-content">
+                        <h2>WELCOME TO ${fullOrgName}!</h2>
+                        <p>${profileConfig.tagline}</p>
+                    </div>
+                    <div class="my-org-ref-hero-actions">
+                        <button type="button"><i class="fa-solid fa-user-plus"></i> Join</button>
+                        <button type="button"><i class="fa-solid fa-link"></i> Share</button>
+                    </div>
                 </article>
 
-                <article class="my-org-card">
-                    <h3>Current Officers</h3>
-                    <ul>${officerMarkup}</ul>
-                </article>
+                <aside class="my-org-ref-side">
+                    <article class="my-org-ref-announcements">
+                        <h3>ANNOUNCEMENTS</h3>
+                        ${announcementMarkup}
+                    </article>
+                    <article class="my-org-ref-contact">
+                        <h3>${organization.name}</h3>
+                        <p>Pico Garden, Villamor Airbase<br>Pasay City</p>
+                        <div class="my-org-ref-contact-search">
+                            <input type="text" placeholder="What are you looking for?">
+                            <button type="button"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        </div>
+                        <div class="my-org-ref-socials">
+                            <i class="fa-brands fa-facebook"></i>
+                            <i class="fa-brands fa-instagram"></i>
+                            <i class="fa-brands fa-x-twitter"></i>
+                            <i class="fa-brands fa-tiktok"></i>
+                        </div>
+                    </article>
+                </aside>
+            </section>
 
-                <article class="my-org-card">
-                    <h3>Highlights</h3>
-                    <ul>${highlightMarkup}</ul>
+            <section class="my-org-ref-bottom">
+                <article class="my-org-ref-quickfacts">
+                    <h3>QUICK FACTS</h3>
+                    ${quickFactsMarkup}
                 </article>
-
-                <article class="my-org-card">
-                    <h3>Available Services</h3>
-                    <div class="my-org-chip-wrap">${serviceMarkup}</div>
-                </article>
-
-                <article class="my-org-card full-width">
-                    <h3>Upcoming Organization Events</h3>
-                    <div class="my-org-list">${eventMarkup}</div>
+                <article class="my-org-ref-activities">
+                    <h3>RECENT ACTIVITIES</h3>
+                    <div class="my-org-ref-activities-grid">
+                        ${activitiesMarkup}
+                    </div>
                 </article>
             </section>
         </div>
