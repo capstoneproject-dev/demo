@@ -363,7 +363,7 @@ function renderMyOrganizationTab(contentDiv) {
     const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
     const announcementEvents = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 2);
     const recentActivities = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 3);
-    const fullOrgName = (profileConfig.fullName || profileConfig.tagline || organization.name).toUpperCase();
+    const fullOrgName = "ALLIANCE IN INFORMATION SYSTEM EMPOWERED RESPONSIVE STUDENTS ORGANIZATION";
     const formattedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     const announcementMarkup = announcementEvents.map(event => `
