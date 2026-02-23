@@ -44,31 +44,57 @@ CREATE TABLE organizations (
     CONSTRAINT chk_org_status CHECK (status IN ('active', 'probation', 'suspended'))
 ) ENGINE=InnoDB;
 
+CREATE TABLE org_roles (
+    role_id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id INT NOT NULL,
+    role_name VARCHAR(50) NOT NULL,
+    can_access_org_dashboard TINYINT(1) NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_org_role_name UNIQUE (org_id, role_name),
+    CONSTRAINT uq_org_role_org_roleid UNIQUE (org_id, role_id),
+    CONSTRAINT fk_org_roles_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE organization_members (
     membership_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     org_id INT NOT NULL,
-    org_role VARCHAR(30) NOT NULL DEFAULT 'member',
-    can_access_org_dashboard TINYINT(1) NOT NULL DEFAULT 0,
+    role_id INT NOT NULL,
     joined_at DATE NOT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_member_org UNIQUE (user_id, org_id),
     CONSTRAINT fk_org_members_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    CONSTRAINT fk_org_members_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE
+    CONSTRAINT fk_org_members_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
+    CONSTRAINT fk_org_members_role FOREIGN KEY (role_id) REFERENCES org_roles(role_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_org_members_org_role FOREIGN KEY (org_id, role_id) REFERENCES org_roles(org_id, role_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 -- =====================================================
 -- 2) Organization-Scoped Data Tables
 -- =====================================================
 
+CREATE TABLE inventory_categories (
+    category_id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id INT NOT NULL,
+    category_name VARCHAR(100) NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_inventory_category_name UNIQUE (org_id, category_name),
+    CONSTRAINT uq_inventory_category_org_catid UNIQUE (org_id, category_id),
+    CONSTRAINT fk_inventory_categories_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE inventory_items (
     item_id INT AUTO_INCREMENT PRIMARY KEY,
     org_id INT NOT NULL,
     item_name VARCHAR(255) NOT NULL,
     barcode VARCHAR(50) NOT NULL UNIQUE,
-    category VARCHAR(30) NOT NULL,
+    category_id INT NOT NULL,
     stock_quantity INT NOT NULL DEFAULT 1,
     available_quantity INT NOT NULL DEFAULT 1,
     hourly_rate DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
@@ -79,7 +105,9 @@ CREATE TABLE inventory_items (
     CONSTRAINT chk_stock_quantity CHECK (stock_quantity >= 0),
     CONSTRAINT chk_available_quantity CHECK (available_quantity >= 0 AND available_quantity <= stock_quantity),
     CONSTRAINT chk_hourly_rate CHECK (hourly_rate >= 0),
-    CONSTRAINT fk_inventory_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE RESTRICT
+    CONSTRAINT fk_inventory_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_inventory_category FOREIGN KEY (category_id) REFERENCES inventory_categories(category_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_inventory_org_category FOREIGN KEY (org_id, category_id) REFERENCES inventory_categories(org_id, category_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 CREATE TABLE rentals (
@@ -125,6 +153,18 @@ CREATE TABLE rental_items (
     CONSTRAINT fk_rental_items_item FOREIGN KEY (item_id) REFERENCES inventory_items(item_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+CREATE TABLE event_types (
+    event_type_id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id INT NOT NULL,
+    event_type_name VARCHAR(100) NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_event_type_name UNIQUE (org_id, event_type_name),
+    CONSTRAINT uq_event_type_org_typeid UNIQUE (org_id, event_type_id),
+    CONSTRAINT fk_event_types_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE events (
     event_id INT AUTO_INCREMENT PRIMARY KEY,
     org_id INT NOT NULL,
@@ -135,7 +175,7 @@ CREATE TABLE events (
     event_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
-    event_type VARCHAR(20) NOT NULL DEFAULT 'other',
+    event_type_id INT NOT NULL,
     approval_status VARCHAR(20) NOT NULL DEFAULT 'draft',
     is_published TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -144,7 +184,9 @@ CREATE TABLE events (
     CONSTRAINT chk_events_time CHECK (end_time > start_time),
     CONSTRAINT chk_events_publish CHECK (is_published = 0 OR approval_status = 'approved'),
     CONSTRAINT fk_events_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
-    CONSTRAINT fk_events_creator FOREIGN KEY (created_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT
+    CONSTRAINT fk_events_creator FOREIGN KEY (created_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_events_type FOREIGN KEY (event_type_id) REFERENCES event_types(event_type_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_events_org_type FOREIGN KEY (org_id, event_type_id) REFERENCES event_types(org_id, event_type_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 CREATE TABLE announcements (
@@ -169,13 +211,19 @@ CREATE TABLE announcements (
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_org_code ON organizations(org_code);
-CREATE INDEX idx_org_members_org ON organization_members(org_id, org_role, is_active);
+CREATE INDEX idx_org_roles_org ON org_roles(org_id, is_active);
+CREATE INDEX idx_org_roles_name ON org_roles(org_id, role_name);
+CREATE INDEX idx_org_members_org ON organization_members(org_id, role_id, is_active);
 CREATE INDEX idx_org_members_user ON organization_members(user_id, is_active);
+CREATE INDEX idx_inventory_categories_org ON inventory_categories(org_id, is_active);
 CREATE INDEX idx_inventory_org_status ON inventory_items(org_id, status);
+CREATE INDEX idx_inventory_category ON inventory_items(category_id);
 CREATE INDEX idx_rentals_org_status ON rentals(org_id, status, expected_return_time);
 CREATE INDEX idx_rentals_renter ON rentals(renter_user_id, payment_status);
 CREATE INDEX idx_rental_items_rental ON rental_items(rental_id);
+CREATE INDEX idx_event_types_org ON event_types(org_id, is_active);
 CREATE INDEX idx_events_org_date ON events(org_id, event_date);
+CREATE INDEX idx_events_type ON events(event_type_id);
 CREATE INDEX idx_announcements_org_published ON announcements(org_id, is_published, published_at);
 
 -- =====================================================
@@ -198,8 +246,22 @@ BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
 END$$
 
+CREATE TRIGGER trg_org_roles_updated_at
+BEFORE UPDATE ON org_roles
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
 CREATE TRIGGER trg_org_members_updated_at
 BEFORE UPDATE ON organization_members
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_inventory_categories_updated_at
+BEFORE UPDATE ON inventory_categories
 FOR EACH ROW
 BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
@@ -228,6 +290,13 @@ END$$
 
 CREATE TRIGGER trg_events_updated_at
 BEFORE UPDATE ON events
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_event_types_updated_at
+BEFORE UPDATE ON event_types
 FOR EACH ROW
 BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
@@ -312,28 +381,49 @@ INSERT INTO users (
 (3, '2023-10003', NULL, 'cyc.officer1@school.edu', '$argon2id$demohash3', 'Chloe', 'Cruz', 'student'),
 (4, NULL, 'OSA-0001', 'osa.staff@school.edu', '$argon2id$demohash4', 'Olivia', 'Garcia', 'osa_staff');
 
-INSERT INTO organization_members (
-    user_id, org_id, org_role, can_access_org_dashboard, joined_at, is_active
+INSERT INTO org_roles (
+    role_id, org_id, role_name, can_access_org_dashboard, is_active
 ) VALUES
-(1, 1, 'officer', 1, '2025-08-01', 1),
-(2, 2, 'officer', 1, '2025-08-01', 1),
-(3, 3, 'officer', 1, '2025-08-01', 1),
-(4, 1, 'auditor', 1, '2025-08-01', 1),
-(4, 2, 'auditor', 1, '2025-08-01', 1),
-(4, 3, 'auditor', 1, '2025-08-01', 1);
+(1, 1, 'officer', 1, 1),
+(2, 1, 'auditor', 1, 1),
+(3, 2, 'officer', 1, 1),
+(4, 2, 'auditor', 1, 1),
+(5, 3, 'officer', 1, 1),
+(6, 3, 'auditor', 1, 1);
 
-INSERT INTO inventory_items (org_id, item_name, barcode, category, stock_quantity, available_quantity, hourly_rate, status) VALUES
-(1, 'AISERS Shoe Cover', 'AISERS-ITM-001', 'uniform', 30, 30, 5.00, 'available'),
-(1, 'AISERS Safety Vest', 'AISERS-ITM-002', 'uniform', 20, 20, 8.00, 'available'),
-(2, 'Elitech Multimeter', 'ELITECH-ITM-001', 'equipment', 12, 12, 12.00, 'available'),
-(2, 'Elitech Soldering Kit', 'ELITECH-ITM-002', 'equipment', 8, 8, 15.00, 'available'),
-(3, 'CYC Event Megaphone', 'CYC-ITM-001', 'electronics', 6, 6, 10.00, 'available'),
-(3, 'CYC Booth Table Set', 'CYC-ITM-002', 'other', 10, 10, 7.00, 'available');
+INSERT INTO organization_members (
+    user_id, org_id, role_id, joined_at, is_active
+) VALUES
+(1, 1, 1, '2025-08-01', 1),
+(2, 2, 3, '2025-08-01', 1),
+(3, 3, 5, '2025-08-01', 1),
+(4, 1, 2, '2025-08-01', 1),
+(4, 2, 4, '2025-08-01', 1),
+(4, 3, 6, '2025-08-01', 1);
 
-INSERT INTO events (org_id, created_by_user_id, event_name, description, location, event_date, start_time, end_time, event_type, approval_status, is_published) VALUES
-(1, 1, 'AISERS Skills Workshop', 'Technical workshop for AISERS members', 'Lab 1', '2026-03-10', '09:00:00', '12:00:00', 'workshop', 'approved', 1),
-(2, 2, 'Elitech Build Day', 'Electronics prototyping session', 'Lab 2', '2026-03-12', '13:00:00', '17:00:00', 'workshop', 'approved', 1),
-(3, 3, 'CYC Outreach Planning', 'Community outreach preparation', 'Student Hub', '2026-03-15', '10:00:00', '12:00:00', 'meeting', 'approved', 1);
+INSERT INTO inventory_categories (category_id, org_id, category_name, is_active) VALUES
+(1, 1, 'uniform', 1),
+(2, 2, 'equipment', 1),
+(3, 3, 'electronics', 1),
+(4, 3, 'other', 1);
+
+INSERT INTO inventory_items (org_id, item_name, barcode, category_id, stock_quantity, available_quantity, hourly_rate, status) VALUES
+(1, 'AISERS Shoe Cover', 'AISERS-ITM-001', 1, 30, 30, 5.00, 'available'),
+(1, 'AISERS Safety Vest', 'AISERS-ITM-002', 1, 20, 20, 8.00, 'available'),
+(2, 'Elitech Multimeter', 'ELITECH-ITM-001', 2, 12, 12, 12.00, 'available'),
+(2, 'Elitech Soldering Kit', 'ELITECH-ITM-002', 2, 8, 8, 15.00, 'available'),
+(3, 'CYC Event Megaphone', 'CYC-ITM-001', 3, 6, 6, 10.00, 'available'),
+(3, 'CYC Booth Table Set', 'CYC-ITM-002', 4, 10, 10, 7.00, 'available');
+
+INSERT INTO event_types (event_type_id, org_id, event_type_name, is_active) VALUES
+(1, 1, 'workshop', 1),
+(2, 2, 'workshop', 1),
+(3, 3, 'meeting', 1);
+
+INSERT INTO events (org_id, created_by_user_id, event_name, description, location, event_date, start_time, end_time, event_type_id, approval_status, is_published) VALUES
+(1, 1, 'AISERS Skills Workshop', 'Technical workshop for AISERS members', 'Lab 1', '2026-03-10', '09:00:00', '12:00:00', 1, 'approved', 1),
+(2, 2, 'Elitech Build Day', 'Electronics prototyping session', 'Lab 2', '2026-03-12', '13:00:00', '17:00:00', 2, 'approved', 1),
+(3, 3, 'CYC Outreach Planning', 'Community outreach preparation', 'Student Hub', '2026-03-15', '10:00:00', '12:00:00', 3, 'approved', 1);
 
 INSERT INTO announcements (org_id, created_by_user_id, title, content, audience_type, is_published, published_at) VALUES
 (1, 1, 'AISERS Rental Desk Open', 'AISERS members may now reserve uniform items online.', 'members_only', 1, '2026-02-23 08:00:00'),
@@ -359,20 +449,25 @@ INSERT INTO rental_items (rental_id, item_id, quantity, unit_rate, item_cost) VA
 
 SELECT 'users' AS table_name, COUNT(*) AS record_count FROM users
 UNION ALL SELECT 'organizations', COUNT(*) FROM organizations
+UNION ALL SELECT 'org_roles', COUNT(*) FROM org_roles
 UNION ALL SELECT 'organization_members', COUNT(*) FROM organization_members
+UNION ALL SELECT 'inventory_categories', COUNT(*) FROM inventory_categories
 UNION ALL SELECT 'inventory_items', COUNT(*) FROM inventory_items
 UNION ALL SELECT 'rentals', COUNT(*) FROM rentals
 UNION ALL SELECT 'rental_items', COUNT(*) FROM rental_items
+UNION ALL SELECT 'event_types', COUNT(*) FROM event_types
 UNION ALL SELECT 'events', COUNT(*) FROM events
 UNION ALL SELECT 'announcements', COUNT(*) FROM announcements;
 
 -- Officer dashboard lookup example (student can also be an officer):
--- SELECT o.org_id, o.org_name, o.org_code, om.org_role
+-- SELECT o.org_id, o.org_name, o.org_code, r.role_name
 -- FROM organization_members om
 -- JOIN organizations o ON o.org_id = om.org_id
+-- JOIN org_roles r ON r.role_id = om.role_id
 -- WHERE om.user_id = ?
 --   AND om.is_active = 1
---   AND om.can_access_org_dashboard = 1;
+--   AND r.is_active = 1
+--   AND r.can_access_org_dashboard = 1;
 
 -- Post-login routing helper:
 -- 1) Student dashboard allowed when users.account_type = 'student'

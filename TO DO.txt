@@ -1,0 +1,10 @@
+OSA
+ - add/modify/archive organizations 
+ - 
+
+ORG 
+ - add items 
+ - rental prices 
+
+LOCKERS
+- add a locker system where users can pick locker numbers
