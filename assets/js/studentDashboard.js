@@ -247,14 +247,6 @@ function switchOrgTab(tabName, btn) {
             btn.className = 'org-filter-btn';
             btn.innerText = cat.label;
             btn.setAttribute('data-category', cat.key);
-            btn.style.padding = '8px 18px';
-            btn.style.borderRadius = '20px';
-            btn.style.border = 'none';
-            btn.style.fontWeight = '500';
-            btn.style.fontSize = '1rem';
-            btn.style.cursor = 'pointer';
-            btn.style.boxShadow = 'var(--shadow)';
-            btn.style.transition = 'background 0.2s, color 0.2s';
             if (idx === 0) btn.classList.add('active');
             filterBar.appendChild(btn);
         });

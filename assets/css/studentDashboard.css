@@ -909,6 +909,25 @@ header {
     border-color: var(--primary);
 }
 
+#organizations .org-filter-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 10px 20px;
+    border-radius: 30px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+#organizations .org-filter-btn.active,
+#organizations .org-filter-btn:hover {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
 /* Dark Mode Overrides for Organizations Tab */
 body.dark #organizations .tab-btn.active,
 body.dark #organizations .tab-btn:hover {
@@ -2414,12 +2433,14 @@ button:focus-visible {
 body.dark #organizations .org-filter-btn {
     background: var(--panel-2);
     color: var(--text);
+    border-color: var(--border);
 }
 
 body.dark #organizations .org-filter-btn.active,
 body.dark #organizations .org-filter-btn:hover {
     background: #ffffff !important;
     color: #000000 !important;
+    border-color: #ffffff !important;
 }
 
 /* Card Buttons in Organizations Tab */
