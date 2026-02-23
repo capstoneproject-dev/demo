@@ -945,7 +945,7 @@ body.dark .tab-btn:hover {
 .my-org-page {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
     --my-org-primary: var(--primary);
     --my-org-secondary: var(--primary-2);
     --my-org-surface: var(--panel-2);
@@ -1162,7 +1162,7 @@ body.dark .tab-btn:hover {
 
 /* --- MY ORGANIZATION REFERENCE LAYOUT --- */
 .my-org-ref-topbar {
-    background: var(--panel);
+    background: var(--my-org-card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 5px 10px;
@@ -1272,7 +1272,7 @@ body.dark .tab-btn:hover {
 .my-org-ref-main {
     display: grid;
     grid-template-columns: 2.3fr 1fr;
-    gap: 16px;
+    gap: 22px;
     align-items: stretch;
     height: clamp(300px, 30vw, 400px);
 }
@@ -1373,14 +1373,14 @@ body.dark .tab-btn:hover {
 .my-org-ref-side {
     display: grid;
     grid-template-rows: 1.3fr 0.7fr;
-    gap: 16px;
+    gap: 18px;
     height: 100%;
 }
 
 .my-org-ref-announcements,
 .my-org-ref-contact {
-    background: #ffffff;
-    border: 1px solid var(--my-org-primary-soft);
+    background: var(--my-org-panel-bg);
+    border: 1px solid var(--my-org-ui-border);
     border-radius: 14px;
     padding: 10px;
     overflow: hidden;
@@ -1423,7 +1423,7 @@ body.dark .tab-btn:hover {
     align-items: center;
     margin-bottom: 16px;
     padding-bottom: 14px;
-    border-bottom: 1px solid var(--my-org-primary-soft);
+    border-bottom: 1px solid var(--my-org-ui-border);
 }
 
 .my-org-ref-ann-item:last-child {
@@ -1437,7 +1437,7 @@ body.dark .tab-btn:hover {
     height: 56px;
     object-fit: cover;
     border-radius: 12px;
-    border: 1px solid var(--my-org-primary-soft);
+    border: 1px solid var(--my-org-ui-border);
 }
 
 .my-org-ref-ann-title {
@@ -1452,6 +1452,11 @@ body.dark .tab-btn:hover {
     font-weight: 700;
     margin-top: 4px;
     font-size: 0.84rem;
+}
+
+body.dark .my-org-ref-ann-title,
+body.dark .my-org-ref-ann-date {
+    color: #ffffff;
 }
 
 .my-org-ref-pill-btn {
@@ -1479,8 +1484,8 @@ body.dark .tab-btn:hover {
 
 .my-org-ref-contact-search input {
     flex: 1;
-    border: 1px solid var(--my-org-primary-soft);
-    background: var(--panel);
+    border: 1px solid var(--my-org-ui-border);
+    background: var(--my-org-field-bg);
     color: var(--my-org-text);
     border-right: none;
     padding: 7px 8px;
@@ -1490,8 +1495,8 @@ body.dark .tab-btn:hover {
 
 .my-org-ref-contact-search button {
     width: 34px;
-    border: 1px solid var(--my-org-primary-soft);
-    background: var(--panel);
+    border: 1px solid var(--my-org-ui-border);
+    background: var(--my-org-field-bg);
     color: var(--my-org-secondary);
 }
 
@@ -1528,19 +1533,19 @@ body.dark .tab-btn:hover {
 .my-org-ref-bottom {
     display: grid;
     grid-template-columns: 0.85fr 2.15fr;
-    gap: 16px;
+    gap: 22px;
 }
 
 .my-org-ref-quickfacts,
 .my-org-ref-activities {
-    border: 1px solid var(--my-org-primary-soft);
+    border: 1px solid var(--my-org-ui-border);
     border-radius: 14px;
     padding: 12px;
     min-height: clamp(180px, 20vw, 260px);
 }
 
 .my-org-ref-activities {
-    background: #ffffff;
+    background: var(--my-org-panel-bg);
     display: flex;
     flex-direction: column;
 }
@@ -1578,7 +1583,7 @@ body.dark .tab-btn:hover {
     grid-auto-rows: 1fr;
     flex: 1;
     min-height: 0;
-    background: #ffffff;
+    background: var(--my-org-card-bg);
     border-radius: 8px;
     padding: 2px;
 }
@@ -1588,8 +1593,8 @@ body.dark .tab-btn:hover {
     flex-direction: column;
     border-radius: 10px;
     overflow: hidden;
-    border: 1px solid var(--my-org-primary-soft);
-    background: #ffffff;
+    border: 1px solid var(--my-org-ui-border);
+    background: var(--my-org-card-bg);
     height: 100%;
 }
 
@@ -1610,6 +1615,10 @@ body.dark .tab-btn:hover {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+body.dark .my-org-ref-activity-caption {
+    color: #ffffff;
 }
 
 @media (max-width: 1400px) {
@@ -1708,6 +1717,7 @@ body.dark .tab-btn:hover {
         max-width: 100%;
     }
 }
+
 
 /* --- PROFILE TABLE --- */
 .table-container {
