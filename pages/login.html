@@ -75,15 +75,15 @@
 
         <!-- Student Fields -->
         <form id="form-student" class="reg-fields active">
-          <input type="text" placeholder="Student Number" />
-          <input type="text" placeholder="Name" />
+          <input type="text" id="student-number-input" placeholder="Student Number" />
+          <input type="text" id="student-name-input" placeholder="Name" />
           <input type="text" id="student-course-input" placeholder="Select Course" class="org-select-trigger" readonly
             onclick="openCourseModal('student-course-input')" />
-          <input type="text" placeholder="Section" />
-          <input type="email" placeholder="Email" />
-          <input type="password" placeholder="Password" />
-          <input type="password" placeholder="Re-enter Password" />
-          <button type="button">REGISTER</button>
+          <input type="text" id="student-section-input" placeholder="Section" />
+          <input type="email" id="student-email-input" placeholder="Email" />
+          <input type="password" id="student-password-input" placeholder="Password" />
+          <input type="password" id="student-confirm-password-input" placeholder="Re-enter Password" />
+          <button type="button" id="studentRegisterBtn">REGISTER</button>
         </form>
 
         <!-- OSA Fields -->

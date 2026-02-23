@@ -116,3 +116,53 @@
       closeCourseModal();
     }
   });
+
+  /* =====================
+     STUDENT REGISTER (MOCK FLOW)
+     ===================== */
+  const studentRegisterBtn = document.getElementById("studentRegisterBtn");
+  const studentForm = document.getElementById("form-student");
+
+  function saveStudentProfileAndRedirect() {
+    const studentNumber = document.getElementById("student-number-input")?.value.trim();
+    const fullName = document.getElementById("student-name-input")?.value.trim();
+    const course = document.getElementById("student-course-input")?.value.trim();
+    const section = document.getElementById("student-section-input")?.value.trim();
+    const email = document.getElementById("student-email-input")?.value.trim();
+    const password = document.getElementById("student-password-input")?.value;
+    const confirmPassword = document.getElementById("student-confirm-password-input")?.value;
+
+    if (!studentNumber || !fullName || !course || !section || !email || !password || !confirmPassword) {
+      alert("Please complete all Student registration fields.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      alert("Passwords do not match.");
+      return;
+    }
+
+    const mockStudentProfile = {
+      studentNumber,
+      fullName,
+      course,
+      section,
+      email
+    };
+
+    localStorage.setItem("naapStudentProfile", JSON.stringify(mockStudentProfile));
+    window.location.href = "studentDashboard.html";
+  }
+
+  if (studentRegisterBtn) {
+    studentRegisterBtn.addEventListener("click", saveStudentProfileAndRedirect);
+  }
+
+  if (studentForm) {
+    studentForm.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveStudentProfileAndRedirect();
+      }
+    });
+  }
