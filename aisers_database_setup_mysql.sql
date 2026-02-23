@@ -55,7 +55,6 @@ CREATE TABLE organization_members (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_member_org UNIQUE (user_id, org_id),
-    CONSTRAINT chk_org_role CHECK (org_role IN ('member', 'officer', 'president', 'vice_president', 'treasurer', 'secretary', 'auditor')),
     CONSTRAINT fk_org_members_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_org_members_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -76,8 +75,7 @@ CREATE TABLE inventory_items (
     status VARCHAR(20) NOT NULL DEFAULT 'available',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_inventory_category CHECK (category IN ('uniform', 'equipment', 'sports_gear', 'electronics', 'other')),
-    CONSTRAINT chk_inventory_status CHECK (status IN ('available', 'rented', 'maintenance', 'retired')),
+    CONSTRAINT chk_inventory_status CHECK (status IN ('available', 'rented', 'maintenance')),
     CONSTRAINT chk_stock_quantity CHECK (stock_quantity >= 0),
     CONSTRAINT chk_available_quantity CHECK (available_quantity >= 0 AND available_quantity <= stock_quantity),
     CONSTRAINT chk_hourly_rate CHECK (hourly_rate >= 0),
@@ -100,8 +98,8 @@ CREATE TABLE rentals (
     notes TEXT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_rentals_payment_status CHECK (payment_status IN ('unpaid', 'paid', 'waived')),
-    CONSTRAINT chk_rentals_payment_method CHECK (payment_method IN ('cash', 'gcash', 'bank_transfer', 'free') OR payment_method IS NULL),
+    CONSTRAINT chk_rentals_payment_status CHECK (payment_status IN ('unpaid', 'paid')),
+    CONSTRAINT chk_rentals_payment_method CHECK (payment_method = 'cash' OR payment_method IS NULL),
     CONSTRAINT chk_rentals_status CHECK (status IN ('active', 'returned', 'overdue', 'cancelled')),
     CONSTRAINT chk_rentals_time_order CHECK (expected_return_time >= rent_time AND (actual_return_time IS NULL OR actual_return_time >= rent_time)),
     CONSTRAINT chk_rentals_total_cost CHECK (total_cost >= 0),
@@ -142,7 +140,6 @@ CREATE TABLE events (
     is_published TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_events_type CHECK (event_type IN ('meeting', 'seminar', 'workshop', 'competition', 'social', 'other')),
     CONSTRAINT chk_events_approval CHECK (approval_status IN ('draft', 'pending', 'approved', 'rejected')),
     CONSTRAINT chk_events_time CHECK (end_time > start_time),
     CONSTRAINT chk_events_publish CHECK (is_published = 0 OR approval_status = 'approved'),
@@ -375,8 +372,7 @@ UNION ALL SELECT 'announcements', COUNT(*) FROM announcements;
 -- JOIN organizations o ON o.org_id = om.org_id
 -- WHERE om.user_id = ?
 --   AND om.is_active = 1
---   AND om.can_access_org_dashboard = 1
---   AND om.org_role IN ('officer', 'president', 'vice_president', 'treasurer', 'secretary', 'auditor');
+--   AND om.can_access_org_dashboard = 1;
 
 -- Post-login routing helper:
 -- 1) Student dashboard allowed when users.account_type = 'student'
