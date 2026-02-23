@@ -356,6 +356,9 @@ function renderMyOrganizationTab(contentDiv) {
 
     const profileConfig = orgProfileConfig[targetOrgName] || orgProfileConfig["Supreme Student Council"];
     const orgThemeClass = orgThemeClassMap[targetOrgName] || "org-theme-ssc";
+    const heroBackgroundImage = targetOrgName === "AISERS"
+        ? "../assets/photos/studentDashboard/Organizations Gallery/AISERS GROUP PHOTO.png"
+        : organization.banner;
     const relevantEvents = extendedEvents.filter(event => normalizeOrgName(event.org) === targetOrgName);
     const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
     const announcementEvents = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 2);
@@ -420,13 +423,13 @@ function renderMyOrganizationTab(contentDiv) {
 
             <section class="my-org-ref-main">
                 <article class="my-org-ref-hero">
-                    <img src="${organization.banner}" alt="${organization.name} banner">
+                    <img src="${heroBackgroundImage}" alt="${organization.name} banner">
                     <div class="my-org-ref-hero-overlay"></div>
                     <div class="my-org-ref-chip">${organization.category}</div>
                     <div class="my-org-ref-date">${formattedDate}</div>
                     <div class="my-org-ref-hero-content">
-                        <h2>WELCOME TO ${fullOrgName}!</h2>
-                        <p>${profileConfig.tagline}</p>
+                        <h2>WELCOME TO ALLIANCE IN INFORMATION SYSTEM EMPOWERED RESPONSIVE STUDENTS ORGANIZATION!</h2>
+                        <p>"Excellent in Innovation, Service with Passon"</p>
                     </div>
                     <div class="my-org-ref-hero-actions">
                         <button type="button"><i class="fa-solid fa-user-plus"></i> Join</button>
@@ -447,10 +450,18 @@ function renderMyOrganizationTab(contentDiv) {
                             <button type="button"><i class="fa-solid fa-magnifying-glass"></i></button>
                         </div>
                         <div class="my-org-ref-socials">
-                            <i class="fa-brands fa-facebook"></i>
-                            <i class="fa-brands fa-instagram"></i>
-                            <i class="fa-brands fa-x-twitter"></i>
-                            <i class="fa-brands fa-tiktok"></i>
+                            <a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                                <i class="fa-brands fa-facebook-f"></i>
+                            </a>
+                            <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                                <i class="fa-brands fa-instagram"></i>
+                            </a>
+                            <a href="https://x.com/" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)">
+                                <span class="x-text">X</span>
+                            </a>
+                            <a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
+                                <i class="fa-brands fa-tiktok"></i>
+                            </a>
                         </div>
                     </article>
                 </aside>
