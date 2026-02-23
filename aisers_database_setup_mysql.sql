@@ -73,6 +73,37 @@ CREATE TABLE organization_members (
     CONSTRAINT fk_org_members_org_role FOREIGN KEY (org_id, role_id) REFERENCES org_roles(org_id, role_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+CREATE TABLE academic_programs (
+    program_id INT AUTO_INCREMENT PRIMARY KEY,
+    program_code VARCHAR(30) NOT NULL UNIQUE,
+    institute_name VARCHAR(255) NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE student_profiles (
+    user_id INT PRIMARY KEY,
+    program_id INT NOT NULL,
+    section VARCHAR(30) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_student_profiles_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_student_profiles_program FOREIGN KEY (program_id) REFERENCES academic_programs(program_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE program_org_mappings (
+    mapping_id INT AUTO_INCREMENT PRIMARY KEY,
+    program_id INT NOT NULL,
+    org_id INT NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_program_org UNIQUE (program_id, org_id),
+    CONSTRAINT fk_program_org_program FOREIGN KEY (program_id) REFERENCES academic_programs(program_id) ON DELETE CASCADE,
+    CONSTRAINT fk_program_org_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- =====================================================
 -- 2) Organization-Scoped Data Tables
 -- =====================================================
@@ -215,6 +246,9 @@ CREATE INDEX idx_org_roles_org ON org_roles(org_id, is_active);
 CREATE INDEX idx_org_roles_name ON org_roles(org_id, role_name);
 CREATE INDEX idx_org_members_org ON organization_members(org_id, role_id, is_active);
 CREATE INDEX idx_org_members_user ON organization_members(user_id, is_active);
+CREATE INDEX idx_programs_code ON academic_programs(program_code, is_active);
+CREATE INDEX idx_student_profiles_program ON student_profiles(program_id);
+CREATE INDEX idx_program_org_map_program ON program_org_mappings(program_id, is_active);
 CREATE INDEX idx_inventory_categories_org ON inventory_categories(org_id, is_active);
 CREATE INDEX idx_inventory_org_status ON inventory_items(org_id, status);
 CREATE INDEX idx_inventory_category ON inventory_items(category_id);
@@ -255,6 +289,27 @@ END$$
 
 CREATE TRIGGER trg_org_members_updated_at
 BEFORE UPDATE ON organization_members
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_academic_programs_updated_at
+BEFORE UPDATE ON academic_programs
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_student_profiles_updated_at
+BEFORE UPDATE ON student_profiles
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_program_org_mappings_updated_at
+BEFORE UPDATE ON program_org_mappings
 FOR EACH ROW
 BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
@@ -360,6 +415,38 @@ BEGIN
     END IF;
 END$$
 
+-- Auto-assign student as organization member based on academic program mapping
+CREATE TRIGGER trg_student_profiles_auto_org_member
+AFTER INSERT ON student_profiles
+FOR EACH ROW
+BEGIN
+    DECLARE v_org_id INT;
+    DECLARE v_role_id INT;
+
+    SELECT pom.org_id
+    INTO v_org_id
+    FROM program_org_mappings pom
+    WHERE pom.program_id = NEW.program_id
+      AND pom.is_active = 1
+    ORDER BY pom.mapping_id
+    LIMIT 1;
+
+    IF v_org_id IS NOT NULL THEN
+        SELECT r.role_id
+        INTO v_role_id
+        FROM org_roles r
+        WHERE r.org_id = v_org_id
+          AND r.role_name = 'member'
+          AND r.is_active = 1
+        LIMIT 1;
+
+        IF v_role_id IS NOT NULL THEN
+            INSERT IGNORE INTO organization_members (user_id, org_id, role_id, joined_at, is_active)
+            VALUES (NEW.user_id, v_org_id, v_role_id, CURDATE(), 1);
+        END IF;
+    END IF;
+END$$
+
 DELIMITER ;
 
 -- =====================================================
@@ -386,20 +473,45 @@ INSERT INTO org_roles (
 ) VALUES
 (1, 1, 'officer', 1, 1),
 (2, 1, 'auditor', 1, 1),
-(3, 2, 'officer', 1, 1),
-(4, 2, 'auditor', 1, 1),
-(5, 3, 'officer', 1, 1),
-(6, 3, 'auditor', 1, 1);
+(3, 1, 'member', 0, 1),
+(4, 2, 'officer', 1, 1),
+(5, 2, 'auditor', 1, 1),
+(6, 2, 'member', 0, 1),
+(7, 3, 'officer', 1, 1),
+(8, 3, 'auditor', 1, 1),
+(9, 3, 'member', 0, 1);
+
+INSERT INTO academic_programs (program_id, program_code, institute_name, is_active) VALUES
+(1, 'BSAIT', 'Institute of Computer Studies', 1),
+(2, 'BSAIS', 'Institute of Computer Studies', 1),
+(3, 'BSAET', 'Institute of Engineering Technology', 1),
+(4, 'BSAT', 'Institute of Engineering Technology', 1),
+(5, 'BSAMT', 'Institute of Engineering Technology', 1),
+(6, 'BSAeE', 'Institute of Engineering Technology', 1),
+(7, 'BAT-AET', 'Institute of Engineering Technology', 1),
+(8, 'AvComm', 'Institute of Liberal Arts and Sciences', 1),
+(9, 'Avlog', 'Institute of Liberal Arts and Sciences', 1),
+(10, 'AvSSm', 'Institute of Liberal Arts and Sciences', 1),
+(11, 'AvTour', 'Institute of Liberal Arts and Sciences', 1);
+
+INSERT INTO program_org_mappings (program_id, org_id, is_active) VALUES
+(1, 1, 1),
+(2, 1, 1);
 
 INSERT INTO organization_members (
     user_id, org_id, role_id, joined_at, is_active
 ) VALUES
 (1, 1, 1, '2025-08-01', 1),
-(2, 2, 3, '2025-08-01', 1),
-(3, 3, 5, '2025-08-01', 1),
+(2, 2, 4, '2025-08-01', 1),
+(3, 3, 7, '2025-08-01', 1),
 (4, 1, 2, '2025-08-01', 1),
-(4, 2, 4, '2025-08-01', 1),
-(4, 3, 6, '2025-08-01', 1);
+(4, 2, 5, '2025-08-01', 1),
+(4, 3, 8, '2025-08-01', 1);
+
+INSERT INTO student_profiles (user_id, program_id, section) VALUES
+(1, 2, 'IS-1A'),
+(2, 3, 'ET-2B'),
+(3, 8, 'LA-1C');
 
 INSERT INTO inventory_categories (category_id, org_id, category_name, is_active) VALUES
 (1, 1, 'uniform', 1),
@@ -451,6 +563,9 @@ SELECT 'users' AS table_name, COUNT(*) AS record_count FROM users
 UNION ALL SELECT 'organizations', COUNT(*) FROM organizations
 UNION ALL SELECT 'org_roles', COUNT(*) FROM org_roles
 UNION ALL SELECT 'organization_members', COUNT(*) FROM organization_members
+UNION ALL SELECT 'academic_programs', COUNT(*) FROM academic_programs
+UNION ALL SELECT 'student_profiles', COUNT(*) FROM student_profiles
+UNION ALL SELECT 'program_org_mappings', COUNT(*) FROM program_org_mappings
 UNION ALL SELECT 'inventory_categories', COUNT(*) FROM inventory_categories
 UNION ALL SELECT 'inventory_items', COUNT(*) FROM inventory_items
 UNION ALL SELECT 'rentals', COUNT(*) FROM rentals

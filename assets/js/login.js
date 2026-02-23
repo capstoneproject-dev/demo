@@ -85,3 +85,34 @@
       closeOrgModal();
     }
   });
+
+
+  /* =====================
+     COURSE MODAL LOGIC
+     ===================== */
+  const courseModal = document.getElementById("courseModal");
+  let activeCourseInputId = null;
+
+  function openCourseModal(inputId) {
+    activeCourseInputId = inputId;
+    courseModal.classList.add("open");
+  }
+
+  function closeCourseModal() {
+    courseModal.classList.remove("open");
+    activeCourseInputId = null;
+  }
+
+  function selectCourse(courseName) {
+    if (activeCourseInputId) {
+      const input = document.getElementById(activeCourseInputId);
+      if (input) input.value = courseName;
+    }
+    closeCourseModal();
+  }
+
+  courseModal.addEventListener("click", (e) => {
+    if (e.target === courseModal) {
+      closeCourseModal();
+    }
+  });

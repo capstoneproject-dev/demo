@@ -77,7 +77,9 @@
         <form id="form-student" class="reg-fields active">
           <input type="text" placeholder="Student Number" />
           <input type="text" placeholder="Name" />
-          <input type="text" placeholder="Course & Section" />
+          <input type="text" id="student-course-input" placeholder="Select Course" class="org-select-trigger" readonly
+            onclick="openCourseModal('student-course-input')" />
+          <input type="text" placeholder="Section" />
           <input type="email" placeholder="Email" />
           <input type="password" placeholder="Password" />
           <input type="password" placeholder="Re-enter Password" />
@@ -98,7 +100,9 @@
         <form id="form-org" class="reg-fields">
           <input type="text" placeholder="Student Number" />
           <input type="text" placeholder="Name" />
-          <input type="text" placeholder="Course & Section" />
+          <input type="text" id="org-course-input" placeholder="Select Course" class="org-select-trigger" readonly
+            onclick="openCourseModal('org-course-input')" />
+          <input type="text" placeholder="Section" />
           <!-- Org Selector Trigger -->
           <input type="text" id="org-input" placeholder="Select Organization" class="org-select-trigger" readonly
             onclick="openOrgModal()" />
@@ -154,7 +158,7 @@
         </div>
 
         <div class="org-category">
-          <div class="org-category-title">ICS</div>
+          <div class="org-category-title">Institute of Computer Studies</div>
           <div class="org-list">
             <div class="org-item" onclick="selectOrg('AISERS')">AISERS</div>
             <div class="org-item" onclick="selectOrg('ELITECH')">ELITECH</div>
@@ -162,14 +166,14 @@
         </div>
 
         <div class="org-category">
-          <div class="org-category-title">ILAS</div>
+          <div class="org-category-title">Institute of Liberal Arts and Sciences</div>
           <div class="org-list">
             <div class="org-item" onclick="selectOrg('ILASSO')">ILASSO</div>
           </div>
         </div>
 
         <div class="org-category">
-          <div class="org-category-title">INET</div>
+          <div class="org-category-title">Institute of Engineering Technology</div>
           <div class="org-list">
             <div class="org-item" onclick="selectOrg('AERO-ATSO')">AERO-ATSO</div>
             <div class="org-item" onclick="selectOrg('AETSO')">AETSO</div>
@@ -184,6 +188,48 @@
             <div class="org-item" onclick="selectOrg('CYC')">CYC</div>
             <div class="org-item" onclick="selectOrg('SCHOLAR\'S GUILD')">SCHOLAR'S GUILD</div>
             <div class="org-item" onclick="selectOrg('AERONAUTICA')">AERONAUTICA</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- COURSE SELECTION MODAL -->
+  <div class="modal-overlay" id="courseModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Select Course</h3>
+        <button class="close-modal" onclick="closeCourseModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+
+        <div class="org-category">
+          <div class="org-category-title">Institute of Computer Studies</div>
+          <div class="org-list">
+            <div class="org-item" onclick="selectCourse('BSAIT')">BSAIT</div>
+            <div class="org-item" onclick="selectCourse('BSAIS')">BSAIS</div>
+          </div>
+        </div>
+
+        <div class="org-category">
+          <div class="org-category-title">Institute of Engineering Technology</div>
+          <div class="org-list">
+            <div class="org-item" onclick="selectCourse('BSAET')">BSAET</div>
+            <div class="org-item" onclick="selectCourse('BSAT')">BSAT</div>
+            <div class="org-item" onclick="selectCourse('BSAMT')">BSAMT</div>
+            <div class="org-item" onclick="selectCourse('BSAeE')">BSAeE</div>
+            <div class="org-item" onclick="selectCourse('BAT-AET')">BAT-AET</div>
+          </div>
+        </div>
+
+        <div class="org-category">
+          <div class="org-category-title">Institute of Liberal Arts and Sciences</div>
+          <div class="org-list">
+            <div class="org-item" onclick="selectCourse('AvComm')">AvComm</div>
+            <div class="org-item" onclick="selectCourse('Avlog')">Avlog</div>
+            <div class="org-item" onclick="selectCourse('AvSSm')">AvSSm</div>
+            <div class="org-item" onclick="selectCourse('AvTour')">AvTour</div>
           </div>
         </div>
 
