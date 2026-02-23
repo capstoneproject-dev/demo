@@ -10,6 +10,22 @@ let html5Qrcode = null;
 
 // Add a variable to track last beep time
 let lastBeepTime = 0;
+const DEFAULT_HOURLY_RATE = 10;
+
+function normalizeHourlyRate(value) {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_HOURLY_RATE;
+}
+
+function getItemHourlyRate(item) {
+    if (!item) return DEFAULT_HOURLY_RATE;
+    if (item.pricePerHour !== undefined && item.pricePerHour !== null && item.pricePerHour !== '') {
+        return normalizeHourlyRate(item.pricePerHour);
+    }
+
+    const inventoryItem = inventoryItems.find(i => i.id === item.id);
+    return normalizeHourlyRate(inventoryItem ? inventoryItem.pricePerHour : undefined);
+}
 
 // Initialize the system
 document.addEventListener('DOMContentLoaded', async function () {
@@ -23,6 +39,11 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (inventoryItems.length === 0) {
         initializeDefaultInventory();
     }
+    inventoryItems = inventoryItems.map(item => ({
+        ...item,
+        pricePerHour: normalizeHourlyRate(item.pricePerHour)
+    }));
+    localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
 
     // Initialize officers if empty
     if (officers.length === 0) {
@@ -461,12 +482,12 @@ document.addEventListener('DOMContentLoaded', async function () {
 // Initialize default inventory items
 function initializeDefaultInventory() {
     inventoryItems = [
-        { id: 'SH001', name: 'Shoe Covers', barcode: 'SH001', status: 'available' },
-        { id: 'SH002', name: 'Shoe Covers', barcode: 'SH002', status: 'available' },
-        { id: 'AR001', name: 'Arnis', barcode: 'AR001', status: 'available' },
-        { id: 'AR002', name: 'Arnis', barcode: 'AR002', status: 'available' },
-        { id: 'CALC001', name: 'Calculator', barcode: 'CALC001', status: 'available' },
-        { id: 'CALC002', name: 'Calculator', barcode: 'CALC002', status: 'available' }
+        { id: 'SH001', name: 'Shoe Covers', barcode: 'SH001', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+        { id: 'SH002', name: 'Shoe Covers', barcode: 'SH002', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+        { id: 'AR001', name: 'Arnis', barcode: 'AR001', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+        { id: 'AR002', name: 'Arnis', barcode: 'AR002', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+        { id: 'CALC001', name: 'Calculator', barcode: 'CALC001', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+        { id: 'CALC002', name: 'Calculator', barcode: 'CALC002', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE }
     ];
     localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
 }
@@ -614,6 +635,7 @@ function proceedWithRental(item, tempRenter, tempOfficer, itemStatus, scanResult
     // Disable barcode input while modal is open
     const barcodeInput = document.getElementById('barcodeInput');
     if (barcodeInput) barcodeInput.disabled = true;
+    const hourlyRate = getItemHourlyRate(item);
 
     // Create and show rental hours modal
     const modal = document.createElement('div');
@@ -628,7 +650,7 @@ function proceedWithRental(item, tempRenter, tempOfficer, itemStatus, scanResult
                     <button type=\"button\" class=\"btn-close\" onclick=\"closeRentalModal(this.closest('.modal'))\"></button>
                 </div>
                 <div class=\"modal-body\">
-                    <p>Please enter the number of hours for rental (₱10 per hour)</p>
+                    <p>Please enter the number of hours for rental (PHP ${hourlyRate} per hour)</p>
                     <div class=\"mb-3\">
                         <label for=\"rentalHours\" class=\"form-label\">Number of Hours:</label>
                         <input type=\"number\" class=\"form-control\" id=\"rentalHours\" min=\"1\" value=\"1\">
@@ -637,7 +659,7 @@ function proceedWithRental(item, tempRenter, tempOfficer, itemStatus, scanResult
                         <strong>Rental Details:</strong><br>
                         Student: ${tempRenter.studentName} (${tempRenter.studentId})<br>
                         Item: ${item.name} (${item.id})<br>
-                        <span id=\"rateDisplay\">Rate: ₱10 for 1 hour</span>
+                        <span id=\"rateDisplay\">Rate: PHP ${hourlyRate} for 1 hour</span>
                     </div>
                 </div>
                 <div class=\"modal-footer\">
@@ -657,8 +679,8 @@ function proceedWithRental(item, tempRenter, tempOfficer, itemStatus, scanResult
             rentalHoursInput.addEventListener('input', function () {
                 let hours = parseInt(rentalHoursInput.value);
                 if (!hours || hours < 1) hours = 1;
-                const total = hours * 10;
-                rateDisplay.textContent = `Rate: ₱${total} for ${hours} hour${hours > 1 ? 's' : ''}`;
+                const total = hours * hourlyRate;
+                rateDisplay.textContent = `Rate: PHP ${total} for ${hours} hour${hours > 1 ? 's' : ''}`;
             });
         }
     }, 0);
@@ -679,7 +701,8 @@ async function processRentalHours(item, modal) {
 
     const rentalDate = new Date();
     const dueDate = new Date(rentalDate.getTime() + (rentalHours * 60 * 60 * 1000)); // Add hours to rental date
-    const baseCost = rentalHours * 10; // ₱10 per hour
+    const hourlyRate = getItemHourlyRate(item);
+    const baseCost = rentalHours * hourlyRate;
 
     const rental = {
         itemId: item.id,
@@ -692,6 +715,7 @@ async function processRentalHours(item, modal) {
         rentalDate: rentalDate.toISOString(),
         dueDate: dueDate.toISOString(),
         rentalHours: rentalHours,
+        hourlyRate: hourlyRate,
         baseCost: baseCost,
         status: 'active'
     };
@@ -774,7 +798,7 @@ async function handleReturn(item) {
     }
     const baseCostVal = (typeof activeRental.baseCost === 'number' && !isNaN(activeRental.baseCost))
         ? activeRental.baseCost
-        : (rentalHoursVal ? rentalHoursVal * 10 : 0);
+        : (rentalHoursVal ? rentalHoursVal * normalizeHourlyRate(activeRental.hourlyRate ?? getItemHourlyRate({ id: activeRental.itemId })) : 0);
 
     // Calculate overtime if any
     let overtimeCost = 0;

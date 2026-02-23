@@ -145,25 +145,33 @@
 
     <script src="lib/bootstrap.bundle.min.js"></script>
     <script>
+        const DEFAULT_HOURLY_RATE = 10;
+
+        function normalizePricePerHour(value) {
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_HOURLY_RATE;
+        }
+
         // Load inventory items
         let inventoryItems = JSON.parse(localStorage.getItem('inventoryItems')) || [];
         // Ensure all items have lastRenter and currentRenter fields for backward compatibility
         inventoryItems = inventoryItems.map(item => ({
             ...item,
             lastRenter: item.lastRenter || '',
-            currentRenter: item.currentRenter || ''
+            currentRenter: item.currentRenter || '',
+            pricePerHour: normalizePricePerHour(item.pricePerHour)
         }));
         localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
 
         // Initialize inventory if empty
         if (inventoryItems.length === 0) {
             inventoryItems = [
-                { id: 'SH001', name: 'Shoe Cover', barcode: 'SH001', status: 'available', lastRenter: '', currentRenter: '' },
-                { id: 'SH002', name: 'Shoe Cover', barcode: 'SH002', status: 'available', lastRenter: '', currentRenter: '' },
-                { id: 'AR001', name: 'Arnis', barcode: 'AR001', status: 'available', lastRenter: '', currentRenter: '' },
-                { id: 'AR002', name: 'Arnis', barcode: 'AR002', status: 'available', lastRenter: '', currentRenter: '' },
-                { id: 'CALC001', name: 'Calculator', barcode: 'CALC001', status: 'available', lastRenter: '', currentRenter: '' },
-                { id: 'CALC002', name: 'Calculator', barcode: 'CALC002', status: 'available', lastRenter: '', currentRenter: '' }
+                { id: 'SH001', name: 'Shoe Cover', barcode: 'SH001', status: 'available', lastRenter: '', currentRenter: '', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'SH002', name: 'Shoe Cover', barcode: 'SH002', status: 'available', lastRenter: '', currentRenter: '', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'AR001', name: 'Arnis', barcode: 'AR001', status: 'available', lastRenter: '', currentRenter: '', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'AR002', name: 'Arnis', barcode: 'AR002', status: 'available', lastRenter: '', currentRenter: '', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'CALC001', name: 'Calculator', barcode: 'CALC001', status: 'available', lastRenter: '', currentRenter: '', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'CALC002', name: 'Calculator', barcode: 'CALC002', status: 'available', lastRenter: '', currentRenter: '', pricePerHour: DEFAULT_HOURLY_RATE }
             ];
             localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
         }
