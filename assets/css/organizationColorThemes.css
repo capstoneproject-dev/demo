@@ -1,4 +1,17 @@
 /* Centralized organization palettes for My Organization tab */
+.my-org-page {
+    --my-org-panel-bg: #f3f4f6;
+    --my-org-card-bg: #ffffff;
+    --my-org-field-bg: #ffffff;
+    --my-org-ui-border: var(--my-org-primary-soft);
+}
+
+body.dark .my-org-page {
+    --my-org-panel-bg: rgba(255, 255, 255, 0.06);
+    --my-org-card-bg: rgba(255, 255, 255, 0.04);
+    --my-org-field-bg: rgba(255, 255, 255, 0.08);
+    --my-org-ui-border: rgba(255, 255, 255, 0.16);
+}
 
 .my-org-page.org-theme-scholar-guild {
     --my-org-primary: #d4af37;
@@ -117,7 +130,7 @@ body.dark .my-org-page.org-theme-ssc {
     --my-org-secondary: #d4d8ff;
     --my-org-surface: #161625;
     --my-org-primary-soft: rgba(193, 193, 193, 0.20);
-    --my-org-on-primary: #0f1232;
+    --my-org-on-primary: #ffffff;
     --my-org-text: #eef0ff;
     --my-org-muted: #bac0e6;
 }
@@ -149,8 +162,8 @@ body.dark .my-org-page.org-theme-aisers {
     --my-org-gradient-end: #a48f4e;
     --my-org-primary-soft: rgba(255, 207, 51, 0.24);
     --my-org-on-primary: #1a2433;
-    --my-org-text: #fff4cf;
-    --my-org-muted: #dbc88a;
+    --my-org-text: #1a2433;
+    --my-org-muted: #31465f;
 }
 
 body.dark .my-org-page.org-theme-elitech {
@@ -168,7 +181,7 @@ body.dark .my-org-page.org-theme-aero-atso {
     --my-org-secondary: #a5d3ff;
     --my-org-surface: #0b1e2f;
     --my-org-primary-soft: rgba(73, 166, 255, 0.24);
-    --my-org-on-primary: #041526;
+    --my-org-on-primary: #ffffff;
     --my-org-text: #e5f3ff;
     --my-org-muted: #adc8df;
 }
@@ -178,7 +191,7 @@ body.dark .my-org-page.org-theme-aetso {
     --my-org-secondary: #eaff66;
     --my-org-surface: #0d1f3d;
     --my-org-primary-soft: rgba(234, 255, 102, 0.24);
-    --my-org-on-primary: #04122a;
+    --my-org-on-primary: #ffffff;
     --my-org-text: #eaf2ff;
     --my-org-muted: #b6c8e7;
 }
