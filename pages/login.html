@@ -192,9 +192,63 @@
   </div>
 
 
+  <!-- DASHBOARD CHOICE MODAL (LOGIN FLOW) -->
+  <div class="modal-overlay" id="dashboardChoiceModal">
+    <div class="modal-box dashboard-choice-box">
+      <div class="modal-header">
+        <h3>Select Dashboard</h3>
+        <button class="close-modal" onclick="closeDashboardChoiceModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="subtitle" style="margin: 0 0 16px 0;">You are logged in as an organization officer (simulation).</p>
+        <div class="dashboard-choice-actions">
+          <button type="button" id="goStudentDashboardBtn">Student Dashboard</button>
+          <button type="button" id="goOfficerDashboardBtn">Officer Dashboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
   <script>
     // Mock login process
     document.addEventListener('DOMContentLoaded', function () {
+      var dashboardChoiceModal = document.getElementById('dashboardChoiceModal');
+      var goStudentDashboardBtn = document.getElementById('goStudentDashboardBtn');
+      var goOfficerDashboardBtn = document.getElementById('goOfficerDashboardBtn');
+
+      function openDashboardChoiceModal() {
+        if (dashboardChoiceModal) {
+          dashboardChoiceModal.classList.add('open');
+        }
+      }
+
+      window.closeDashboardChoiceModal = function () {
+        if (dashboardChoiceModal) {
+          dashboardChoiceModal.classList.remove('open');
+        }
+      };
+
+      if (goStudentDashboardBtn) {
+        goStudentDashboardBtn.addEventListener('click', function () {
+          window.location.href = 'studentDashboard.html';
+        });
+      }
+
+      if (goOfficerDashboardBtn) {
+        goOfficerDashboardBtn.addEventListener('click', function () {
+          window.location.href = 'officerDashboard.html';
+        });
+      }
+
+      if (dashboardChoiceModal) {
+        dashboardChoiceModal.addEventListener('click', function (e) {
+          if (e.target === dashboardChoiceModal) {
+            window.closeDashboardChoiceModal();
+          }
+        });
+      }
+
       var loginBtn = document.getElementById('loginBtn');
       var loginForm = document.getElementById('loginForm');
       if (loginBtn) {
@@ -204,7 +258,7 @@
           if (type === 'student') {
             window.location.href = 'studentDashboard.html';
           } else if (type === 'org') {
-            window.location.href = 'officerDashboard.html';
+            openDashboardChoiceModal();
           } else if (type === 'osa') {
             window.location.href = 'osaDashboard.html';
           } else {
