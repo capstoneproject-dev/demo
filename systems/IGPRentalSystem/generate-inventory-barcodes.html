@@ -129,14 +129,18 @@
             </div>
             <div class="card-body">
                 <form id="addItemForm" class="row g-2">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <input type="text" class="form-control" id="itemName" placeholder="Item Name" required>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <input type="text" class="form-control" id="itemId" placeholder="Item ID" required>
                     </div>
                     <div class="col-md-3">
                         <input type="text" class="form-control" id="barcode" placeholder="Barcode" required>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" class="form-control" id="pricePerHour" placeholder="Price/Hour" min="0"
+                            step="0.01" value="10" required>
                     </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary w-100">Add Item</button>
@@ -217,18 +221,35 @@
     <script src="lib/JsBarcode.all.min.js"></script>
     <script src="lib/xlsx.full.min.js"></script>
     <script>
+        const DEFAULT_HOURLY_RATE = 10;
+
+        function normalizePricePerHour(value) {
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_HOURLY_RATE;
+        }
+
+        function formatPricePerHour(value) {
+            const price = normalizePricePerHour(value);
+            return Number.isInteger(price) ? String(price) : price.toFixed(2);
+        }
+
         // Load inventory items
         let inventoryItems = JSON.parse(localStorage.getItem('inventoryItems')) || [];
+        inventoryItems = inventoryItems.map(item => ({
+            ...item,
+            pricePerHour: normalizePricePerHour(item.pricePerHour)
+        }));
+        localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
 
         // Initialize inventory if empty
         if (inventoryItems.length === 0) {
             inventoryItems = [
-                { id: 'SH001', name: 'Shoe Cover', barcode: 'SH001', status: 'available' },
-                { id: 'SH002', name: 'Shoe Cover', barcode: 'SH002', status: 'available' },
-                { id: 'AR001', name: 'Arnis', barcode: 'AR001', status: 'available' },
-                { id: 'AR002', name: 'Arnis', barcode: 'AR002', status: 'available' },
-                { id: 'CALC001', name: 'Calculator', barcode: 'CALC001', status: 'available' },
-                { id: 'CALC002', name: 'Calculator', barcode: 'CALC002', status: 'available' }
+                { id: 'SH001', name: 'Shoe Cover', barcode: 'SH001', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'SH002', name: 'Shoe Cover', barcode: 'SH002', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'AR001', name: 'Arnis', barcode: 'AR001', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'AR002', name: 'Arnis', barcode: 'AR002', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'CALC001', name: 'Calculator', barcode: 'CALC001', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE },
+                { id: 'CALC002', name: 'Calculator', barcode: 'CALC002', status: 'available', pricePerHour: DEFAULT_HOURLY_RATE }
             ];
             localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
         }
@@ -324,6 +345,11 @@
                                 <strong>Name:</strong> ${item.name}<br>
                                 <strong>Barcode:</strong> ${item.barcode}<br>
                                 <strong>Status:</strong> ${item.status}
+                                <div class="mt-2">
+                                    <label class="form-label form-label-sm mb-1">Price Per Hour (PHP)</label>
+                                    <input type="number" class="form-control form-control-sm price-per-hour-input" min="0"
+                                        step="0.01" value="${formatPricePerHour(item.pricePerHour)}" data-item-id="${item.id}">
+                                </div>
                             </div>
                             <div class="col-md-1 col-12 text-end">
                                 <button class="btn btn-sm btn-danger delete-item" title="Delete Item" data-category="${category}" data-index="${idx}"><span aria-hidden="true">🗑️</span></button>
@@ -380,6 +406,18 @@
                     downloadBarcode(svgElement, filename);
                 });
             });
+
+            document.querySelectorAll('.price-per-hour-input').forEach(input => {
+                input.addEventListener('change', function () {
+                    const itemId = this.getAttribute('data-item-id');
+                    const item = inventoryItems.find(i => i.id === itemId);
+                    if (!item) return;
+
+                    item.pricePerHour = normalizePricePerHour(this.value);
+                    this.value = formatPricePerHour(item.pricePerHour);
+                    localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
+                });
+            });
         }
 
         // Add new item
@@ -389,6 +427,7 @@
             const itemName = document.getElementById('itemName').value;
             const itemId = document.getElementById('itemId').value;
             const barcode = document.getElementById('barcode').value;
+            const pricePerHour = normalizePricePerHour(document.getElementById('pricePerHour').value);
 
             // Check if item ID or barcode already exists
             if (inventoryItems.some(item => item.id === itemId || item.barcode === barcode)) {
@@ -400,6 +439,7 @@
                 id: itemId,
                 name: itemName,
                 barcode: barcode,
+                pricePerHour: pricePerHour,
                 status: 'available'
             };
 
@@ -499,13 +539,18 @@
                     let itemName = row[header.indexOf('name')] || row[header.indexOf('item name')] || row[header.indexOf('itemname')];
                     let barcode = row[header.indexOf('barcode')] || row[header.indexOf('barcode id')];
                     let status = row[header.indexOf('status')] || 'available';
+                    let pricePerHour = row[header.indexOf('price per hour')] ||
+                        row[header.indexOf('price/hour')] ||
+                        row[header.indexOf('hourly rate')] ||
+                        row[header.indexOf('price')];
 
                     if (itemId && itemName && barcode) {
                         newItems.push({
                             id: String(itemId),
                             name: String(itemName),
                             barcode: String(barcode),
-                            status: String(status)
+                            status: String(status),
+                            pricePerHour: normalizePricePerHour(pricePerHour)
                         });
                     }
                 }
@@ -513,7 +558,12 @@
                 // Merge: update existing or add new
                 const itemMap = {};
                 inventoryItems.forEach(item => { itemMap[item.id] = item; });
-                newItems.forEach(item => { itemMap[item.id] = item; });
+                newItems.forEach(item => {
+                    itemMap[item.id] = {
+                        ...(itemMap[item.id] || {}),
+                        ...item
+                    };
+                });
                 inventoryItems = Object.values(itemMap);
 
                 // Save to localStorage
@@ -537,7 +587,8 @@
                 'Item ID': item.id,
                 'Name': item.name,
                 'Barcode': item.barcode,
-                'Status': item.status
+                'Status': item.status,
+                'Price Per Hour': normalizePricePerHour(item.pricePerHour)
             })));
             XLSX.utils.book_append_sheet(wb, ws, "Inventory");
             XLSX.writeFile(wb, "inventory_items.xlsx");
