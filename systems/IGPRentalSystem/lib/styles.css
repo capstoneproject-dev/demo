@@ -146,9 +146,11 @@ body {
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     padding: 12px 16px;
+    padding-right: 2.5rem;
     font-size: 0.95rem;
     background-color: #f7f9ff;
     color: var(--text);
+    background-position: right 0.75rem center;
 }
 
 .form-control:focus,
