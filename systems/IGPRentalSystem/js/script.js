@@ -269,6 +269,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     const activateScanBtn = document.getElementById('activateScan');
     const deactivateScanBtn = document.getElementById('deactivateScan');
     const cancelTransactionBtn = document.getElementById('cancelTransaction');
+    const itemFilter = document.getElementById('itemFilter');
+    let pauseBarcodeAutofocus = false;
 
     if (barcodeInput) {
         barcodeInput.focus();
@@ -402,8 +404,27 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
 
         // Keep focus on input
-        document.addEventListener('click', function () {
+        document.addEventListener('click', function (event) {
+            if (pauseBarcodeAutofocus || event.target.closest('#itemFilter')) return;
             if (!barcodeInput.disabled) barcodeInput.focus();
+        });
+    }
+
+    if (itemFilter) {
+        const pauseAutofocus = () => {
+            pauseBarcodeAutofocus = true;
+        };
+        const resumeAutofocus = () => {
+            pauseBarcodeAutofocus = false;
+            if (barcodeInput && !barcodeInput.disabled) barcodeInput.focus();
+        };
+
+        itemFilter.addEventListener('mousedown', pauseAutofocus);
+        itemFilter.addEventListener('focus', pauseAutofocus);
+        itemFilter.addEventListener('touchstart', pauseAutofocus, { passive: true });
+        itemFilter.addEventListener('blur', resumeAutofocus);
+        itemFilter.addEventListener('change', function () {
+            setTimeout(resumeAutofocus, 0);
         });
     }
 
