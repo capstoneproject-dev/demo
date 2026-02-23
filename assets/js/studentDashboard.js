@@ -174,6 +174,269 @@ function getEventStatus(dateStr) {
     return 'upcoming';
 }
 
+const courseOrganizationMap = {
+    BSAIS: "AISERS",
+    BSAIT: "ELITECH",
+    BSAET: "AETSO",
+    BSAT: "AERO-ATSO",
+    BSAMT: "AMTSO",
+    BSAEE: "AETSO",
+    "BAT-AET": "AETSO",
+    AVCOMM: "ILASSO",
+    AVLOG: "ILASSO",
+    AVSSM: "ILASSO",
+    AVTOUR: "ILASSO"
+};
+
+const orgProfileConfig = {
+    "AISERS": {
+        theme: { primary: "#f59e0b", secondary: "#b45309", surface: "#fff7ed" },
+        tagline: "Association of Information Systems and Emerging Research Students",
+        about: "Builds student capability in information systems, analytics, and applied campus technology.",
+        officers: ["President: Charles M. Reyes", "Vice President: Nikki S. Lazo", "Secretary: Mara P. Lim"],
+        highlights: ["AIS Research Colloquium", "Systems Design Workshop", "Peer Tutoring for BSAIS"]
+    },
+    "ELITECH": {
+        theme: { primary: "#2563eb", secondary: "#1d4ed8", surface: "#eff6ff" },
+        tagline: "Engineering and Laboratory Innovation Technology Circle",
+        about: "Focuses on practical electronics and embedded systems initiatives for student engineers.",
+        officers: ["President: Jayson A. Cruz", "Vice President: Bea N. Tan", "Secretary: Ken S. Diaz"],
+        highlights: ["IoT Build Camp", "Hardware Troubleshooting Clinic", "Electronics Safety Orientation"]
+    },
+    "ILASSO": {
+        theme: { primary: "#ef4444", secondary: "#b91c1c", surface: "#fef2f2" },
+        tagline: "Institute of Liberal Arts and Sciences Student Organization",
+        about: "Supports humanities and social sciences learners through student-led academic activities.",
+        officers: ["President: Monica A. Rivas", "Vice President: Gail P. Santos", "Secretary: Lance D. Prado"],
+        highlights: ["Communication Skills Forum", "Community Extension Projects", "Student Welfare Consultations"]
+    },
+    "AERO-ATSO": {
+        theme: { primary: "#0ea5e9", secondary: "#0369a1", surface: "#f0f9ff" },
+        tagline: "Aeronautics and Air Transport Student Organization",
+        about: "Promotes aviation safety, discipline, and applied training for future aviation professionals.",
+        officers: ["President: Mark T. de Vera", "Vice President: Troy M. Fabro", "Secretary: Ella R. Cruz"],
+        highlights: ["Flight Operations Seminar", "Aviation Safety Talks", "Simulation Readiness Training"]
+    },
+    "AETSO": {
+        theme: { primary: "#10b981", secondary: "#047857", surface: "#ecfdf5" },
+        tagline: "Aeronautical Engineering Technology Student Organization",
+        about: "Develops competencies in engineering standards, maintenance practices, and technical leadership.",
+        officers: ["President: Paolo M. Villanueva", "Vice President: Jessa F. Lim", "Secretary: Ron N. Yumul"],
+        highlights: ["Aircraft Structures Forum", "Maintenance Procedures Review", "Engineering Skills Clinics"]
+    },
+    "AMTSO": {
+        theme: { primary: "#f97316", secondary: "#c2410c", surface: "#fff7ed" },
+        tagline: "Aircraft Maintenance Technology Student Organization",
+        about: "Strengthens maintenance readiness and practical competencies for aircraft maintenance students.",
+        officers: ["President: Nico J. Flores", "Vice President: Reign C. Mateo", "Secretary: Ian P. Solis"],
+        highlights: ["Engine Inspection Training", "Tool Handling Certification", "Hangar Procedures Drill"]
+    },
+    "Supreme Student Council": {
+        theme: { primary: "#002147", secondary: "#003366", surface: "#eff6ff" },
+        tagline: "Central student leadership body",
+        about: "Represents the student body and leads campus-wide governance, programs, and partnerships.",
+        officers: ["President: Erica L. Santos", "Vice President: Carl B. Ramos", "Secretary: Janelle M. Cruz"],
+        highlights: ["University Week Programs", "Student Welfare Initiatives", "Leadership Development Camps"]
+    },
+    "RCYC": {
+        theme: { primary: "#059669", secondary: "#047857", surface: "#ecfdf5" },
+        tagline: "Red Cross Youth Circle",
+        about: "Conducts service-oriented and humanitarian activities for campus and community support.",
+        officers: ["President: Faye M. Lazo", "Vice President: Josh R. Cruz", "Secretary: Aimee B. Reyes"],
+        highlights: ["Blood Donation Drives", "First Aid Training", "Community Assistance Campaigns"]
+    },
+    "CYC": {
+        theme: { primary: "#14b8a6", secondary: "#0f766e", surface: "#f0fdfa" },
+        tagline: "Campus Youth Circle",
+        about: "Builds student engagement through leadership, service, and peer development activities.",
+        officers: ["President: Den C. Martinez", "Vice President: Kira T. Solis", "Secretary: Abby D. Flores"],
+        highlights: ["Leadership Bootcamp", "Peer Engagement Sessions", "Volunteer Mobilization"]
+    },
+    "Scholar's Guild": {
+        theme: { primary: "#7c3aed", secondary: "#5b21b6", surface: "#f5f3ff" },
+        tagline: "Academic excellence and peer support group",
+        about: "Supports scholars through mentoring, academic planning, and enrichment programs.",
+        officers: ["President: Trisha A. Ong", "Vice President: Yuri P. Lim", "Secretary: Sam J. Cruz"],
+        highlights: ["Study Group Program", "Scholar Support Desk", "Academic Mentoring Sessions"]
+    },
+    "Aeronautica": {
+        theme: { primary: "#2563eb", secondary: "#1e40af", surface: "#eff6ff" },
+        tagline: "Aviation interest and innovation club",
+        about: "Creates opportunities for aviation enthusiasts to collaborate, learn, and innovate together.",
+        officers: ["President: Vince P. Rivera", "Vice President: Kaye M. Lopez", "Secretary: Noel F. Dizon"],
+        highlights: ["Aviation Talk Series", "Simulation Meetups", "Student Innovation Showcases"]
+    }
+};
+
+function normalizeOrgName(name) {
+    if (!name) return "";
+    const normalized = String(name).trim().toUpperCase();
+    const aliases = {
+        "SSC": "Supreme Student Council",
+        "SUPREME STUDENT COUNCIL": "Supreme Student Council",
+        "AERONAUTICA": "Aeronautica",
+        "SCHOLAR'S GUILD": "Scholar's Guild",
+        "SCHOLAR’S GUILD": "Scholar's Guild",
+        "SCHOLARA€™S GUILD": "Scholar's Guild",
+        "AMT": "AMTSO",
+        "AET": "AETSO"
+    };
+    return aliases[normalized] || String(name).trim();
+}
+
+function buildCurrentStudentProfile() {
+    const fallbackProfile = {
+        fullName: "Juan Dela Cruz",
+        studentNumber: "2021-12345",
+        course: "BSAIS",
+        section: "3A"
+    };
+
+    let storedProfile = {};
+    try {
+        storedProfile = JSON.parse(localStorage.getItem("naapStudentProfile") || "{}");
+    } catch (error) {
+        storedProfile = {};
+    }
+
+    const mergedProfile = { ...fallbackProfile, ...storedProfile };
+    const normalizedCourse = String(mergedProfile.course || "").toUpperCase().trim();
+    const mappedOrg = courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
+
+    return {
+        ...mergedProfile,
+        course: mergedProfile.course || fallbackProfile.course,
+        associatedOrg: normalizeOrgName(mergedProfile.organization || mappedOrg)
+    };
+}
+
+function parseOrgList(orgText) {
+    return String(orgText || "")
+        .split(",")
+        .map(item => normalizeOrgName(item))
+        .filter(Boolean);
+}
+
+function hexToRgba(hex, alpha) {
+    const safeHex = String(hex || "#002147").replace("#", "");
+    const fullHex = safeHex.length === 3
+        ? safeHex.split("").map(ch => ch + ch).join("")
+        : safeHex.padEnd(6, "0").slice(0, 6);
+    const intVal = parseInt(fullHex, 16);
+    const r = (intVal >> 16) & 255;
+    const g = (intVal >> 8) & 255;
+    const b = intVal & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+const currentStudentProfile = buildCurrentStudentProfile();
+
+function syncStudentIdentity() {
+    const userNameEl = document.querySelector(".user-info span");
+    const userCourseEl = document.querySelector(".user-info small");
+    if (userNameEl) userNameEl.innerText = currentStudentProfile.fullName;
+    if (userCourseEl) userCourseEl.innerText = `${currentStudentProfile.course} - ${currentStudentProfile.section}`;
+
+    const profileHeaderName = document.querySelector("#profile h2");
+    const profileDetailRows = document.querySelectorAll("#profile p");
+    if (profileHeaderName) profileHeaderName.innerText = currentStudentProfile.fullName;
+    if (profileDetailRows.length > 1) {
+        profileDetailRows[0].innerText = `Student ID: ${currentStudentProfile.studentNumber}`;
+        profileDetailRows[1].innerText = `Course: ${currentStudentProfile.course}`;
+    }
+}
+
+function renderMyOrganizationTab(contentDiv) {
+    const targetOrgName = currentStudentProfile.associatedOrg;
+    const organization = organizationData.find(item => normalizeOrgName(item.name) === targetOrgName);
+
+    if (!organization) {
+        contentDiv.innerHTML = `
+            <div style="text-align:center; padding: 60px 20px; color: var(--muted);">
+                <i class="fa-solid fa-users-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;"></i>
+                <h3 style="margin-bottom: 10px; color: var(--text);">No Organization Found</h3>
+                <p style="max-width: 500px; margin: 0 auto; line-height: 1.5;">
+                    Your course association is not configured yet. Update the course-to-organization mapping in the dashboard script.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    const profileConfig = orgProfileConfig[targetOrgName] || orgProfileConfig["Supreme Student Council"];
+    const theme = profileConfig.theme;
+    const relevantEvents = extendedEvents.filter(event => normalizeOrgName(event.org) === targetOrgName).slice(0, 3);
+    const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
+
+    const eventMarkup = relevantEvents.length
+        ? relevantEvents.map(event => `
+            <div class="my-org-list-item">
+                <div class="my-org-list-title">${event.title}</div>
+                <div class="my-org-list-meta">
+                    <span><i class="fa-regular fa-calendar"></i> ${event.date}</span>
+                    <span><i class="fa-regular fa-clock"></i> ${event.time}</span>
+                </div>
+            </div>
+        `).join("")
+        : `<div class="my-org-list-item empty">No upcoming events yet.</div>`;
+
+    const serviceMarkup = relevantServices.length
+        ? relevantServices.map(service => `
+            <div class="my-org-chip">${service.name}</div>
+        `).join("")
+        : `<div class="my-org-chip">No active services yet</div>`;
+
+    const officerMarkup = profileConfig.officers.map(officer => `<li>${officer}</li>`).join("");
+    const highlightMarkup = profileConfig.highlights.map(item => `<li>${item}</li>`).join("");
+
+    contentDiv.innerHTML = `
+        <div class="my-org-page"
+             style="--my-org-primary:${theme.primary}; --my-org-secondary:${theme.secondary}; --my-org-surface:${theme.surface}; --my-org-primary-soft:${hexToRgba(theme.primary, 0.12)};">
+            <section class="my-org-hero">
+                <div class="my-org-hero-overlay"></div>
+                <img class="my-org-hero-banner" src="${organization.banner}" alt="${organization.name} banner">
+                <div class="my-org-hero-content">
+                    <div class="my-org-badge">Associated Organization</div>
+                    <h2>${organization.name}</h2>
+                    <p>${profileConfig.tagline}</p>
+                    <div class="my-org-meta">
+                        <span><i class="fa-solid fa-user"></i> ${currentStudentProfile.fullName}</span>
+                        <span><i class="fa-solid fa-graduation-cap"></i> ${currentStudentProfile.course}</span>
+                    </div>
+                </div>
+                <img class="my-org-logo" src="${organization.image}" alt="${organization.name} logo">
+            </section>
+
+            <section class="my-org-grid">
+                <article class="my-org-card">
+                    <h3>About</h3>
+                    <p>${profileConfig.about}</p>
+                </article>
+
+                <article class="my-org-card">
+                    <h3>Current Officers</h3>
+                    <ul>${officerMarkup}</ul>
+                </article>
+
+                <article class="my-org-card">
+                    <h3>Highlights</h3>
+                    <ul>${highlightMarkup}</ul>
+                </article>
+
+                <article class="my-org-card">
+                    <h3>Available Services</h3>
+                    <div class="my-org-chip-wrap">${serviceMarkup}</div>
+                </article>
+
+                <article class="my-org-card full-width">
+                    <h3>Upcoming Organization Events</h3>
+                    <div class="my-org-list">${eventMarkup}</div>
+                </article>
+            </section>
+        </div>
+    `;
+}
+
 
 // --- CORE NAVIGATION LOGIC ---
 function navigate(viewId, element) {
@@ -326,12 +589,7 @@ function switchOrgTab(tabName, btn) {
             });
         });
     } else if (tabName === 'my-organization') {
-        contentDiv.innerHTML = `
-            <div style="text-align:center; padding: 60px 20px; color: var(--muted);">
-                <i class="fa-solid fa-users-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;"></i>
-                <h3 style="margin-bottom: 10px; color: var(--text);">No Organizations Joined</h3>
-                <p style="max-width: 400px; margin: 0 auto; line-height: 1.5;">
-        `;
+        renderMyOrganizationTab(contentDiv);
     } else if (tabName === 'membership') {
         // --- MEMBERSHIP LAYOUT (Grid + Modal) ---
         contentDiv.innerHTML = `
@@ -1143,6 +1401,7 @@ function moveDashboardSlide(direction) {
 
 // --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', () => {
+    syncStudentIdentity();
     setDate();
     renderDashboard();
     renderServices();
