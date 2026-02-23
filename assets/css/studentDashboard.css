@@ -1227,7 +1227,7 @@ body.dark .tab-btn:hover {
 .my-org-ref-orgbar {
     border-radius: 14px;
     background: linear-gradient(90deg, var(--my-org-primary), var(--my-org-gradient-end));
-    padding: 7px 11px;
+    padding: 10px 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1241,17 +1241,19 @@ body.dark .tab-btn:hover {
 }
 
 .my-org-ref-orgtitle img {
-    width: 34px;
-    height: 34px;
+    width: 42px;
+    height: 42px;
     object-fit: cover;
+    background: transparent;
 }
 
 .my-org-ref-orgtitle span {
     color: var(--my-org-on-primary);
     font-weight: 800;
-    font-size: 0.92rem;
+    font-size: 0.95rem;
     letter-spacing: 0.3px;
     max-width: 760px;
+    line-height: 1.25;
 }
 
 .my-org-ref-links {
@@ -1294,7 +1296,7 @@ body.dark .tab-btn:hover {
     position: absolute;
     inset: 0;
     height: 100%;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.55);
 }
 
 .my-org-ref-chip {
