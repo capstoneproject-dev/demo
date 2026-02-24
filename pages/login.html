@@ -27,8 +27,8 @@
           <p class="subtitle">NAAP ORG - SYSTEM Organization Management System</p>
 
           <form id="loginForm">
-            <input type="text" id="loginType" placeholder="type student/org/osa" />
-            <input type="password" placeholder="Password" />
+            <input type="text" id="loginIdentifier" placeholder="Email / Student Number / Employee Number" />
+            <input type="password" id="loginPassword" placeholder="Password" />
             <button type="button" id="loginBtn">LOGIN</button>
 
             <div class="nav-links">
@@ -88,28 +88,28 @@
 
         <!-- OSA Fields -->
         <form id="form-osa" class="reg-fields">
-          <input type="text" placeholder="Employee Number" />
-          <input type="text" placeholder="Name" />
-          <input type="email" placeholder="Email" />
-          <input type="password" placeholder="Password" />
-          <input type="password" placeholder="Re-enter Password" />
-          <button type="button">REGISTER</button>
+          <input type="text" id="osa-employee-number-input" placeholder="Employee Number" />
+          <input type="text" id="osa-name-input" placeholder="Name" />
+          <input type="email" id="osa-email-input" placeholder="Email" />
+          <input type="password" id="osa-password-input" placeholder="Password" />
+          <input type="password" id="osa-confirm-password-input" placeholder="Re-enter Password" />
+          <button type="button" id="osaRegisterBtn">REGISTER</button>
         </form>
 
         <!-- Organization Fields -->
         <form id="form-org" class="reg-fields">
-          <input type="text" placeholder="Student Number" />
-          <input type="text" placeholder="Name" />
+          <input type="text" id="org-student-number-input" placeholder="Student Number" />
+          <input type="text" id="org-name-input" placeholder="Name" />
           <input type="text" id="org-course-input" placeholder="Select Course" class="org-select-trigger" readonly
             onclick="openCourseModal('org-course-input')" />
-          <input type="text" placeholder="Section" />
+          <input type="text" id="org-section-input" placeholder="Section" />
           <!-- Org Selector Trigger -->
           <input type="text" id="org-input" placeholder="Select Organization" class="org-select-trigger" readonly
             onclick="openOrgModal()" />
-          <input type="email" placeholder="Email" />
-          <input type="password" placeholder="Password" />
-          <input type="password" placeholder="Re-enter Password" />
-          <button type="button">REGISTER</button>
+          <input type="email" id="org-email-input" placeholder="Email" />
+          <input type="password" id="org-password-input" placeholder="Password" />
+          <input type="password" id="org-confirm-password-input" placeholder="Re-enter Password" />
+          <button type="button" id="orgRegisterBtn">REGISTER</button>
         </form>
 
         <p class="mobile-toggle" onclick="toggleSlide()">Already have an account? Sign In</p>
@@ -247,6 +247,9 @@
       </div>
       <div class="modal-body">
         <p class="subtitle" style="margin: 0 0 16px 0;">You are logged in as an organization officer (simulation).</p>
+        <select id="orgDashboardSelect" style="margin-bottom: 16px; width: 100%;">
+          <option value="">Select Organization Dashboard</option>
+        </select>
         <div class="dashboard-choice-actions">
           <button type="button" id="goStudentDashboardBtn">Student Dashboard</button>
           <button type="button" id="goOfficerDashboardBtn">Officer Dashboard</button>
@@ -255,73 +258,6 @@
     </div>
   </div>
 
-
-  <script>
-    // Mock login process
-    document.addEventListener('DOMContentLoaded', function () {
-      var dashboardChoiceModal = document.getElementById('dashboardChoiceModal');
-      var goStudentDashboardBtn = document.getElementById('goStudentDashboardBtn');
-      var goOfficerDashboardBtn = document.getElementById('goOfficerDashboardBtn');
-
-      function openDashboardChoiceModal() {
-        if (dashboardChoiceModal) {
-          dashboardChoiceModal.classList.add('open');
-        }
-      }
-
-      window.closeDashboardChoiceModal = function () {
-        if (dashboardChoiceModal) {
-          dashboardChoiceModal.classList.remove('open');
-        }
-      };
-
-      if (goStudentDashboardBtn) {
-        goStudentDashboardBtn.addEventListener('click', function () {
-          window.location.href = 'studentDashboard.html';
-        });
-      }
-
-      if (goOfficerDashboardBtn) {
-        goOfficerDashboardBtn.addEventListener('click', function () {
-          window.location.href = 'officerDashboard.html';
-        });
-      }
-
-      if (dashboardChoiceModal) {
-        dashboardChoiceModal.addEventListener('click', function (e) {
-          if (e.target === dashboardChoiceModal) {
-            window.closeDashboardChoiceModal();
-          }
-        });
-      }
-
-      var loginBtn = document.getElementById('loginBtn');
-      var loginForm = document.getElementById('loginForm');
-      if (loginBtn) {
-        loginBtn.addEventListener('click', function () {
-          var typeInput = document.getElementById('loginType');
-          var type = typeInput ? typeInput.value.trim().toLowerCase() : '';
-          if (type === 'student') {
-            window.location.href = 'studentDashboard.html';
-          } else if (type === 'org') {
-            openDashboardChoiceModal();
-          } else if (type === 'osa') {
-            window.location.href = 'osaDashboard.html';
-          } else {
-            alert('Please enter a valid user type: student, org, or osa.');
-          }
-        });
-        if (loginForm) {
-          loginForm.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              loginBtn.click();
-            }
-          });
-        }
-      }
-    });
-  </script>
   <!-- Link to your JS file -->
   <script src="../assets/js/login.js"></script>
 

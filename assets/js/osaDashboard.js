@@ -1,3 +1,35 @@
+const AUTH_SESSION_KEY = 'naapAuthSession';
+
+function readAuthSession() {
+    try {
+        return JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || '{}');
+    } catch (_error) {
+        return {};
+    }
+}
+
+function initOsaAuthContext() {
+    const session = readAuthSession();
+    const isOsaSession = session && (session.login_role === 'osa' || session.account_type === 'osa_staff') && session.user_id;
+    if (!isOsaSession) {
+        window.location.href = '../pages/login.html';
+        return;
+    }
+
+    const fullName = session.display_name || 'OSA Staff';
+    const roleLabel = session.active_role_name || 'osa_staff';
+
+    const headerName = document.querySelector('.user-info span');
+    const headerRole = document.querySelector('.user-info small');
+    if (headerName) headerName.innerText = fullName;
+    if (headerRole) headerRole.innerText = String(roleLabel).replace('_', ' ').toUpperCase();
+
+    const profileName = document.querySelector('.profile-name');
+    const profileRole = document.querySelector('.profile-role');
+    if (profileName) profileName.innerText = fullName;
+    if (profileRole) profileRole.innerText = String(roleLabel).replace('_', ' ').toUpperCase();
+}
+
 // --- INTEGRATED THEME LOGIC ---
 
 // Helper function to switch the theme
@@ -34,6 +66,7 @@ function handleLogout(e) {
     e.preventDefault();
     if (confirm('Are you sure you want to logout?')) {
         showToast('Logging out...', 'info');
+        localStorage.removeItem(AUTH_SESSION_KEY);
         setTimeout(() => {
             window.location.href = '../pages/login.html'; // Change to your login page
         }, 1000);
@@ -42,6 +75,8 @@ function handleLogout(e) {
 
 // Initialize Theme on Load
 document.addEventListener('DOMContentLoaded', () => {
+    initOsaAuthContext();
+
     // Check if user previously selected dark mode
     if (localStorage.getItem('theme') === 'dark') {
         document.body.classList.add('dark');

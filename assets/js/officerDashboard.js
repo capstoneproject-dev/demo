@@ -1,27 +1,98 @@
+const AUTH_SESSION_KEY = 'naapAuthSession';
+
+function readAuthSession() {
+    try {
+        return JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || '{}');
+    } catch (_error) {
+        return {};
+    }
+}
+
+function initOfficerAuthContext() {
+    const session = readAuthSession();
+    const isOfficerSession = session && session.login_role === 'org' && session.user_id;
+    if (!isOfficerSession) {
+        window.location.href = '../pages/login.html';
+        return;
+    }
+
+    const fullName = session.display_name || 'Organization Officer';
+    const roleLabel = session.active_role_name || 'officer';
+    const orgLabel = session.active_org_name || 'Organization';
+
+    const headerName = document.querySelector('.user-info span');
+    const headerRole = document.querySelector('.user-info small');
+    if (headerName) headerName.innerText = fullName;
+    if (headerRole) headerRole.innerText = `${roleLabel} - ${orgLabel}`;
+
+    const profileName = document.querySelector('.profile-name');
+    const profileRole = document.querySelector('.profile-role');
+    if (profileName) profileName.innerText = fullName;
+    if (profileRole) profileRole.innerText = `${roleLabel} - ${orgLabel}`;
+
+    document.title = `${orgLabel} Officer Dashboard`;
+}
+
+function normalizeOfficerOrgName(name) {
+    const normalized = String(name || '').trim().toUpperCase();
+    const aliases = {
+        "SSC": "SUPREME STUDENT COUNCIL",
+        "SUPREME STUDENT COUNCIL": "SUPREME STUDENT COUNCIL",
+        "AET": "AETSO",
+        "AMT": "AMTSO",
+        "SCHOLARS GUILD": "SCHOLAR'S GUILD"
+    };
+    return aliases[normalized] || normalized;
+}
+
+function getActiveOfficerOrgName() {
+    const session = readAuthSession();
+    return normalizeOfficerOrgName(session.active_org_name || '');
+}
+
+function officerOrgMatch(orgName) {
+    const active = getActiveOfficerOrgName();
+    if (!active) return true;
+    return normalizeOfficerOrgName(orgName) === active;
+}
+
 // --- DATA SIMULATION ---
 const rentalsData = [
-    { item: "Scientific Calculator", renter: "Juan Dela Cruz (2021-12345)", due: "Oct 25, 2023", status: "Borrowed" },
-    { item: "Locker Unit 04", renter: "Maria Santos (2020-54321)", due: "Nov 30, 2023", status: "Rented" },
-    { item: "T-Square", renter: "Pedro Reyes (2022-99999)", due: "Oct 20, 2023", status: "Overdue" },
-    { item: "Crimping Tool", renter: "Anna Lee (2021-11111)", due: "Oct 26, 2023", status: "Borrowed" }
+    { item: "Scientific Calculator", renter: "Juan Dela Cruz (2021-12345)", due: "Oct 25, 2023", status: "Borrowed", org: "AISERS" },
+    { item: "Locker Unit 04", renter: "Maria Santos (2020-54321)", due: "Nov 30, 2023", status: "Rented", org: "Supreme Student Council" },
+    { item: "T-Square", renter: "Pedro Reyes (2022-99999)", due: "Oct 20, 2023", status: "Overdue", org: "AMTSO" },
+    { item: "Crimping Tool", renter: "Anna Lee (2021-11111)", due: "Oct 26, 2023", status: "Borrowed", org: "ELITECH" }
 ];
 
 const docsData = [
-    { title: "September Financial Statement", type: "Financial Statement", date: "Oct 05", status: "Approved" },
-    { title: "Team Building Proposal", type: "Proposal", date: "Oct 18", status: "Sent to OSA" },
-    { title: "Election Guidelines", type: "Document", date: "Oct 20", status: "Pending" },
-    { title: "Constitution Amendment", type: "Legal", date: "Oct 24", status: "SSC Approved" }
+    { title: "September Financial Statement", type: "Financial Statement", date: "Oct 05", status: "Approved", org: "AISERS" },
+    { title: "Team Building Proposal", type: "Proposal", date: "Oct 18", status: "Sent to OSA", org: "AISERS" },
+    { title: "Election Guidelines", type: "Document", date: "Oct 20", status: "Pending", org: "Supreme Student Council" },
+    { title: "Constitution Amendment", type: "Legal", date: "Oct 24", status: "SSC Approved", org: "ELITECH" }
 ];
 
 let announcementsData = [
-    { title: "General Assembly Tomorrow", date: "Just now", content: "Mandatory attendance for all members at Room 301." },
-    { title: "Office Closure", date: "Yesterday", content: "Office will be closed due to University Holiday." }
+    { title: "General Assembly Tomorrow", date: "Just now", content: "Mandatory attendance for all members at Room 301.", org: "AISERS" },
+    { title: "Office Closure", date: "Yesterday", content: "Office will be closed due to University Holiday.", org: "ELITECH" }
 ];
+
+function getOfficerScopedRentals() {
+    return rentalsData.filter(item => officerOrgMatch(item.org));
+}
+
+function getOfficerScopedDocs() {
+    return docsData.filter(item => officerOrgMatch(item.org));
+}
+
+function getOfficerScopedAnnouncements() {
+    return announcementsData.filter(item => officerOrgMatch(item.org));
+}
 
 // --- LOGOUT HANDLER ---
 function handleLogout(e) {
     e.preventDefault();
     if (confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem(AUTH_SESSION_KEY);
         window.location.href = '../pages/login.html'; // Updated path per user code
     }
 }
@@ -62,6 +133,8 @@ function toggleThemeMobile() {
 
 // Initialize Theme on Load
 document.addEventListener('DOMContentLoaded', () => {
+    initOfficerAuthContext();
+
     // Check if user previously selected dark mode
     if (localStorage.getItem('theme') === 'dark') {
         document.body.classList.add('dark');
@@ -145,7 +218,7 @@ function navigate(viewId, element) {
 function renderRentals() {
     // Dashboard preview (top 3)
     const dashTable = document.getElementById('dashboard-rentals-table');
-    dashTable.innerHTML = rentalsData.slice(0, 3).map(item => {
+    dashTable.innerHTML = getOfficerScopedRentals().slice(0, 3).map(item => {
         let badgeClass = item.status === 'Rented' ? 'status-borrowed' : (item.status === 'Overdue' ? 'status-overdue' : 'status-borrowed');
         return `
         <tr>
@@ -341,7 +414,7 @@ function renderRecentDocs() {
     if (!list) return;
 
     // Take only the first 3 items for the sidebar
-    const recentItems = docsData.slice(0, 3);
+    const recentItems = getOfficerScopedDocs().slice(0, 3);
 
     list.innerHTML = recentItems.map(doc => `
         <div class="recent-item">
@@ -381,7 +454,7 @@ function renderDocs(filter = 'All', btnElement = null) {
     const osaAdmins = ["Dir. Fury", "Mrs. Potts", "Admin Stark"];
 
     // 1. Filter by Status (Existing Logic)
-    let filteredData = docsData.filter(doc => {
+    let filteredData = getOfficerScopedDocs().filter(doc => {
         if (filter === 'All') return true;
         if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending') || doc.status === 'SSC Approved';
         return doc.status.includes(filter);
@@ -548,7 +621,7 @@ function filterDocs(filter, btnElement) {
 
 function renderAnnouncements() {
     const feed = document.getElementById('announcement-feed');
-    feed.innerHTML = announcementsData.map(ann => `
+    feed.innerHTML = getOfficerScopedAnnouncements().map(ann => `
         <div class="announcement-card">
             <div class="announcement-meta">
                 <strong>${ann.title}</strong>
@@ -608,7 +681,8 @@ function handleDocSubmit(e) {
         title: title,
         type: type,
         date: "Just now",
-        status: `Sent to ${recipient}`
+        status: `Sent to ${recipient}`,
+        org: readAuthSession().active_org_name || 'AISERS'
     });
 
     // Refresh list
@@ -632,7 +706,8 @@ function postAnnouncement(e) {
     announcementsData.unshift({
         title: title,
         content: content,
-        date: "Just now"
+        date: "Just now",
+        org: readAuthSession().active_org_name || 'AISERS'
     });
     renderAnnouncements();
 
@@ -662,9 +737,12 @@ function postAnnouncement(e) {
 }
 
 function returnItem(index) {
-    const item = rentalsData[index];
+    const scopedRentals = getOfficerScopedRentals();
+    const item = scopedRentals[index];
+    if (!item) return;
     if (confirm(`Mark ${item.item} as returned by ${item.renter}?`)) {
-        rentalsData.splice(index, 1);
+        const absoluteIndex = rentalsData.findIndex(r => r.item === item.item && r.renter === item.renter && r.due === item.due);
+        if (absoluteIndex > -1) rentalsData.splice(absoluteIndex, 1);
         renderRentals(); // Re-render both tables
     }
 }
@@ -795,7 +873,7 @@ function exportCSV() {
     ];
 
     // 2. Append Rentals Data
-    rentalsData.forEach(item => {
+    getOfficerScopedRentals().forEach(item => {
         reportData.push([item.item, item.renter, item.due, item.status]);
     });
 
@@ -886,7 +964,7 @@ function exportPDF() {
     doc.setTextColor(0, 33, 71);
     doc.text("Recent Rental Transactions", 14, finalY);
 
-    const rentalBody = rentalsData.map(item => [item.item, item.renter, item.due, item.status]);
+    const rentalBody = getOfficerScopedRentals().map(item => [item.item, item.renter, item.due, item.status]);
 
     doc.autoTable({
         startY: finalY + 4,
@@ -905,8 +983,10 @@ function exportPDF() {
 function submitToOSA(index) {
     if (confirm('Submit this approved document to OSA for final review?')) {
         // Update the document status
-        if (docsData[index]) {
-            docsData[index].status = "Sent to OSA";
+        const scopedDocs = getOfficerScopedDocs();
+        if (scopedDocs[index]) {
+            const absoluteIndex = docsData.findIndex(doc => doc.title === scopedDocs[index].title && doc.date === scopedDocs[index].date);
+            if (absoluteIndex > -1) docsData[absoluteIndex].status = "Sent to OSA";
             renderDocs(currentDocFilter); // Re-render
             alert('Document sent to OSA successfully!');
         }
@@ -1051,6 +1131,9 @@ function renderRepoTable() {
 
     // Filter Logic
     const filtered = repositoryData.filter(item => {
+        const matchesActiveOrg = officerOrgMatch(item.org);
+        if (!matchesActiveOrg) return false;
+
         // 1. File Type
         const matchesType = filterType === 'All' || item.category === filterType;
 
