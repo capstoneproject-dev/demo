@@ -107,6 +107,15 @@ CREATE TABLE program_org_mappings (
 -- =====================================================
 -- 2) Organization-Scoped Data Tables
 -- =====================================================
+-- 
+-- OVERTIME PRICING:
+-- Each inventory item can configure overtime charges via:
+--   - overtime_interval_minutes: minutes per billing block (e.g., 30)
+--   - overtime_rate_per_block: fee per block (e.g., 5.00 PHP)
+-- When a rental starts, these values are snapshotted to rental_items
+-- so that rate changes never affect historical/active rentals.
+-- If either field is NULL, no overtime is charged for that item.
+--
 
 CREATE TABLE inventory_categories (
     category_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -129,6 +138,8 @@ CREATE TABLE inventory_items (
     stock_quantity INT NOT NULL DEFAULT 1,
     available_quantity INT NOT NULL DEFAULT 1,
     hourly_rate DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    overtime_interval_minutes INT NULL COMMENT 'Minutes per overtime block (e.g., 30). NULL = no overtime charging.',
+    overtime_rate_per_block DECIMAL(10, 2) NULL COMMENT 'Fee per overtime block (e.g., 5.00). NULL = no overtime charging.',
     status VARCHAR(20) NOT NULL DEFAULT 'available',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -136,6 +147,8 @@ CREATE TABLE inventory_items (
     CONSTRAINT chk_stock_quantity CHECK (stock_quantity >= 0),
     CONSTRAINT chk_available_quantity CHECK (available_quantity >= 0 AND available_quantity <= stock_quantity),
     CONSTRAINT chk_hourly_rate CHECK (hourly_rate >= 0),
+    CONSTRAINT chk_overtime_interval CHECK (overtime_interval_minutes IS NULL OR overtime_interval_minutes > 0),
+    CONSTRAINT chk_overtime_rate CHECK (overtime_rate_per_block IS NULL OR overtime_rate_per_block >= 0),
     CONSTRAINT fk_inventory_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE RESTRICT,
     CONSTRAINT fk_inventory_category FOREIGN KEY (category_id) REFERENCES inventory_categories(category_id) ON DELETE RESTRICT,
     CONSTRAINT fk_inventory_org_category FOREIGN KEY (org_id, category_id) REFERENCES inventory_categories(org_id, category_id) ON DELETE RESTRICT
@@ -174,12 +187,16 @@ CREATE TABLE rental_items (
     quantity INT NOT NULL DEFAULT 1,
     unit_rate DECIMAL(10, 2) NOT NULL,
     item_cost DECIMAL(10, 2) NOT NULL,
+    overtime_interval_minutes INT NULL COMMENT 'Snapshot: overtime interval at rental time',
+    overtime_rate_per_block DECIMAL(10, 2) NULL COMMENT 'Snapshot: overtime rate at rental time',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_rental_item UNIQUE (rental_id, item_id),
     CONSTRAINT chk_rental_qty CHECK (quantity > 0),
     CONSTRAINT chk_rental_unit_rate CHECK (unit_rate >= 0),
     CONSTRAINT chk_rental_item_cost CHECK (item_cost >= 0),
+    CONSTRAINT chk_rental_overtime_interval CHECK (overtime_interval_minutes IS NULL OR overtime_interval_minutes > 0),
+    CONSTRAINT chk_rental_overtime_rate CHECK (overtime_rate_per_block IS NULL OR overtime_rate_per_block >= 0),
     CONSTRAINT fk_rental_items_rental FOREIGN KEY (rental_id) REFERENCES rentals(rental_id) ON DELETE CASCADE,
     CONSTRAINT fk_rental_items_item FOREIGN KEY (item_id) REFERENCES inventory_items(item_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
@@ -519,13 +536,13 @@ INSERT INTO inventory_categories (category_id, org_id, category_name, is_active)
 (3, 3, 'electronics', 1),
 (4, 3, 'other', 1);
 
-INSERT INTO inventory_items (org_id, item_name, barcode, category_id, stock_quantity, available_quantity, hourly_rate, status) VALUES
-(1, 'AISERS Shoe Cover', 'AISERS-ITM-001', 1, 30, 30, 5.00, 'available'),
-(1, 'AISERS Safety Vest', 'AISERS-ITM-002', 1, 20, 20, 8.00, 'available'),
-(2, 'Elitech Multimeter', 'ELITECH-ITM-001', 2, 12, 12, 12.00, 'available'),
-(2, 'Elitech Soldering Kit', 'ELITECH-ITM-002', 2, 8, 8, 15.00, 'available'),
-(3, 'CYC Event Megaphone', 'CYC-ITM-001', 3, 6, 6, 10.00, 'available'),
-(3, 'CYC Booth Table Set', 'CYC-ITM-002', 4, 10, 10, 7.00, 'available');
+INSERT INTO inventory_items (org_id, item_name, barcode, category_id, stock_quantity, available_quantity, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status) VALUES
+(1, 'AISERS Shoe Cover', 'AISERS-ITM-001', 1, 30, 30, 5.00, 30, 5.00, 'available'),
+(1, 'AISERS Safety Vest', 'AISERS-ITM-002', 1, 20, 20, 8.00, 30, 5.00, 'available'),
+(2, 'Elitech Multimeter', 'ELITECH-ITM-001', 2, 12, 12, 12.00, 60, 10.00, 'available'),
+(2, 'Elitech Soldering Kit', 'ELITECH-ITM-002', 2, 8, 8, 15.00, 60, 10.00, 'available'),
+(3, 'CYC Event Megaphone', 'CYC-ITM-001', 3, 6, 6, 10.00, NULL, NULL, 'available'),
+(3, 'CYC Booth Table Set', 'CYC-ITM-002', 4, 10, 10, 7.00, 15, 3.00, 'available');
 
 INSERT INTO event_types (event_type_id, org_id, event_type_name, is_active) VALUES
 (1, 1, 'workshop', 1),
@@ -550,10 +567,10 @@ INSERT INTO rentals (
 (1, 1, 1, '2026-02-23 13:00:00', '2026-02-23 17:00:00', 20.00, 'paid', 'cash', 'active'),
 (2, 2, 2, '2026-02-23 14:00:00', '2026-02-23 18:00:00', 24.00, 'unpaid', NULL, 'active');
 
-INSERT INTO rental_items (rental_id, item_id, quantity, unit_rate, item_cost) VALUES
-(1, 1, 2, 5.00, 10.00),
-(1, 2, 1, 8.00, 8.00),
-(2, 3, 2, 12.00, 24.00);
+INSERT INTO rental_items (rental_id, item_id, quantity, unit_rate, item_cost, overtime_interval_minutes, overtime_rate_per_block) VALUES
+(1, 1, 2, 5.00, 10.00, 30, 5.00),
+(1, 2, 1, 8.00, 8.00, 30, 5.00),
+(2, 3, 2, 12.00, 24.00, 60, 10.00);
 
 -- =====================================================
 -- 6) Verification Queries

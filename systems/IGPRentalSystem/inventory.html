@@ -8,6 +8,25 @@
     <link href="lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="lib/styles.css">
+    <style>
+        /* Subtle floating group pricing card */
+        .group-pricing-card {
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(16,24,40,0.04);
+            padding: 16px;
+            margin-bottom: 8px;
+        }
+
+        .group-pricing-card .form-control {
+            background: transparent;
+        }
+
+        .group-header {
+            background: #f8f9fa;
+        }
+    </style>
 </head>
 
 <body>
@@ -261,6 +280,13 @@
 
             sortedGroupNames.forEach(groupName => {
                 const safeGroupName = sanitizeGroupName(groupName);
+                const sortedGroupItems = [...groupedItems[groupName]].sort((a, b) => {
+                    const numA = parseInt(a.id.replace(/^[A-Z]+/i, ''), 10);
+                    const numB = parseInt(b.id.replace(/^[A-Z]+/i, ''), 10);
+                    return numA - numB;
+                });
+                const rep = sortedGroupItems[0];
+
                 // Create group header row
                 const headerRow = document.createElement('tr');
                 headerRow.className = 'group-header';
@@ -275,6 +301,41 @@
                     </td>
                 `;
                 tbody.appendChild(headerRow);
+
+                // Create group pricing row
+                const pricingRow = document.createElement('tr');
+                pricingRow.className = `group-pricing-row group-${safeGroupName}`;
+                pricingRow.style.display = 'none';
+                const pricingCell = document.createElement('td');
+                pricingCell.colSpan = 8;
+                pricingCell.innerHTML = `
+                    <div class="group-pricing-card" data-category="${groupName}">
+                        <strong class="d-block mb-2">Pricing for all &ldquo;${groupName}&rdquo; items (${sortedGroupItems.length} item${sortedGroupItems.length !== 1 ? 's' : ''})</strong>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3 col-6">
+                                <label class="form-label form-label-sm mb-1">Price Per Hour (PHP)</label>
+                                <input type="number" class="form-control form-control-sm group-price-input" min="0" step="0.01"
+                                    value="${rep.pricePerHour != null ? (Number.isInteger(rep.pricePerHour) ? String(rep.pricePerHour) : rep.pricePerHour.toFixed(2)) : ''}" placeholder="e.g. 10" data-category="${groupName}">
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-label form-label-sm mb-1">Overtime Every (mins)</label>
+                                <input type="number" class="form-control form-control-sm group-interval-input" min="1" step="1"
+                                    value="${rep.overtimeInterval != null ? rep.overtimeInterval : ''}" placeholder="e.g. 30" data-category="${groupName}">
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-label form-label-sm mb-1">Overtime Rate (PHP/block)</label>
+                                <input type="number" class="form-control form-control-sm group-rate-input" min="0" step="0.01"
+                                    value="${rep.overtimeRate != null ? rep.overtimeRate : ''}" placeholder="e.g. 5" data-category="${groupName}">
+                            </div>
+                            <div class="col-md-3 col-6 d-flex align-items-end">
+                                <button class="btn btn-success btn-sm w-100 save-group-pricing-btn" data-category="${groupName}">Save Pricing</button>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-1">Leave overtime fields blank to disable overtime charges for this group.</small>
+                    </div>
+                `;
+                pricingRow.appendChild(pricingCell);
+                tbody.appendChild(pricingRow);
 
                 // Create items container
                 const itemsContainer = document.createElement('tr');
@@ -395,17 +456,61 @@
                 itemsContainer.appendChild(itemsCell);
                 tbody.appendChild(itemsContainer);
             });
+
+            // Attach save pricing handlers
+            document.querySelectorAll('.save-group-pricing-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const category = this.getAttribute('data-category');
+                    const card = this.closest('.group-pricing-card');
+
+                    const priceInput = card.querySelector('.group-price-input');
+                    const intervalInput = card.querySelector('.group-interval-input');
+                    const rateInput = card.querySelector('.group-rate-input');
+
+                    const newPrice = normalizePricePerHour(priceInput.value);
+                    const parsedInterval = parseInt(intervalInput.value);
+                    const parsedRate = parseFloat(rateInput.value);
+                    const newInterval = (Number.isFinite(parsedInterval) && parsedInterval > 0) ? parsedInterval : null;
+                    const newRate = (Number.isFinite(parsedRate) && parsedRate >= 0) ? parsedRate : null;
+
+                    // Apply to every item whose name matches this category
+                    inventoryItems.forEach(item => {
+                        if (item.name === category) {
+                            item.pricePerHour = newPrice;
+                            item.overtimeInterval = newInterval;
+                            item.overtimeRate = newRate;
+                        }
+                    });
+
+                    priceInput.value = Number.isInteger(newPrice) ? String(newPrice) : newPrice.toFixed(2);
+                    intervalInput.value = newInterval != null ? newInterval : '';
+                    rateInput.value = newRate != null ? newRate : '';
+
+                    localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
+
+                    const originalText = this.textContent;
+                    this.textContent = 'Saved ✓';
+                    this.disabled = true;
+                    setTimeout(() => {
+                        this.textContent = originalText;
+                        this.disabled = false;
+                    }, 1500);
+                });
+            });
         }
 
         // Toggle group visibility
         function toggleGroup(safeGroupName) {
-            const itemsContainer = document.querySelector(`.group-${safeGroupName}`);
+            const pricingRow = document.querySelector(`.group-pricing-row.group-${safeGroupName}`);
+            const itemsContainer = document.querySelector(`.group-items.group-${safeGroupName}`);
             const toggleButton = document.querySelector(`button.toggle-group[data-group='${safeGroupName}']`);
 
             if (itemsContainer.style.display === 'none') {
+                pricingRow.style.display = 'table-row';
                 itemsContainer.style.display = 'table-row';
                 toggleButton.textContent = 'Hide Items';
             } else {
+                pricingRow.style.display = 'none';
                 itemsContainer.style.display = 'none';
                 toggleButton.textContent = 'Show Items';
             }
