@@ -1,3 +1,25 @@
+/* --- BUTTONS (Copied from IGPRentalSystem) --- */
+.btn {
+    border-radius: 14px;
+    padding: 10px 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    border: none;
+    text-transform: capitalize;
+}
+
+.btn-outline-primary {
+    background-color: transparent !important;
+    border: 2px solid rgba(15, 23, 42, 0.10) !important;
+    color: #0f172a !important;
+}
+
+.btn-outline-primary:hover {
+    background-color: #f7f9ff !important;
+    border-color: #002147 !important;
+    color: #002147 !important;
+}
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&display=swap');
 
 :root {

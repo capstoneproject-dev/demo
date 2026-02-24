@@ -66,12 +66,8 @@
             <div class="card-body">
                 <div class="mb-3">
                     <div class="btn-group mb-2" role="group" style="margin-bottom: 0.5rem;">
-                        <button id="activateScan" class="btn btn-success btn-sm" type="button">Activate
-                            Scanning</button>
-                        <button id="deactivateScan" class="btn btn-secondary btn-sm" type="button">Deactivate
-                            Scanning</button>
-                        <button id="manualCheckInBtn" class="btn btn-primary btn-sm" type="button">Manual
-                            Check-in</button>
+                        <!-- Activate/Deactivate Scanning buttons removed -->
+                        <button id="manualCheckInBtn" class="btn btn-outline-primary" type="button">Manual Check-in</button>
                     </div>
                     <div class="mb-2">
                         <div class="form-check form-check-inline">
@@ -89,10 +85,7 @@
                                 value="timeOut">
                             <label class="form-check-label" for="updateTimeOutMode">Update Time-out</label>
                         </div>
-                        <div class="form-check form-check-inline ms-3">
-                            <input class="form-check-input" type="checkbox" id="autoSwitchMode" checked>
-                            <label class="form-check-label" for="autoSwitchMode">Auto-switch to Normal Scan</label>
-                        </div>
+                        <!-- Auto-switch to Normal Scan is now default; checkbox removed -->
                     </div>
                     <label for="barcodeInput" class="form-label">Scan Barcode (Auto-focus)</label>
                     <input type="text" class="form-control" id="barcodeInput" autofocus autocomplete="off"
@@ -222,6 +215,58 @@
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/script.js"></script>
     <script>
+        // Utility to check if any of the filter/search/section controls are focused
+        function updateBarcodeInputState() {
+            const barcodeInput = document.getElementById('barcodeInput');
+            const sectionDropdown = document.getElementById('sectionDropdown');
+            const attendanceSearch = document.getElementById('attendanceSearch');
+            const eventFilter = document.getElementById('eventFilter');
+
+            // If any of the three are focused, disable barcodeInput
+            if (
+                document.activeElement === sectionDropdown ||
+                document.activeElement === attendanceSearch ||
+                document.activeElement === eventFilter
+            ) {
+                barcodeInput.disabled = true;
+            } else {
+                barcodeInput.disabled = false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const sectionDropdown = document.getElementById('sectionDropdown');
+            const attendanceSearch = document.getElementById('attendanceSearch');
+            const eventFilter = document.getElementById('eventFilter');
+            const barcodeInput = document.getElementById('barcodeInput');
+
+            // Update Current Event display when eventFilter changes
+            if (eventFilter) {
+                eventFilter.addEventListener('change', function () {
+                    const selectedOption = eventFilter.options[eventFilter.selectedIndex];
+                    const eventNameDisplay = document.getElementById('eventNameDisplay');
+                    if (eventNameDisplay) {
+                        if (selectedOption.value === 'all') {
+                            eventNameDisplay.textContent = 'All Events';
+                        } else {
+                            eventNameDisplay.textContent = selectedOption.textContent;
+                        }
+                    }
+                });
+            }
+
+            // Add focus/blur listeners to all three controls
+            [sectionDropdown, attendanceSearch, eventFilter].forEach(el => {
+                if (el) {
+                    el.addEventListener('focus', updateBarcodeInputState);
+                    el.addEventListener('blur', function () {
+                        // Use setTimeout to allow focus to move to another control before checking
+                        setTimeout(updateBarcodeInputState, 0);
+                    });
+                }
+            });
+        });
+
         // Search functionality for Attendance Records
         document.addEventListener('DOMContentLoaded', function () {
             const attendanceSearch = document.getElementById('attendanceSearch');
