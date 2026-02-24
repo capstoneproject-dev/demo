@@ -14,18 +14,18 @@ body.dark .my-org-page {
 }
 
 .my-org-page.org-theme-scholar-guild {
-    --my-org-primary: #d4af37;
-    --my-org-secondary: #003013;
+    --my-org-primary: #8f7320;
+    --my-org-secondary: #9fd9b5;
     --my-org-surface: #ffffff;
     --my-org-primary-soft: rgba(212, 175, 55, 0.18);
-    --my-org-on-primary: #1b1605;
+    --my-org-on-primary: #fff7de;
     --my-org-text: #082012;
     --my-org-muted: #3f5a4a;
 }
 
 .my-org-page.org-theme-ssc {
-    --my-org-primary: #141437;
-    --my-org-secondary: #141437;
+    --my-org-primary: #7d83d9;
+    --my-org-secondary: #d4d8ff;
     --my-org-surface: #fefcf7;
     --my-org-primary-soft: rgba(193, 193, 193, 0.35);
     --my-org-on-primary: #ffffff;
@@ -34,8 +34,8 @@ body.dark .my-org-page {
 }
 
 .my-org-page.org-theme-cyc {
-    --my-org-primary: #ff0095;
-    --my-org-secondary: #ff0095;
+    --my-org-primary: #ff4db3;
+    --my-org-secondary: #ffb8df;
     --my-org-surface: #fbf1f3;
     --my-org-primary-soft: rgba(255, 0, 149, 0.16);
     --my-org-on-primary: #ffffff;
@@ -44,8 +44,8 @@ body.dark .my-org-page {
 }
 
 .my-org-page.org-theme-ilasso {
-    --my-org-primary: #208251;
-    --my-org-secondary: #0f422c;
+    --my-org-primary: #2ea56a;
+    --my-org-secondary: #9be3bf;
     --my-org-surface: #e5f6df;
     --my-org-primary-soft: rgba(32, 130, 81, 0.20);
     --my-org-on-primary: #ffffff;
@@ -54,29 +54,34 @@ body.dark .my-org-page {
 }
 
 .my-org-page.org-theme-aisers {
-    --my-org-primary: #ffc300;
-    --my-org-secondary: #000814;
+    --my-org-primary: #ffcf33;
+    --my-org-secondary: #ffe796;
     --my-org-surface: #fff8e0;
-    --my-org-gradient-end: #d8c27a;
+    --my-org-gradient-end: #a48f4e;
     --my-org-primary-soft: rgba(255, 195, 0, 0.20);
-    --my-org-on-primary: #0f1b2d;
+    --my-org-on-primary: #1a2433;
     --my-org-text: #111824;
     --my-org-muted: #5f6879;
 }
 
+/* Ensure hero date is readable (white) in AISERS light theme */
+.my-org-page.org-theme-aisers .my-org-ref-date {
+    color: #ffffff !important;
+}
+
 .my-org-page.org-theme-elitech {
-    --my-org-primary: #0a0a0a;
-    --my-org-secondary: #0a0a0a;
+    --my-org-primary: #f2f2f2;
+    --my-org-secondary: #d6d6d6;
     --my-org-surface: #ffffff;
     --my-org-primary-soft: rgba(128, 128, 128, 0.35);
-    --my-org-on-primary: #ffffff;
+    --my-org-on-primary: #101010;
     --my-org-text: #111111;
     --my-org-muted: #4f4f4f;
 }
 
 .my-org-page.org-theme-aero-atso {
-    --my-org-primary: #007fff;
-    --my-org-secondary: #007fff;
+    --my-org-primary: #49a6ff;
+    --my-org-secondary: #a5d3ff;
     --my-org-surface: #ebf6ff;
     --my-org-primary-soft: rgba(255, 215, 0, 0.30);
     --my-org-on-primary: #ffffff;
@@ -85,8 +90,8 @@ body.dark .my-org-page {
 }
 
 .my-org-page.org-theme-aetso {
-    --my-org-primary: #0049d1;
-    --my-org-secondary: #0049d1;
+    --my-org-primary: #5e8fff;
+    --my-org-secondary: #eaff66;
     --my-org-surface: #ebf6ff;
     --my-org-primary-soft: rgba(250, 255, 30, 0.35);
     --my-org-on-primary: #ffffff;
@@ -95,8 +100,8 @@ body.dark .my-org-page {
 }
 
 .my-org-page.org-theme-rcyc {
-    --my-org-primary: #d5211b;
-    --my-org-secondary: #7d2324;
+    --my-org-primary: #ff4a43;
+    --my-org-secondary: #ffaca8;
     --my-org-surface: #f0efee;
     --my-org-primary-soft: rgba(213, 33, 27, 0.18);
     --my-org-on-primary: #ffffff;
@@ -105,8 +110,8 @@ body.dark .my-org-page {
 }
 
 .my-org-page.org-theme-amtso {
-    --my-org-primary: #ff5100;
-    --my-org-secondary: #ff8200;
+    --my-org-primary: #ff7a33;
+    --my-org-secondary: #ffc494;
     --my-org-surface: #efefef;
     --my-org-primary-soft: rgba(255, 81, 0, 0.20);
     --my-org-on-primary: #ffffff;
@@ -116,18 +121,18 @@ body.dark .my-org-page {
 
 /* Dark mode counterparts with readable text contrast */
 body.dark .my-org-page.org-theme-scholar-guild {
-    --my-org-primary: #8f7320;
-    --my-org-secondary: #9fd9b5;
+    --my-org-primary: #d4af37;
+    --my-org-secondary: #003013;
     --my-org-surface: #132018;
     --my-org-primary-soft: rgba(212, 175, 55, 0.22);
-    --my-org-on-primary: #fff7de;
+    --my-org-on-primary: #1b1605;
     --my-org-text: #e8f6eb;
     --my-org-muted: #b5ccba;
 }
 
 body.dark .my-org-page.org-theme-ssc {
-    --my-org-primary: #7d83d9;
-    --my-org-secondary: #d4d8ff;
+    --my-org-primary: #141437;
+    --my-org-secondary: #141437;
     --my-org-surface: #161625;
     --my-org-primary-soft: rgba(193, 193, 193, 0.20);
     --my-org-on-primary: #ffffff;
@@ -136,49 +141,49 @@ body.dark .my-org-page.org-theme-ssc {
 }
 
 body.dark .my-org-page.org-theme-cyc {
-    --my-org-primary: #ff4db3;
-    --my-org-secondary: #ffb8df;
+    --my-org-primary: #ff0095;
+    --my-org-secondary: #ff0095;
     --my-org-surface: #2a1020;
     --my-org-primary-soft: rgba(255, 77, 179, 0.24);
-    --my-org-on-primary: #250012;
+    --my-org-on-primary: #ffffff;
     --my-org-text: #ffe7f5;
     --my-org-muted: #e2b5cd;
 }
 
 body.dark .my-org-page.org-theme-ilasso {
-    --my-org-primary: #2ea56a;
-    --my-org-secondary: #9be3bf;
+    --my-org-primary: #208251;
+    --my-org-secondary: #0f422c;
     --my-org-surface: #102318;
     --my-org-primary-soft: rgba(46, 165, 106, 0.24);
-    --my-org-on-primary: #03170d;
+    --my-org-on-primary: #ffffff;
     --my-org-text: #e6f9ee;
     --my-org-muted: #b3d7c0;
 }
 
 body.dark .my-org-page.org-theme-aisers {
-    --my-org-primary: #ffcf33;
-    --my-org-secondary: #ffe796;
+    --my-org-primary: #ffc300;
+    --my-org-secondary: #000814;
     --my-org-surface: #1a1505;
-    --my-org-gradient-end: #a48f4e;
+    --my-org-gradient-end: #d8c27a;
     --my-org-primary-soft: rgba(255, 207, 51, 0.24);
-    --my-org-on-primary: #1a2433;
-    --my-org-text: #1a2433;
-    --my-org-muted: #31465f;
+    --my-org-on-primary: #ffffff;
+    --my-org-text: #ffffff;
+    --my-org-muted: #e6e6e6;
 }
 
 body.dark .my-org-page.org-theme-elitech {
-    --my-org-primary: #f2f2f2;
-    --my-org-secondary: #d6d6d6;
+    --my-org-primary: #0a0a0a;
+    --my-org-secondary: #0a0a0a;
     --my-org-surface: #161616;
     --my-org-primary-soft: rgba(180, 180, 180, 0.22);
-    --my-org-on-primary: #101010;
+    --my-org-on-primary: #ffffff;
     --my-org-text: #f3f3f3;
     --my-org-muted: #bababa;
 }
 
 body.dark .my-org-page.org-theme-aero-atso {
-    --my-org-primary: #49a6ff;
-    --my-org-secondary: #a5d3ff;
+    --my-org-primary: #007fff;
+    --my-org-secondary: #007fff;
     --my-org-surface: #0b1e2f;
     --my-org-primary-soft: rgba(73, 166, 255, 0.24);
     --my-org-on-primary: #ffffff;
@@ -187,8 +192,8 @@ body.dark .my-org-page.org-theme-aero-atso {
 }
 
 body.dark .my-org-page.org-theme-aetso {
-    --my-org-primary: #5e8fff;
-    --my-org-secondary: #eaff66;
+    --my-org-primary: #0049d1;
+    --my-org-secondary: #0049d1;
     --my-org-surface: #0d1f3d;
     --my-org-primary-soft: rgba(234, 255, 102, 0.24);
     --my-org-on-primary: #ffffff;
@@ -197,21 +202,21 @@ body.dark .my-org-page.org-theme-aetso {
 }
 
 body.dark .my-org-page.org-theme-rcyc {
-    --my-org-primary: #ff4a43;
-    --my-org-secondary: #ffaca8;
+    --my-org-primary: #d5211b;
+    --my-org-secondary: #7d2324;
     --my-org-surface: #2a1112;
     --my-org-primary-soft: rgba(255, 74, 67, 0.24);
-    --my-org-on-primary: #2a0504;
+    --my-org-on-primary: #ffffff;
     --my-org-text: #ffe8e7;
     --my-org-muted: #e0b8b6;
 }
 
 body.dark .my-org-page.org-theme-amtso {
-    --my-org-primary: #ff7a33;
-    --my-org-secondary: #ffc494;
+    --my-org-primary: #ff5100;
+    --my-org-secondary: #ff8200;
     --my-org-surface: #2b1a10;
     --my-org-primary-soft: rgba(255, 122, 51, 0.24);
-    --my-org-on-primary: #2a1104;
+    --my-org-on-primary: #ffffff;
     --my-org-text: #ffeede;
     --my-org-muted: #e2bfa1;
 }

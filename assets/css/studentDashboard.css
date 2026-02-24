@@ -1161,37 +1161,47 @@ body.dark .tab-btn:hover {
 }
 
 /* --- MY ORGANIZATION REFERENCE LAYOUT --- */
+.my-org-page {
+    background: var(--panel-2);
+    border-radius: 16px;
+    padding: 20px;
+    display: grid;
+    gap: 20px;
+}
+
 .my-org-ref-topbar {
-    background: var(--my-org-card-bg);
+    background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 5px 10px;
+    border-radius: 8px;
+    padding: 12px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 15px;
 }
 
 .my-org-ref-portal {
-    font-size: 1.05rem;
-    font-weight: 800;
+    font-size: 1.25rem;
+    font-weight: 700;
     color: var(--my-org-secondary);
 }
 
 .my-org-ref-top-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+    /* keep actions pinned to the right on wide screens */
+    margin-left: auto;
 }
 
 .my-org-ref-search {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    background: var(--my-org-surface);
-    border-radius: 999px;
-    padding: 6px 10px;
-    border: 1px solid var(--my-org-primary-soft);
+    gap: 6px;
+    background: var(--panel-2);
+    border-radius: 4px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
 }
 
 .my-org-ref-search i {
@@ -1201,89 +1211,97 @@ body.dark .tab-btn:hover {
 .my-org-ref-search input {
     border: none;
     outline: none;
-    width: 110px;
-    font-size: 0.82rem;
+    width: 180px;
+    font-size: 0.9rem;
     background: transparent;
     color: var(--my-org-text);
 }
 
 .my-org-ref-badge {
-    padding: 6px 10px;
-    border-radius: 999px;
+    padding: 8px 16px;
+    border-radius: 4px;
     background: var(--my-org-primary-soft);
+    border: 1px solid var(--border);
     color: var(--my-org-secondary);
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-size: 0.9rem;
+    font-weight: 500;
 }
 
 .my-org-ref-top-logo {
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
     object-fit: cover;
     border-radius: 50%;
     border: 2px solid var(--my-org-primary-soft);
 }
 
 .my-org-ref-orgbar {
-    border-radius: 14px;
-    background: linear-gradient(90deg, var(--my-org-primary), var(--my-org-gradient-end));
-    padding: 10px 14px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--my-org-primary) 0%, var(--my-org-secondary) 55%, var(--my-org-gradient-end) 100%);
+    padding: 15px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 16px;
 }
 
 .my-org-ref-orgtitle {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
 }
 
 .my-org-ref-orgtitle img {
-    width: 42px;
-    height: 42px;
+    width: 60px;
+    height: 60px;
     object-fit: cover;
-    background: transparent;
+    background: var(--panel);
+    border-radius: 50%;
+    padding: 5px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .my-org-ref-orgtitle span {
     color: var(--my-org-on-primary);
-    font-weight: 800;
-    font-size: 0.95rem;
+    font-weight: 600;
+    font-size: 0.85rem;
     letter-spacing: 0.3px;
-    max-width: 760px;
+    max-width: 560px;
     line-height: 1.25;
+    text-transform: uppercase;
 }
 
 .my-org-ref-links {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 25px;
 }
 
 .my-org-ref-links a {
     color: var(--my-org-on-primary);
     text-decoration: none;
-    font-weight: 600;
-    font-size: 0.82rem;
+    font-weight: 500;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    padding-bottom: 3px;
 }
 
 .my-org-ref-main {
     display: grid;
-    grid-template-columns: 2.3fr 1fr;
-    gap: 22px;
+    grid-template-columns: 2fr 1fr;
+    gap: 25px;
     align-items: stretch;
-    height: clamp(300px, 30vw, 400px);
+    min-height: 400px;
 }
 
 .my-org-ref-hero {
     position: relative;
-    border-radius: 14px;
+    border-radius: 16px;
     overflow: hidden;
-    height: 100%;
-    min-height: 0;
-    --my-org-hero-edge-pad: 16px;
+    height: 400px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    --my-org-hero-edge-pad: 25px;
 }
 
 .my-org-ref-hero img {
@@ -1296,58 +1314,59 @@ body.dark .tab-btn:hover {
     position: absolute;
     inset: 0;
     height: 100%;
-    background: rgba(0, 0, 0, 0.55);
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.5) 50%, transparent 100%);
 }
 
 .my-org-ref-chip {
     position: absolute;
     top: var(--my-org-hero-edge-pad);
-    left: 20px;
+    left: var(--my-org-hero-edge-pad);
     background: var(--my-org-primary);
     color: var(--my-org-on-primary);
-    border-radius: 12px;
-    padding: 5px 12px;
-    font-weight: 800;
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-weight: 700;
     z-index: 2;
-    font-size: 0.76rem;
+    font-size: 1rem;
 }
 
 .my-org-ref-date {
     position: absolute;
     top: var(--my-org-hero-edge-pad);
     right: var(--my-org-hero-edge-pad);
-    color: #ffd54d;
-    font-weight: 800;
+    color: var(--my-org-on-primary);
+    font-weight: 600;
     z-index: 2;
-    font-size: 0.8rem;
+    font-size: 1rem;
 }
 
 .my-org-ref-hero-content {
     position: absolute;
-    left: 20px;
-    right: 20px;
+    left: var(--my-org-hero-edge-pad);
+    right: var(--my-org-hero-edge-pad);
     top: 50%;
-    transform: translateY(-58%);
+    transform: translateY(-45%);
     z-index: 2;
     color: #ffffff;
 }
 
 .my-org-ref-hero-content h2 {
-    font-size: clamp(0.95rem, 2.1vw, 1.45rem);
-    line-height: 1.16;
-    margin-bottom: 8px;
+    font-size: 2.2rem;
+    line-height: 1.3;
+    margin-bottom: 15px;
     text-transform: uppercase;
-    max-width: 80%;
+    max-width: 90%;
 }
 
 .my-org-ref-hero-content p {
-    font-size: clamp(0.72rem, 1.05vw, 0.95rem);
-    line-height: 1.25;
+    font-size: 1.2rem;
+    line-height: 1.35;
     font-weight: 600;
     max-width: 80%;
-    margin-top: 8px;
-    padding-top: 10px;
-    border-top: 2px solid rgba(255, 255, 255, 0.92);
+    margin-top: 0;
+    padding-top: 14px;
+    border-top: 3px solid #ffffff;
+    font-style: italic;
 }
 
 .my-org-ref-hero-actions {
@@ -1362,152 +1381,132 @@ body.dark .tab-btn:hover {
 .my-org-ref-hero-actions button {
     border: none;
     border-radius: 999px;
-    background: #facc15;
-    color: #1f1f1f;
-    font-weight: 800;
-    padding: 5px 10px;
-    font-size: 0.58rem;
+    background: var(--my-org-primary);
+    color: var(--my-org-on-primary);
+    font-weight: 600;
+    padding: 10px 20px;
+    font-size: 0.95rem;
     cursor: pointer;
 }
 
 .my-org-ref-side {
     display: grid;
-    grid-template-rows: 1.3fr 0.7fr;
-    gap: 18px;
+    grid-template-rows: 1fr 1fr;
+    gap: 20px;
     height: 100%;
 }
 
 .my-org-ref-announcements,
 .my-org-ref-contact {
-    background: var(--my-org-panel-bg);
-    border: 1px solid var(--my-org-ui-border);
-    border-radius: 14px;
-    padding: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
     overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .my-org-ref-contact {
-    padding: 8px;
+    background: linear-gradient(135deg, var(--my-org-primary) 0%, var(--my-org-secondary) 55%, var(--my-org-gradient-end) 100%);
     position: relative;
 }
 
 .my-org-ref-announcements h3,
 .my-org-ref-contact h3 {
-    color: var(--my-org-secondary);
-    font-size: 1rem;
-    margin-bottom: 8px;
+    color: var(--my-org-text);
+    font-size: 1.1rem;
+    margin-bottom: 15px;
 }
 
 .my-org-ref-contact h3 {
-    margin-right: 120px;
-}
-
-.my-org-ref-contact,
-.my-org-ref-quickfacts {
-    background: linear-gradient(90deg, var(--my-org-primary), var(--my-org-gradient-end));
     color: var(--my-org-on-primary);
-}
-
-.my-org-ref-contact h3,
-.my-org-ref-quickfacts h3,
-.my-org-ref-contact p,
-.my-org-ref-quickfacts ul,
-.my-org-ref-quickfacts li {
-    color: var(--my-org-on-primary);
+    font-size: 1.3rem;
 }
 
 .my-org-ref-ann-item {
     display: grid;
-    grid-template-columns: 56px 1fr auto;
+    grid-template-columns: 50px 1fr auto;
     gap: 10px;
     align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--my-org-ui-border);
+    margin-bottom: 12px;
+    padding: 12px;
+    border-bottom: none;
+    background: var(--panel-2);
+    border-radius: 10px;
 }
 
 .my-org-ref-ann-item:last-child {
     margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
 }
 
 .my-org-ref-ann-thumb {
-    width: 56px;
-    height: 56px;
+    width: 50px;
+    height: 50px;
     object-fit: cover;
-    border-radius: 12px;
-    border: 1px solid var(--my-org-ui-border);
+    border-radius: 10px;
+    border: none;
 }
 
 .my-org-ref-ann-title {
     color: var(--my-org-text);
-    font-weight: 700;
-    line-height: 1.35;
-    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.2;
+    font-size: 0.9rem;
 }
 
 .my-org-ref-ann-date {
     color: var(--my-org-muted);
     font-weight: 700;
-    margin-top: 4px;
-    font-size: 0.84rem;
-}
-
-body.dark .my-org-ref-ann-title,
-body.dark .my-org-ref-ann-date {
-    color: #ffffff;
+    margin-top: 2px;
+    font-size: 0.8rem;
 }
 
 .my-org-ref-pill-btn {
     border: none;
-    border-radius: 999px;
-    padding: 6px 10px;
-    font-size: 0.72rem;
-    font-weight: 800;
-    background: #facc15;
-    color: #1f2937;
+    border-radius: 15px;
+    padding: 6px 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--my-org-primary);
+    color: var(--my-org-on-primary);
 }
 
 .my-org-ref-contact p {
-    color: var(--my-org-text);
+    color: rgba(255, 255, 255, 0.9);
     line-height: 1.45;
-    margin-bottom: 8px;
-    font-size: 0.84rem;
+    margin-bottom: 15px;
+    font-size: 0.85rem;
 }
 
 .my-org-ref-contact-search {
     display: flex;
-    gap: 0;
-    margin-bottom: 8px;
+    gap: 5px;
+    margin-bottom: 15px;
 }
 
 .my-org-ref-contact-search input {
     flex: 1;
-    border: 1px solid var(--my-org-ui-border);
-    background: var(--my-org-field-bg);
+    border: none;
+    background: var(--panel);
     color: var(--my-org-text);
-    border-right: none;
-    padding: 7px 8px;
+    padding: 8px 10px;
     font-size: 0.8rem;
     outline: none;
+    border-radius: 4px;
 }
 
 .my-org-ref-contact-search button {
-    width: 34px;
-    border: 1px solid var(--my-org-ui-border);
-    background: var(--my-org-field-bg);
-    color: var(--my-org-secondary);
+    width: 38px;
+    border: none;
+    background: var(--panel);
+    color: var(--my-org-text);
+    border-radius: 4px;
 }
 
 .my-org-ref-socials {
-    position: absolute;
-    top: 8px;
-    right: 8px;
     display: flex;
-    justify-content: flex-end;
-    gap: 9px;
-    font-size: 1rem;
+    gap: 12px;
+    font-size: 1.1rem;
     color: var(--my-org-on-primary);
 }
 
@@ -1525,41 +1524,42 @@ body.dark .my-org-ref-ann-date {
 }
 
 .my-org-ref-socials .x-text {
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 800;
     font-family: var(--font);
 }
 
 .my-org-ref-bottom {
     display: grid;
-    grid-template-columns: 0.85fr 2.15fr;
-    gap: 22px;
+    grid-template-columns: 1fr 2fr;
+    gap: 25px;
 }
 
 .my-org-ref-quickfacts,
 .my-org-ref-activities {
-    border: 1px solid var(--my-org-ui-border);
-    border-radius: 14px;
-    padding: 12px;
-    min-height: clamp(180px, 20vw, 260px);
+    border: none;
+    border-radius: 16px;
+    padding: 20px;
+    min-height: 240px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .my-org-ref-activities {
-    background: var(--my-org-panel-bg);
+    background: var(--panel);
     display: flex;
     flex-direction: column;
 }
 
 .my-org-ref-quickfacts h3 {
     color: var(--my-org-on-primary);
-    font-size: 1rem;
-    margin-bottom: 8px;
+    font-size: 1.1rem;
+    margin-bottom: 15px;
 }
 
 .my-org-ref-activities h3 {
-    color: var(--my-org-secondary);
-    font-size: 1rem;
-    margin-bottom: 8px;
+    color: var(--my-org-text);
+    font-size: 1.1rem;
+    margin-bottom: 15px;
 }
 
 .my-org-ref-quickfacts ul {
@@ -1570,61 +1570,60 @@ body.dark .my-org-ref-ann-date {
 }
 
 .my-org-ref-quickfacts li {
-    margin-bottom: 6px;
-    font-size: 0.8rem;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
     color: var(--my-org-on-primary);
 }
 
 .my-org-ref-activities-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
+    gap: 12px;
     align-items: stretch;
     grid-auto-rows: 1fr;
     flex: 1;
     min-height: 0;
-    background: var(--my-org-card-bg);
-    border-radius: 8px;
-    padding: 2px;
+    background: transparent;
 }
 
 .my-org-ref-activity-card {
     display: flex;
     flex-direction: column;
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
-    border: 1px solid var(--my-org-ui-border);
-    background: var(--my-org-card-bg);
+    border: none;
+    background: var(--panel);
     height: 100%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .my-org-ref-activity-card img {
     width: 100%;
-    height: clamp(82px, 10vw, 118px);
+    height: 180px;
     object-fit: cover;
 }
 
 .my-org-ref-activity-caption {
-    padding: 6px;
-    font-size: 0.68rem;
+    padding: 12px;
+    font-size: 0.8rem;
     font-weight: 700;
     color: var(--my-org-text);
     line-height: 1.25;
-    min-height: 46px;
+    min-height: 58px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
-body.dark .my-org-ref-activity-caption {
-    color: #ffffff;
+.my-org-ref-quickfacts {
+    background: linear-gradient(135deg, var(--my-org-primary) 0%, var(--my-org-secondary) 55%, var(--my-org-gradient-end) 100%);
 }
 
 @media (max-width: 1400px) {
     .my-org-ref-main {
         grid-template-columns: 1fr;
-        height: auto;
+        min-height: 0;
     }
 
     .my-org-ref-bottom {
@@ -1633,7 +1632,7 @@ body.dark .my-org-ref-activity-caption {
 
     .my-org-ref-quickfacts,
     .my-org-ref-activities {
-        min-height: 170px;
+        min-height: 190px;
     }
 }
 
@@ -1645,7 +1644,7 @@ body.dark .my-org-ref-activity-caption {
 
     .my-org-ref-links {
         flex-wrap: wrap;
-        gap: 14px;
+        gap: 16px;
     }
 
     .my-org-ref-orgtitle span {
@@ -1653,12 +1652,16 @@ body.dark .my-org-ref-activity-caption {
     }
 
     .my-org-ref-hero-content h2 {
-        font-size: 1.5rem;
+        font-size: 1.6rem;
     }
 
     .my-org-ref-hero-content p {
-        font-size: 0.95rem;
+        font-size: 1rem;
         max-width: 90%;
+    }
+
+    .my-org-ref-hero {
+        height: 340px;
     }
 }
 
@@ -1692,30 +1695,93 @@ body.dark .my-org-ref-activity-caption {
     }
 
     .my-org-ref-hero {
-        height: auto;
-        min-height: 180px;
+        height: 280px;
+        min-height: 0;
     }
 
     .my-org-ref-date {
-        font-size: 0.72rem;
+        font-size: 0.8rem;
     }
 
     .my-org-ref-hero-content {
         left: 12px;
         right: 12px;
-        top: 48%;
-        transform: translateY(-52%);
+        top: 50%;
+        transform: translateY(-45%);
     }
 
     .my-org-ref-hero-content h2 {
-        font-size: 1.05rem;
+        font-size: 1.2rem;
         margin-bottom: 6px;
     }
 
     .my-org-ref-hero-content p {
-        font-size: 0.74rem;
+        font-size: 0.82rem;
         max-width: 100%;
     }
+
+    .my-org-ref-hero-actions button {
+        padding: 8px 14px;
+        font-size: 0.82rem;
+    }
+}
+
+/* Dark Mode Overrides for My Organization */
+body.dark .my-org-ref-announcements h3 {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-orgbar .my-org-ref-orgtitle span {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-orgbar .my-org-ref-links a {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-date {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-contact h3 {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-contact p {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-contact-search input {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-contact-search input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+body.dark .my-org-ref-quickfacts h3 {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-quickfacts ul {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-quickfacts li {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-activity-caption {
+    color: var(--my-org-text);
+}
+
+body.dark .my-org-ref-activities h3 {
+    color: var(--my-org-text);
+}
+
+/* Force the hero date to white in dark mode for guaranteed readability */
+body.dark .my-org-ref-date {
+    color: #ffffff !important;
 }
 
 

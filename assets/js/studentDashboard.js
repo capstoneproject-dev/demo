@@ -396,13 +396,11 @@ function renderMyOrganizationTab(contentDiv) {
     contentDiv.innerHTML = `
         <div class="my-org-page ${orgThemeClass}">
             <section class="my-org-ref-topbar">
-                <div class="my-org-ref-portal">Student Portal</div>
                 <div class="my-org-ref-top-actions">
                     <div class="my-org-ref-search">
                         <i class="fa-solid fa-magnifying-glass"></i>
                         <input type="text" placeholder="Search">
                     </div>
-                    <div class="my-org-ref-badge">${organization.name}</div>
                     <img src="${organization.image}" alt="${organization.name} logo" class="my-org-ref-top-logo">
                 </div>
             </section>
@@ -444,7 +442,6 @@ function renderMyOrganizationTab(contentDiv) {
                     </article>
                     <article class="my-org-ref-contact">
                         <h3>${organization.name}</h3>
-                        <p>Pico Garden, Villamor Airbase<br>Pasay City</p>
                         <div class="my-org-ref-contact-search">
                             <input type="text" placeholder="What are you looking for?">
                             <button type="button"><i class="fa-solid fa-magnifying-glass"></i></button>
