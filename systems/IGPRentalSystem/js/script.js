@@ -27,6 +27,20 @@ function getItemHourlyRate(item) {
     return normalizeHourlyRate(inventoryItem ? inventoryItem.pricePerHour : undefined);
 }
 
+/**
+ * Calculate overtime cost using per-item settings snapshotted on the rental record.
+ *   overtimeInterval === undefined  → legacy record (pre-config); falls back to 30 min / ₱5
+ *   overtimeInterval === null       → org has not configured overtime for this item; no charge
+ *   overtimeInterval === number     → use the configured interval and rate
+ */
+function calcOvertimeCost(overtimeMinutes, overtimeInterval, overtimeRate) {
+    const isLegacy = overtimeInterval === undefined;
+    const interval = isLegacy ? 30 : overtimeInterval;
+    const rate = isLegacy ? 5 : overtimeRate;
+    if (!interval || rate == null || rate === 0) return 0;
+    return Math.ceil(overtimeMinutes / interval) * rate;
+}
+
 // Initialize the system
 document.addEventListener('DOMContentLoaded', async function () {
     // 1. Load from localStorage FIRST (for instant display & offline support)
@@ -703,6 +717,7 @@ async function processRentalHours(item, modal) {
     const dueDate = new Date(rentalDate.getTime() + (rentalHours * 60 * 60 * 1000)); // Add hours to rental date
     const hourlyRate = getItemHourlyRate(item);
     const baseCost = rentalHours * hourlyRate;
+    const inventoryItem = inventoryItems.find(i => i.id === item.id);
 
     const rental = {
         itemId: item.id,
@@ -717,6 +732,8 @@ async function processRentalHours(item, modal) {
         rentalHours: rentalHours,
         hourlyRate: hourlyRate,
         baseCost: baseCost,
+        overtimeInterval: (inventoryItem && inventoryItem.overtimeInterval != null) ? inventoryItem.overtimeInterval : null,
+        overtimeRate: (inventoryItem && inventoryItem.overtimeRate != null) ? inventoryItem.overtimeRate : null,
         status: 'active'
     };
 
@@ -805,7 +822,7 @@ async function handleReturn(item) {
     let overtimeMinutes = 0;
     if (dueDate && returnDate > dueDate) {
         overtimeMinutes = Math.ceil((returnDate - dueDate) / (1000 * 60)); // Convert to minutes
-        overtimeCost = Math.ceil(overtimeMinutes / 30) * 5; // ₱5 per 30 minutes or less
+        overtimeCost = calcOvertimeCost(overtimeMinutes, activeRental.overtimeInterval, activeRental.overtimeRate);
     }
 
     const totalCost = baseCostVal + overtimeCost;
@@ -894,12 +911,15 @@ async function handlePayment(itemId, returnDate, customTotal) {
         // Apply custom total if provided and valid and adjust overtime/time accordingly
         const parsedCustom = typeof customTotal === 'string' ? parseFloat(customTotal) : NaN;
         if (!isNaN(parsedCustom) && parsedCustom >= 0) {
-            // Determine discount in multiples of ₱5
+            // Determine discount in steps based on this item's configured overtime rate
+            const isLegacyRentalHP = rental.overtimeInterval === undefined;
+            const ratePerStepHP = isLegacyRentalHP ? 5 : (rental.overtimeRate || 0);
+            const minutesPerStepHP = isLegacyRentalHP ? 30 : (rental.overtimeInterval || 0);
             const discount = Math.max(0, originalTotal - parsedCustom);
-            const steps = Math.floor(discount / 5); // each step = ₱5
+            const steps = ratePerStepHP > 0 ? Math.floor(discount / ratePerStepHP) : 0;
 
-            if (steps > 0) {
-                const minutesPerStep = 30;
+            if (steps > 0 && minutesPerStepHP > 0) {
+                const minutesPerStep = minutesPerStepHP;
                 let minutesToAdjust = steps * minutesPerStep;
                 let totalMinutesAdjusted = 0;
 
@@ -911,7 +931,7 @@ async function handlePayment(itemId, returnDate, customTotal) {
 
                 const newOvertimeMinutes = Math.max(0, currentOvertime - usedForOvertime);
                 rental.overtimeMinutes = newOvertimeMinutes;
-                rental.overtimeCost = Math.ceil(newOvertimeMinutes / 30) * 5;
+                rental.overtimeCost = calcOvertimeCost(newOvertimeMinutes, rental.overtimeInterval, rental.overtimeRate);
 
                 // If discount remains, it means overtime is fully cleared; move the return time earlier
                 if (remainingAfterOvertime > 0) {
@@ -956,12 +976,15 @@ async function closePaymentDialog(itemId, returnDate, customTotal) {
 
         const parsedCustom = typeof customTotal === 'string' ? parseFloat(customTotal) : NaN;
         if (!isNaN(parsedCustom) && parsedCustom >= 0) {
-            // Determine discount in multiples of ₱5
+            // Determine discount in steps based on this item's configured overtime rate
+            const isLegacyRentalCPD = rental.overtimeInterval === undefined;
+            const ratePerStepCPD = isLegacyRentalCPD ? 5 : (rental.overtimeRate || 0);
+            const minutesPerStepCPD = isLegacyRentalCPD ? 30 : (rental.overtimeInterval || 0);
             const discount = Math.max(0, originalTotal - parsedCustom);
-            const steps = Math.floor(discount / 5);
+            const steps = ratePerStepCPD > 0 ? Math.floor(discount / ratePerStepCPD) : 0;
 
-            if (steps > 0) {
-                const minutesPerStep = 30;
+            if (steps > 0 && minutesPerStepCPD > 0) {
+                const minutesPerStep = minutesPerStepCPD;
                 let minutesToAdjust = steps * minutesPerStep;
                 let totalMinutesAdjusted = 0;
 
@@ -972,7 +995,7 @@ async function closePaymentDialog(itemId, returnDate, customTotal) {
 
                 const newOvertimeMinutes = Math.max(0, currentOvertime - usedForOvertime);
                 rental.overtimeMinutes = newOvertimeMinutes;
-                rental.overtimeCost = Math.ceil(newOvertimeMinutes / 30) * 5;
+                rental.overtimeCost = calcOvertimeCost(newOvertimeMinutes, rental.overtimeInterval, rental.overtimeRate);
 
                 if (remainingAfterOvertime > 0) {
                     const stepsLeft = Math.floor(remainingAfterOvertime / minutesPerStep);
@@ -1167,7 +1190,7 @@ function updateRentalRecordsTable() {
             let now = new Date();
             if (now > dueDate) {
                 let overtimeMinutes = Math.ceil((now - dueDate) / (1000 * 60));
-                overtimeCost = Math.ceil(overtimeMinutes / 30) * 5; // ₱5 per 30 minutes or part thereof
+                overtimeCost = calcOvertimeCost(overtimeMinutes, record.overtimeInterval, record.overtimeRate);
             }
         }
         let totalPrice = price + overtimeCost;

@@ -38,6 +38,20 @@
         .download-btn {
             margin-top: 10px;
         }
+
+        /* Subtle floating group pricing card */
+        .group-pricing-card {
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(16,24,40,0.04);
+            padding: 8px;
+            margin-bottom: 14px;
+        }
+
+        .group-pricing-card .form-control {
+            background: transparent;
+        }
     </style>
 </head>
 
@@ -139,11 +153,20 @@
                         <input type="text" class="form-control" id="barcode" placeholder="Barcode" required>
                     </div>
                     <div class="col-md-2">
-                        <input type="number" class="form-control" id="pricePerHour" placeholder="Price/Hour" min="0"
-                            step="0.01" value="10" required>
+                        <input type="number" class="form-control" id="pricePerHour" placeholder="Price/Hour (PHP)" min="0"
+                            step="0.01" required>
                     </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary w-100">Add Item</button>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" class="form-control" id="overtimeInterval" placeholder="Overtime every (mins)" min="1" step="1" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" class="form-control" id="overtimeRate" placeholder="Overtime rate (PHP/block)" min="0" step="0.01" required>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-center">
+                        <small class="text-muted">Overtime: charged at the rate every X minutes after the due time.</small>
                     </div>
                 </form>
             </div>
@@ -321,14 +344,43 @@
             const categories = groupByCategory(filteredItems);
             Object.keys(categories).sort().forEach(category => {
                 const categoryDiv = document.createElement('div');
-                categoryDiv.innerHTML = `<h2 class="category-title">${category}</h2>`;
-                [...categories[category]]
-                    .sort((a, b) => {
-                        const numA = parseInt(a.id.replace(/^[A-Z]+/i, ''), 10);
-                        const numB = parseInt(b.id.replace(/^[A-Z]+/i, ''), 10);
-                        return numA - numB;
-                    })
-                    .forEach((item, idx) => {
+                // Use first item in the sorted group as the representative for current pricing
+                const sortedGroupItems = [...categories[category]].sort((a, b) => {
+                    const numA = parseInt(a.id.replace(/^[A-Z]+/i, ''), 10);
+                    const numB = parseInt(b.id.replace(/^[A-Z]+/i, ''), 10);
+                    return numA - numB;
+                });
+                const rep = sortedGroupItems[0];
+                categoryDiv.innerHTML = `
+                    <h2 class="category-title">${category}</h2>
+                    <div class="card mb-3 group-pricing-card" data-category="${category}">
+                        <div class="card-body p-3">
+                            <strong class="d-block mb-2">Pricing for all &ldquo;${category}&rdquo; items (${sortedGroupItems.length} item${sortedGroupItems.length !== 1 ? 's' : ''})</strong>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-3 col-6">
+                                    <label class="form-label form-label-sm mb-1">Price Per Hour (PHP)</label>
+                                    <input type="number" class="form-control form-control-sm group-price-input" min="0" step="0.01"
+                                        value="${rep.pricePerHour != null ? formatPricePerHour(rep.pricePerHour) : ''}" placeholder="e.g. 10" data-category="${category}">
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <label class="form-label form-label-sm mb-1">Overtime Every (mins)</label>
+                                    <input type="number" class="form-control form-control-sm group-interval-input" min="1" step="1"
+                                        value="${rep.overtimeInterval != null ? rep.overtimeInterval : ''}" placeholder="e.g. 30" data-category="${category}">
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <label class="form-label form-label-sm mb-1">Overtime Rate (PHP/block)</label>
+                                    <input type="number" class="form-control form-control-sm group-rate-input" min="0" step="0.01"
+                                        value="${rep.overtimeRate != null ? rep.overtimeRate : ''}" placeholder="e.g. 5" data-category="${category}">
+                                </div>
+                                <div class="col-md-3 col-6 d-flex align-items-end">
+                                    <button class="btn btn-success btn-sm w-100 save-group-pricing-btn" data-category="${category}">Save Pricing</button>
+                                </div>
+                            </div>
+                            <small class="text-muted d-block mt-1">Leave overtime fields blank to disable overtime charges for this group.</small>
+                        </div>
+                    </div>
+                `;
+                sortedGroupItems.forEach((item, idx) => {
                         const card = document.createElement('div');
                         card.className = 'item-card row align-items-center';
                         card.innerHTML = `
@@ -345,11 +397,6 @@
                                 <strong>Name:</strong> ${item.name}<br>
                                 <strong>Barcode:</strong> ${item.barcode}<br>
                                 <strong>Status:</strong> ${item.status}
-                                <div class="mt-2">
-                                    <label class="form-label form-label-sm mb-1">Price Per Hour (PHP)</label>
-                                    <input type="number" class="form-control form-control-sm price-per-hour-input" min="0"
-                                        step="0.01" value="${formatPricePerHour(item.pricePerHour)}" data-item-id="${item.id}">
-                                </div>
                             </div>
                             <div class="col-md-1 col-12 text-end">
                                 <button class="btn btn-sm btn-danger delete-item" title="Delete Item" data-category="${category}" data-index="${idx}"><span aria-hidden="true">🗑️</span></button>
@@ -407,15 +454,43 @@
                 });
             });
 
-            document.querySelectorAll('.price-per-hour-input').forEach(input => {
-                input.addEventListener('change', function () {
-                    const itemId = this.getAttribute('data-item-id');
-                    const item = inventoryItems.find(i => i.id === itemId);
-                    if (!item) return;
+            document.querySelectorAll('.save-group-pricing-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const category = this.getAttribute('data-category');
+                    const card = this.closest('.group-pricing-card');
 
-                    item.pricePerHour = normalizePricePerHour(this.value);
-                    this.value = formatPricePerHour(item.pricePerHour);
+                    const priceInput = card.querySelector('.group-price-input');
+                    const intervalInput = card.querySelector('.group-interval-input');
+                    const rateInput = card.querySelector('.group-rate-input');
+
+                    const newPrice = normalizePricePerHour(priceInput.value);
+                    const parsedInterval = parseInt(intervalInput.value);
+                    const parsedRate = parseFloat(rateInput.value);
+                    const newInterval = (Number.isFinite(parsedInterval) && parsedInterval > 0) ? parsedInterval : null;
+                    const newRate = (Number.isFinite(parsedRate) && parsedRate >= 0) ? parsedRate : null;
+
+                    // Apply to every item whose category (first word of name) matches
+                    inventoryItems.forEach(item => {
+                        if (item.name.split(' ')[0] === category) {
+                            item.pricePerHour = newPrice;
+                            item.overtimeInterval = newInterval;
+                            item.overtimeRate = newRate;
+                        }
+                    });
+
+                    priceInput.value = formatPricePerHour(newPrice);
+                    intervalInput.value = newInterval != null ? newInterval : '';
+                    rateInput.value = newRate != null ? newRate : '';
+
                     localStorage.setItem('inventoryItems', JSON.stringify(inventoryItems));
+
+                    const originalText = this.textContent;
+                    this.textContent = 'Saved ✓';
+                    this.disabled = true;
+                    setTimeout(() => {
+                        this.textContent = originalText;
+                        this.disabled = false;
+                    }, 1500);
                 });
             });
         }
@@ -428,6 +503,10 @@
             const itemId = document.getElementById('itemId').value;
             const barcode = document.getElementById('barcode').value;
             const pricePerHour = normalizePricePerHour(document.getElementById('pricePerHour').value);
+            const overtimeIntervalRaw = parseInt(document.getElementById('overtimeInterval').value);
+            const overtimeRateRaw = parseFloat(document.getElementById('overtimeRate').value);
+            const overtimeInterval = (Number.isFinite(overtimeIntervalRaw) && overtimeIntervalRaw > 0) ? overtimeIntervalRaw : null;
+            const overtimeRate = (Number.isFinite(overtimeRateRaw) && overtimeRateRaw >= 0) ? overtimeRateRaw : null;
 
             // Check if item ID or barcode already exists
             if (inventoryItems.some(item => item.id === itemId || item.barcode === barcode)) {
@@ -440,6 +519,8 @@
                 name: itemName,
                 barcode: barcode,
                 pricePerHour: pricePerHour,
+                overtimeInterval: overtimeInterval,
+                overtimeRate: overtimeRate,
                 status: 'available'
             };
 
@@ -544,13 +625,28 @@
                         row[header.indexOf('hourly rate')] ||
                         row[header.indexOf('price')];
 
+                    const overtimeIntervalIdx = header.indexOf('overtime interval (mins)') !== -1
+                        ? header.indexOf('overtime interval (mins)')
+                        : header.indexOf('overtime interval');
+                    const overtimeRateIdx = header.indexOf('overtime rate (php)') !== -1
+                        ? header.indexOf('overtime rate (php)')
+                        : header.indexOf('overtime rate');
+                    const rawInterval = overtimeIntervalIdx !== -1 ? row[overtimeIntervalIdx] : undefined;
+                    const rawRate = overtimeRateIdx !== -1 ? row[overtimeRateIdx] : undefined;
+                    const parsedInterval = parseInt(rawInterval);
+                    const parsedRate = parseFloat(rawRate);
+                    const overtimeInterval = (rawInterval !== undefined && rawInterval !== '' && Number.isFinite(parsedInterval) && parsedInterval > 0) ? parsedInterval : null;
+                    const overtimeRate = (rawRate !== undefined && rawRate !== '' && Number.isFinite(parsedRate) && parsedRate >= 0) ? parsedRate : null;
+
                     if (itemId && itemName && barcode) {
                         newItems.push({
                             id: String(itemId),
                             name: String(itemName),
                             barcode: String(barcode),
                             status: String(status),
-                            pricePerHour: normalizePricePerHour(pricePerHour)
+                            pricePerHour: normalizePricePerHour(pricePerHour),
+                            overtimeInterval: overtimeInterval,
+                            overtimeRate: overtimeRate
                         });
                     }
                 }
@@ -588,7 +684,9 @@
                 'Name': item.name,
                 'Barcode': item.barcode,
                 'Status': item.status,
-                'Price Per Hour': normalizePricePerHour(item.pricePerHour)
+                'Price Per Hour': normalizePricePerHour(item.pricePerHour),
+                'Overtime Interval (mins)': item.overtimeInterval != null ? item.overtimeInterval : '',
+                'Overtime Rate (PHP)': item.overtimeRate != null ? item.overtimeRate : ''
             })));
             XLSX.utils.book_append_sheet(wb, ws, "Inventory");
             XLSX.writeFile(wb, "inventory_items.xlsx");
