@@ -301,8 +301,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Barcode input logic
     const barcodeInput = document.getElementById('barcodeInput');
     const scanResult = document.getElementById('scanResult');
-    const activateScanBtn = document.getElementById('activateScan');
-    const deactivateScanBtn = document.getElementById('deactivateScan');
     const cancelTransactionBtn = document.getElementById('cancelTransaction');
     const itemFilter = document.getElementById('itemFilter');
     let pauseBarcodeAutofocus = false;
@@ -463,19 +461,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     }
 
-    if (activateScanBtn) {
-        activateScanBtn.addEventListener('click', function () {
-            barcodeInput.disabled = false;
-            barcodeInput.focus();
-        });
-    }
-
-    if (deactivateScanBtn) {
-        deactivateScanBtn.addEventListener('click', function () {
-            barcodeInput.blur();
-            barcodeInput.disabled = true;
-        });
-    }
+    // Scan activation/deactivation controls removed — input focus managed automatically
 
     if (cancelTransactionBtn) {
         cancelTransactionBtn.addEventListener('click', function () {
