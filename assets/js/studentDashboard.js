@@ -27,9 +27,9 @@ const eventsData = [
 ];
 
 const announcementsData = [
-    { title: "Enrollment for 2nd Sem", date: "Today", content: "Please settle your balance before 25th." },
-    { title: "Office Hours", date: "Yesterday", content: "Org offices will be closed on holidays." },
-    { title: "Job Fair", date: "2 days ago", content: "Prepare your resumes for upcoming fair." }
+    { title: "Enrollment for 2nd Sem", date: "Today", content: "Please settle your balance before 25th.", org: "ALL" },
+    { title: "Office Hours", date: "Yesterday", content: "Org offices will be closed on holidays.", org: "ALL" },
+    { title: "Job Fair", date: "2 days ago", content: "Prepare your resumes for upcoming fair.", org: "AISERS" }
 ];
 
 const transactionsData = [
@@ -287,6 +287,17 @@ function normalizeOrgName(name) {
     return aliases[normalized] || String(name).trim();
 }
 
+const AUTH_DB_KEY = "naapAuthDB_v1";
+const AUTH_SESSION_KEY = "naapAuthSession";
+
+function readJsonStorage(key, fallback) {
+    try {
+        return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+    } catch (_error) {
+        return fallback;
+    }
+}
+
 function buildCurrentStudentProfile() {
     const fallbackProfile = {
         fullName: "Juan Dela Cruz",
@@ -295,14 +306,33 @@ function buildCurrentStudentProfile() {
         section: "3A"
     };
 
-    let storedProfile = {};
-    try {
-        storedProfile = JSON.parse(localStorage.getItem("naapStudentProfile") || "{}");
-    } catch (error) {
-        storedProfile = {};
+    const storedProfile = readJsonStorage("naapStudentProfile", {});
+    const authSession = readJsonStorage(AUTH_SESSION_KEY, {});
+    const authDb = readJsonStorage(AUTH_DB_KEY, {});
+
+    let authBackedProfile = {};
+    if (authSession && authSession.user_id && Array.isArray(authDb.users)) {
+        const authUser = authDb.users.find(user => Number(user.user_id) === Number(authSession.user_id));
+        const studentProfile = Array.isArray(authDb.student_profiles)
+            ? authDb.student_profiles.find(profile => Number(profile.user_id) === Number(authSession.user_id))
+            : null;
+        const program = studentProfile && Array.isArray(authDb.academic_programs)
+            ? authDb.academic_programs.find(item => Number(item.program_id) === Number(studentProfile.program_id))
+            : null;
+
+        if (authUser) {
+            authBackedProfile = {
+                fullName: `${authUser.first_name || ""} ${authUser.last_name || ""}`.trim(),
+                studentNumber: authUser.student_number || "",
+                email: authUser.email || "",
+                course: program ? program.program_code : "",
+                section: studentProfile ? studentProfile.section || "" : "",
+                organization: authSession.active_org_name || ""
+            };
+        }
     }
 
-    const mergedProfile = { ...fallbackProfile, ...storedProfile };
+    const mergedProfile = { ...fallbackProfile, ...storedProfile, ...authBackedProfile };
     const normalizedCourse = String(mergedProfile.course || "").toUpperCase().trim();
     const mappedOrg = courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
 
@@ -321,6 +351,34 @@ function parseOrgList(orgText) {
 }
 
 const currentStudentProfile = buildCurrentStudentProfile();
+const activeStudentOrg = normalizeOrgName(currentStudentProfile.associatedOrg);
+
+function studentCanAccessOrg(orgText) {
+    const orgs = parseOrgList(orgText);
+    if (!orgs.length) return true;
+    return orgs.some(org =>
+        org === activeStudentOrg ||
+        org === "ALL" ||
+        org === "GENERAL" ||
+        org === "COMBINED"
+    );
+}
+
+function getStudentScopedExtendedEvents() {
+    return extendedEvents.filter(event => studentCanAccessOrg(event.org));
+}
+
+function getStudentScopedAnnouncements() {
+    return announcementsData.filter(item => studentCanAccessOrg(item.org));
+}
+
+function getStudentScopedTransactions() {
+    return transactionsData.filter(item => studentCanAccessOrg(item.org));
+}
+
+function getStudentScopedServices() {
+    return servicesData.filter(service => studentCanAccessOrg(service.org));
+}
 
 function syncStudentIdentity() {
     const userNameEl = document.querySelector(".user-info span");
@@ -804,7 +862,8 @@ function switchOrgTab(tabName, btn) {
         function populateOrgDropdown() {
             const orgSelect = document.getElementById('eventOrgFilter');
             // Get unique organizations from the events list
-            const uniqueOrgs = [...new Set(extendedEvents.map(ev => ev.org))].sort();
+            const scopedEvents = getStudentScopedExtendedEvents();
+            const uniqueOrgs = [...new Set(scopedEvents.map(ev => ev.org))].sort();
 
             uniqueOrgs.forEach(org => {
                 const option = document.createElement('option');
@@ -819,7 +878,7 @@ function switchOrgTab(tabName, btn) {
             const searchTerm = document.getElementById('eventSearch').value.toLowerCase();
 
             // Filter logic
-            const filtered = extendedEvents.filter(ev => {
+            const filtered = getStudentScopedExtendedEvents().filter(ev => {
                 // 1. Keyword Match
                 const matchesSearch = ev.title.toLowerCase().includes(searchTerm) ||
                     ev.org.toLowerCase().includes(searchTerm);
@@ -1166,7 +1225,7 @@ document.addEventListener('click', function (e) {
 
 // Helper to check if extendedEvents match the current calendar day
 function getEventsForDate(year, month, day) {
-    return extendedEvents.filter(event => {
+    return getStudentScopedExtendedEvents().filter(event => {
         // Extended Events Date Format: "Nov. 11-24, 2024" or "Nov. 11, 2024"
         const dateStr = event.date;
 
@@ -1201,7 +1260,7 @@ function getEventsForDate(year, month, day) {
 function renderDashboard() {
     // 1. Render Announcements (Existing Logic)
     const annList = document.getElementById('announcements-list');
-    annList.innerHTML = announcementsData.map(item => `
+    annList.innerHTML = getStudentScopedAnnouncements().map(item => `
         <div class="list-item dashboard-announcement-item">
             <div class="item-icon announcement-icon"><i class="fa-solid fa-bullhorn"></i></div>
             <div class="item-content">
@@ -1216,7 +1275,7 @@ function renderDashboard() {
     const eventContainer = document.getElementById('events-preview-container');
 
     // Filter & Sort
-    const upcomingEvents = extendedEvents
+    const upcomingEvents = getStudentScopedExtendedEvents()
         .filter(ev => {
             const status = getEventStatus(ev.date);
             return status === 'upcoming' || status === 'today';
@@ -1260,7 +1319,7 @@ function renderDashboard() {
 
 function renderProfile() {
     const tableBody = document.getElementById('transaction-table');
-    tableBody.innerHTML = transactionsData.map(t => {
+    tableBody.innerHTML = getStudentScopedTransactions().map(t => {
         let statusClass = t.status === 'Completed' ? 'status-completed' : (t.status === 'Returned' ? 'status-completed' : 'status-pending');
         return `
             <tr>
@@ -1329,6 +1388,7 @@ function toggleThemeMobile() {
 function handleLogout(e) {
     e.preventDefault();
     if (confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem(AUTH_SESSION_KEY);
         window.location.href = '../pages/login.html';
     }
 }
@@ -1360,7 +1420,8 @@ function initDashboardCarousel() {
 
     // 1. Filter events that match "Today" status
     // This uses the same helper logic as the Events Tab -> Today Filter
-    const todayEvents = extendedEvents.filter(ev => getEventStatus(ev.date) === 'today');
+    const scopedEvents = getStudentScopedExtendedEvents();
+    const todayEvents = scopedEvents.filter(ev => getEventStatus(ev.date) === 'today');
 
     let slidesToRender = [];
 
@@ -1372,12 +1433,12 @@ function initDashboardCarousel() {
         }));
     } else {
         // Fallback: If no events today, show the next upcoming event to avoid empty white space
-        const nextEvent = extendedEvents.find(ev => getEventStatus(ev.date) === 'upcoming');
+        const nextEvent = scopedEvents.find(ev => getEventStatus(ev.date) === 'upcoming');
         if (nextEvent) {
             slidesToRender = [{ src: nextEvent.img, title: nextEvent.title }];
         } else {
             // Ultimate fallback if no upcoming events exist
-            slidesToRender = [{ src: extendedEvents[0].img, title: "Event" }];
+            slidesToRender = scopedEvents.length ? [{ src: scopedEvents[0].img, title: "Event" }] : [];
         }
     }
 
@@ -1569,7 +1630,7 @@ function shareEvent(eventTitle) {
 
 function openDetailsModal(eventTitle) {
     // Find event object
-    const eventObj = extendedEvents.find(e => e.title === eventTitle);
+    const eventObj = getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
     if (!eventObj) return;
 
     const modal = document.getElementById('eventDetailsModal');
@@ -1694,7 +1755,7 @@ function renderServices(filter = "") {
     // Iterate through defined categories
     for (const [key, category] of Object.entries(serviceCategories)) {
         // Find matching services in servicesData for this category
-        const matchingServices = servicesData.filter(service =>
+        const matchingServices = getStudentScopedServices().filter(service =>
             category.items.includes(service.name) &&
             (service.name.toLowerCase().includes(filterLower) || service.org.toLowerCase().includes(filterLower))
         );
@@ -1975,7 +2036,7 @@ function openItemSelectModal(parentName) {
 
     children.forEach(childName => {
         // Find full data for the child
-        const childData = servicesData.find(s => s.name === childName);
+        const childData = getStudentScopedServices().find(s => s.name === childName) || servicesData.find(s => s.name === childName);
 
         const card = document.createElement('div');
         card.className = 'item-type-card';
@@ -2066,7 +2127,7 @@ function openServiceModal(serviceName, parentGroup = null) {
     listContainer.innerHTML = '';
 
     // Populate Orgs (Existing Logic)
-    const orgs = serviceOrgMapping[serviceName] || [];
+    const orgs = (serviceOrgMapping[serviceName] || []).filter(orgName => studentCanAccessOrg(orgName));
 
     // Logo Mapping
     const orgLogos = {

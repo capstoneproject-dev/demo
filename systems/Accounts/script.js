@@ -1,11 +1,50 @@
-// Student account management system
+﻿// Student account management system
 let students = [];
 let pendingRequests = [];
 let studentNumbersDatabase = []; // This will store student numbers for validation
 let firebaseService = null;
+const DEV_BYPASS_ACCOUNTS_AUTH = true;
+
+function redirectFromAccounts(path) {
+    if (window.top && window.top !== window) {
+        window.top.location.href = path;
+    } else {
+        window.location.href = path;
+    }
+}
+
+function authorizeIncomingUser() {
+    // Development-only bypass: allow direct Accounts access without login/session.
+    if (DEV_BYPASS_ACCOUNTS_AUTH) return true;
+
+    let session = {};
+    try {
+        session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}');
+    } catch (_error) {
+        session = {};
+    }
+
+    if (!session || !session.user_id) {
+        redirectFromAccounts('../../pages/login.html');
+        return false;
+    }
+    if (session.login_role === 'osa' || session.account_type === 'osa_staff') return true;
+    if (session.login_role === 'org') {
+        redirectFromAccounts('../../pages/officerDashboard.html');
+        return false;
+    }
+    if (session.login_role === 'student' || session.account_type === 'student') {
+        redirectFromAccounts('../../pages/studentDashboard.html');
+        return false;
+    }
+    redirectFromAccounts('../../pages/login.html');
+    return false;
+}
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', async function() {
+    if (!authorizeIncomingUser()) return;
+
     // Initialize Firebase service
     const firebaseReady = await initializeFirebaseService();
     
@@ -999,3 +1038,4 @@ function showToast(title, message, type) {
     
     setTimeout(remove, 3000);
 }
+

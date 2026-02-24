@@ -1,5 +1,6 @@
 // Simple API endpoints for Android app integration
 // This file provides the API structure that your Android app will use
+// All data is stored in browser localStorage
 
 // API Configuration
 const API_BASE_URL = window.location.origin; // Use current domain
@@ -15,6 +16,11 @@ const API_ENDPOINTS = {
 // Account Request API
 class AccountRequestAPI {
     
+    // Get LocalStorage service
+    static getService() {
+        return window.accountsLocalStorageService;
+    }
+    
     // Submit account request from Android app
     static async submitRequest(studentData) {
         try {
@@ -23,19 +29,51 @@ class AccountRequestAPI {
                 throw new Error('Missing required fields');
             }
             
-            // In a real implementation, this would make an HTTP request to your backend
-            // For now, we'll use the local function
-            const result = submitAccountRequest(
-                studentData.studentId,
-                studentData.name,
-                studentData.email,
-                studentData.password
+            const service = this.getService();
+            if (!service) {
+                throw new Error('Storage service not available');
+            }
+            
+            // Check if request already exists
+            const existingRequests = await service.getPendingRequests();
+            const existingRequest = existingRequests.find(
+                req => req.studentId === studentData.studentId && req.status === 'pending'
             );
             
+            if (existingRequest) {
+                return {
+                    success: false,
+                    message: 'Account request already pending'
+                };
+            }
+            
+            // Check if account already exists
+            const existingAccounts = await service.getStudentAccounts();
+            const existingAccount = existingAccounts.find(
+                acc => acc.studentId === studentData.studentId
+            );
+            
+            if (existingAccount) {
+                return {
+                    success: false,
+                    message: 'Student already has an account'
+                };
+            }
+            
+            // Create new request
+            const requestId = await service.addPendingRequest({
+                studentId: studentData.studentId,
+                name: studentData.name,
+                email: studentData.email,
+                password: studentData.password,
+                status: 'pending',
+                requestTime: new Date().toISOString()
+            });
+            
             return {
-                success: result.success,
-                message: result.message,
-                requestId: result.requestId || null
+                success: true,
+                message: 'Account request submitted successfully',
+                requestId: requestId
             };
             
         } catch (error) {
@@ -49,7 +87,12 @@ class AccountRequestAPI {
     // Check account request status
     static async checkStatus(studentId) {
         try {
-            const pendingRequests = JSON.parse(localStorage.getItem('pendingAccountRequests') || '[]');
+            const service = this.getService();
+            if (!service) {
+                throw new Error('Storage service not available');
+            }
+            
+            const pendingRequests = await service.getPendingRequests();
             const request = pendingRequests.find(req => req.studentId === studentId);
             
             if (!request) {
@@ -79,7 +122,12 @@ class AccountRequestAPI {
     // Login with approved account
     static async login(credentials) {
         try {
-            const students = JSON.parse(localStorage.getItem('studentAccounts') || '[]');
+            const service = this.getService();
+            if (!service) {
+                throw new Error('Storage service not available');
+            }
+            
+            const students = await service.getStudentAccounts();
             const student = students.find(s => 
                 s.studentId === credentials.studentId && 
                 s.password === credentials.password
@@ -98,6 +146,19 @@ class AccountRequestAPI {
                 student: {
                     studentId: student.studentId,
                     name: student.studentName,
+                    section: student.section,
+                    email: student.email
+                }
+            };
+            
+        } catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Login failed'
+            };
+        }
+    }
+}
                     section: student.section,
                     email: student.email
                 }
