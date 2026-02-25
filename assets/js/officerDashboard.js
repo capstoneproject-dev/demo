@@ -8,6 +8,22 @@ function readAuthSession() {
     }
 }
 
+/**
+ * Non-blocking PHP session check.
+ * Runs asynchronously after localStorage guard — redirects if server session expired.
+ */
+function validatePhpSession() {
+    fetch('../api/auth/session.php', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.authenticated) {
+                localStorage.removeItem(AUTH_SESSION_KEY);
+                window.location.href = '../pages/login.html';
+            }
+        })
+        .catch(() => { /* silently ignore — XAMPP may be offline during dev */ });
+}
+
 function initOfficerAuthContext() {
     const session = readAuthSession();
     const isOfficerSession = session && session.login_role === 'org' && session.user_id;
@@ -31,6 +47,9 @@ function initOfficerAuthContext() {
     if (profileRole) profileRole.innerText = `${roleLabel} - ${orgLabel}`;
 
     document.title = `${orgLabel} Officer Dashboard`;
+
+    // Validate PHP session in the background (catches server-side expiry)
+    validatePhpSession();
 
     // Seed org-specific data into localStorage so the IGP Rental and QR-Attendance
     // iframes pick up the correct inventory and officer barcodes on first load.
@@ -120,11 +139,12 @@ function getOfficerScopedAnnouncements() {
 }
 
 // --- LOGOUT HANDLER ---
-function handleLogout(e) {
+async function handleLogout(e) {
     e.preventDefault();
     if (confirm('Are you sure you want to logout?')) {
+        try { await fetch('../api/auth/logout.php', { credentials: 'same-origin' }); } catch (_) {}
         localStorage.removeItem(AUTH_SESSION_KEY);
-        window.location.href = '../pages/login.html'; // Updated path per user code
+        window.location.href = '../pages/login.html';
     }
 }
 
