@@ -10,7 +10,9 @@ let studentNumbers = [];
 
 var lastFingerprint = null;  // realtime poll baseline (null = not yet set)
 var pollTimer       = null;
-var POLL_INTERVAL   = 10000; // ms
+var POLL_INTERVAL   = 3000; // ms
+var FORCE_REFRESH_EVERY = 30000; // ms
+var lastFullRefreshAt = 0;
 
 // --- Helpers ---
 function getService() { return window.accountsLocalStorageService; }
@@ -831,19 +833,26 @@ async function pollForChanges() {
                 + '|' + json.officers.lastUpdated + '|' + json.officers.count
                 + '|' + json.requests.lastUpdated + '|' + json.requests.count
                 + '|' + json.studentNumbers.lastUpdated + '|' + json.studentNumbers.count;
+
         if (lastFingerprint === null) {
-            // First check after load or post-mutation reset — set baseline only
             lastFingerprint = key;
+            lastFullRefreshAt = Date.now();
             return;
         }
-        if (key !== lastFingerprint) {
+
+        var now = Date.now();
+        var changed = key !== lastFingerprint;
+        var shouldForceRefresh = (now - lastFullRefreshAt) >= FORCE_REFRESH_EVERY;
+
+        if (changed || shouldForceRefresh) {
             lastFingerprint = key;
             await loadData();
             refreshAll();
-            showToast('Data updated.', 'info');
+            lastFullRefreshAt = now;
+            if (changed) showToast('Data updated.', 'info');
         }
     } catch (_) {
-        // Silent — retry on next interval
+        // Silent - retry on next interval
     }
 }
 
@@ -870,3 +879,4 @@ document.addEventListener('DOMContentLoaded', async function() {
     refreshAll();
     startPolling();
 });
+
