@@ -40,11 +40,13 @@ try {
         jsonError('You already have a pending registration request.', 409);
     }
 
-    // Check if already a registered user
-    $usrStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn LIMIT 1");
-    $usrStmt->execute([':sn' => $studentNumber]);
-    if ($usrStmt->fetch()) {
-        jsonError('An account for that student number already exists.', 409);
+    // Block duplicate student accounts, but allow org_officer requests even if already registered
+    if ($reqRole !== 'org_officer') {
+        $usrStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn LIMIT 1");
+        $usrStmt->execute([':sn' => $studentNumber]);
+        if ($usrStmt->fetch()) {
+            jsonError('An account for that student number already exists. If you are registering as an organization officer, please select the Organization tab.', 409);
+        }
     }
 
     $pwHash = password_hash($password, PASSWORD_BCRYPT);
