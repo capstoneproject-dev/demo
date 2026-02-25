@@ -4,9 +4,9 @@
 -- Date: February 23, 2026
 -- =====================================================
 
-DROP DATABASE IF EXISTS aisers_db;
-CREATE DATABASE aisers_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE aisers_db;
+DROP DATABASE IF EXISTS capstone_db;
+CREATE DATABASE capstone_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE capstone_db;
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 1;
@@ -73,13 +73,22 @@ CREATE TABLE organization_members (
     CONSTRAINT fk_org_members_org_role FOREIGN KEY (org_id, role_id) REFERENCES org_roles(org_id, role_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
-CREATE TABLE academic_programs (
-    program_id INT AUTO_INCREMENT PRIMARY KEY,
-    program_code VARCHAR(30) NOT NULL UNIQUE,
-    institute_name VARCHAR(255) NOT NULL,
+CREATE TABLE institutes (
+    institute_id INT AUTO_INCREMENT PRIMARY KEY,
+    institute_name VARCHAR(255) NOT NULL UNIQUE,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE academic_programs (
+    program_id INT AUTO_INCREMENT PRIMARY KEY,
+    program_code VARCHAR(30) NOT NULL UNIQUE,
+    institute_id INT NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_programs_institute FOREIGN KEY (institute_id) REFERENCES institutes(institute_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 CREATE TABLE student_profiles (
@@ -256,7 +265,7 @@ CREATE TABLE announcements (
 CREATE TABLE attendance_records (
     record_id INT AUTO_INCREMENT PRIMARY KEY,
     event_id INT NOT NULL,
-    org_id INT NOT NULL,
+    -- org_id is derived via JOIN events ON events.event_id = attendance_records.event_id
     user_id INT NULL,                              -- NULL = walk-in / unregistered student
     student_number VARCHAR(20) NULL,               -- barcode value scanned (preserved even for registered users)
     student_name VARCHAR(200) NULL,                -- stored at scan time
@@ -269,7 +278,6 @@ CREATE TABLE attendance_records (
     CONSTRAINT chk_attendance_scan_mode CHECK (scan_mode IN ('barcode', 'manual')),
     CONSTRAINT chk_attendance_timeout CHECK (time_out IS NULL OR time_out >= time_in),
     CONSTRAINT fk_attendance_event FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
-    CONSTRAINT fk_attendance_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE RESTRICT,
     CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -279,15 +287,17 @@ CREATE TABLE document_submissions (
     submitted_by_user_id INT NOT NULL,
     reviewed_by_user_id INT NULL,
     title VARCHAR(255) NOT NULL,
-    document_type VARCHAR(50) NOT NULL,            -- 'Financial Statement', 'Proposal', 'Legal', etc.
+    document_type VARCHAR(50) NOT NULL,
     file_url VARCHAR(500) NULL,
-    recipient VARCHAR(50) NOT NULL DEFAULT 'OSA',  -- 'OSA', 'SSC', etc.
+    recipient VARCHAR(50) NOT NULL DEFAULT 'OSA',
     status VARCHAR(30) NOT NULL DEFAULT 'pending',
     reviewer_notes TEXT NULL,
     submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_doc_type CHECK (document_type IN ('Financial Statement', 'Budget Proposal', 'Activity Proposal', 'Liquidation Report', 'Legal Document', 'Other')),
+    CONSTRAINT chk_doc_recipient CHECK (recipient IN ('OSA', 'SSC')),
     CONSTRAINT chk_doc_status CHECK (status IN ('pending', 'sent_to_osa', 'ssc_approved', 'approved', 'rejected')),
     CONSTRAINT fk_doc_sub_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE RESTRICT,
     CONSTRAINT fk_doc_sub_submitter FOREIGN KEY (submitted_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
@@ -304,7 +314,8 @@ CREATE INDEX idx_org_roles_org ON org_roles(org_id, is_active);
 CREATE INDEX idx_org_roles_name ON org_roles(org_id, role_name);
 CREATE INDEX idx_org_members_org ON organization_members(org_id, role_id, is_active);
 CREATE INDEX idx_org_members_user ON organization_members(user_id, is_active);
-CREATE INDEX idx_programs_code ON academic_programs(program_code, is_active);
+CREATE INDEX idx_programs_code      ON academic_programs(program_code, is_active);
+CREATE INDEX idx_programs_institute ON academic_programs(institute_id);
 CREATE INDEX idx_student_profiles_program ON student_profiles(program_id);
 CREATE INDEX idx_program_org_map_program ON program_org_mappings(program_id, is_active);
 CREATE INDEX idx_inventory_categories_org ON inventory_categories(org_id, is_active);
@@ -320,7 +331,6 @@ CREATE INDEX idx_announcements_org_published ON announcements(org_id, is_publish
 CREATE INDEX idx_attendance_event   ON attendance_records(event_id, time_in);
 CREATE INDEX idx_attendance_student ON attendance_records(student_number);
 CREATE INDEX idx_attendance_user    ON attendance_records(user_id);
-CREATE INDEX idx_attendance_org     ON attendance_records(org_id);
 CREATE INDEX idx_doc_sub_org_status ON document_submissions(org_id, status);
 CREATE INDEX idx_doc_sub_submitter  ON document_submissions(submitted_by_user_id);
 
@@ -353,6 +363,13 @@ END$$
 
 CREATE TRIGGER trg_org_members_updated_at
 BEFORE UPDATE ON organization_members
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_institutes_updated_at
+BEFORE UPDATE ON institutes
 FOR EACH ROW
 BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
@@ -561,18 +578,23 @@ INSERT INTO org_roles (
 (8, 3, 'auditor', 1, 1),
 (9, 3, 'member', 0, 1);
 
-INSERT INTO academic_programs (program_id, program_code, institute_name, is_active) VALUES
-(1,  'BSAIT',   'Institute of Computer Studies', 1),
-(2,  'BSAIS',   'Institute of Computer Studies', 1),
-(3,  'BSAET',   'Institute of Engineering Technology', 1),
-(4,  'BSAT',    'Institute of Engineering Technology', 1),
-(5,  'BSAMT',   'Institute of Engineering Technology', 1),
-(6,  'BSAEE',   'Institute of Engineering Technology', 1),
-(7,  'BAT-AET', 'Institute of Engineering Technology', 1),
-(8,  'AVCOMM',  'Institute of Liberal Arts and Sciences', 1),
-(9,  'AVLOG',   'Institute of Liberal Arts and Sciences', 1),
-(10, 'AVSSM',   'Institute of Liberal Arts and Sciences', 1),
-(11, 'AVTOUR',  'Institute of Liberal Arts and Sciences', 1);
+INSERT INTO institutes (institute_id, institute_name) VALUES
+(1, 'Institute of Computer Studies'),
+(2, 'Institute of Engineering Technology'),
+(3, 'Institute of Liberal Arts and Sciences');
+
+INSERT INTO academic_programs (program_id, program_code, institute_id, is_active) VALUES
+(1,  'BSAIT',   1, 1),  -- ICS
+(2,  'BSAIS',   1, 1),  -- ICS
+(3,  'BSAET',   2, 1),  -- IET
+(4,  'BSAT',    2, 1),  -- IET
+(5,  'BSAMT',   2, 1),  -- IET
+(6,  'BSAEE',   2, 1),  -- IET
+(7,  'BAT-AET', 2, 1),  -- IET
+(8,  'AVCOMM',  3, 1),  -- ILAS
+(9,  'AVLOG',   3, 1),  -- ILAS
+(10, 'AVSSM',   3, 1),  -- ILAS
+(11, 'AVTOUR',  3, 1);  -- ILAS
 
 -- BSAIT(1) → ELITECH(2), BSAIS(2) → AISERS(1)
 -- Other programs (BSAET, BSAT, BSAMT, BSAEE, BAT-AET → AETSO/AERO-ATSO/AMTSO)

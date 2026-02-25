@@ -24,11 +24,12 @@ function findUserByIdentifier(string $identifier): ?array
          FROM   users u
          LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
          LEFT JOIN academic_programs ap ON ap.program_id = sp.program_id
-         WHERE  (u.email = :id OR u.student_number = :id OR u.employee_number = :id)
+         WHERE  (u.email = :id_email OR u.student_number = :id_sn OR u.employee_number = :id_en)
            AND  u.is_active = 1
          LIMIT 1"
     );
-    $stmt->execute([':id' => trim($identifier)]);
+    $id = trim($identifier);
+    $stmt->execute([':id_email' => $id, ':id_sn' => $id, ':id_en' => $id]);
     return $stmt->fetch() ?: null;
 }
 
