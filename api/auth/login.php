@@ -64,6 +64,7 @@ startUserSession($sessionPayload);
 
 // --- Update last_login_at ---
 touchLastLogin((int)$user['user_id']);
+$user = getUserById((int)$user['user_id']) ?: $user;
 
 // --- Build the legacy profile (needed by studentDashboard.js) ---
 $legacyProfile = buildLegacyProfile($user, null); // org resolved client-side
@@ -80,6 +81,7 @@ jsonOk([
         'program_code'    => $user['program_code'],
         'section'         => $user['section'],
         'program_id'      => $user['program_id'] ?? null,
+        'last_login_at'   => $user['last_login_at'] ?? null,
     ],
     'memberships'   => $memberships,
     'legacyProfile' => $legacyProfile,

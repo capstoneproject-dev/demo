@@ -329,10 +329,10 @@ CREATE TABLE pending_registrations (
     student_number VARCHAR(20) NOT NULL,
     student_name VARCHAR(200) NOT NULL,
     email VARCHAR(255) NOT NULL,
+    phone VARCHAR(30) NULL,
     password_hash VARCHAR(255) NOT NULL,
     program_code VARCHAR(30) NOT NULL,
     year_section VARCHAR(50) NULL,
-    phone VARCHAR(30) NULL,
     requested_role VARCHAR(20) NOT NULL DEFAULT 'student',
     requested_org VARCHAR(255) NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -719,8 +719,6 @@ INSERT INTO rental_items (rental_id, item_id, quantity, unit_rate, item_cost, ov
 (2, 3, 2, 12.00, 24.00, 60, 10.00);
 
 -- =====================================================
--- 6) Verification Queries
--- =====================================================
 
 SELECT 'users' AS table_name, COUNT(*) AS record_count FROM users
 UNION ALL SELECT 'organizations',         COUNT(*) FROM organizations
@@ -737,7 +735,8 @@ UNION ALL SELECT 'event_types',           COUNT(*) FROM event_types
 UNION ALL SELECT 'events',                COUNT(*) FROM events
 UNION ALL SELECT 'announcements',         COUNT(*) FROM announcements
 UNION ALL SELECT 'attendance_records',    COUNT(*) FROM attendance_records
-UNION ALL SELECT 'document_submissions',  COUNT(*) FROM document_submissions;
+UNION ALL SELECT 'document_submissions',  COUNT(*) FROM document_submissions
+UNION ALL SELECT 'pending_registrations', COUNT(*) FROM pending_registrations;
 
 -- Officer dashboard lookup example (student can also be an officer):
 -- SELECT o.org_id, o.org_name, o.org_code, r.role_name
