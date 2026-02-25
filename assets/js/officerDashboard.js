@@ -35,6 +35,9 @@ function initOfficerAuthContext() {
     const fullName = session.display_name || 'Organization Officer';
     const roleLabel = session.active_role_name || 'officer';
     const orgLabel = session.active_org_name || 'Organization';
+    const studentNumber = session.student_number || session.employee_number || 'N/A';
+    const email = session.email || '';
+    const courseYear = [session.program_code, session.section].filter(Boolean).join(' - ') || 'N/A';
 
     const headerName = document.querySelector('.user-info span');
     const headerRole = document.querySelector('.user-info small');
@@ -45,6 +48,21 @@ function initOfficerAuthContext() {
     const profileRole = document.querySelector('.profile-role');
     if (profileName) profileName.innerText = fullName;
     if (profileRole) profileRole.innerText = `${roleLabel} - ${orgLabel}`;
+
+    const profileNameInput = document.getElementById('officerProfileFullNameInput');
+    const profileStudentNumberInput = document.getElementById('officerProfileStudentNumberInput');
+    const profileEmailInput = document.getElementById('officerProfileEmailInput');
+    const profileOrganizationInput = document.getElementById('officerProfileOrganizationInput');
+    const profilePhoneInput = document.getElementById('officerProfilePhoneInput');
+    const profileCourseYearInput = document.getElementById('officerProfileCourseYearInput');
+    if (profileNameInput) profileNameInput.value = fullName;
+    if (profileStudentNumberInput) profileStudentNumberInput.value = studentNumber;
+    if (profileEmailInput) profileEmailInput.value = email;
+    if (profileOrganizationInput) profileOrganizationInput.value = orgLabel;
+    if (profilePhoneInput) profilePhoneInput.value = profilePhoneInput.value && profilePhoneInput.value !== '+63 912 345 6789'
+        ? profilePhoneInput.value
+        : 'N/A';
+    if (profileCourseYearInput) profileCourseYearInput.value = courseYear;
 
     document.title = `${orgLabel} Officer Dashboard`;
 

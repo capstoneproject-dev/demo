@@ -229,12 +229,21 @@ function buildCurrentStudentProfile() {
         fullName: "Juan Dela Cruz",
         studentNumber: "2021-12345",
         course: "BSAIS",
-        section: "3A"
+        section: "3A",
+        email: ""
     };
 
     const storedProfile = readJsonStorage("naapStudentProfile", {});
     const authSession = readJsonStorage(AUTH_SESSION_KEY, {});
     const authDb = readJsonStorage(AUTH_DB_KEY, {});
+    const sessionBackedProfile = {
+        fullName: authSession.display_name || "",
+        studentNumber: authSession.student_number || "",
+        email: authSession.email || "",
+        course: authSession.program_code || "",
+        section: authSession.section || "",
+        organization: authSession.active_org_name || ""
+    };
 
     let authBackedProfile = {};
     if (authSession && authSession.user_id && Array.isArray(authDb.users)) {
@@ -258,7 +267,12 @@ function buildCurrentStudentProfile() {
         }
     }
 
-    const mergedProfile = { ...fallbackProfile, ...storedProfile, ...authBackedProfile };
+    const mergedProfile = {
+        ...fallbackProfile,
+        ...storedProfile,
+        ...sessionBackedProfile,
+        ...authBackedProfile
+    };
     const normalizedCourse = String(mergedProfile.course || "").toUpperCase().trim();
     const mappedOrg = courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
 
@@ -314,18 +328,24 @@ function getStudentScopedServices() {
 }
 
 function syncStudentIdentity() {
-    const userNameEl = document.querySelector(".user-info span");
-    const userCourseEl = document.querySelector(".user-info small");
-    if (userNameEl) userNameEl.innerText = currentStudentProfile.fullName;
-    if (userCourseEl) userCourseEl.innerText = `${currentStudentProfile.course} - ${currentStudentProfile.section}`;
+    const userNameEl = document.getElementById("studentHeaderName") || document.querySelector(".user-info span");
+    const userCourseEl = document.getElementById("studentHeaderCourse") || document.querySelector(".user-info small");
+    const courseLine = currentStudentProfile.section
+        ? `${currentStudentProfile.course} - ${currentStudentProfile.section}`
+        : currentStudentProfile.course;
 
-    const profileHeaderName = document.querySelector("#profile h2");
-    const profileDetailRows = document.querySelectorAll("#profile p");
+    if (userNameEl) userNameEl.innerText = currentStudentProfile.fullName;
+    if (userCourseEl) userCourseEl.innerText = courseLine;
+
+    const profileHeaderName = document.getElementById("studentProfileName") || document.querySelector("#profile h2");
+    const profileStudentId = document.getElementById("studentProfileStudentId");
+    const profileCourse = document.getElementById("studentProfileCourse");
+    const profileEmail = document.getElementById("studentProfileEmail");
+
     if (profileHeaderName) profileHeaderName.innerText = currentStudentProfile.fullName;
-    if (profileDetailRows.length > 1) {
-        profileDetailRows[0].innerText = `Student ID: ${currentStudentProfile.studentNumber}`;
-        profileDetailRows[1].innerText = `Course: ${currentStudentProfile.course}`;
-    }
+    if (profileStudentId) profileStudentId.innerText = `Student ID: ${currentStudentProfile.studentNumber || "-"}`;
+    if (profileCourse) profileCourse.innerText = `Course: ${courseLine || "-"}`;
+    if (profileEmail) profileEmail.innerText = `Email: ${currentStudentProfile.email || "-"}`;
 }
 
 function renderMyOrganizationTab(contentDiv) {
