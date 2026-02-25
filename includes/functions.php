@@ -179,9 +179,9 @@ function createOsaUser(array $data): int
 {
     $stmt = getPdo()->prepare(
         "INSERT INTO users
-            (employee_number, email, password_hash, first_name, last_name, account_type)
+            (employee_number, email, password_hash, first_name, last_name, phone, account_type)
          VALUES
-            (:en, :email, :hash, :fn, :ln, 'osa_staff')"
+            (:en, :email, :hash, :fn, :ln, :phone, 'osa_staff')"
     );
     $stmt->execute([
         ':en'    => $data['employee_number'],
@@ -189,6 +189,7 @@ function createOsaUser(array $data): int
         ':hash'  => password_hash($data['password'], PASSWORD_BCRYPT),
         ':fn'    => $data['first_name'],
         ':ln'    => $data['last_name'],
+        ':phone' => $data['phone'] ?? null,
     ]);
     return (int)getPdo()->lastInsertId();
 }

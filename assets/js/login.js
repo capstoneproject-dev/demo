@@ -774,6 +774,7 @@ async function registerStudent() {
   const course = (document.getElementById('student-course-input') || {}).value?.trim() || '';
   const section = (document.getElementById('student-section-input') || {}).value?.trim() || '';
   const email = (document.getElementById('student-email-input') || {}).value?.trim() || '';
+  const phone = (document.getElementById('student-phone-input') || {}).value?.trim() || '';
   const password = (document.getElementById('student-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('student-confirm-password-input') || {}).value || '';
 
@@ -814,6 +815,7 @@ async function registerOrgOfficer() {
   const section = (document.getElementById('org-section-input') || {}).value?.trim() || '';
   const orgName = normalizeOrgName((document.getElementById('org-input') || {}).value?.trim() || '');
   const email = (document.getElementById('org-email-input') || {}).value?.trim() || '';
+  const phone = (document.getElementById('org-phone-input') || {}).value?.trim() || '';
   const password = (document.getElementById('org-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('org-confirm-password-input') || {}).value || '';
 
@@ -830,6 +832,7 @@ async function registerOrgOfficer() {
     studentId: studentNumber,
     name: fullName,
     email,
+    phone,
     password,
     course: normalizeCourse(course),
     yearSection: section,
@@ -851,6 +854,7 @@ async function registerOsa() {
   const employeeNumber = (document.getElementById('osa-employee-number-input') || {}).value?.trim() || '';
   const fullName = (document.getElementById('osa-name-input') || {}).value?.trim() || '';
   const email = (document.getElementById('osa-email-input') || {}).value?.trim() || '';
+  const phone = (document.getElementById('osa-phone-input') || {}).value?.trim() || '';
   const password = (document.getElementById('osa-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('osa-confirm-password-input') || {}).value || '';
 
@@ -876,6 +880,7 @@ async function registerOsa() {
         first_name: parsedName.first_name,
         last_name: parsedName.last_name,
         email,
+        phone,
         password,
         confirm_password: confirmPassword
       })

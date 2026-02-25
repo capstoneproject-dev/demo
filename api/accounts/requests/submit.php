@@ -10,6 +10,7 @@ $body          = getRequestBody();
 $studentNumber = trim($body['studentId'] ?? '');
 $studentName   = trim($body['name']      ?? '');
 $email         = trim($body['email']     ?? '');
+$phone         = trim($body['phone']     ?? '');
 $password      = trim($body['password']  ?? '');
 $programCode   = trim($body['course']    ?? $body['programCode'] ?? '');
 $yearSection   = trim($body['yearSection'] ?? $body['section'] ?? '');
@@ -33,7 +34,7 @@ try {
         jsonError('Your student number is not in the database. Please contact the OSA.', 403);
     }
 
-    // Backfill student_numbers.email from registration input when currently blank.
+    // Backfill student_numbers email and phone from registration input when currently blank.
     $pdo->prepare("
         UPDATE student_numbers
         SET email = :email
@@ -43,6 +44,17 @@ try {
         ':email' => $email,
         ':sn'    => $studentNumber,
     ]);
+    if ($phone) {
+        $pdo->prepare("
+            UPDATE student_numbers
+            SET phone = :phone
+            WHERE student_number = :sn
+              AND (phone IS NULL OR TRIM(phone) = '')
+        ")->execute([
+            ':phone' => $phone,
+            ':sn'    => $studentNumber,
+        ]);
+    }
 
     // Check for duplicate pending request
     $dupStmt = $pdo->prepare("SELECT reg_id FROM pending_registrations WHERE student_number = :sn AND status = 'pending' LIMIT 1");
@@ -65,8 +77,8 @@ try {
     $ins = $pdo->prepare("
         INSERT INTO pending_registrations
             (student_number, student_name, email, password_hash,
-             program_code, year_section, requested_role, requested_org, status)
-        VALUES (:sn, :name, :email, :pw, :prog, :ys, :role, :org, 'pending')
+             program_code, year_section, phone, requested_role, requested_org, status)
+        VALUES (:sn, :name, :email, :pw, :prog, :ys, :phone, :role, :org, 'pending')
     ");
     $ins->execute([
         ':sn'   => $studentNumber,
@@ -75,6 +87,7 @@ try {
         ':pw'   => $pwHash,
         ':prog' => $programCode ?: '',
         ':ys'   => $yearSection ?: null,
+        ':phone'=> $phone ?: null,
         ':role' => in_array($reqRole, ['student', 'org_officer']) ? $reqRole : 'student',
         ':org'  => $reqOrg ?: null,
     ]);
