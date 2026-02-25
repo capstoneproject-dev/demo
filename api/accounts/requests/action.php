@@ -113,10 +113,14 @@ try {
                     $roleId = (int)$role['role_id'];
                 }
 
-                // Upsert organization_members (ignore if already a member)
+                // Upsert organization_members.
+                // If a student already has a member row for this org, upgrade it to officer.
                 $pdo->prepare("
-                    INSERT IGNORE INTO organization_members (user_id, org_id, role_id, joined_at, is_active)
+                    INSERT INTO organization_members (user_id, org_id, role_id, joined_at, is_active)
                     VALUES (:uid, :oid, :rid, CURDATE(), 1)
+                    ON DUPLICATE KEY UPDATE
+                        role_id = VALUES(role_id),
+                        is_active = VALUES(is_active)
                 ")->execute([':uid' => $userId, ':oid' => $orgId, ':rid' => $roleId]);
             }
         }
