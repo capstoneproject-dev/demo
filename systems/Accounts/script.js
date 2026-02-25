@@ -531,7 +531,8 @@ async function deleteOfficerRecord(officerId) {
 
 // --- Account Request actions ---
 async function approveRequest(requestId) {
-    var request = pendingRequests.find(function(r) { return r.id === requestId; });
+    requestId = String(requestId);
+    var request = pendingRequests.find(function(r) { return String(r.id) === requestId; });
     if (!request) return;
     try {
         await getService().updatePendingRequest(requestId, { status: 'approved' });
@@ -546,7 +547,8 @@ async function approveRequest(requestId) {
 }
 
 async function rejectRequest(requestId) {
-    var request = pendingRequests.find(function(r) { return r.id === requestId; });
+    requestId = String(requestId);
+    var request = pendingRequests.find(function(r) { return String(r.id) === requestId; });
     if (!request) return;
     try {
         await getService().updatePendingRequest(requestId, { status: 'rejected' });
@@ -560,7 +562,8 @@ async function rejectRequest(requestId) {
 }
 
 async function reopenRequest(requestId) {
-    var request = pendingRequests.find(function(r) { return r.id === requestId; });
+    requestId = String(requestId);
+    var request = pendingRequests.find(function(r) { return String(r.id) === requestId; });
     if (!request) return;
     try {
         await getService().updatePendingRequest(requestId, { status: 'pending' });
