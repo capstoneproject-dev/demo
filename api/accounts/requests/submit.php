@@ -33,6 +33,17 @@ try {
         jsonError('Your student number is not in the database. Please contact the OSA.', 403);
     }
 
+    // Backfill student_numbers.email from registration input when currently blank.
+    $pdo->prepare("
+        UPDATE student_numbers
+        SET email = :email
+        WHERE student_number = :sn
+          AND (email IS NULL OR TRIM(email) = '')
+    ")->execute([
+        ':email' => $email,
+        ':sn'    => $studentNumber,
+    ]);
+
     // Check for duplicate pending request
     $dupStmt = $pdo->prepare("SELECT reg_id FROM pending_registrations WHERE student_number = :sn AND status = 'pending' LIMIT 1");
     $dupStmt->execute([':sn' => $studentNumber]);
