@@ -304,6 +304,44 @@ CREATE TABLE document_submissions (
     CONSTRAINT fk_doc_sub_reviewer FOREIGN KEY (reviewed_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Student number whitelist – admins populate this; students verify against it to register
+CREATE TABLE student_numbers (
+    sn_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_number VARCHAR(20) NOT NULL UNIQUE,
+    student_name VARCHAR(200) NOT NULL,
+    program_code VARCHAR(30) NOT NULL,
+    institute VARCHAR(255) NOT NULL,
+    year_section VARCHAR(50) NULL,
+    email VARCHAR(255) NULL,
+    phone VARCHAR(30) NULL,
+    has_unpaid_debt TINYINT(1) NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    added_by_user_id INT NULL,
+    added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_sn_added_by FOREIGN KEY (added_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Student account registration requests submitted by students (or Android app)
+CREATE TABLE pending_registrations (
+    reg_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_number VARCHAR(20) NOT NULL,
+    student_name VARCHAR(200) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    program_code VARCHAR(30) NOT NULL,
+    year_section VARCHAR(50) NULL,
+    requested_role VARCHAR(20) NOT NULL DEFAULT 'student',
+    requested_org VARCHAR(255) NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    reviewed_by_user_id INT NULL,
+    reviewer_notes TEXT NULL,
+    requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_reg_reviewer FOREIGN KEY (reviewed_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 -- =====================================================
 -- 3) Indexes
 -- =====================================================
@@ -333,6 +371,10 @@ CREATE INDEX idx_attendance_student ON attendance_records(student_number);
 CREATE INDEX idx_attendance_user    ON attendance_records(user_id);
 CREATE INDEX idx_doc_sub_org_status ON document_submissions(org_id, status);
 CREATE INDEX idx_doc_sub_submitter  ON document_submissions(submitted_by_user_id);
+CREATE INDEX idx_student_numbers_sn      ON student_numbers(student_number, is_active);
+CREATE INDEX idx_student_numbers_prog    ON student_numbers(program_code);
+CREATE INDEX idx_pending_reg_status      ON pending_registrations(status, requested_at);
+CREATE INDEX idx_pending_reg_student_num ON pending_registrations(student_number);
 
 -- =====================================================
 -- 4) Triggers
@@ -540,6 +582,20 @@ BEGIN
             VALUES (NEW.user_id, v_org_id, v_role_id, CURDATE(), 1);
         END IF;
     END IF;
+END$$
+
+CREATE TRIGGER trg_student_numbers_updated_at
+BEFORE UPDATE ON student_numbers
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_pending_registrations_updated_at
+BEFORE UPDATE ON pending_registrations
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
 END$$
 
 DELIMITER ;

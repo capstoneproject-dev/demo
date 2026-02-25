@@ -159,19 +159,6 @@ class AccountRequestAPI {
         }
     }
 }
-                    section: student.section,
-                    email: student.email
-                }
-            };
-            
-        } catch (error) {
-            return {
-                success: false,
-                message: error.message || 'Login failed'
-            };
-        }
-    }
-}
 
 // Export for use in other files
 window.AccountRequestAPI = AccountRequestAPI;
