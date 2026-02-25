@@ -19,6 +19,8 @@
             <div class="d-flex flex-wrap gap-2">
                 <a href="student-numbers.html" class="btn btn-outline-secondary btn-sm">Student Database</a>
                 <button id="refreshData"  class="btn btn-success btn-sm">Refresh</button>
+                <button id="importData"   class="btn btn-outline-warning btn-sm"
+                    data-bs-toggle="modal" data-bs-target="#importStudentsModal">Import XLSX</button>
                 <button id="exportData"   class="btn btn-outline-primary btn-sm">Export</button>
                 <button id="addStudentBtn" class="btn btn-primary btn-sm"
                     data-bs-toggle="modal" data-bs-target="#addStudentModal">+ Add Student</button>
@@ -432,7 +434,35 @@
 <!-- Toast container -->
 <div id="toastContainer" style="position:fixed;bottom:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;"></div>
 
+<!-- ════════ IMPORT STUDENTS MODAL ════════ -->
+<div class="modal fade" id="importStudentsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Student Accounts from XLSX</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select XLSX File</label>
+                    <input type="file" class="form-control" id="importStudentsFile" accept=".xlsx,.xls">
+                </div>
+                <div class="alert alert-info mb-0">
+                    <strong>Expected columns (first row = headers):</strong><br>
+                    <code>studentId &nbsp;|&nbsp; studentName &nbsp;|&nbsp; institute &nbsp;|&nbsp; programCode &nbsp;|&nbsp; yearSection &nbsp;|&nbsp; email &nbsp;|&nbsp; phone</code><br>
+                    <small class="text-muted">institute and programCode are optional. Duplicate studentIds are skipped.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="processStudentsXLSXImport()">Import</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Scripts -->
+<script src="lib/xlsx.full.min.js"></script>
 <script src="lib/bootstrap.bundle.min.js"></script>
 <script src="local-storage-service.js"></script>
 <script src="api.js"></script>

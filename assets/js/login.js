@@ -104,7 +104,7 @@ function seedAuthDb() {
   const orgByCode = Object.fromEntries(organizations.map((org) => [org.org_code.toUpperCase(), org.org_id]));
 
   const programOrgMappings = [
-    ['BSAIT', 'AISERS'],
+    ['BSAIT', 'ELITECH'],
     ['BSAIS', 'AISERS'],
     ['BSAET', 'AETSO'],
     ['BSAT', 'AERO-ATSO'],
@@ -579,7 +579,8 @@ function trySyncAuthorizedStudentFromAccounts(db, identifier, password) {
     user.updated_at = nowIso();
   }
 
-  const parsedSection = parseCourseSection(approved.section || `${approved.course || ''} ${approved.yearSection || ''}`.trim());
+  const courseCode = approved.programCode || approved.course || '';
+  const parsedSection = parseCourseSection(approved.section || `${courseCode} ${approved.yearSection || ''}`.trim());
   if (parsedSection.course) {
     const program = findOrCreateProgram(db, parsedSection.course);
     upsertStudentProfile(db, user.user_id, program.program_id, parsedSection.section || '');
