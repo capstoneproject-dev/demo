@@ -47,6 +47,34 @@ const ORG_DATA = {
         ],
         announcements: [
             { title: "Job Fair", date: "2 days ago", content: "Prepare your resumes for the upcoming fair." }
+        ],
+
+        // Officer Dashboard — document submissions to OSA
+        documents: [
+            { title: "September Financial Statement", type: "Financial Statement", date: "Oct 05", status: "Approved" },
+            { title: "Team Building Proposal",        type: "Proposal",           date: "Oct 18", status: "Sent to OSA" }
+        ],
+
+        // Officer Dashboard — active rentals summary widget
+        rentals: [
+            { item: "Scientific Calculator", renter: "Juan Dela Cruz (2021-12345)", due: "Oct 25, 2023", status: "Borrowed" },
+            { item: "Business Calculator",   renter: "Maria Santos (2020-54321)",  due: "Oct 30, 2023", status: "Borrowed" }
+        ],
+
+        // IGP Rental System — inventory items (seeds localStorage 'inventoryItems' on first load)
+        inventory: [
+            { id: "AISERS-SH001",   name: "Shoe Covers",         barcode: "AISERS-SH001",   status: "available", pricePerHour: 10 },
+            { id: "AISERS-SH002",   name: "Shoe Covers",         barcode: "AISERS-SH002",   status: "available", pricePerHour: 10 },
+            { id: "AISERS-AR001",   name: "Arnis",               barcode: "AISERS-AR001",   status: "available", pricePerHour: 10 },
+            { id: "AISERS-AR002",   name: "Arnis",               barcode: "AISERS-AR002",   status: "available", pricePerHour: 10 },
+            { id: "AISERS-CALC001", name: "Business Calculator", barcode: "AISERS-CALC001", status: "available", pricePerHour: 10 },
+            { id: "AISERS-CALC002", name: "Business Calculator", barcode: "AISERS-CALC002", status: "available", pricePerHour: 10 }
+        ],
+
+        // IGP Rental System — officer barcodes (seeds localStorage 'barcodeOfficers' on first load)
+        officerBarcodes: [
+            { officerId: "AISERS-OFF001", officerName: "AISERS President",  position: "President" },
+            { officerId: "AISERS-OFF002", officerName: "AISERS Librarian",  position: "Librarian" }
         ]
     },
 
@@ -71,7 +99,28 @@ const ORG_DATA = {
             { name: "Mini Fan",              icon: "fa-fan",    color: "#6366f1", backgroundImage: "../assets/photos/studentDashboard/Services/minifan.png" },
             { name: "Network Cable Tester",  icon: "fa-bolt",   color: "#6366f1", backgroundImage: "../assets/photos/studentDashboard/Services/tester.png" }
         ],
-        announcements: []
+        announcements: [],
+
+        documents: [
+            { title: "Constitution Amendment", type: "Legal",   date: "Oct 24", status: "SSC Approved" },
+            { title: "Office Closure Notice",  type: "Memo",   date: "Oct 26", status: "Pending" }
+        ],
+        rentals: [
+            { item: "Network Crimping Tool", renter: "Anna Lee (2021-11111)",    due: "Oct 26, 2023", status: "Borrowed" },
+            { item: "Mini Fan",              renter: "Carlos Tan (2022-22222)",  due: "Oct 27, 2023", status: "Borrowed" }
+        ],
+        inventory: [
+            { id: "ELITECH-CT001", name: "Network Crimping Tool",  barcode: "ELITECH-CT001", status: "available", pricePerHour: 10 },
+            { id: "ELITECH-CT002", name: "Network Crimping Tool",  barcode: "ELITECH-CT002", status: "available", pricePerHour: 10 },
+            { id: "ELITECH-FN001", name: "Mini Fan",               barcode: "ELITECH-FN001", status: "available", pricePerHour: 10 },
+            { id: "ELITECH-FN002", name: "Mini Fan",               barcode: "ELITECH-FN002", status: "available", pricePerHour: 10 },
+            { id: "ELITECH-NT001", name: "Network Cable Tester",   barcode: "ELITECH-NT001", status: "available", pricePerHour: 10 },
+            { id: "ELITECH-NT002", name: "Network Cable Tester",   barcode: "ELITECH-NT002", status: "available", pricePerHour: 10 }
+        ],
+        officerBarcodes: [
+            { officerId: "ELITECH-OFF001", officerName: "ELITECH President", position: "President" },
+            { officerId: "ELITECH-OFF002", officerName: "ELITECH Librarian", position: "Librarian" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -91,7 +140,13 @@ const ORG_DATA = {
             }
         ],
         services: [],
-        announcements: []
+        announcements: [],
+        documents: [],
+        rentals:   [],
+        inventory: [],
+        officerBarcodes: [
+            { officerId: "ILASSO-OFF001", officerName: "ILASSO President", position: "President" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -113,7 +168,20 @@ const ORG_DATA = {
         services: [
             { name: "Scientific Calculator", icon: "fa-square-root-variable", color: "#ef4444", backgroundImage: "../assets/photos/studentDashboard/Services/scical.png" }
         ],
-        announcements: []
+        announcements: [],
+        documents: [
+            { title: "Flight Ops Safety Report", type: "Safety Report", date: "Oct 10", status: "Approved" }
+        ],
+        rentals: [
+            { item: "Scientific Calculator", renter: "Pedro Reyes (2022-99999)", due: "Oct 20, 2023", status: "Overdue" }
+        ],
+        inventory: [
+            { id: "AERO-SC001", name: "Scientific Calculator", barcode: "AERO-SC001", status: "available", pricePerHour: 10 },
+            { id: "AERO-SC002", name: "Scientific Calculator", barcode: "AERO-SC002", status: "available", pricePerHour: 10 }
+        ],
+        officerBarcodes: [
+            { officerId: "AERO-OFF001", officerName: "AERO-ATSO President", position: "President" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -124,7 +192,15 @@ const ORG_DATA = {
         services: [
             { name: "Printing", icon: "fa-print", color: "#ef4444" }
         ],
-        announcements: []
+        announcements: [],
+        documents: [],
+        rentals:   [],
+        inventory: [
+            { id: "AETSO-PR001", name: "Printer (per page)", barcode: "AETSO-PR001", status: "available", pricePerHour: 5 }
+        ],
+        officerBarcodes: [
+            { officerId: "AETSO-OFF001", officerName: "AETSO President", position: "President" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -146,7 +222,21 @@ const ORG_DATA = {
         services: [
             { name: "Printing", icon: "fa-print", color: "#ef4444" }
         ],
-        announcements: []
+        announcements: [],
+        documents: [
+            { title: "Engine Maintenance Log", type: "Technical Report", date: "Oct 12", status: "Approved" }
+        ],
+        rentals: [
+            { item: "T-Square", renter: "Pedro Reyes (2022-99999)", due: "Oct 20, 2023", status: "Overdue" }
+        ],
+        inventory: [
+            { id: "AMTSO-TS001", name: "T-Square",    barcode: "AMTSO-TS001", status: "available", pricePerHour: 10 },
+            { id: "AMTSO-TS002", name: "T-Square",    barcode: "AMTSO-TS002", status: "available", pricePerHour: 10 },
+            { id: "AMTSO-PR001", name: "Printing",    barcode: "AMTSO-PR001", status: "available", pricePerHour:  5 }
+        ],
+        officerBarcodes: [
+            { officerId: "AMTSO-OFF001", officerName: "AMTSO President", position: "President" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -171,7 +261,27 @@ const ORG_DATA = {
             { name: "1x1 Photo Processing",   icon: "fa-camera",               color: "#ef4444" },
             { name: "Lockers",                icon: "fa-box-archive",          color: "#ef4444", backgroundImage: "../assets/photos/studentDashboard/Services/locker.png" }
         ],
-        announcements: []
+        announcements: [],
+        documents: [
+            { title: "Election Guidelines", type: "Document",            date: "Oct 20", status: "Pending" },
+            { title: "Annual Report 2025",  type: "Financial Statement", date: "Oct 01", status: "Approved" }
+        ],
+        rentals: [
+            { item: "Locker Unit 04",      renter: "Maria Santos (2020-54321)", due: "Nov 30, 2023", status: "Rented" },
+            { item: "Scientific Calculator", renter: "Bob Cruz (2023-33333)",  due: "Oct 25, 2023", status: "Borrowed" }
+        ],
+        inventory: [
+            { id: "SSC-LK001", name: "Locker Unit 01",        barcode: "SSC-LK001", status: "available", pricePerHour: 0 },
+            { id: "SSC-LK002", name: "Locker Unit 02",        barcode: "SSC-LK002", status: "available", pricePerHour: 0 },
+            { id: "SSC-LK003", name: "Locker Unit 03",        barcode: "SSC-LK003", status: "available", pricePerHour: 0 },
+            { id: "SSC-LK004", name: "Locker Unit 04",        barcode: "SSC-LK004", status: "available", pricePerHour: 0 },
+            { id: "SSC-PR001", name: "Printing (per page)",   barcode: "SSC-PR001", status: "available", pricePerHour:  5 },
+            { id: "SSC-SC001", name: "Scientific Calculator", barcode: "SSC-SC001", status: "available", pricePerHour: 10 }
+        ],
+        officerBarcodes: [
+            { officerId: "SSC-OFF001", officerName: "SSC President",  position: "President" },
+            { officerId: "SSC-OFF002", officerName: "SSC Librarian",  position: "Librarian" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -191,7 +301,13 @@ const ORG_DATA = {
             }
         ],
         services: [],
-        announcements: []
+        announcements: [],
+        documents: [],
+        rentals:   [],
+        inventory: [],
+        officerBarcodes: [
+            { officerId: "RCYC-OFF001", officerName: "RCYC President", position: "President" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -213,7 +329,15 @@ const ORG_DATA = {
         services: [
             { name: "Printing", icon: "fa-print", color: "#ef4444" }
         ],
-        announcements: []
+        announcements: [],
+        documents: [],
+        rentals:   [],
+        inventory: [
+            { id: "CYC-PR001", name: "Printing (per page)", barcode: "CYC-PR001", status: "available", pricePerHour: 5 }
+        ],
+        officerBarcodes: [
+            { officerId: "CYC-OFF001", officerName: "CYC President", position: "President" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -222,7 +346,13 @@ const ORG_DATA = {
         motto: "Academic Excellence for All",
         events: [],
         services: [],
-        announcements: []
+        announcements: [],
+        documents: [],
+        rentals:   [],
+        inventory: [],
+        officerBarcodes: [
+            { officerId: "PSG-OFF001", officerName: "PSG President", position: "President" }
+        ]
     },
 
     // -------------------------------------------------------------------------
@@ -231,7 +361,13 @@ const ORG_DATA = {
         motto: "Reach for the Sky",
         events: [],
         services: [],
-        announcements: []
+        announcements: [],
+        documents: [],
+        rentals:   [],
+        inventory: [],
+        officerBarcodes: [
+            { officerId: "AERO-ORG-OFF001", officerName: "Aeronautica President", position: "President" }
+        ]
     }
 };
 
@@ -259,6 +395,29 @@ const SHARED_SERVICES = [
  * System-wide announcements shown to all students.
  * `org: "ALL"` means every student sees this regardless of their organization.
  */
+// =============================================================================
+// LOOKUP HELPER
+// =============================================================================
+
+/**
+ * Case-insensitive org data lookup.
+ * Use this in dashboard scripts instead of ORG_DATA[key] directly,
+ * because the officer auth session normalises org names to UPPERCASE.
+ *
+ * @param {string} orgKeyRaw  — org name from session (e.g. "AISERS", "SUPREME STUDENT COUNCIL")
+ * @returns {object|null}     — the org entry from ORG_DATA, or null if not found
+ */
+function getOrgData(orgKeyRaw) {
+    if (!orgKeyRaw) return null;
+    // Direct match first (handles exact keys like "AISERS", "Scholar's Guild")
+    if (ORG_DATA[orgKeyRaw]) return ORG_DATA[orgKeyRaw];
+    // Case-insensitive fallback (handles uppercase from officer session)
+    const upper = String(orgKeyRaw).toUpperCase().trim();
+    const found = Object.keys(ORG_DATA).find(k => k.toUpperCase().trim() === upper);
+    return found ? ORG_DATA[found] : null;
+}
+
+
 const SHARED_ANNOUNCEMENTS = [
     { title: "Enrollment for 2nd Sem", date: "Today",     content: "Please settle your balance before the 25th.", org: "ALL" },
     { title: "Office Hours",           date: "Yesterday", content: "Org offices will be closed on holidays.",     org: "ALL" }

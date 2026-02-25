@@ -31,6 +31,14 @@ function initOfficerAuthContext() {
     if (profileRole) profileRole.innerText = `${roleLabel} - ${orgLabel}`;
 
     document.title = `${orgLabel} Officer Dashboard`;
+
+    // Seed org-specific data into localStorage so the IGP Rental and QR-Attendance
+    // iframes pick up the correct inventory and officer barcodes on first load.
+    seedOrgSubsystemData();
+
+    // Pre-populate the runtime data arrays (rentals, docs, announcements) from orgData.js.
+    // Officers can then add/remove entries at runtime and those changes stay in memory.
+    initOrgDataFromOrgData();
 }
 
 function normalizeOfficerOrgName(name) {
@@ -56,25 +64,48 @@ function officerOrgMatch(orgName) {
     return normalizeOfficerOrgName(orgName) === active;
 }
 
-// --- DATA SIMULATION ---
-const rentalsData = [
-    { item: "Scientific Calculator", renter: "Juan Dela Cruz (2021-12345)", due: "Oct 25, 2023", status: "Borrowed", org: "AISERS" },
-    { item: "Locker Unit 04", renter: "Maria Santos (2020-54321)", due: "Nov 30, 2023", status: "Rented", org: "Supreme Student Council" },
-    { item: "T-Square", renter: "Pedro Reyes (2022-99999)", due: "Oct 20, 2023", status: "Overdue", org: "AMTSO" },
-    { item: "Crimping Tool", renter: "Anna Lee (2021-11111)", due: "Oct 26, 2023", status: "Borrowed", org: "ELITECH" }
-];
+// --- DATA  (read from orgData.js — ORG_DATA is the source of truth) ---
+// All three arrays are seeded from ORG_DATA on login, then extended/mutated at runtime.
+let announcementsData = [];
+let docsData          = [];
+let rentalsData       = [];
 
-const docsData = [
-    { title: "September Financial Statement", type: "Financial Statement", date: "Oct 05", status: "Approved", org: "AISERS" },
-    { title: "Team Building Proposal", type: "Proposal", date: "Oct 18", status: "Sent to OSA", org: "AISERS" },
-    { title: "Election Guidelines", type: "Document", date: "Oct 20", status: "Pending", org: "Supreme Student Council" },
-    { title: "Constitution Amendment", type: "Legal", date: "Oct 24", status: "SSC Approved", org: "ELITECH" }
-];
+/**
+ * Seed all runtime data arrays from orgData.js for the active officer org.
+ * Called once from initOfficerAuthContext after the org name is known.
+ */
+function initOrgDataFromOrgData() {
+    const data = (typeof getOrgData === 'function') && getOrgData(getActiveOfficerOrgName());
+    if (!data) return;
+    const orgKey = getActiveOfficerOrgName();
+    announcementsData = (data.announcements || []).map(a => ({ ...a, org: orgKey }));
+    docsData          = (data.documents    || []).map(d => ({ ...d, org: orgKey }));
+    rentalsData       = (data.rentals      || []).map(r => ({ ...r, org: orgKey }));
+}
 
-let announcementsData = [
-    { title: "General Assembly Tomorrow", date: "Just now", content: "Mandatory attendance for all members at Room 301.", org: "AISERS" },
-    { title: "Office Closure", date: "Yesterday", content: "Office will be closed due to University Holiday.", org: "ELITECH" }
-];
+/**
+ * Seed the IGP Rental System and QR-Attendance iframes with this org's
+ * inventory and officer barcodes. Only writes to localStorage if the key
+ * is currently empty, so live edits made inside the subsystems are preserved.
+ */
+function seedOrgSubsystemData() {
+    const orgData = (typeof getOrgData === 'function') && getOrgData(getActiveOfficerOrgName());
+    if (!orgData) return;
+
+    const existing = (key) => {
+        try { const v = JSON.parse(localStorage.getItem(key)); return Array.isArray(v) && v.length > 0; }
+        catch (_) { return false; }
+    };
+
+    if (!existing('inventoryItems') && orgData.inventory && orgData.inventory.length > 0) {
+        localStorage.setItem('inventoryItems', JSON.stringify(orgData.inventory));
+    }
+    if (!existing('barcodeOfficers') && orgData.officerBarcodes && orgData.officerBarcodes.length > 0) {
+        localStorage.setItem('barcodeOfficers', JSON.stringify(orgData.officerBarcodes));
+    }
+    // Let subsystems know which org is active (read-only hint for future use)
+    localStorage.setItem('currentOfficerOrg', getActiveOfficerOrgName());
+}
 
 function getOfficerScopedRentals() {
     return rentalsData.filter(item => officerOrgMatch(item.org));
