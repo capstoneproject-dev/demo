@@ -4,8 +4,8 @@
 const AUTH_DB_KEY = 'naapAuthDB_v1';
 const AUTH_SESSION_KEY = 'naapAuthSession';
 const LEGACY_STUDENT_PROFILE_KEY = 'naapStudentProfile';
-const ACCOUNTS_APPROVED_KEY = 'studentAccounts';
-const PENDING_REQUESTS_KEY = 'pendingAccountRequests';
+const ACCOUNTS_APPROVED_KEY = 'AccountsSystem_studentAccounts';
+const PENDING_REQUESTS_KEY = 'AccountsSystem_pendingRequests';
 
 const COURSE_INSTITUTE_MAP = {
   BSAIT: 'Institute of Computer Studies',
@@ -521,12 +521,14 @@ function submitPendingRegistration(payload) {
   const request = {
     id: requestId(),
     status: 'pending',
-    requestTime: new Date().toISOString(),
+    requestedAt: new Date().toISOString(),
     studentId: payload.studentId || '',
-    name: payload.name || '',
+    studentName: payload.name || '',
+    name: payload.name || '',           // legacy alias
     email: payload.email || '',
     password: payload.password || '',
-    course: payload.course || '',
+    programCode: payload.course || '',
+    course: payload.course || '',       // legacy alias
     yearSection: payload.yearSection || '',
     section: payload.section || '',
     requestedRole: payload.requestedRole || 'student',

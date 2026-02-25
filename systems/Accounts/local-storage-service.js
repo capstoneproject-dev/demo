@@ -1,14 +1,42 @@
 // localStorage Service for Accounts System
 // This service handles all localStorage operations for the Accounts system
-// Replaces Firebase functionality with browser localStorage
+
+// =====================================================
+// Institute → Program mapping (mirrors academic_programs + program_org_mappings in DB)
+// =====================================================
+const INSTITUTE_PROGRAMS = {
+    'Institute of Computer Studies': ['BSAIT', 'BSAIS'],
+    'Institute of Engineering Technology': ['BSAET', 'BSAT', 'BSAMT', 'BSAeE', 'BAT-AET'],
+    'Institute of Liberal Arts and Sciences': ['AvComm', 'AvLog', 'AvSSm', 'AvTour']
+};
+
+// Program code → institute name lookup
+const PROGRAM_INSTITUTE_MAP = Object.entries(INSTITUTE_PROGRAMS).reduce((map, [inst, programs]) => {
+    programs.forEach(p => { map[p.toUpperCase()] = inst; });
+    return map;
+}, {});
+
+// Institute → Organizations mapping (mirrors program_org_mappings + organizations in DB)
+const INSTITUTE_ORGS = {
+    'Institute of Computer Studies': ['AISERS'],
+    'Institute of Engineering Technology': ['ELITECH', 'AERO-ATSO', 'AETSO', 'AMTSO'],
+    'Institute of Liberal Arts and Sciences': ['ILASSO']
+};
+
+// College-wide organizations (not tied to a single institute)
+const COLLEGE_WIDE_ORGS = ['Supreme Student Council', 'RCYC', 'CYC', "Scholar's Guild", 'Aeronautica'];
+
+// All org roles (mirrors org_roles in DB)
+const ORG_ROLES = ['officer', 'auditor', 'member'];
 
 class AccountsLocalStorageService {
     constructor() {
         this.parentCollection = 'AccountsSystem';
-        this.studentNumbersKey = `${this.parentCollection}_studentNumbers`;
+        this.studentNumbersKey  = `${this.parentCollection}_studentNumbers`;
         this.pendingRequestsKey = `${this.parentCollection}_pendingRequests`;
         this.studentAccountsKey = `${this.parentCollection}_studentAccounts`;
-        
+        this.officersKey        = `${this.parentCollection}_officers`;
+
         // Initialize storage if needed
         this.initializeStorage();
     }
@@ -23,6 +51,9 @@ class AccountsLocalStorageService {
         }
         if (!localStorage.getItem(this.studentAccountsKey)) {
             localStorage.setItem(this.studentAccountsKey, JSON.stringify([]));
+        }
+        if (!localStorage.getItem(this.officersKey)) {
+            localStorage.setItem(this.officersKey, JSON.stringify([]));
         }
     }
 
@@ -54,17 +85,22 @@ class AccountsLocalStorageService {
     async addStudentNumber(studentData) {
         try {
             const students = await this.getStudentNumbers();
+            const programCode = studentData.programCode || studentData.course || '';
+            const institute = studentData.institute ||
+                PROGRAM_INSTITUTE_MAP[programCode.toUpperCase()] || '';
             const newStudent = {
                 id: this.generateId(),
-                studentId: studentData.studentId,
+                studentId:   studentData.studentId,
                 studentName: studentData.studentName,
-                section: studentData.section || '',
-                course: studentData.course || '',
+                institute,
+                programCode,
                 yearSection: studentData.yearSection || '',
-                email: studentData.email || '',
-                phone: studentData.phone || '',
-                addedAt: this.toISOString(new Date()),
-                addedBy: studentData.addedBy || 'Admin',
+                email:       studentData.email || '',
+                phone:       studentData.phone || '',
+                hasUnpaidDebt: studentData.hasUnpaidDebt || false,
+                isActive:      studentData.isActive !== undefined ? studentData.isActive : true,
+                addedAt:  this.toISOString(new Date()),
+                addedBy:  studentData.addedBy || 'Admin',
                 updatedAt: this.toISOString(new Date())
             };
             students.push(newStudent);
@@ -83,18 +119,23 @@ class AccountsLocalStorageService {
             if (index === -1) {
                 throw new Error('Student number not found');
             }
-
+            const programCode = studentData.programCode || studentData.course || students[index].programCode || '';
+            const institute = studentData.institute ||
+                PROGRAM_INSTITUTE_MAP[programCode.toUpperCase()] ||
+                students[index].institute || '';
             students[index] = {
                 ...students[index],
-                studentId: studentData.studentId,
+                studentId:   studentData.studentId,
                 studentName: studentData.studentName,
-                section: studentData.section || '',
-                course: studentData.course || '',
+                institute,
+                programCode,
                 yearSection: studentData.yearSection || '',
-                email: studentData.email || '',
-                phone: studentData.phone || '',
-                updatedAt: this.toISOString(new Date()),
-                updatedBy: studentData.updatedBy || 'Admin'
+                email:       studentData.email || '',
+                phone:       studentData.phone || '',
+                hasUnpaidDebt: studentData.hasUnpaidDebt !== undefined ? studentData.hasUnpaidDebt : students[index].hasUnpaidDebt,
+                isActive:      studentData.isActive      !== undefined ? studentData.isActive      : students[index].isActive,
+                updatedAt:  this.toISOString(new Date()),
+                updatedBy:  studentData.updatedBy || 'Admin'
             };
             localStorage.setItem(this.studentNumbersKey, JSON.stringify(students));
             return true;
@@ -164,7 +205,6 @@ class AccountsLocalStorageService {
             };
             requests.push(newRequest);
             localStorage.setItem(this.pendingRequestsKey, JSON.stringify(requests));
-            this.notifyListeners('pendingRequests', requests);
             return newRequest.id;
         } catch (error) {
             console.error('Error adding pending request:', error);
@@ -186,7 +226,6 @@ class AccountsLocalStorageService {
                 updatedAt: this.toISOString(new Date())
             };
             localStorage.setItem(this.pendingRequestsKey, JSON.stringify(requests));
-            this.notifyListeners('pendingRequests', requests);
             return true;
         } catch (error) {
             console.error('Error updating pending request:', error);
@@ -202,7 +241,6 @@ class AccountsLocalStorageService {
                 throw new Error('Request not found');
             }
             localStorage.setItem(this.pendingRequestsKey, JSON.stringify(filtered));
-            this.notifyListeners('pendingRequests', filtered);
             return true;
         } catch (error) {
             console.error('Error deleting pending request:', error);
@@ -225,25 +263,29 @@ class AccountsLocalStorageService {
     async addStudentAccount(accountData) {
         try {
             const accounts = await this.getStudentAccounts();
+            const programCode = accountData.programCode || accountData.course || '';
+            const institute = accountData.institute ||
+                PROGRAM_INSTITUTE_MAP[programCode.toUpperCase()] || '';
             const newAccount = {
                 id: this.generateId(),
-                studentId: accountData.studentId,
+                studentId:   accountData.studentId,
                 studentName: accountData.studentName,
-                section: accountData.section,
-                email: accountData.email,
-                password: accountData.password,
-                createdAt: this.toISOString(accountData.createdAt || new Date()),
+                institute,
+                programCode,
+                yearSection:   accountData.yearSection || '',
+                email:         accountData.email || '',
+                password:      accountData.password || '',
+                hasUnpaidDebt: accountData.hasUnpaidDebt || false,
+                isActive:      accountData.isActive !== undefined ? accountData.isActive : true,
+                requestedRole: accountData.requestedRole || 'student',
+                requestedOrg:  accountData.requestedOrg || '',
                 approvedBy: accountData.approvedBy || 'Admin',
                 approvedAt: this.toISOString(accountData.approvedAt || new Date()),
-                updatedAt: this.toISOString(new Date()),
-                course: accountData.course || '',
-                yearSection: accountData.yearSection || '',
-                requestedRole: accountData.requestedRole || 'student',
-                requestedOrg: accountData.requestedOrg || ''
+                createdAt:  this.toISOString(accountData.createdAt  || new Date()),
+                updatedAt:  this.toISOString(new Date())
             };
             accounts.push(newAccount);
             localStorage.setItem(this.studentAccountsKey, JSON.stringify(accounts));
-            this.notifyListeners('studentAccounts', accounts);
             return newAccount.id;
         } catch (error) {
             console.error('Error adding student account:', error);
@@ -265,7 +307,6 @@ class AccountsLocalStorageService {
                 updatedAt: this.toISOString(new Date())
             };
             localStorage.setItem(this.studentAccountsKey, JSON.stringify(accounts));
-            this.notifyListeners('studentAccounts', accounts);
             return true;
         } catch (error) {
             console.error('Error updating student account:', error);
@@ -281,7 +322,6 @@ class AccountsLocalStorageService {
                 throw new Error('Account not found');
             }
             localStorage.setItem(this.studentAccountsKey, JSON.stringify(filtered));
-            this.notifyListeners('studentAccounts', filtered);
             return true;
         } catch (error) {
             console.error('Error deleting student account:', error);
@@ -299,83 +339,101 @@ class AccountsLocalStorageService {
         }
     }
 
-    // ===== REAL-TIME LISTENERS (Simulated) =====
-    
-    // Storage for listener callbacks
-    listeners = {
-        studentNumbers: [],
-        pendingRequests: [],
-        studentAccounts: []
-    };
+    // ===== OFFICERS OPERATIONS =====
+    // Mirrors organization_members joined with users + organizations + org_roles in DB
 
-    // Notify all registered listeners
-    notifyListeners(type, data) {
-        if (this.listeners[type]) {
-            this.listeners[type].forEach(callback => {
-                try {
-                    callback(data);
-                } catch (error) {
-                    console.error(`Error in ${type} listener:`, error);
-                }
-            });
+    async getOfficers() {
+        try {
+            const data = localStorage.getItem(this.officersKey);
+            return data ? JSON.parse(data) : [];
+        } catch (error) {
+            console.error('Error getting officers:', error);
+            return [];
         }
     }
 
-    listenToStudentNumbers(callback) {
-        this.listeners.studentNumbers.push(callback);
-        // Immediately call with current data
-        this.getStudentNumbers().then(data => callback(data));
-        
-        // Return unsubscribe function
-        return () => {
-            const index = this.listeners.studentNumbers.indexOf(callback);
-            if (index > -1) {
-                this.listeners.studentNumbers.splice(index, 1);
-            }
-        };
+    async addOfficer(officerData) {
+        try {
+            const officers = await this.getOfficers();
+            const newOfficer = {
+                id:          this.generateId(),
+                studentId:   officerData.studentId,
+                studentName: officerData.studentName,
+                institute:   officerData.institute || '',
+                orgCode:     officerData.orgCode || '',
+                orgName:     officerData.orgName || officerData.orgCode || '',
+                roleName:    officerData.roleName || 'officer',
+                joinedAt:    officerData.joinedAt || new Date().toISOString().split('T')[0],
+                isActive:    officerData.isActive !== undefined ? officerData.isActive : true,
+                addedAt:     this.toISOString(new Date()),
+                addedBy:     officerData.addedBy || 'Admin'
+            };
+            officers.push(newOfficer);
+            localStorage.setItem(this.officersKey, JSON.stringify(officers));
+            return newOfficer.id;
+        } catch (error) {
+            console.error('Error adding officer:', error);
+            throw error;
+        }
     }
 
-    listenToPendingRequests(callback) {
-        this.listeners.pendingRequests.push(callback);
-        // Immediately call with current data
-        this.getPendingRequests().then(data => callback(data));
-        
-        // Return unsubscribe function
-        return () => {
-            const index = this.listeners.pendingRequests.indexOf(callback);
-            if (index > -1) {
-                this.listeners.pendingRequests.splice(index, 1);
-            }
-        };
+    async updateOfficer(officerId, officerData) {
+        try {
+            const officers = await this.getOfficers();
+            const index = officers.findIndex(o => o.id === officerId);
+            if (index === -1) throw new Error('Officer not found');
+            officers[index] = {
+                ...officers[index],
+                studentId:   officerData.studentId   || officers[index].studentId,
+                studentName: officerData.studentName || officers[index].studentName,
+                institute:   officerData.institute   || officers[index].institute,
+                orgCode:     officerData.orgCode     || officers[index].orgCode,
+                orgName:     officerData.orgName     || officerData.orgCode || officers[index].orgName,
+                roleName:    officerData.roleName    || officers[index].roleName,
+                joinedAt:    officerData.joinedAt    || officers[index].joinedAt,
+                isActive:    officerData.isActive    !== undefined ? officerData.isActive : officers[index].isActive,
+                updatedAt:   this.toISOString(new Date()),
+                updatedBy:   officerData.updatedBy || 'Admin'
+            };
+            localStorage.setItem(this.officersKey, JSON.stringify(officers));
+            return true;
+        } catch (error) {
+            console.error('Error updating officer:', error);
+            throw error;
+        }
     }
 
-    listenToStudentAccounts(callback) {
-        this.listeners.studentAccounts.push(callback);
-        // Immediately call with current data
-        this.getStudentAccounts().then(data => callback(data));
-        
-        // Return unsubscribe function
-        return () => {
-            const index = this.listeners.studentAccounts.indexOf(callback);
-            if (index > -1) {
-                this.listeners.studentAccounts.splice(index, 1);
-            }
-        };
+    async deleteOfficer(officerId) {
+        try {
+            const officers = await this.getOfficers();
+            const filtered = officers.filter(o => o.id !== officerId);
+            if (filtered.length === officers.length) throw new Error('Officer not found');
+            localStorage.setItem(this.officersKey, JSON.stringify(filtered));
+            return true;
+        } catch (error) {
+            console.error('Error deleting officer:', error);
+            throw error;
+        }
+    }
+
+    async findOfficersByStudent(studentId) {
+        try {
+            const officers = await this.getOfficers();
+            return officers.filter(o => o.studentId === studentId);
+        } catch (error) {
+            console.error('Error finding officers by student:', error);
+            return [];
+        }
     }
 
     // ===== UTILITY METHODS =====
     
     async clearAllData() {
         try {
-            localStorage.setItem(this.studentNumbersKey, JSON.stringify([]));
+            localStorage.setItem(this.studentNumbersKey,  JSON.stringify([]));
             localStorage.setItem(this.pendingRequestsKey, JSON.stringify([]));
             localStorage.setItem(this.studentAccountsKey, JSON.stringify([]));
-            
-            // Notify listeners
-            this.notifyListeners('studentNumbers', []);
-            this.notifyListeners('pendingRequests', []);
-            this.notifyListeners('studentAccounts', []);
-            
+            localStorage.setItem(this.officersKey,        JSON.stringify([]));
             return true;
         } catch (error) {
             console.error('Error clearing all data:', error);
@@ -385,17 +443,18 @@ class AccountsLocalStorageService {
 
     async getCollectionStats() {
         try {
-            const [studentNumbers, pendingRequests, studentAccounts] = await Promise.all([
+            const [studentNumbers, pendingRequests, studentAccounts, officers] = await Promise.all([
                 this.getStudentNumbers(),
                 this.getPendingRequests(),
-                this.getStudentAccounts()
+                this.getStudentAccounts(),
+                this.getOfficers()
             ]);
-
             return {
-                studentNumbers: studentNumbers.length,
+                studentNumbers:  studentNumbers.length,
                 pendingRequests: pendingRequests.length,
                 studentAccounts: studentAccounts.length,
-                pendingCount: pendingRequests.filter(r => r.status === 'pending').length,
+                officers:        officers.length,
+                pendingCount:  pendingRequests.filter(r => r.status === 'pending').length,
                 approvedCount: pendingRequests.filter(r => r.status === 'approved').length,
                 rejectedCount: pendingRequests.filter(r => r.status === 'rejected').length
             };
@@ -418,6 +477,3 @@ function initializeAccountsLocalStorageService() {
 
 // Initialize immediately
 initializeAccountsLocalStorageService();
-
-// Export for compatibility (using same name as Firebase service for easier migration)
-window.accountsFirebaseService = accountsLocalStorageService;

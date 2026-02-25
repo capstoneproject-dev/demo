@@ -1,1041 +1,713 @@
-﻿// Student account management system
+// Account Management System — script.js
+// Handles Students tab, Officers tab, Account Requests, modals, filters.
+
+
+// --- State ---
 let students = [];
+let officers = [];
 let pendingRequests = [];
-let studentNumbersDatabase = []; // This will store student numbers for validation
-let firebaseService = null;
+let studentNumbers = [];
+
 const DEV_BYPASS_ACCOUNTS_AUTH = true;
 
+// --- Helpers ---
+function getService() { return window.accountsLocalStorageService; }
+
 function redirectFromAccounts(path) {
-    if (window.top && window.top !== window) {
-        window.top.location.href = path;
-    } else {
-        window.location.href = path;
-    }
+    if (window.top && window.top !== window) window.top.location.href = path;
+    else window.location.href = path;
 }
 
 function authorizeIncomingUser() {
-    // Development-only bypass: allow direct Accounts access without login/session.
     if (DEV_BYPASS_ACCOUNTS_AUTH) return true;
-
     let session = {};
-    try {
-        session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}');
-    } catch (_error) {
-        session = {};
-    }
-
-    if (!session || !session.user_id) {
-        redirectFromAccounts('../../pages/login.html');
-        return false;
-    }
+    try { session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}'); } catch (_) { session = {}; }
+    if (!session || !session.user_id) { redirectFromAccounts('../../pages/login.html'); return false; }
     if (session.login_role === 'osa' || session.account_type === 'osa_staff') return true;
-    if (session.login_role === 'org') {
-        redirectFromAccounts('../../pages/officerDashboard.html');
-        return false;
-    }
-    if (session.login_role === 'student' || session.account_type === 'student') {
-        redirectFromAccounts('../../pages/studentDashboard.html');
-        return false;
-    }
+    if (session.login_role === 'org') { redirectFromAccounts('../../pages/officerDashboard.html'); return false; }
     redirectFromAccounts('../../pages/login.html');
     return false;
 }
 
-// Initialize the application
-document.addEventListener('DOMContentLoaded', async function() {
-    if (!authorizeIncomingUser()) return;
+function formatDate(v) {
+    if (!v) return '—';
+    try { return new Date(v).toLocaleString(); } catch (_) { return '—'; }
+}
 
-    // Initialize Firebase service
-    const firebaseReady = await initializeFirebaseService();
-    
-    // Load data from Firebase
-    await loadDataFromFirebase();
-    
-    // Set up event listeners
-    setupEventListeners();
-    
-    // Initialize the interface
-    updateStudentTable();
-    updateSectionDropdown();
-    updatePendingRequestsTable();
-    
-    // Set status display
-    document.getElementById('statusDisplay').textContent = firebaseReady ? 'Ready (Firebase)' : 'Ready (Local Storage)';
-    
-    // Add global test functions
-    window.testFirebase = testFirebase;
-    window.debugPendingRequests = debugPendingRequests;
-});
+function formatDateShort(v) {
+    if (!v) return '—';
+    try { return new Date(v).toLocaleDateString(); } catch (_) { return '—'; }
+}
 
-// Global test function
-async function testFirebase() {
-    console.log('=== FIREBASE TEST ===');
-    console.log('Firebase service available:', !!firebaseService);
-    console.log('Window accountsFirebaseService:', !!window.accountsFirebaseService);
-    
-    if (firebaseService) {
-        try {
-            const requests = await firebaseService.getPendingRequests();
-            console.log('Direct Firebase call - Pending requests:', requests.length);
-            console.log('Requests data:', requests);
-            return requests;
-        } catch (error) {
-            console.error('Direct Firebase call error:', error);
-            return null;
-        }
-    } else {
-        console.log('No Firebase service available');
-        return null;
+function generateId() {
+    return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+function showToast(msg, type) {
+    if (!type) type = 'success';
+    var container = document.getElementById('toastContainer');
+    if (!container) return;
+    var div = document.createElement('div');
+    div.className = 'alert alert-' + type + ' py-2 px-3 mb-0 shadow-sm';
+    div.style.minWidth = '220px';
+    div.textContent = msg;
+    container.appendChild(div);
+    setTimeout(function() { div.remove(); }, 3500);
+}
+
+function escHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// --- Institute / Program / Org helpers ---
+var INSTITUTE_LIST = Object.keys(INSTITUTE_PROGRAMS);
+
+function programsForInstitute(institute) {
+    return INSTITUTE_PROGRAMS[institute] || [];
+}
+
+function orgsForInstitute(institute) {
+    var specific = INSTITUTE_ORGS[institute] || [];
+    return specific.concat(COLLEGE_WIDE_ORGS);
+}
+
+function populateInstituteSelect(selectEl) {
+    var current = selectEl.value;
+    while (selectEl.options.length > 1) selectEl.remove(1);
+    INSTITUTE_LIST.forEach(function(inst) { selectEl.add(new Option(inst, inst)); });
+    if (current) selectEl.value = current;
+}
+
+function populateProgramSelect(selectEl, institute, currentValue) {
+    while (selectEl.options.length > 1) selectEl.remove(1);
+    if (institute) {
+        programsForInstitute(institute).forEach(function(prog) { selectEl.add(new Option(prog, prog)); });
     }
+    if (currentValue) selectEl.value = currentValue;
 }
 
-// Debug pending requests
-function debugPendingRequests() {
-    console.log('=== PENDING REQUESTS DEBUG ===');
-    console.log('pendingRequests array length:', pendingRequests.length);
-    console.log('pendingRequests data:', pendingRequests);
-    console.log('Firebase service available:', !!firebaseService);
-    updatePendingRequestsTable();
+function populateOrgSelect(selectEl, institute, currentValue) {
+    while (selectEl.options.length > 1) selectEl.remove(1);
+    orgsForInstitute(institute || '').forEach(function(org) { selectEl.add(new Option(org, org)); });
+    if (currentValue) selectEl.value = currentValue;
 }
 
-// Format Firebase timestamp for display
-function formatFirebaseTimestamp(timestamp) {
-    if (!timestamp) return 'N/A';
-    
-    try {
-        // Handle Firebase Timestamp objects
-        if (timestamp.seconds) {
-            return new Date(timestamp.seconds * 1000).toLocaleString();
+// --- Data Loading ---
+async function loadData() {
+    var svc = getService();
+    if (!svc) { console.error('accountsLocalStorageService not found'); return; }
+    students        = await svc.getStudentAccounts();
+    officers        = await svc.getOfficers();
+    pendingRequests = await svc.getPendingRequests();
+    studentNumbers  = await svc.getStudentNumbers();
+}
+
+// --- Render: Students tab ---
+function getFilteredStudents() {
+    var instFilter  = (document.getElementById('studentInstituteFilter') || {}).value || 'all';
+    var progFilter  = (document.getElementById('studentProgramFilter')   || {}).value || 'all';
+    var searchTerm  = ((document.getElementById('studentSearch')         || {}).value || '').toLowerCase();
+
+    return students.filter(function(s) {
+        if (instFilter !== 'all' && s.institute   !== instFilter) return false;
+        if (progFilter !== 'all' && s.programCode !== progFilter) return false;
+        if (searchTerm) {
+            var hay = (s.studentId + ' ' + s.studentName + ' ' + s.programCode + ' ' + s.yearSection).toLowerCase();
+            if (hay.indexOf(searchTerm) === -1) return false;
         }
-        // Handle regular Date objects or ISO strings
-        return new Date(timestamp).toLocaleString();
-    } catch (error) {
-        console.error('Error formatting timestamp:', error, timestamp);
-        return 'Invalid Date';
-    }
-}
-
-// Initialize Firebase service
-async function initializeFirebaseService() {
-    console.log('Initializing Firebase service...');
-    return new Promise((resolve) => {
-        // Wait for Firebase service to be available
-        const checkService = setInterval(() => {
-            if (window.accountsFirebaseService) {
-                clearInterval(checkService);
-                firebaseService = window.accountsFirebaseService;
-                console.log('Firebase service initialized for Accounts');
-                resolve(true);
-            } else {
-                console.log('Waiting for Firebase service...');
-            }
-        }, 100);
-        
-        // Stop checking after 10 seconds
-        setTimeout(() => {
-            clearInterval(checkService);
-            if (!firebaseService) {
-                console.error('Firebase service not available, falling back to localStorage');
-            }
-            resolve(false);
-        }, 10000);
+        return true;
     });
 }
 
-// Load data from Firebase
-async function loadDataFromFirebase() {
-    console.log('loadDataFromFirebase called, firebaseService:', !!firebaseService);
-    
-    if (firebaseService) {
-        try {
-            console.log('Loading data from Firebase...');
-            students = await firebaseService.getStudentAccounts();
-            pendingRequests = await firebaseService.getPendingRequests();
-            studentNumbersDatabase = await firebaseService.getStudentNumbers();
-            
-            console.log('Firebase data loaded:', {
-                students: students.length,
-                pendingRequests: pendingRequests.length,
-                studentNumbers: studentNumbersDatabase.length
-            });
-            
-            // Set up real-time listeners
-            firebaseService.listenToStudentAccounts((accounts) => {
-                console.log('Student accounts updated:', accounts.length);
-                students = accounts;
-                updateStudentTable();
-                updateSectionDropdown();
-            });
-            
-            firebaseService.listenToPendingRequests((requests) => {
-                console.log('Pending requests updated:', requests.length);
-                pendingRequests = requests;
-                updatePendingRequestsTable();
-            });
-            
-            firebaseService.listenToStudentNumbers((numbers) => {
-                console.log('Student numbers updated:', numbers.length);
-                studentNumbersDatabase = numbers;
-            });
-            
-            console.log('Data loaded from Firebase successfully');
-        } catch (error) {
-            console.error('Error loading data from Firebase:', error);
-            // Fallback to localStorage
-            loadStudents();
-            loadPendingRequests();
-            loadStudentNumbersDatabase();
+function renderStudentsTable() {
+    var tbody = document.getElementById('studentRecords');
+    if (!tbody) return;
+    var rows = getFilteredStudents();
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No student accounts match filters</td></tr>';
+        document.getElementById('studentsTotalBadge').textContent = '0';
+        return;
+    }
+    tbody.innerHTML = rows.map(function(s, i) {
+        return '<tr>' +
+            '<td>' + (i+1) + '</td>' +
+            '<td>' + escHtml(s.studentId) + '</td>' +
+            '<td>' + escHtml(s.studentName) + '</td>' +
+            '<td><small>' + escHtml(s.institute || '—') + '</small></td>' +
+            '<td>' + escHtml(s.programCode || '—') + '</td>' +
+            '<td>' + escHtml(s.yearSection || '—') + '</td>' +
+            '<td><small>' + escHtml(s.email || '—') + '</small></td>' +
+            '<td><small>' + escHtml(s.phone || '—') + '</small></td>' +
+            '<td>' +
+                '<button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="openEditStudentModal(\'' + escHtml(s.studentId) + '\')">Edit</button> ' +
+                '<button class="btn btn-sm btn-outline-danger py-0 px-1"  onclick="deleteStudent(\'' + escHtml(s.studentId) + '\')">Del</button>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+    document.getElementById('studentsTotalBadge').textContent = rows.length;
+}
+
+function onStudentInstituteFilterChange() {
+    var inst    = document.getElementById('studentInstituteFilter').value;
+    var progSel = document.getElementById('studentProgramFilter');
+    while (progSel.options.length > 1) progSel.remove(1);
+    if (inst !== 'all') {
+        programsForInstitute(inst).forEach(function(prog) { progSel.add(new Option(prog, prog)); });
+    }
+    renderStudentsTable();
+}
+
+// --- Render: Officers tab ---
+function getFilteredOfficers() {
+    var instFilter = (document.getElementById('officerInstituteFilter') || {}).value || 'all';
+    var orgFilter  = (document.getElementById('officerOrgFilter')       || {}).value || 'all';
+    var searchTerm = ((document.getElementById('officerSearch')         || {}).value || '').toLowerCase();
+
+    return officers.filter(function(o) {
+        if (instFilter !== 'all' && o.institute !== instFilter) return false;
+        if (orgFilter  !== 'all' && o.orgCode   !== orgFilter)  return false;
+        if (searchTerm) {
+            var hay = (o.studentId + ' ' + o.studentName + ' ' + o.orgCode + ' ' + o.roleName).toLowerCase();
+            if (hay.indexOf(searchTerm) === -1) return false;
         }
+        return true;
+    });
+}
+
+function renderOfficersTable() {
+    var tbody = document.getElementById('officerRecords');
+    if (!tbody) return;
+    var rows = getFilteredOfficers();
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No officers match filters</td></tr>';
+        document.getElementById('officersTotalBadge').textContent = '0';
+        return;
+    }
+    tbody.innerHTML = rows.map(function(o, i) {
+        var badge = o.isActive
+            ? '<span class="badge bg-success">Active</span>'
+            : '<span class="badge bg-secondary">Inactive</span>';
+        return '<tr>' +
+            '<td>' + (i+1) + '</td>' +
+            '<td>' + escHtml(o.studentId) + '</td>' +
+            '<td>' + escHtml(o.studentName) + '</td>' +
+            '<td><small>' + escHtml(o.institute || '—') + '</small></td>' +
+            '<td>' + escHtml(o.orgCode || '—') + '</td>' +
+            '<td>' + escHtml(o.roleName || '—') + '</td>' +
+            '<td>' + formatDateShort(o.joinedAt) + '</td>' +
+            '<td>' + badge + '</td>' +
+            '<td>' +
+                '<button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="openEditOfficerModal(\'' + escHtml(o.id) + '\')">Edit</button> ' +
+                '<button class="btn btn-sm btn-outline-danger py-0 px-1"  onclick="deleteOfficerRecord(\'' + escHtml(o.id) + '\')">Del</button>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+    document.getElementById('officersTotalBadge').textContent = rows.length;
+}
+
+function onOfficerInstituteFilterChange() {
+    var inst   = document.getElementById('officerInstituteFilter').value;
+    var orgSel = document.getElementById('officerOrgFilter');
+    while (orgSel.options.length > 1) orgSel.remove(1);
+    if (inst === 'all') {
+        Object.values(INSTITUTE_ORGS).reduce(function(a,b){return a.concat(b);}, [])
+            .concat(COLLEGE_WIDE_ORGS)
+            .forEach(function(org) { orgSel.add(new Option(org, org)); });
     } else {
-        console.log('Firebase service not available, using localStorage fallback');
-        // Fallback to localStorage
-        loadStudents();
-        loadPendingRequests();
-        loadStudentNumbersDatabase();
+        orgsForInstitute(inst).forEach(function(org) { orgSel.add(new Option(org, org)); });
     }
+    renderOfficersTable();
 }
 
-// Load students from localStorage
-function loadStudents() {
-    const storedStudents = localStorage.getItem('studentAccounts');
-    students = storedStudents ? JSON.parse(storedStudents) : [];
+// --- Render: Account Requests ---
+function renderRequestTables() {
+    var pending  = pendingRequests.filter(function(r) { return r.status === 'pending';  });
+    var approved = pendingRequests.filter(function(r) { return r.status === 'approved'; });
+    var rejected = pendingRequests.filter(function(r) { return r.status === 'rejected'; });
+
+    document.getElementById('pendingCount').textContent  = pending.length;
+    document.getElementById('approvedCount').textContent = approved.length;
+    document.getElementById('rejectedCount').textContent = rejected.length;
+    document.getElementById('pendingRequestsBadge').textContent = pending.length;
+
+    var pendingTbody = document.getElementById('pendingRequestsTable');
+    pendingTbody.innerHTML = pending.length === 0
+        ? '<tr><td colspan="6" class="text-center text-muted">No pending requests</td></tr>'
+        : pending.map(function(r, i) {
+            return '<tr>' +
+                '<td>' + (i+1) + '</td>' +
+                '<td>' + escHtml(r.studentId || '') + '</td>' +
+                '<td>' + escHtml(r.studentName || r.name || '') + '</td>' +
+                '<td>' + escHtml(r.programCode || r.course || '—') + '</td>' +
+                '<td>' + formatDate(r.requestedAt || r.requestTime || r.timestamp) + '</td>' +
+                '<td>' +
+                    '<button class="btn btn-sm btn-success py-0 px-1"  onclick="approveRequest(\'' + escHtml(r.id) + '\')">Approve</button> ' +
+                    '<button class="btn btn-sm btn-danger py-0 px-1"   onclick="rejectRequest(\'' + escHtml(r.id) + '\')">Reject</button>' +
+                '</td>' +
+            '</tr>';
+          }).join('');
+
+    var approvedTbody = document.getElementById('approvedRequestsTable');
+    approvedTbody.innerHTML = approved.length === 0
+        ? '<tr><td colspan="6" class="text-center text-muted">No approved requests</td></tr>'
+        : approved.map(function(r, i) {
+            return '<tr>' +
+                '<td>' + (i+1) + '</td>' +
+                '<td>' + escHtml(r.studentId || '') + '</td>' +
+                '<td>' + escHtml(r.studentName || r.name || '') + '</td>' +
+                '<td>' + escHtml(r.programCode || r.course || '—') + '</td>' +
+                '<td>' + formatDate(r.requestedAt || r.requestTime || r.timestamp) + '</td>' +
+                '<td>' + formatDate(r.approvedAt) + '</td>' +
+            '</tr>';
+          }).join('');
+
+    var rejectedTbody = document.getElementById('rejectedRequestsTable');
+    rejectedTbody.innerHTML = rejected.length === 0
+        ? '<tr><td colspan="7" class="text-center text-muted">No rejected requests</td></tr>'
+        : rejected.map(function(r, i) {
+            return '<tr>' +
+                '<td>' + (i+1) + '</td>' +
+                '<td>' + escHtml(r.studentId || '') + '</td>' +
+                '<td>' + escHtml(r.studentName || r.name || '') + '</td>' +
+                '<td>' + escHtml(r.programCode || r.course || '—') + '</td>' +
+                '<td>' + formatDate(r.requestedAt || r.requestTime || r.timestamp) + '</td>' +
+                '<td>' + formatDate(r.rejectedAt) + '</td>' +
+                '<td><button class="btn btn-sm btn-warning py-0 px-1" onclick="reopenRequest(\'' + escHtml(r.id) + '\')">Reopen</button></td>' +
+            '</tr>';
+          }).join('');
 }
 
-// Save students to Firebase or localStorage
-async function saveStudents() {
-    if (firebaseService) {
-        // Data is automatically saved through real-time listeners
-        console.log('Students data is managed by Firebase real-time listeners');
-    } else {
-        localStorage.setItem('studentAccounts', JSON.stringify(students));
-    }
+// --- Full refresh ---
+function refreshAll() {
+    renderStudentsTable();
+    renderOfficersTable();
+    renderRequestTables();
 }
 
-// Load pending requests from localStorage (fallback)
-function loadPendingRequests() {
-    const storedRequests = localStorage.getItem('pendingAccountRequests');
-    pendingRequests = storedRequests ? JSON.parse(storedRequests) : [];
-}
-
-// Save pending requests to Firebase or localStorage
-async function savePendingRequests() {
-    if (firebaseService) {
-        // Data is automatically saved through real-time listeners
-        console.log('Pending requests data is managed by Firebase real-time listeners');
-    } else {
-        localStorage.setItem('pendingAccountRequests', JSON.stringify(pendingRequests));
-    }
-}
-
-// Load student numbers database for validation (fallback)
-function loadStudentNumbersDatabase() {
-    const storedNumbers = localStorage.getItem('studentNumbersDatabase');
-    studentNumbersDatabase = storedNumbers ? JSON.parse(storedNumbers) : [];
-}
-
-// Setup event listeners
-function setupEventListeners() {
-    // Add student form
-    const addStudentForm = document.getElementById('addStudentForm');
-    if (addStudentForm) {
-        addStudentForm.addEventListener('submit', handleAddStudent);
-    }
-    
-    // Edit student form
-    const editStudentForm = document.getElementById('editStudentForm');
-    if (editStudentForm) {
-        editStudentForm.addEventListener('submit', handleEditStudent);
-    }
-    
-    // Refresh data button
-    const refreshBtn = document.getElementById('refreshData');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', refreshData);
-    }
-    
-    // Export data button
-    const exportBtn = document.getElementById('exportData');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', exportData);
-    }
-    
-    // Import data button
-    const importBtn = document.getElementById('importData');
-    if (importBtn) {
-        importBtn.addEventListener('click', importData);
-    }
-    
-    // Section dropdown
-    const sectionDropdown = document.getElementById('sectionDropdown');
-    if (sectionDropdown) {
-        sectionDropdown.addEventListener('change', updateStudentListBySection);
-    }
-    
-    // Section filter
-    const sectionFilter = document.getElementById('sectionFilter');
-    if (sectionFilter) {
-        sectionFilter.addEventListener('change', updateStudentTable);
-    }
-}
-
-// Handle add student form submission
+// --- Student CRUD ---
 function handleAddStudent(e) {
     e.preventDefault();
-    
-    const studentId = document.getElementById('studentId').value.trim();
-    const studentName = document.getElementById('studentName').value.trim();
-    const course = document.querySelector('input[name="course"]:checked').value;
-    const yearSection = document.getElementById('yearSection').value.trim();
-    const email = document.getElementById('email').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-    
-    if (!studentId || !studentName || !course || !yearSection) {
-        showToast('Error', 'Please fill in all required fields', 'error');
-        return;
-    }
-    
-    // Check if student already exists
-    const existingStudent = students.find(s => s.studentId === studentId);
-    if (existingStudent) {
-        showToast('Error', 'Student with this ID already exists', 'error');
-        return;
-    }
-    
-    const section = `${course} ${yearSection}`;
-    const newStudent = {
-        studentId,
-        studentName,
-        section,
-        email,
-        phone,
-        createdAt: new Date().toISOString()
-    };
-    
-    students.push(newStudent);
-    saveStudents();
-    
-    // Clear form
-    document.getElementById('addStudentForm').reset();
-    
-    // Close modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('addStudentModal'));
-    if (modal) modal.hide();
-    
-    // Update interface
-    updateStudentTable();
-    updateSectionDropdown();
-    
-    showToast('Success', `Student ${studentName} added successfully`, 'success');
-}
+    var studentId   = document.getElementById('studentId').value.trim();
+    var studentName = document.getElementById('studentName').value.trim();
+    var institute   = document.getElementById('addInstitute').value;
+    var programCode = document.getElementById('addProgram').value;
+    var yearSection = document.getElementById('yearSection').value.trim();
+    var email       = document.getElementById('email').value.trim();
+    var phone       = document.getElementById('phone').value.trim();
 
-// Refresh data
-function refreshData() {
-    loadStudents();
-    loadPendingRequests();
-    loadAttendanceRecords();
-    updateStudentTable();
-    updateSectionDropdown();
-    updatePendingRequestsTable();
-    showToast('Info', 'Data refreshed successfully', 'success');
-}
+    if (!studentId || !studentName || !institute || !programCode || !yearSection) {
+        showToast('Please fill in all required fields.', 'warning'); return;
+    }
+    if (students.find(function(s) { return s.studentId === studentId; })) {
+        showToast('Student number already exists.', 'danger'); return;
+    }
 
-// Refresh pending requests specifically
-function refreshPendingRequests() {
-    console.log('Manual refresh triggered');
-    if (firebaseService) {
-        console.log('Using Firebase refresh');
-        firebaseService.getPendingRequests().then(requests => {
-            console.log('Manual Firebase refresh got requests:', requests.length);
-            pendingRequests = requests;
-            updatePendingRequestsTable();
-            showToast('Info', 'Pending requests refreshed from Firebase', 'success');
-        }).catch(error => {
-            console.error('Manual Firebase refresh error:', error);
-            showToast('Error', 'Failed to refresh from Firebase', 'error');
-        });
-    } else {
-        console.log('Using localStorage refresh');
-        loadPendingRequests();
-        updatePendingRequestsTable();
-        showToast('Info', 'Pending requests refreshed from localStorage', 'success');
-    }
-}
-
-// Export data to Excel
-function exportData() {
-    if (students.length === 0) {
-        showToast('Warning', 'No students to export', 'warning');
-        return;
-    }
-    
-    // Import XLSX library if available
-    if (typeof XLSX === 'undefined') {
-        showToast('Error', 'Export functionality requires XLSX library', 'error');
-        return;
-    }
-    
-    const exportData = students.map((student, idx) => ({
-        '#': idx + 1,
-        'Student#': student.studentId,
-        'Name': student.studentName,
-        'Section': student.section,
-        'Email': student.email || '',
-        'Phone': student.phone || '',
-        'Created': new Date(student.createdAt).toLocaleDateString()
-    }));
-    
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Student Accounts');
-    
-    const fileName = `Student_Accounts_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    
-    showToast('Success', 'Data exported successfully', 'success');
-}
-
-// Import data from Excel (placeholder)
-function importData() {
-    showToast('Info', 'Import functionality will be implemented with Firebase integration', 'warning');
-}
-
-// Update student table
-function updateStudentTable() {
-    const tbody = document.getElementById('studentRecords');
-    if (!tbody) return;
-    
-    let filteredStudents = students;
-    const sectionFilter = document.getElementById('sectionFilter');
-    const selectedSection = sectionFilter ? sectionFilter.value : 'all';
-    
-    if (selectedSection !== 'all') {
-        filteredStudents = students.filter(s => s.section === selectedSection);
-    }
-    
-    tbody.innerHTML = '';
-    filteredStudents.forEach((student, idx) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${idx + 1}</td>
-            <td>${student.studentId}</td>
-            <td>${student.studentName}</td>
-            <td>${student.section}</td>
-            <td>${student.email || '-'}</td>
-            <td>${student.phone || '-'}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="editStudent('${student.studentId}')">Edit</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent('${student.studentId}')">Delete</button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Update section dropdown
-function updateSectionDropdown() {
-    const dropdown = document.getElementById('sectionDropdown');
-    const filter = document.getElementById('sectionFilter');
-    
-    if (!dropdown || !filter) return;
-    
-    const sections = [...new Set(students.map(s => s.section))].sort();
-    
-    // Update section dropdown
-    dropdown.innerHTML = '';
-    sections.forEach(section => {
-        const option = document.createElement('option');
-        option.value = section;
-        option.textContent = section;
-        dropdown.appendChild(option);
-    });
-    
-    // Update section filter
-    filter.innerHTML = '<option value="all">All Sections</option>';
-    sections.forEach(section => {
-        const option = document.createElement('option');
-        option.value = section;
-        option.textContent = section;
-        filter.appendChild(option);
-    });
-    
-    // Update student list by section
-    if (sections.length > 0) {
-        updateStudentListBySection();
-    }
-}
-
-// Update student list by section
-function updateStudentListBySection() {
-    const tbody = document.getElementById('studentListBySection');
-    const dropdown = document.getElementById('sectionDropdown');
-    
-    if (!tbody || !dropdown) return;
-    
-    const selectedSection = dropdown.value;
-    const sectionStudents = students.filter(s => s.section === selectedSection);
-    
-    tbody.innerHTML = '';
-    sectionStudents.forEach((student, idx) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${idx + 1}</td>
-            <td>${student.studentId}</td>
-            <td>${student.studentName}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="editStudent('${student.studentId}')">Edit</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent('${student.studentId}')">Delete</button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Helper function to parse section string (e.g., "BSAIS 3-3" or "BSAIS")
-function parseSection(sectionStr) {
-    if (!sectionStr) return { course: '', yearSection: '' };
-    
-    const section = String(sectionStr).trim();
-    
-    // Try to match patterns like "BSAIS 3-3", "BSIS-AIS 1-2", etc.
-    const match = section.match(/^([A-Z]+(?:-[A-Z]+)?)\s+(\d+-\d+)$/i);
-    
-    if (match) {
-        return {
-            course: match[1].toUpperCase(),
-            yearSection: match[2]
-        };
-    }
-    
-    // If no match, check if it's just a course name
-    const courseMatch = section.match(/^(BSIS-AIS|BSAIS|BSIT|BSCS|Other)$/i);
-    if (courseMatch) {
-        return {
-            course: courseMatch[1],
-            yearSection: ''
-        };
-    }
-    
-    // Default: try to extract course from beginning
-    const courseExtract = section.match(/^([A-Z]+(?:-[A-Z]+)?)/i);
-    return {
-        course: courseExtract ? courseExtract[1].toUpperCase() : '',
-        yearSection: section.replace(/^[A-Z]+(?:-[A-Z]+)?\s*/i, '').trim()
-    };
-}
-
-// Edit student
-function editStudent(studentId) {
-    const student = students.find(s => s.studentId === studentId);
-    if (!student) {
-        showToast('Error', 'Student not found', 'error');
-        return;
-    }
-    
-    // Parse section to get course and yearSection
-    const { course, yearSection } = parseSection(student.section);
-    
-    // Populate edit form
-    document.getElementById('editOriginalStudentId').value = student.studentId;
-    document.getElementById('editStudentId').value = student.studentId;
-    document.getElementById('editStudentName').value = student.studentName;
-    document.getElementById('editYearSection').value = yearSection;
-    document.getElementById('editEmail').value = student.email || '';
-    document.getElementById('editPhone').value = student.phone || '';
-    
-    // Set course radio button
-    if (course) {
-        const courseRadio = document.querySelector(`input[name="editCourse"][value="${course}"]`);
-        if (courseRadio) {
-            courseRadio.checked = true;
-        } else {
-            // Default to BSIS-AIS if course not found
-            document.getElementById('editCourseBsisAis').checked = true;
-        }
-    } else {
-        document.getElementById('editCourseBsisAis').checked = true;
-    }
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('editStudentModal'));
-    modal.show();
-}
-
-// Handle edit student form submission
-async function handleEditStudent(e) {
-    e.preventDefault();
-    
-    const originalStudentId = document.getElementById('editOriginalStudentId').value;
-    const studentId = document.getElementById('editStudentId').value.trim();
-    const studentName = document.getElementById('editStudentName').value.trim();
-    const course = document.querySelector('input[name="editCourse"]:checked')?.value || '';
-    const yearSection = document.getElementById('editYearSection').value.trim();
-    const email = document.getElementById('editEmail').value.trim();
-    const phone = document.getElementById('editPhone').value.trim();
-    
-    if (!studentId || !studentName || !course || !yearSection) {
-        showToast('Error', 'Please fill in all required fields', 'error');
-        return;
-    }
-    
-    // Check if student ID already exists (excluding current one)
-    const existingStudent = students.find(s => s.studentId === studentId && s.studentId !== originalStudentId);
-    if (existingStudent) {
-        showToast('Error', 'Student with this ID already exists', 'error');
-        return;
-    }
-    
-    const section = `${course} ${yearSection}`;
-    const updateData = {
-        studentId,
-        studentName,
-        section,
-        email,
-        phone,
-        updatedAt: new Date().toISOString()
-    };
-    
-    try {
-        if (firebaseService) {
-            // Find the student to get its Firebase document ID
-            const originalStudent = students.find(s => s.studentId === originalStudentId);
-            if (!originalStudent || !originalStudent.id) {
-                showToast('Error', 'Student not found in database', 'error');
-                return;
-            }
-            
-            // If studentId changed, we need to delete old and create new document
-            if (studentId !== originalStudentId) {
-                // Check if new studentId already exists
-                const existingStudent = students.find(s => s.studentId === studentId);
-                if (existingStudent) {
-                    showToast('Error', 'Student with this ID already exists', 'error');
-                    return;
-                }
-                
-                // Delete old document using its Firebase document ID
-                await firebaseService.deleteStudentAccount(originalStudent.id);
-                // Create new document with new studentId
-                await firebaseService.addStudentAccount(updateData);
-            } else {
-                // Just update the existing document using its Firebase document ID
-                await firebaseService.updateStudentAccount(originalStudent.id, updateData);
-            }
-        } else {
-            // Fallback to localStorage
-            const studentIndex = students.findIndex(s => s.studentId === originalStudentId);
-            if (studentIndex === -1) {
-                showToast('Error', 'Student not found', 'error');
-                return;
-            }
-            
-            // If studentId changed, remove old and add new
-            if (studentId !== originalStudentId) {
-                students = students.filter(s => s.studentId !== originalStudentId);
-                students.push(updateData);
-            } else {
-                students[studentIndex] = {
-                    ...students[studentIndex],
-                    ...updateData
-                };
-            }
-            
-            saveStudents();
-            
-            // Update interface
-            updateStudentTable();
-            updateSectionDropdown();
-        }
-        
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('editStudentModal'));
-        if (modal) modal.hide();
-        
-        showToast('Success', `Student ${studentName} updated successfully`, 'success');
-        
-    } catch (error) {
-        console.error('Error updating student:', error);
-        showToast('Error', 'Failed to update student', 'error');
-    }
-}
-
-// Delete student
-function deleteStudent(studentId) {
-    const student = students.find(s => s.studentId === studentId);
-    if (!student) return;
-    
-    if (confirm(`Are you sure you want to delete student ${student.studentName} (${studentId})?`)) {
-        students = students.filter(s => s.studentId !== studentId);
-        saveStudents();
-        updateStudentTable();
-        updateSectionDropdown();
-        showToast('Success', `Student ${student.studentName} deleted successfully`, 'success');
-    }
-}
-
-// Update all request tables
-function updatePendingRequestsTable() {
-    console.log('Updating request tables. Total requests:', pendingRequests.length);
-    console.log('Pending requests:', pendingRequests.filter(req => req.status === 'pending').length);
-    
-    updatePendingRequestsTab();
-    updateApprovedRequestsTab();
-    updateRejectedRequestsTab();
-    updateRequestCounts();
-}
-
-// Update pending requests tab
-function updatePendingRequestsTab() {
-    const tbody = document.getElementById('pendingRequestsTable');
-    if (!tbody) return;
-    
-    const pendingRequestsList = pendingRequests.filter(req => req.status === 'pending');
-    tbody.innerHTML = '';
-    
-    if (pendingRequestsList.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="6" class="text-center text-muted">No pending requests</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    // Sort by request time (newest first)
-    const sortedRequests = pendingRequestsList.sort((a, b) => new Date(b.requestTime) - new Date(a.requestTime));
-    
-    sortedRequests.forEach((request, idx) => {
-        const row = document.createElement('tr');
-        const requestTime = formatFirebaseTimestamp(request.requestTime);
-        
-        row.innerHTML = `
-            <td>${idx + 1}</td>
-            <td>${request.studentId}</td>
-            <td>${request.name}</td>
-            <td>${request.email}</td>
-            <td>${requestTime}</td>
-            <td>
-                <button class="btn btn-sm btn-success" onclick="approveRequest('${request.id}')">Approve</button>
-                <button class="btn btn-sm btn-danger" onclick="rejectRequest('${request.id}')">Reject</button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Update approved requests tab
-function updateApprovedRequestsTab() {
-    const tbody = document.getElementById('approvedRequestsTable');
-    if (!tbody) return;
-    
-    const approvedRequestsList = pendingRequests.filter(req => req.status === 'approved');
-    tbody.innerHTML = '';
-    
-    if (approvedRequestsList.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="6" class="text-center text-muted">No approved requests</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    // Sort by approval time (newest first)
-    const sortedRequests = approvedRequestsList.sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
-    
-    sortedRequests.forEach((request, idx) => {
-        const row = document.createElement('tr');
-        const requestTime = formatFirebaseTimestamp(request.requestTime);
-        const approvedTime = formatFirebaseTimestamp(request.approvedAt);
-        
-        row.innerHTML = `
-            <td>${idx + 1}</td>
-            <td>${request.studentId}</td>
-            <td>${request.name}</td>
-            <td>${request.email}</td>
-            <td>${requestTime}</td>
-            <td>${approvedTime}</td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Update rejected requests tab
-function updateRejectedRequestsTab() {
-    const tbody = document.getElementById('rejectedRequestsTable');
-    if (!tbody) return;
-    
-    const rejectedRequestsList = pendingRequests.filter(req => req.status === 'rejected');
-    tbody.innerHTML = '';
-    
-    if (rejectedRequestsList.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="7" class="text-center text-muted">No rejected requests</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    // Sort by rejection time (newest first)
-    const sortedRequests = rejectedRequestsList.sort((a, b) => new Date(b.rejectedAt) - new Date(a.rejectedAt));
-    
-    sortedRequests.forEach((request, idx) => {
-        const row = document.createElement('tr');
-        const requestTime = formatFirebaseTimestamp(request.requestTime);
-        const rejectedTime = formatFirebaseTimestamp(request.rejectedAt);
-        
-        row.innerHTML = `
-            <td>${idx + 1}</td>
-            <td>${request.studentId}</td>
-            <td>${request.name}</td>
-            <td>${request.email}</td>
-            <td>${requestTime}</td>
-            <td>${rejectedTime}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="resubmitRequest('${request.id}')">Resubmit</button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Update request counts in tabs and header
-function updateRequestCounts() {
-    const pendingCount = pendingRequests.filter(req => req.status === 'pending').length;
-    const approvedCount = pendingRequests.filter(req => req.status === 'approved').length;
-    const rejectedCount = pendingRequests.filter(req => req.status === 'rejected').length;
-    
-    console.log('Counts - Pending:', pendingCount, 'Approved:', approvedCount, 'Rejected:', rejectedCount);
-    
-    // Update tab badges
-    const pendingTabBadge = document.getElementById('pendingCount');
-    const approvedTabBadge = document.getElementById('approvedCount');
-    const rejectedTabBadge = document.getElementById('rejectedCount');
-    const headerBadge = document.getElementById('pendingRequestsBadge');
-    const headerCountSpan = document.getElementById('headerPendingCount');
-    
-    console.log('Elements found:', {
-        pendingTabBadge: !!pendingTabBadge,
-        approvedTabBadge: !!approvedTabBadge,
-        rejectedTabBadge: !!rejectedTabBadge,
-        headerBadge: !!headerBadge,
-        headerCountSpan: !!headerCountSpan
-    });
-    
-    if (pendingTabBadge) {
-        pendingTabBadge.textContent = pendingCount;
-        console.log('Updated pending tab badge to:', pendingCount);
-    }
-    if (approvedTabBadge) approvedTabBadge.textContent = approvedCount;
-    if (rejectedTabBadge) rejectedTabBadge.textContent = rejectedCount;
-    if (headerBadge) headerBadge.textContent = pendingCount;
-    if (headerCountSpan) {
-        headerCountSpan.textContent = pendingCount;
-        console.log('Updated header count to:', pendingCount);
-    }
-}
-
-// Get status badge HTML
-function getStatusBadge(status) {
-    switch(status) {
-        case 'pending':
-            return '<span class="badge bg-warning">Pending</span>';
-        case 'approved':
-            return '<span class="badge bg-success">Approved</span>';
-        case 'rejected':
-            return '<span class="badge bg-danger">Rejected</span>';
-        default:
-            return '<span class="badge bg-secondary">Unknown</span>';
-    }
-}
-
-// Approve account request
-async function approveRequest(requestId) {
-    const request = pendingRequests.find(req => req.id === requestId);
-    if (!request) return;
-    
-    try {
-        // Check if student number exists in student numbers database
-        const studentRecord = studentNumbersDatabase.find(record => record.studentId === request.studentId);
-        
-        if (!studentRecord) {
-            showToast('Error', `Student ${request.studentId} not found in student numbers database. Please add the student number first.`, 'error');
-            return;
-        }
-        
-        // Check if student already has an account
-        const existingAccount = students.find(s => s.studentId === request.studentId);
-        if (existingAccount) {
-            showToast('Error', `Student ${request.studentId} already has an account`, 'error');
-            return;
-        }
-        
-        // Use the student's information from the database
-        const section = studentRecord.section || '';
-        const studentName = studentRecord.studentName; // Use the name from database instead of request
-        
-        // Create student account
-        const newStudent = {
-            studentId: request.studentId,
-            studentName: studentName,
-            section: section,
-            email: request.email,
-            password: request.password, // Note: In production, this should be hashed
-            approvedBy: 'Admin', // You can modify this to track who approved
-        };
-        
-        if (firebaseService) {
-            // Add to Firebase
-            await firebaseService.addStudentAccount(newStudent);
-            
-            // Update request status in Firebase
-            await firebaseService.updatePendingRequest(requestId, {
-                status: 'approved',
-                approvedAt: new Date(),
-                approvedBy: 'Admin'
-            });
-        } else {
-            // Fallback to localStorage
-            newStudent.createdAt = new Date().toISOString();
-            newStudent.approvedAt = new Date().toISOString();
-            students.push(newStudent);
-            saveStudents();
-            
-            // Update request status
-            request.status = 'approved';
-            request.approvedAt = new Date().toISOString();
-            savePendingRequests();
-            
-            // Update UI
-            updateStudentTable();
-            updateSectionDropdown();
-            updatePendingRequestsTable();
-        }
-        
-        showToast('Success', `Account approved for ${studentName} (${request.studentId})`, 'success');
-        
-    } catch (error) {
-        console.error('Error approving request:', error);
-        showToast('Error', 'Failed to approve account request', 'error');
-    }
-}
-
-// Reject account request
-function rejectRequest(requestId) {
-    const request = pendingRequests.find(req => req.id === requestId);
-    if (!request) return;
-    
-    if (confirm(`Are you sure you want to reject the account request for ${request.name} (${request.studentId})?`)) {
-        request.status = 'rejected';
-        request.rejectedAt = new Date().toISOString();
-        savePendingRequests();
-        
-        updatePendingRequestsTable();
-        showToast('Info', `Account request rejected for ${request.name} (${request.studentId})`, 'warning');
-    }
-}
-
-// Resubmit rejected request
-function resubmitRequest(requestId) {
-    const request = pendingRequests.find(req => req.id === requestId);
-    if (!request) return;
-    
-    if (confirm(`Are you sure you want to resubmit the account request for ${request.name} (${request.studentId})?`)) {
-        // Create a new request with the same data
-        const newRequest = {
-            id: generateRequestId(),
-            studentId: request.studentId,
-            name: request.name,
-            email: request.email,
-            password: request.password,
-            status: 'pending',
-            requestTime: new Date().toISOString()
-        };
-        
-        // Add the new request
-        pendingRequests.push(newRequest);
-        savePendingRequests();
-        
-        // Update UI
-        updatePendingRequestsTable();
-        
-        showToast('Success', `Account request resubmitted for ${request.name} (${request.studentId})`, 'success');
-    }
-}
-
-// API endpoint for Android app to submit account requests
-// This would be called by your Android app
-function submitAccountRequest(studentId, name, email, password) {
-    // Check if request already exists
-    const existingRequest = pendingRequests.find(req => req.studentId === studentId && req.status === 'pending');
-    if (existingRequest) {
-        return { success: false, message: 'Account request already pending' };
-    }
-    
-    // Check if student already has an account
-    const existingAccount = students.find(s => s.studentId === studentId);
-    if (existingAccount) {
-        return { success: false, message: 'Student already has an account' };
-    }
-    
-    // Create new request
-    const newRequest = {
-        id: generateRequestId(),
+    var record = {
+        id: generateId(),
         studentId: studentId,
-        name: name,
+        studentName: studentName,
+        institute: institute,
+        programCode: programCode,
+        yearSection: yearSection,
         email: email,
-        password: password,
-        status: 'pending',
-        requestTime: new Date().toISOString()
+        phone: phone,
+        hasUnpaidDebt: false,
+        isActive: true,
+        addedAt: new Date().toISOString(),
+        addedBy: 'Admin'
     };
-    
-    pendingRequests.push(newRequest);
-    savePendingRequests();
-    updatePendingRequestsTable();
-    
-    return { success: true, message: 'Account request submitted successfully' };
+
+    getService().addStudentAccount(record);
+    students.push(record);
+    bootstrap.Modal.getInstance(document.getElementById('addStudentModal'))?.hide();
+    document.getElementById('addStudentForm').reset();
+    document.getElementById('addProgram').innerHTML = '<option value="">Select Program</option>';
+    showToast('Student added.');
+    renderStudentsTable();
 }
 
-// Generate unique request ID
-function generateRequestId() {
-    return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+function openEditStudentModal(studentId) {
+    var s = students.find(function(s) { return s.studentId === studentId; });
+    if (!s) { showToast('Student not found.', 'danger'); return; }
+
+    document.getElementById('editOriginalStudentId').value = s.studentId;
+    document.getElementById('editStudentId').value   = s.studentId;
+    document.getElementById('editStudentName').value = s.studentName;
+    document.getElementById('editYearSection').value = s.yearSection || '';
+    document.getElementById('editEmail').value = s.email || '';
+    document.getElementById('editPhone').value = s.phone || '';
+
+    var instSel = document.getElementById('editInstitute');
+    populateInstituteSelect(instSel);
+    instSel.value = s.institute || '';
+
+    var progSel = document.getElementById('editProgram');
+    populateProgramSelect(progSel, s.institute, s.programCode);
+
+    new bootstrap.Modal(document.getElementById('editStudentModal')).show();
 }
 
-// Simulate Android app request (for testing)
-function simulateAndroidRequest() {
-    const testRequests = [
-        { studentId: '2024-0001', name: 'John Doe', email: 'john.doe@email.com', password: 'password123' },
-        { studentId: '2024-0002', name: 'Jane Smith', email: 'jane.smith@email.com', password: 'password456' }
-    ];
-    
-    testRequests.forEach(req => {
-        submitAccountRequest(req.studentId, req.name, req.email, req.password);
+function handleEditStudent(e) {
+    e.preventDefault();
+    var origId      = document.getElementById('editOriginalStudentId').value;
+    var newId       = document.getElementById('editStudentId').value.trim();
+    var studentName = document.getElementById('editStudentName').value.trim();
+    var institute   = document.getElementById('editInstitute').value;
+    var programCode = document.getElementById('editProgram').value;
+    var yearSection = document.getElementById('editYearSection').value.trim();
+    var email       = document.getElementById('editEmail').value.trim();
+    var phone       = document.getElementById('editPhone').value.trim();
+
+    if (!newId || !studentName || !institute || !programCode || !yearSection) {
+        showToast('Please fill in all required fields.', 'warning'); return;
+    }
+    if (newId !== origId && students.find(function(s) { return s.studentId === newId; })) {
+        showToast('That student number already exists.', 'danger'); return;
+    }
+
+    var idx = students.findIndex(function(s) { return s.studentId === origId; });
+    if (idx === -1) { showToast('Student not found.', 'danger'); return; }
+
+    var updated = Object.assign({}, students[idx], { studentId: newId, studentName: studentName, institute: institute, programCode: programCode, yearSection: yearSection, email: email, phone: phone });
+    students[idx] = updated;
+    getService().updateStudentAccount(updated.id, updated);
+
+    bootstrap.Modal.getInstance(document.getElementById('editStudentModal'))?.hide();
+    showToast('Student updated.');
+    renderStudentsTable();
+}
+
+function deleteStudent(studentId) {
+    if (!confirm('Delete student ' + studentId + '?')) return;
+    var idx = students.findIndex(function(s) { return s.studentId === studentId; });
+    if (idx === -1) return;
+    getService().deleteStudentAccount(students[idx].id);
+    students.splice(idx, 1);
+    showToast('Student deleted.', 'warning');
+    renderStudentsTable();
+}
+
+// --- Officer CRUD ---
+function handleAddOfficer(e) {
+    e.preventDefault();
+    var studentId = document.getElementById('officerStudentId').value.trim();
+    var institute = document.getElementById('officerInstitute').value;
+    var orgCode   = document.getElementById('officerOrg').value;
+    var roleName  = document.getElementById('officerRole').value;
+    var joinedAt  = document.getElementById('officerJoinedAt').value;
+
+    if (!studentId || !institute || !orgCode || !roleName) {
+        showToast('Please fill in all required fields.', 'warning'); return;
+    }
+
+    var acct  = students.find(function(s) { return s.studentId === studentId; });
+    var numE  = studentNumbers.find(function(s) { return s.studentId === studentId; });
+    var found = acct || numE;
+    var studentName = found ? (found.studentName || studentId) : studentId;
+
+    var record = {
+        id: generateId(),
+        studentId: studentId,
+        studentName: studentName,
+        institute: institute,
+        orgCode: orgCode,
+        orgName: orgCode,
+        roleName: roleName,
+        joinedAt: joinedAt || new Date().toISOString().slice(0, 10),
+        isActive: true,
+        addedAt: new Date().toISOString(),
+        addedBy: 'Admin'
+    };
+
+    getService().addOfficer(record);
+    officers.push(record);
+    bootstrap.Modal.getInstance(document.getElementById('addOfficerModal'))?.hide();
+    document.getElementById('addOfficerForm').reset();
+    document.getElementById('officerOrg').innerHTML = '<option value="">Select Organization</option>';
+    document.getElementById('officerStudentLookup').textContent = '';
+    showToast('Officer added.');
+    renderOfficersTable();
+}
+
+function openEditOfficerModal(officerId) {
+    var o = officers.find(function(o) { return o.id === officerId; });
+    if (!o) { showToast('Officer not found.', 'danger'); return; }
+
+    document.getElementById('editOfficerId').value = o.id;
+    document.getElementById('editOfficerStudentId').value   = o.studentId;
+    document.getElementById('editOfficerStudentName').value = o.studentName;
+    document.getElementById('editOfficerJoinedAt').value    = o.joinedAt || '';
+    document.getElementById('editOfficerIsActive').checked  = !!o.isActive;
+    document.getElementById('editOfficerRole').value        = o.roleName || '';
+
+    var instSel = document.getElementById('editOfficerInstitute');
+    populateInstituteSelect(instSel);
+    instSel.value = o.institute || '';
+
+    var orgSel = document.getElementById('editOfficerOrg');
+    populateOrgSelect(orgSel, o.institute, o.orgCode);
+
+    new bootstrap.Modal(document.getElementById('editOfficerModal')).show();
+}
+
+function handleEditOfficer(e) {
+    e.preventDefault();
+    var id        = document.getElementById('editOfficerId').value;
+    var institute = document.getElementById('editOfficerInstitute').value;
+    var orgCode   = document.getElementById('editOfficerOrg').value;
+    var roleName  = document.getElementById('editOfficerRole').value;
+    var joinedAt  = document.getElementById('editOfficerJoinedAt').value;
+    var isActive  = document.getElementById('editOfficerIsActive').checked;
+
+    if (!institute || !orgCode || !roleName) {
+        showToast('Please fill in all required fields.', 'warning'); return;
+    }
+
+    var idx = officers.findIndex(function(o) { return o.id === id; });
+    if (idx === -1) { showToast('Officer not found.', 'danger'); return; }
+
+    var updated = Object.assign({}, officers[idx], { institute: institute, orgCode: orgCode, orgName: orgCode, roleName: roleName, joinedAt: joinedAt, isActive: isActive });
+    officers[idx] = updated;
+    getService().updateOfficer(id, updated);
+
+    bootstrap.Modal.getInstance(document.getElementById('editOfficerModal'))?.hide();
+    showToast('Officer updated.');
+    renderOfficersTable();
+}
+
+function deleteOfficerRecord(officerId) {
+    var o = officers.find(function(o) { return o.id === officerId; });
+    if (!o) return;
+    if (!confirm('Remove ' + o.studentName + ' from ' + o.orgCode + '?')) return;
+    getService().deleteOfficer(officerId);
+    officers = officers.filter(function(x) { return x.id !== officerId; });
+    showToast('Officer removed.', 'warning');
+    renderOfficersTable();
+}
+
+// --- Account Request actions ---
+async function approveRequest(requestId) {
+    var request = pendingRequests.find(function(r) { return r.id === requestId; });
+    if (!request) return;
+
+    var studentRecord = studentNumbers.find(function(s) {
+        return s.studentId === request.studentId || s.id === request.studentRecordId;
     });
-    
-    showToast('Info', 'Test requests added', 'success');
-}
 
-// Toast helper
-function showToast(title, message, type) {
-    const container = document.getElementById('toastContainer');
-    if (!container) return;
-    
-    const toast = document.createElement('div');
-    toast.className = `toast-notification toast-${type}`;
-    toast.innerHTML = `
-        <span class="toast-title">${title}</span>
-        <span>${message || ''}</span>
-        <button class="toast-close" aria-label="Close">×</button>
-    `;
-    
-    container.appendChild(toast);
-    
-    // Trigger animation
-    requestAnimationFrame(() => toast.classList.add('show'));
-    
-    // Auto dismiss
-    const remove = () => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 180);
+    if (!studentRecord) {
+        showToast('Student number not in database — cannot approve.', 'danger');
+        return;
+    }
+
+    var newAccount = {
+        id: generateId(),
+        studentId:   studentRecord.studentId,
+        studentName: studentRecord.studentName || request.studentName || request.name || '',
+        institute:   studentRecord.institute   || '',
+        programCode: studentRecord.programCode || studentRecord.course || request.programCode || request.course || '',
+        yearSection: studentRecord.yearSection || request.yearSection || '',
+        email:       request.email || '',
+        phone:       request.phone || '',
+        password:    request.password || '',
+        hasUnpaidDebt: false,
+        isActive:    true,
+        addedAt:     new Date().toISOString(),
+        addedBy:     'Admin (approved request)'
     };
-    
-    const closeBtn = toast.querySelector('.toast-close');
-    if (closeBtn) closeBtn.addEventListener('click', remove);
-    
-    setTimeout(remove, 3000);
+
+    if (!students.find(function(s) { return s.studentId === newAccount.studentId; })) {
+        getService().addStudentAccount(newAccount);
+        students.push(newAccount);
+    }
+
+    request.status     = 'approved';
+    request.approvedAt = new Date().toISOString();
+    getService().updatePendingRequest(requestId, request);
+
+    showToast('Approved: ' + newAccount.studentName);
+    renderStudentsTable();
+    renderRequestTables();
 }
 
+async function rejectRequest(requestId) {
+    var request = pendingRequests.find(function(r) { return r.id === requestId; });
+    if (!request) return;
+    request.status     = 'rejected';
+    request.rejectedAt = new Date().toISOString();
+    getService().updatePendingRequest(requestId, request);
+    showToast('Request rejected.', 'warning');
+    renderRequestTables();
+}
+
+async function reopenRequest(requestId) {
+    var request = pendingRequests.find(function(r) { return r.id === requestId; });
+    if (!request) return;
+    request.status     = 'pending';
+    request.rejectedAt = null;
+    getService().updatePendingRequest(requestId, request);
+    showToast('Request moved back to pending.');
+    renderRequestTables();
+}
+
+// --- Export ---
+function exportData() {
+    var data = {
+        exportedAt: new Date().toISOString(),
+        studentAccounts: students,
+        officers: officers,
+        pendingRequests: pendingRequests
+    };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'accounts_export_' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// --- Filter Dropdowns init ---
+function initFilterDropdowns() {
+    // Students: institute filter
+    var sInstSel = document.getElementById('studentInstituteFilter');
+    INSTITUTE_LIST.forEach(function(inst) { sInstSel.add(new Option(inst, inst)); });
+
+    // Officers: institute filter
+    var oInstSel = document.getElementById('officerInstituteFilter');
+    INSTITUTE_LIST.forEach(function(inst) { oInstSel.add(new Option(inst, inst)); });
+
+    // Officers: org filter (all orgs initially)
+    var oOrgSel = document.getElementById('officerOrgFilter');
+    Object.values(INSTITUTE_ORGS).reduce(function(a,b){return a.concat(b);}, [])
+        .concat(COLLEGE_WIDE_ORGS)
+        .forEach(function(org) { oOrgSel.add(new Option(org, org)); });
+
+    // Add modals
+    populateInstituteSelect(document.getElementById('addInstitute'));
+    populateInstituteSelect(document.getElementById('officerInstitute'));
+}
+
+// --- Event Wiring ---
+function setupEventListeners() {
+    var el;
+
+    el = document.getElementById('refreshData');
+    if (el) el.addEventListener('click', async function() { await loadData(); refreshAll(); showToast('Data refreshed.'); });
+
+    // Auto-refresh when another tab/page writes to localStorage (e.g. student registers from login page)
+    window.addEventListener('storage', async function(e) {
+        var watched = ['AccountsSystem_pendingRequests', 'AccountsSystem_studentAccounts',
+                       'AccountsSystem_studentNumbers', 'AccountsSystem_officers'];
+        if (watched.indexOf(e.key) !== -1) {
+            await loadData();
+            refreshAll();
+        }
+    });
+
+    el = document.getElementById('exportData');
+    if (el) el.addEventListener('click', exportData);
+
+    // Student filters
+    el = document.getElementById('studentInstituteFilter');
+    if (el) el.addEventListener('change', onStudentInstituteFilterChange);
+
+    el = document.getElementById('studentProgramFilter');
+    if (el) el.addEventListener('change', renderStudentsTable);
+
+    el = document.getElementById('studentSearch');
+    if (el) el.addEventListener('input', renderStudentsTable);
+
+    // Officers filters
+    el = document.getElementById('officerInstituteFilter');
+    if (el) el.addEventListener('change', onOfficerInstituteFilterChange);
+
+    el = document.getElementById('officerOrgFilter');
+    if (el) el.addEventListener('change', renderOfficersTable);
+
+    el = document.getElementById('officerSearch');
+    if (el) el.addEventListener('input', renderOfficersTable);
+
+    // Add Student modal: institute -> program cascade
+    el = document.getElementById('addInstitute');
+    if (el) el.addEventListener('change', function() {
+        populateProgramSelect(document.getElementById('addProgram'), this.value);
+    });
+
+    // Edit Student modal: institute -> program cascade
+    el = document.getElementById('editInstitute');
+    if (el) el.addEventListener('change', function() {
+        populateProgramSelect(document.getElementById('editProgram'), this.value);
+    });
+
+    // Add Officer modal: institute -> org cascade
+    el = document.getElementById('officerInstitute');
+    if (el) el.addEventListener('change', function() {
+        populateOrgSelect(document.getElementById('officerOrg'), this.value);
+    });
+
+    // Edit Officer modal: institute -> org cascade
+    el = document.getElementById('editOfficerInstitute');
+    if (el) el.addEventListener('change', function() {
+        populateOrgSelect(document.getElementById('editOfficerOrg'), this.value);
+    });
+
+    // Officer add: student ID live lookup
+    el = document.getElementById('officerStudentId');
+    if (el) el.addEventListener('input', function() {
+        var val  = this.value.trim();
+        var acct = students.find(function(s) { return s.studentId === val; });
+        var numE = studentNumbers.find(function(s) { return s.studentId === val; });
+        var found = acct || numE;
+        var lookup = document.getElementById('officerStudentLookup');
+        if (found) {
+            lookup.textContent = 'Found: ' + (found.studentName || '') + ' — ' + (found.programCode || found.course || '');
+            lookup.style.color = 'green';
+        } else if (val.length > 4) {
+            lookup.textContent = 'Student number not found in records.';
+            lookup.style.color = 'crimson';
+        } else {
+            lookup.textContent = '';
+        }
+    });
+
+    // Forms
+    el = document.getElementById('addStudentForm');
+    if (el) el.addEventListener('submit', handleAddStudent);
+
+    el = document.getElementById('editStudentForm');
+    if (el) el.addEventListener('submit', handleEditStudent);
+
+    el = document.getElementById('addOfficerForm');
+    if (el) el.addEventListener('submit', handleAddOfficer);
+
+    el = document.getElementById('editOfficerForm');
+    if (el) el.addEventListener('submit', handleEditOfficer);
+
+    // Clear add-student form on modal close
+    el = document.getElementById('addStudentModal');
+    if (el) el.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('addStudentForm').reset();
+        document.getElementById('addProgram').innerHTML = '<option value="">Select Program</option>';
+    });
+
+    // Clear add-officer form on modal close
+    el = document.getElementById('addOfficerModal');
+    if (el) el.addEventListener('hidden.bs.modal', function() {
+        document.getElementById('addOfficerForm').reset();
+        document.getElementById('officerOrg').innerHTML = '<option value="">Select Organization</option>';
+        document.getElementById('officerStudentLookup').textContent = '';
+    });
+}
+
+// --- Bootstrap ---
+document.addEventListener('DOMContentLoaded', async function() {
+    if (!authorizeIncomingUser()) return;
+    await loadData();
+    initFilterDropdowns();
+    setupEventListeners();
+    refreshAll();
+});
