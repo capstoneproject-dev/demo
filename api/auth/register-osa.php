@@ -22,6 +22,7 @@ $employeeNumber  = trim($body['employee_number']  ?? '');
 $firstName       = trim($body['first_name']       ?? '');
 $lastName        = trim($body['last_name']        ?? '');
 $email           = trim($body['email']            ?? '');
+$phone           = trim($body['phone']            ?? '');
 $password        = $body['password']              ?? '';
 $confirmPassword = $body['confirm_password']      ?? '';
 
@@ -51,6 +52,7 @@ $userId = createOsaUser([
     'first_name'      => $firstName,
     'last_name'       => $lastName,
     'email'           => $email,
+    'phone'           => $phone,
     'password'        => $password,
 ]);
 

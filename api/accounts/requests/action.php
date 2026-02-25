@@ -84,8 +84,8 @@ try {
             $insUser = $pdo->prepare("
                 INSERT INTO users
                     (student_number, email, password_hash, first_name, last_name,
-                     account_type, has_unpaid_debt, is_active)
-                VALUES (:sn, :email, :pw, :fn, :ln, 'student', 0, 1)
+                     phone, account_type, has_unpaid_debt, is_active)
+                VALUES (:sn, :email, :pw, :fn, :ln, :phone, 'student', 0, 1)
             ");
             $insUser->execute([
                 ':sn'    => $req['student_number'],
@@ -93,6 +93,7 @@ try {
                 ':pw'    => $req['password_hash'],
                 ':fn'    => $firstName,
                 ':ln'    => $lastName,
+                ':phone' => $req['phone'] ?? null,
             ]);
             $userId = (int)$pdo->lastInsertId();
 
