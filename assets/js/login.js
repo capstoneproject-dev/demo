@@ -740,7 +740,16 @@ if (dashboardChoiceModal) {
 if (goStudentDashboardBtn) {
   goStudentDashboardBtn.addEventListener('click', () => {
     if (!pendingOrgLogin) return;
-    redirectToStudent(pendingOrgLogin.db, pendingOrgLogin.user, pendingOrgLogin.preferredOrgName || null);
+    const { user, memberships, baseSession } = pendingOrgLogin;
+    const session = {
+      ...baseSession,
+      login_role: 'student',
+      active_org_id: null,
+      active_org_name: null   // studentDashboard.js resolves from program_code via courseOrganizationMap
+    };
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    closeDashboardChoiceModal();
+    window.location.href = 'studentDashboard.html';
   });
 }
 
@@ -752,7 +761,19 @@ if (goOfficerDashboardBtn) {
       alert('Select an organization dashboard first.');
       return;
     }
-    redirectToOfficer(pendingOrgLogin.db, pendingOrgLogin.user, selectedOrgId);
+    const { memberships, baseSession } = pendingOrgLogin;
+    const selectedMembership = memberships.find((m) => Number(m.org_id) === selectedOrgId);
+    if (!selectedMembership) { alert('Invalid organization selection.'); return; }
+    const session = {
+      ...baseSession,
+      login_role: 'org',
+      active_org_id: selectedMembership.org_id,
+      active_org_name: selectedMembership.org_name,
+      active_role_name: selectedMembership.role_name
+    };
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    closeDashboardChoiceModal();
+    window.location.href = 'officerDashboard.html';
   });
 }
 
@@ -838,8 +859,7 @@ function registerOrgOfficer() {
   toggleSlide();
 }
 
-function registerOsa() {
-  const db = getAuthDb();
+async function registerOsa() {
   const employeeNumber = (document.getElementById('osa-employee-number-input') || {}).value?.trim() || '';
   const fullName = (document.getElementById('osa-name-input') || {}).value?.trim() || '';
   const email = (document.getElementById('osa-email-input') || {}).value?.trim() || '';
@@ -854,90 +874,146 @@ function registerOsa() {
     alert('Passwords do not match.');
     return;
   }
-  if (isDuplicateIdentity(db, email, null, employeeNumber)) {
-    alert('Email or employee number is already registered.');
-    return;
-  }
 
   const parsedName = splitName(fullName);
-  const user = createUser(db, {
-    student_number: null,
-    employee_number: employeeNumber,
-    email,
-    password,
-    first_name: parsedName.first_name,
-    last_name: parsedName.last_name,
-    account_type: 'osa_staff'
-  });
+  const btn = document.getElementById('osaRegisterBtn');
+  if (btn) btn.disabled = true;
 
-  saveAuthDb(db);
-  redirectToOsa(db, user);
+  try {
+    const resp = await fetch('../api/auth/register-osa.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        employee_number: employeeNumber,
+        first_name: parsedName.first_name,
+        last_name: parsedName.last_name,
+        email,
+        password,
+        confirm_password: confirmPassword
+      })
+    });
+    const data = await resp.json();
+    if (!data.ok) { alert(data.error || 'Registration failed.'); return; }
+
+    const { user, memberships } = data;
+    const session = {
+      user_id: user.user_id,
+      account_type: 'osa_staff',
+      display_name: `${user.first_name} ${user.last_name}`.trim(),
+      email: user.email,
+      student_number: null,
+      employee_number: user.employee_number,
+      authenticated_at: new Date().toISOString(),
+      officer_memberships: memberships || [],
+      login_role: 'osa',
+      active_org_id: null,
+      active_org_name: 'Office of Student Affairs',
+      active_role_name: 'osa_staff'
+    };
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    window.location.href = 'osaDashboard.html';
+  } catch (err) {
+    console.error('[registerOsa] error:', err);
+    alert('Could not connect to the server. Please try again.');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 /* =====================
    LOGIN HANDLER
    ===================== */
-function handleLogin() {
-  const db = getAuthDb();
+async function handleLogin() {
   const identifier = (document.getElementById('loginIdentifier') || {}).value?.trim() || '';
   const password = (document.getElementById('loginPassword') || {}).value || '';
 
   if (!identifier || !password) {
-    alert('Please enter your identifier and password.');
+    alert('Please enter your email / ID and password.');
     return;
   }
 
-  let user = findUserByIdentifier(db, identifier);
-  if (!user) {
-    user = trySyncAuthorizedStudentFromAccounts(db, identifier, password);
-  }
+  const loginBtn = document.getElementById('loginBtn');
+  if (loginBtn) loginBtn.disabled = true;
 
-  if (!user || Number(user.is_active) !== 1) {
-    alert('Account not found or inactive.');
-    return;
-  }
+  try {
+    const resp = await fetch('../api/auth/login.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password })
+    });
+    const data = await resp.json();
 
-  if (String(user.password_hash) !== String(password)) {
-    alert('Invalid credentials.');
-    return;
-  }
-
-  user.last_login_at = nowIso();
-  user.updated_at = nowIso();
-
-  if (user.account_type === 'osa_staff') {
-    saveAuthDb(db);
-    redirectToOsa(db, user);
-    return;
-  }
-
-  if (user.account_type === 'student') {
-    const officerMemberships = getOfficerMemberships(db, user.user_id);
-    saveAuthDb(db);
-
-    if (!officerMemberships.length) {
-      redirectToStudent(db, user, null);
+    if (!data.ok) {
+      alert(data.error || 'Login failed. Please check your credentials.');
       return;
     }
 
-    pendingOrgLogin = { db, user, preferredOrgName: officerMemberships[0].org_name };
+    const { user, memberships } = data;
+
+    // Base session shape (same structure the dashboards expect)
+    const baseSession = {
+      user_id: user.user_id,
+      account_type: user.account_type,
+      display_name: `${user.first_name} ${user.last_name}`.trim(),
+      email: user.email,
+      student_number: user.student_number || null,
+      employee_number: user.employee_number || null,
+      authenticated_at: new Date().toISOString(),
+      officer_memberships: memberships || [],
+      // Extra fields used by studentDashboard.js buildCurrentStudentProfile
+      program_code: user.program_code || null,
+      section: user.section || null
+    };
+
+    // OSA staff — go straight to OSA dashboard
+    if (user.account_type === 'osa_staff') {
+      const session = {
+        ...baseSession,
+        login_role: 'osa',
+        active_org_id: null,
+        active_org_name: 'Office of Student Affairs',
+        active_role_name: 'osa_staff'
+      };
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      window.location.href = 'osaDashboard.html';
+      return;
+    }
+
+    // Student with no officer memberships — student dashboard only
+    if (!memberships || memberships.length === 0) {
+      const session = {
+        ...baseSession,
+        login_role: 'student',
+        active_org_id: null,
+        active_org_name: null   // resolved by courseOrganizationMap in studentDashboard.js
+      };
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      window.location.href = 'studentDashboard.html';
+      return;
+    }
+
+    // Has officer memberships — show the dashboard choice modal
+    pendingOrgLogin = { user, memberships, baseSession };
 
     if (orgDashboardSelect) {
       orgDashboardSelect.innerHTML = '<option value="">Select Organization Dashboard</option>';
-      officerMemberships.forEach((membership, idx) => {
-        const option = document.createElement('option');
-        option.value = membership.org_id;
-        option.textContent = `${membership.org_name} (${membership.role_name})`;
-        if (idx === 0) option.selected = true;
-        orgDashboardSelect.appendChild(option);
+      memberships.forEach((m, idx) => {
+        const opt = document.createElement('option');
+        opt.value = m.org_id;
+        opt.textContent = `${m.org_name} (${m.role_name})`;
+        if (idx === 0) opt.selected = true;
+        orgDashboardSelect.appendChild(opt);
       });
     }
 
     openDashboardChoiceModal();
-    return;
-  }
 
-  alert('Unsupported account type.');
+  } catch (err) {
+    console.error('[handleLogin] error:', err);
+    alert('Could not connect to the server. Make sure XAMPP is running.');
+  } finally {
+    if (loginBtn) loginBtn.disabled = false;
+  }
 }
 
 /* =====================

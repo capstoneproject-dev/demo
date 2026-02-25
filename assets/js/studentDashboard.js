@@ -194,6 +194,28 @@ function normalizeOrgName(name) {
 const AUTH_DB_KEY = "naapAuthDB_v1";
 const AUTH_SESSION_KEY = "naapAuthSession";
 
+/**
+ * Non-blocking PHP session check.
+ * Runs async after initial render — redirects to login if server session is gone.
+ */
+function validatePhpSession() {
+    const authSession = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || 'null');
+    // Only check against server if we actually have a local session
+    if (!authSession || !authSession.user_id) {
+        window.location.href = '../pages/login.html';
+        return;
+    }
+    fetch('../api/auth/session.php', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.authenticated) {
+                localStorage.removeItem(AUTH_SESSION_KEY);
+                window.location.href = '../pages/login.html';
+            }
+        })
+        .catch(() => { /* silently ignore — XAMPP may be offline during dev */ });
+}
+
 function readJsonStorage(key, fallback) {
     try {
         return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
@@ -1299,9 +1321,10 @@ function toggleThemeMobile() {
 }
 
 // Logout Handler
-function handleLogout(e) {
+async function handleLogout(e) {
     e.preventDefault();
     if (confirm('Are you sure you want to logout?')) {
+        try { await fetch('../api/auth/logout.php', { credentials: 'same-origin' }); } catch (_) {}
         localStorage.removeItem(AUTH_SESSION_KEY);
         window.location.href = '../pages/login.html';
     }
@@ -1419,6 +1442,7 @@ function moveDashboardSlide(direction) {
 
 // --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', () => {
+    validatePhpSession();   // guard: redirect to login if no valid session
     syncStudentIdentity();
     setDate();
     renderDashboard();

@@ -538,13 +538,15 @@ INSERT INTO organizations (
 (2, 'ELITECH',  'ELITECH',  'Elite Technologist Society', 'active'),
 (3, 'CYC',      'CYC',      'Campus Youth Circle', 'active');
 
+-- Demo account password for ALL seed users: 12345678
+-- Hash generated with: password_hash('12345678', PASSWORD_BCRYPT)
 INSERT INTO users (
     user_id, student_number, employee_number, email, password_hash, first_name, last_name, account_type
 ) VALUES
-(1, '2023-10001', NULL, 'aisers.officer1@school.edu', '$argon2id$demohash1', 'Aira', 'Santos', 'student'),
-(2, '2023-10002', NULL, 'elitech.officer1@school.edu', '$argon2id$demohash2', 'Liam', 'Reyes', 'student'),
-(3, '2023-10003', NULL, 'cyc.officer1@school.edu', '$argon2id$demohash3', 'Chloe', 'Cruz', 'student'),
-(4, NULL, 'OSA-0001', 'osa.staff@school.edu', '$argon2id$demohash4', 'Olivia', 'Garcia', 'osa_staff');
+(1, '2023-10001', NULL, 'aisers.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Aira', 'Santos', 'student'),
+(2, '2023-10002', NULL, 'elitech.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Liam', 'Reyes', 'student'),
+(3, '2023-10003', NULL, 'cyc.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Chloe', 'Cruz', 'student'),
+(4, NULL, 'OSA-0001', 'osa.staff@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Olivia', 'Garcia', 'osa_staff');
 
 INSERT INTO org_roles (
     role_id, org_id, role_name, can_access_org_dashboard, is_active
