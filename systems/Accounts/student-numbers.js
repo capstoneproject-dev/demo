@@ -1,735 +1,423 @@
-// Student Numbers Management System
-let studentNumbers = [];
-let firebaseService = null;
+﻿// Student Numbers Management System
+// Uses accountsLocalStorageService (local-storage-service.js) — no direct key access!
 
-// Initialize the application
-document.addEventListener('DOMContentLoaded', async function() {
-    // Initialize Firebase service
-    const firebaseReady = await initializeFirebaseService();
-    
-    // Load data from Firebase
-    await loadDataFromFirebase();
-    
-    // Set up event listeners
-    setupEventListeners();
-    
-    // Initialize the interface
-    updateStudentNumbersTable();
-    updateSectionFilter();
-    updateTotalCount();
-    
-    // Set status display
-    document.getElementById('statusDisplay').textContent = firebaseReady ? 'Ready (Firebase)' : 'Ready (Local Storage)';
-    
-    // Add global test functions
-    window.testStudentNumbersFirebase = testStudentNumbersFirebase;
-    window.debugStudentNumbers = debugStudentNumbers;
-});
+var studentNumbers = [];
 
-// Global test function
-async function testStudentNumbersFirebase() {
-    console.log('=== STUDENT NUMBERS FIREBASE TEST ===');
-    console.log('Firebase service available:', !!firebaseService);
-    console.log('Window accountsFirebaseService:', !!window.accountsFirebaseService);
-    
-    if (firebaseService) {
-        try {
-            const numbers = await firebaseService.getStudentNumbers();
-            console.log('Direct Firebase call - Student numbers:', numbers.length);
-            console.log('Numbers data:', numbers);
-            return numbers;
-        } catch (error) {
-            console.error('Direct Firebase call error:', error);
-            return null;
-        }
-    } else {
-        console.log('No Firebase service available');
-        return null;
-    }
+function getService() { return window.accountsLocalStorageService; }
+
+function formatDate(v) {
+    if (!v) return '—';
+    try { return new Date(v).toLocaleString(); } catch (_) { return '—'; }
 }
 
-// Debug student numbers
-function debugStudentNumbers() {
-    console.log('=== STUDENT NUMBERS DEBUG ===');
-    console.log('studentNumbers array length:', studentNumbers.length);
-    console.log('studentNumbers data:', studentNumbers);
-    console.log('Firebase service available:', !!firebaseService);
-    updateStudentNumbersTable();
+function generateId() {
+    return 'sn_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
 }
 
-// Format Firebase timestamp for display
-function formatFirebaseTimestamp(timestamp) {
-    if (!timestamp) return 'N/A';
-    
-    try {
-        // Handle Firebase Timestamp objects
-        if (timestamp.seconds) {
-            return new Date(timestamp.seconds * 1000).toLocaleString();
-        }
-        // Handle regular Date objects or ISO strings
-        return new Date(timestamp).toLocaleString();
-    } catch (error) {
-        console.error('Error formatting timestamp:', error, timestamp);
-        return 'Invalid Date';
-    }
+function escHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// Initialize Firebase service
-async function initializeFirebaseService() {
-    console.log('Initializing Firebase service for Student Numbers...');
-    return new Promise((resolve) => {
-        // Wait for Firebase service to be available
-        const checkService = setInterval(() => {
-            if (window.accountsFirebaseService) {
-                clearInterval(checkService);
-                firebaseService = window.accountsFirebaseService;
-                console.log('Firebase service initialized for Student Numbers');
-                resolve(true);
-            } else {
-                console.log('Waiting for Firebase service...');
-            }
-        }, 100);
-        
-        // Stop checking after 10 seconds
-        setTimeout(() => {
-            clearInterval(checkService);
-            if (!firebaseService) {
-                console.error('Firebase service not available, falling back to localStorage');
-            }
-            resolve(false);
-        }, 10000);
-    });
-}
-
-// Load data from Firebase
-async function loadDataFromFirebase() {
-    console.log('loadDataFromFirebase called, firebaseService:', !!firebaseService);
-    
-    if (firebaseService) {
-        try {
-            console.log('Loading student numbers from Firebase...');
-            studentNumbers = await firebaseService.getStudentNumbers();
-            
-            console.log('Firebase data loaded:', {
-                studentNumbers: studentNumbers.length
-            });
-            
-            // Set up real-time listener
-            firebaseService.listenToStudentNumbers((numbers) => {
-                console.log('Student numbers updated:', numbers.length);
-                studentNumbers = numbers;
-                updateStudentNumbersTable();
-                updateSectionFilter();
-                updateTotalCount();
-            });
-            
-            console.log('Student numbers loaded from Firebase successfully');
-        } catch (error) {
-            console.error('Error loading data from Firebase:', error);
-            // Fallback to localStorage
-            loadStudentNumbers();
-        }
-    } else {
-        console.log('Firebase service not available, using localStorage fallback');
-        // Fallback to localStorage
-        loadStudentNumbers();
-    }
-}
-
-// Load student numbers from localStorage
-function loadStudentNumbers() {
-    const storedNumbers = localStorage.getItem('studentNumbersDatabase');
-    studentNumbers = storedNumbers ? JSON.parse(storedNumbers) : [];
-}
-
-// Save student numbers to localStorage
-function saveStudentNumbers() {
-    localStorage.setItem('studentNumbersDatabase', JSON.stringify(studentNumbers));
-}
-
-// Setup event listeners
-function setupEventListeners() {
-    // Add student number form
-    const addForm = document.getElementById('addStudentNumberForm');
-    if (addForm) {
-        addForm.addEventListener('submit', handleAddStudentNumber);
-    }
-    
-    // Edit student number form
-    const editForm = document.getElementById('editStudentNumberForm');
-    if (editForm) {
-        editForm.addEventListener('submit', handleEditStudentNumber);
-    }
-    
-    // Search functionality
-    const searchInput = document.getElementById('searchStudentNumbers');
-    if (searchInput) {
-        searchInput.addEventListener('input', updateStudentNumbersTable);
-    }
-    
-    // Section filter
-    const sectionFilter = document.getElementById('sectionFilter');
-    if (sectionFilter) {
-        sectionFilter.addEventListener('change', updateStudentNumbersTable);
-    }
-}
-
-// Handle add student number form submission
-async function handleAddStudentNumber(e) {
-    e.preventDefault();
-    
-    const studentId = document.getElementById('newStudentId').value.trim();
-    const studentName = document.getElementById('newStudentName').value.trim();
-    const course = document.getElementById('newCourse').value;
-    const yearSection = document.getElementById('newYearSection').value.trim();
-    const email = document.getElementById('newEmail').value.trim();
-    const phone = document.getElementById('newPhone').value.trim();
-    
-    if (!studentId || !studentName) {
-        showToast('Error', 'Please fill in Student Number and Name', 'error');
-        return;
-    }
-    
-    // Check if student number already exists
-    const existingStudent = studentNumbers.find(s => s.studentId === studentId);
-    if (existingStudent) {
-        showToast('Error', 'Student number already exists', 'error');
-        return;
-    }
-    
-    const section = course && yearSection ? `${course} ${yearSection}` : '';
-    const newStudent = {
-        studentId,
-        studentName,
-        section,
-        course,
-        yearSection,
-        email,
-        phone,
-        addedBy: 'Admin' // You can modify this to track who added
-    };
-    
-    try {
-        if (firebaseService) {
-            // Add to Firebase
-            await firebaseService.addStudentNumber(newStudent);
-        } else {
-            // Fallback to localStorage
-            newStudent.addedAt = new Date().toISOString();
-            studentNumbers.push(newStudent);
-            saveStudentNumbers();
-            
-            // Update interface
-            updateStudentNumbersTable();
-            updateSectionFilter();
-            updateTotalCount();
-        }
-        
-        // Clear form
-        document.getElementById('addStudentNumberForm').reset();
-        
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('addStudentNumberModal'));
-        if (modal) modal.hide();
-        
-        showToast('Success', `Student number ${studentId} added successfully`, 'success');
-        
-    } catch (error) {
-        console.error('Error adding student number:', error);
-        showToast('Error', 'Failed to add student number', 'error');
-    }
-}
-
-// Handle edit student number form submission
-async function handleEditStudentNumber(e) {
-    e.preventDefault();
-    
-    const originalStudentId = document.getElementById('editStudentId').value;
-    const studentId = document.getElementById('editStudentNumber').value.trim();
-    const studentName = document.getElementById('editStudentName').value.trim();
-    const course = document.getElementById('editCourse').value;
-    const yearSection = document.getElementById('editYearSection').value.trim();
-    const email = document.getElementById('editEmail').value.trim();
-    const phone = document.getElementById('editPhone').value.trim();
-    
-    if (!studentId || !studentName) {
-        showToast('Error', 'Please fill in Student Number and Name', 'error');
-        return;
-    }
-    
-    // Check if student number already exists (excluding current one)
-    const existingStudent = studentNumbers.find(s => s.studentId === studentId && s.studentId !== originalStudentId);
-    if (existingStudent) {
-        showToast('Error', 'Student number already exists', 'error');
-        return;
-    }
-    
-    const section = course && yearSection ? `${course} ${yearSection}` : '';
-    const updateData = {
-        studentId,
-        studentName,
-        section,
-        course,
-        yearSection,
-        email,
-        phone,
-        updatedBy: 'Admin'
-    };
-    
-    try {
-        if (firebaseService) {
-            // Update in Firebase
-            await firebaseService.updateStudentNumber(originalStudentId, updateData);
-        } else {
-            // Fallback to localStorage
-            const studentIndex = studentNumbers.findIndex(s => s.studentId === originalStudentId);
-            if (studentIndex === -1) {
-                showToast('Error', 'Student not found', 'error');
-                return;
-            }
-            
-            studentNumbers[studentIndex] = {
-                ...studentNumbers[studentIndex],
-                ...updateData,
-                updatedAt: new Date().toISOString()
-            };
-            
-            saveStudentNumbers();
-            
-            // Update interface
-            updateStudentNumbersTable();
-            updateSectionFilter();
-        }
-        
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('editStudentNumberModal'));
-        if (modal) modal.hide();
-        
-        showToast('Success', `Student number ${studentId} updated successfully`, 'success');
-        
-    } catch (error) {
-        console.error('Error updating student number:', error);
-        showToast('Error', 'Failed to update student number', 'error');
-    }
-}
-
-// Update student numbers table
-function updateStudentNumbersTable() {
-    const tbody = document.getElementById('studentNumbersTable');
-    const searchInput = document.getElementById('searchStudentNumbers');
-    const sectionFilter = document.getElementById('sectionFilter');
-    
-    if (!tbody) return;
-    
-    let filteredStudents = studentNumbers;
-    
-    // Apply search filter
-    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-    if (searchTerm) {
-        filteredStudents = filteredStudents.filter(student => 
-            student.studentId.toLowerCase().includes(searchTerm) ||
-            student.studentName.toLowerCase().includes(searchTerm) ||
-            student.section.toLowerCase().includes(searchTerm)
-        );
-    }
-    
-    // Apply section filter
-    const selectedSection = sectionFilter ? sectionFilter.value : 'all';
-    if (selectedSection !== 'all') {
-        filteredStudents = filteredStudents.filter(student => student.section === selectedSection);
-    }
-    
-    // Clear table
-    tbody.innerHTML = '';
-    
-    if (filteredStudents.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="6" class="text-center text-muted">No student numbers found</td>';
-        tbody.appendChild(row);
-        return;
-    }
-    
-    // Sort by student ID
-    filteredStudents.sort((a, b) => a.studentId.localeCompare(b.studentId));
-    
-    filteredStudents.forEach((student, idx) => {
-        const row = document.createElement('tr');
-        const addedDate = formatFirebaseTimestamp(student.addedAt);
-        
-        row.innerHTML = `
-            <td>${idx + 1}</td>
-            <td><strong>${student.studentId}</strong></td>
-            <td>${student.studentName}</td>
-            <td>${student.section || '-'}</td>
-            <td>${addedDate}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="editStudentNumber('${student.studentId}')">Edit</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteStudentNumber('${student.studentId}')">Delete</button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// Update section filter dropdown
-function updateSectionFilter() {
-    const dropdown = document.getElementById('sectionFilter');
-    if (!dropdown) return;
-    
-    const sections = [...new Set(studentNumbers.map(s => s.section))].sort();
-    
-    dropdown.innerHTML = '<option value="all">All Sections</option>';
-    sections.forEach(section => {
-        const option = document.createElement('option');
-        option.value = section;
-        option.textContent = section;
-        dropdown.appendChild(option);
-    });
-}
-
-// Update total count display
-function updateTotalCount() {
-    const countSpan = document.getElementById('totalStudentCount');
-    if (countSpan) {
-        countSpan.textContent = studentNumbers.length;
-    }
-}
-
-// Edit student number
-function editStudentNumber(studentId) {
-    const student = studentNumbers.find(s => s.studentId === studentId);
-    if (!student) return;
-    
-    // Populate edit form
-    document.getElementById('editStudentId').value = student.studentId;
-    document.getElementById('editStudentNumber').value = student.studentId;
-    document.getElementById('editStudentName').value = student.studentName;
-    document.getElementById('editCourse').value = student.course;
-    document.getElementById('editYearSection').value = student.yearSection;
-    document.getElementById('editEmail').value = student.email || '';
-    document.getElementById('editPhone').value = student.phone || '';
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('editStudentNumberModal'));
-    modal.show();
-}
-
-// Delete student number
-async function deleteStudentNumber(studentId) {
-    const student = studentNumbers.find(s => s.studentId === studentId);
-    if (!student) return;
-    
-    if (confirm(`Are you sure you want to delete student number ${studentId} (${student.studentName})?`)) {
-        try {
-            if (firebaseService) {
-                // Delete from Firebase
-                await firebaseService.deleteStudentNumber(studentId);
-            } else {
-                // Fallback to localStorage
-                studentNumbers = studentNumbers.filter(s => s.studentId !== studentId);
-                saveStudentNumbers();
-                
-                // Update interface
-                updateStudentNumbersTable();
-                updateSectionFilter();
-                updateTotalCount();
-            }
-            
-            showToast('Success', `Student number ${studentId} deleted successfully`, 'success');
-            
-        } catch (error) {
-            console.error('Error deleting student number:', error);
-            showToast('Error', 'Failed to delete student number', 'error');
-        }
-    }
-}
-
-// Clear all filters
-function clearFilters() {
-    const searchInput = document.getElementById('searchStudentNumbers');
-    const sectionFilter = document.getElementById('sectionFilter');
-    
-    if (searchInput) searchInput.value = '';
-    if (sectionFilter) sectionFilter.value = 'all';
-    
-    updateStudentNumbersTable();
-}
-
-// Import student numbers from CSV
-function importStudentNumbers() {
-    const modal = new bootstrap.Modal(document.getElementById('importCSVModal'));
-    modal.show();
-}
-
-// Helper function to parse section string (e.g., "BSAIS 3-3" or "BSAIS")
-function parseSection(sectionStr) {
-    if (!sectionStr) return { course: '', yearSection: '', section: '' };
-    
-    const section = String(sectionStr).trim();
-    
-    // Try to match patterns like "BSAIS 3-3", "BSIS-AIS 1-2", etc.
-    const match = section.match(/^([A-Z]+(?:-[A-Z]+)?)\s*(\d+-\d+)?$/i);
-    
-    if (match) {
-        const course = match[1].toUpperCase();
-        const yearSection = match[2] || '';
-        return {
-            course,
-            yearSection,
-            section: yearSection ? `${course} ${yearSection}` : course
-        };
-    }
-    
-    // If no match, check if it's just a course name
-    const courseMatch = section.match(/^(BSIS-AIS|BSAIS|BSIT|BSCS|Other)$/i);
-    if (courseMatch) {
-        return {
-            course: courseMatch[1],
-            yearSection: '',
-            section: courseMatch[1]
-        };
-    }
-    
-    // Default: use the whole string as section
-    return {
-        course: '',
-        yearSection: '',
-        section: section
-    };
-}
-
-// Process XLSX import
-async function processXLSXImport() {
-    const fileInput = document.getElementById('csvFile');
-    const file = fileInput.files[0];
-    
-    if (!file) {
-        showToast('Error', 'Please select an XLSX file', 'error');
-        return;
-    }
-    
-    try {
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data, { type: 'array' });
-        
-        // Get the first worksheet
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Convert to JSON with header row
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
-        if (jsonData.length < 2) {
-            showToast('Error', 'XLSX file must contain at least a header row and one data row', 'error');
-            return;
-        }
-        
-        // Get headers (first row)
-        const headers = jsonData[0].map(h => String(h).trim().toLowerCase());
-        
-        // Find column indices - support multiple formats
-        // Format 1: uniqueId, studentId, studentName, section
-        // Format 2: StudentNumber, Name, Course, YearSection, Email, Phone
-        const uniqueIdIdx = headers.findIndex(h => h === 'uniqueid');
-        const studentIdIdx = headers.findIndex(h => 
-            h === 'studentid' || 
-            (h.includes('student') && h.includes('id')) ||
-            (h.includes('student') && h.includes('number'))
-        );
-        const studentNameIdx = headers.findIndex(h => 
-            h === 'studentname' || 
-            h === 'name' ||
-            (h.includes('name') && !h.includes('student'))
-        );
-        const sectionIdx = headers.findIndex(h => h === 'section');
-        const courseIdx = headers.findIndex(h => h === 'course');
-        const yearSectionIdx = headers.findIndex(h => 
-            h === 'yearsection' || 
-            (h.includes('year') && h.includes('section'))
-        );
-        const emailIdx = headers.findIndex(h => h === 'email' || h.includes('email'));
-        const phoneIdx = headers.findIndex(h => h === 'phone' || h.includes('phone'));
-        
-        // Validate required columns
-        if (studentIdIdx === -1 && uniqueIdIdx === -1) {
-            showToast('Error', 'XLSX file must contain "studentId" or "uniqueId" column', 'error');
-            return;
-        }
-        
-        if (studentNameIdx === -1) {
-            showToast('Error', 'XLSX file must contain "studentName" or "name" column', 'error');
-            return;
-        }
-        
-        let imported = 0;
-        let skipped = 0;
-        let errors = 0;
-        
-        // Process data rows (skip header row)
-        for (let i = 1; i < jsonData.length; i++) {
-            const row = jsonData[i];
-            
-            if (!row || row.length === 0) continue;
-            
-            // Get studentId - prefer studentId, fallback to uniqueId
-            let studentId = '';
-            if (studentIdIdx !== -1) {
-                studentId = String(row[studentIdIdx] || '').trim();
-            }
-            if (!studentId && uniqueIdIdx !== -1) {
-                studentId = String(row[uniqueIdIdx] || '').trim();
-            }
-            
-            const studentName = studentNameIdx !== -1 ? String(row[studentNameIdx] || '').trim() : '';
-            
-            if (!studentId || !studentName) {
-                errors++;
-                continue;
-            }
-            
-            // Get section data - prefer section column, otherwise combine course and yearSection
-            let course = '';
-            let yearSection = '';
-            let section = '';
-            
-            if (sectionIdx !== -1) {
-                // Format: uniqueId, studentId, studentName, section
-                const sectionStr = String(row[sectionIdx] || '').trim();
-                const parsed = parseSection(sectionStr);
-                section = parsed.section;
-                course = parsed.course;
-                yearSection = parsed.yearSection;
-            } else if (courseIdx !== -1 || yearSectionIdx !== -1) {
-                // Format: StudentNumber, Name, Course, YearSection, etc.
-                course = courseIdx !== -1 ? String(row[courseIdx] || '').trim() : '';
-                yearSection = yearSectionIdx !== -1 ? String(row[yearSectionIdx] || '').trim() : '';
-                section = course && yearSection ? `${course} ${yearSection}` : (course || yearSection);
-            }
-            
-            const email = emailIdx !== -1 ? String(row[emailIdx] || '').trim() : '';
-            const phone = phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '';
-            
-            // Check if student already exists
-            if (!studentNumbers.find(s => s.studentId === studentId)) {
-                const newStudent = {
-                    studentId,
-                    studentName,
-                    section,
-                    course,
-                    yearSection,
-                    email,
-                    phone,
-                    addedAt: new Date().toISOString(),
-                    addedBy: 'XLSX Import'
-                };
-                
-                try {
-                    if (firebaseService) {
-                        await firebaseService.addStudentNumber(newStudent);
-                    } else {
-                        studentNumbers.push(newStudent);
-                    }
-                    imported++;
-                } catch (error) {
-                    console.error('Error adding student:', error);
-                    errors++;
-                }
-            } else {
-                skipped++;
-            }
-        }
-        
-        if (!firebaseService) {
-            saveStudentNumbers();
-        }
-        
-        updateStudentNumbersTable();
-        updateSectionFilter();
-        updateTotalCount();
-        
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('importCSVModal'));
-        if (modal) modal.hide();
-        
-        let message = `Imported ${imported} student numbers.`;
-        if (skipped > 0) message += ` Skipped ${skipped} duplicates.`;
-        if (errors > 0) message += ` ${errors} rows had errors.`;
-        
-        showToast('Success', message, 'success');
-        
-    } catch (error) {
-        showToast('Error', 'Failed to process XLSX file: ' + error.message, 'error');
-        console.error('XLSX import error:', error);
-    }
-}
-
-// Export student numbers to XLSX
-function exportStudentNumbers() {
-    if (studentNumbers.length === 0) {
-        showToast('Warning', 'No student numbers to export', 'warning');
-        return;
-    }
-    
-    try {
-        // Prepare data for export - matching the format: uniqueId, studentId, studentName, section
-        const exportData = studentNumbers.map(student => ({
-            'uniqueId': student.studentId,
-            'studentId': student.studentId,
-            'studentName': student.studentName,
-            'section': student.section || ''
-        }));
-        
-        // Create workbook and worksheet
-        const worksheet = XLSX.utils.json_to_sheet(exportData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Student Numbers');
-        
-        // Set column widths for better readability
-        const columnWidths = [
-            { wch: 18 }, // uniqueId
-            { wch: 18 }, // studentId
-            { wch: 30 }, // studentName
-            { wch: 20 }  // section
-        ];
-        worksheet['!cols'] = columnWidths;
-        
-        // Generate XLSX file
-        const fileName = `student_numbers_${new Date().toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(workbook, fileName);
-        
-        showToast('Success', 'Student numbers exported successfully', 'success');
-    } catch (error) {
-        showToast('Error', 'Failed to export XLSX file: ' + error.message, 'error');
-        console.error('XLSX export error:', error);
-    }
-}
-
-// Toast helper
 function showToast(title, message, type) {
-    const container = document.getElementById('toastContainer');
+    var container = document.getElementById('toastContainer');
     if (!container) return;
-    
-    const toast = document.createElement('div');
-    toast.className = `toast-notification toast-${type}`;
-    toast.innerHTML = `
-        <span class="toast-title">${title}</span>
-        <span>${message || ''}</span>
-        <button class="toast-close" aria-label="Close">×</button>
-    `;
-    
-    container.appendChild(toast);
-    
-    // Trigger animation
-    requestAnimationFrame(() => toast.classList.add('show'));
-    
-    // Auto dismiss
-    const remove = () => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 180);
-    };
-    
-    const closeBtn = toast.querySelector('.toast-close');
-    if (closeBtn) closeBtn.addEventListener('click', remove);
-    
+    var div = document.createElement('div');
+    div.className = 'toast-notification toast-' + (type || 'success');
+    div.innerHTML = '<span class="toast-title">' + escHtml(title) + '</span> ' + escHtml(message || '');
+    container.appendChild(div);
+    requestAnimationFrame(function() { div.classList.add('show'); });
+    var remove = function() { div.classList.remove('show'); setTimeout(function() { div.remove(); }, 180); };
     setTimeout(remove, 3000);
 }
+
+// ── Institute/Program dropdowns ──
+var INSTITUTE_LIST = Object.keys(INSTITUTE_PROGRAMS);
+
+function populateInstituteSelect(selectEl, currentValue) {
+    while (selectEl.options.length > 1) selectEl.remove(1);
+    INSTITUTE_LIST.forEach(function(inst) { selectEl.add(new Option(inst, inst)); });
+    if (currentValue) selectEl.value = currentValue;
+}
+
+function populateProgramSelect(selectEl, institute, currentValue) {
+    while (selectEl.options.length > 1) selectEl.remove(1);
+    if (institute) {
+        (INSTITUTE_PROGRAMS[institute] || []).forEach(function(p) { selectEl.add(new Option(p, p)); });
+    }
+    if (currentValue) selectEl.value = currentValue;
+}
+
+// ── Load / Save via service ──
+async function loadStudentNumbers() {
+    var svc = getService();
+    if (svc) {
+        studentNumbers = await svc.getStudentNumbers();
+    } else {
+        studentNumbers = [];
+        console.error('accountsLocalStorageService not available');
+    }
+}
+
+// ── Render table ──
+function updateStudentNumbersTable() {
+    var tbody = document.getElementById('studentNumbersTable');
+    if (!tbody) return;
+
+    var instFilter  = (document.getElementById('instituteFilter') || {}).value || 'all';
+    var progFilter  = (document.getElementById('programFilter')   || {}).value || 'all';
+    var searchTerm  = ((document.getElementById('searchStudentNumbers') || {}).value || '').toLowerCase();
+
+    var filtered = studentNumbers.filter(function(s) {
+        if (instFilter !== 'all' && s.institute !== instFilter) return false;
+        if (progFilter !== 'all' && s.programCode !== progFilter) return false;
+        if (searchTerm) {
+            var hay = (s.studentId + ' ' + s.studentName + ' ' + (s.yearSection || '')).toLowerCase();
+            if (hay.indexOf(searchTerm) === -1) return false;
+        }
+        return true;
+    });
+
+    filtered.sort(function(a, b) { return a.studentId.localeCompare(b.studentId); });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No student numbers found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(function(s, i) {
+        return '<tr>' +
+            '<td>' + (i+1) + '</td>' +
+            '<td><strong>' + escHtml(s.studentId) + '</strong></td>' +
+            '<td>' + escHtml(s.studentName) + '</td>' +
+            '<td><small>' + escHtml(s.institute || '—') + '</small></td>' +
+            '<td>' + escHtml(s.programCode || '—') + '</td>' +
+            '<td>' + escHtml(s.yearSection || '—') + '</td>' +
+            '<td>' + formatDate(s.addedAt) + '</td>' +
+            '<td>' +
+                '<button class="btn btn-sm btn-outline-primary" onclick="editStudentNumber(\'' + escHtml(s.studentId) + '\')">Edit</button> ' +
+                '<button class="btn btn-sm btn-outline-danger"  onclick="deleteStudentNumber(\'' + escHtml(s.studentId) + '\')">Delete</button>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+}
+
+function updateTotalCount() {
+    var el = document.getElementById('totalStudentCount');
+    if (el) el.textContent = studentNumbers.length;
+}
+
+function clearFilters() {
+    var instF  = document.getElementById('instituteFilter');
+    var progF  = document.getElementById('programFilter');
+    var search = document.getElementById('searchStudentNumbers');
+    if (instF)  { instF.value  = 'all'; onInstituteFilterChange(); }
+    if (progF)  progF.value  = 'all';
+    if (search) search.value = '';
+    updateStudentNumbersTable();
+}
+
+function onInstituteFilterChange() {
+    var inst   = document.getElementById('instituteFilter').value;
+    var progSel = document.getElementById('programFilter');
+    while (progSel.options.length > 1) progSel.remove(1);
+    if (inst !== 'all') {
+        (INSTITUTE_PROGRAMS[inst] || []).forEach(function(p) { progSel.add(new Option(p, p)); });
+    }
+    updateStudentNumbersTable();
+}
+
+// ── Add ──
+async function handleAddStudentNumber(e) {
+    e.preventDefault();
+    var studentId   = document.getElementById('newStudentId').value.trim();
+    var studentName = document.getElementById('newStudentName').value.trim();
+    var institute   = document.getElementById('newInstitute').value;
+    var programCode = document.getElementById('newProgram').value;
+    var yearSection = document.getElementById('newYearSection').value.trim();
+    var email       = document.getElementById('newEmail').value.trim();
+    var phone       = document.getElementById('newPhone').value.trim();
+
+    if (!studentId || !studentName) {
+        showToast('Error', 'Student Number and Name are required.', 'error'); return;
+    }
+    if (studentNumbers.find(function(s) { return s.studentId === studentId; })) {
+        showToast('Error', 'Student number already exists.', 'error'); return;
+    }
+
+    var record = {
+        id: generateId(),
+        studentId: studentId,
+        studentName: studentName,
+        institute: institute || '',
+        programCode: programCode || '',
+        yearSection: yearSection || '',
+        email: email,
+        phone: phone,
+        hasUnpaidDebt: false,
+        isActive: true,
+        addedAt: new Date().toISOString(),
+        addedBy: 'Admin'
+    };
+
+    try {
+        await getService().addStudentNumber(record);
+        studentNumbers.push(record);
+        updateStudentNumbersTable();
+        updateTotalCount();
+        document.getElementById('addStudentNumberForm').reset();
+        document.getElementById('newProgram').innerHTML = '<option value="">Select Program (Optional)</option>';
+        var modal = bootstrap.Modal.getInstance(document.getElementById('addStudentNumberModal'));
+        if (modal) modal.hide();
+        showToast('Success', 'Student number ' + studentId + ' added.', 'success');
+    } catch (err) {
+        showToast('Error', 'Failed to add: ' + err.message, 'error');
+    }
+}
+
+// ── Edit ──
+function editStudentNumber(studentId) {
+    var s = studentNumbers.find(function(s) { return s.studentId === studentId; });
+    if (!s) return;
+
+    document.getElementById('editStudentId').value    = s.studentId;
+    document.getElementById('editStudentNumber').value = s.studentId;
+    document.getElementById('editStudentName').value  = s.studentName;
+    document.getElementById('editYearSection').value  = s.yearSection || '';
+    document.getElementById('editEmail').value        = s.email || '';
+    document.getElementById('editPhone').value        = s.phone || '';
+
+    var instSel = document.getElementById('editInstitute');
+    populateInstituteSelect(instSel, s.institute);
+
+    var progSel = document.getElementById('editProgram');
+    populateProgramSelect(progSel, s.institute, s.programCode);
+
+    new bootstrap.Modal(document.getElementById('editStudentNumberModal')).show();
+}
+
+async function handleEditStudentNumber(e) {
+    e.preventDefault();
+    var origId      = document.getElementById('editStudentId').value;
+    var newId       = document.getElementById('editStudentNumber').value.trim();
+    var studentName = document.getElementById('editStudentName').value.trim();
+    var institute   = document.getElementById('editInstitute').value;
+    var programCode = document.getElementById('editProgram').value;
+    var yearSection = document.getElementById('editYearSection').value.trim();
+    var email       = document.getElementById('editEmail').value.trim();
+    var phone       = document.getElementById('editPhone').value.trim();
+
+    if (!newId || !studentName) {
+        showToast('Error', 'Student Number and Name are required.', 'error'); return;
+    }
+    if (newId !== origId && studentNumbers.find(function(s) { return s.studentId === newId; })) {
+        showToast('Error', 'Student number already exists.', 'error'); return;
+    }
+
+    var idx = studentNumbers.findIndex(function(s) { return s.studentId === origId; });
+    if (idx === -1) { showToast('Error', 'Student not found.', 'error'); return; }
+
+    var updated = Object.assign({}, studentNumbers[idx], {
+        studentId: newId, studentName: studentName,
+        institute: institute, programCode: programCode, yearSection: yearSection,
+        email: email, phone: phone, updatedAt: new Date().toISOString(), updatedBy: 'Admin'
+    });
+
+    try {
+        await getService().updateStudentNumber(origId, updated);
+        studentNumbers[idx] = updated;
+        updateStudentNumbersTable();
+        var modal = bootstrap.Modal.getInstance(document.getElementById('editStudentNumberModal'));
+        if (modal) modal.hide();
+        showToast('Success', 'Updated ' + newId + '.', 'success');
+    } catch (err) {
+        showToast('Error', 'Failed to update: ' + err.message, 'error');
+    }
+}
+
+// ── Delete ──
+async function deleteStudentNumber(studentId) {
+    var s = studentNumbers.find(function(s) { return s.studentId === studentId; });
+    if (!s) return;
+    if (!confirm('Delete ' + studentId + ' (' + s.studentName + ')?')) return;
+    try {
+        await getService().deleteStudentNumber(s.studentId);
+        studentNumbers = studentNumbers.filter(function(x) { return x.studentId !== studentId; });
+        updateStudentNumbersTable();
+        updateTotalCount();
+        showToast('Deleted', studentId + ' removed.', 'success');
+    } catch (err) {
+        showToast('Error', 'Failed to delete: ' + err.message, 'error');
+    }
+}
+
+// ── Import XLSX ──
+function importStudentNumbers() {
+    new bootstrap.Modal(document.getElementById('importCSVModal')).show();
+}
+
+async function processXLSXImport() {
+    var fileInput = document.getElementById('csvFile');
+    var file = fileInput.files[0];
+    if (!file) { showToast('Error', 'Please select an XLSX file.', 'error'); return; }
+
+    try {
+        var data = await file.arrayBuffer();
+        var workbook = XLSX.read(data, { type: 'array' });
+        var ws = workbook.Sheets[workbook.SheetNames[0]];
+        var jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        if (jsonData.length < 2) { showToast('Error', 'File needs at least a header row and one data row.', 'error'); return; }
+
+        var headers = jsonData[0].map(function(h) { return String(h).trim().toLowerCase().replace(/[\s_-]/g, ''); });
+
+        function col(names) {
+            for (var i = 0; i < names.length; i++) {
+                var idx = headers.indexOf(names[i]);
+                if (idx !== -1) return idx;
+            }
+            return -1;
+        }
+
+        var idIdx        = col(['studentid','studentnumber','id','uniqueid']);
+        var nameIdx      = col(['studentname','name','fullname']);
+        var instIdx      = col(['institute','institutename']);
+        var progIdx      = col(['programcode','program','course']);
+        var ysIdx        = col(['yearsection','section','yearsec']);
+        var emailIdx     = col(['email','emailaddress']);
+        var phoneIdx     = col(['phone','phonenumber','mobile']);
+
+        if (idIdx === -1 || nameIdx === -1) {
+            showToast('Error', 'File must have studentId and studentName columns.', 'error'); return;
+        }
+
+        var imported = 0, skipped = 0, errors = 0;
+
+        for (var i = 1; i < jsonData.length; i++) {
+            var row = jsonData[i];
+            if (!row || row.length === 0) continue;
+
+            var studentId   = idIdx   !== -1 ? String(row[idIdx]   || '').trim() : '';
+            var studentName = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
+            if (!studentId || !studentName) { errors++; continue; }
+
+            if (studentNumbers.find(function(s) { return s.studentId === studentId; })) { skipped++; continue; }
+
+            var record = {
+                id: generateId(),
+                studentId: studentId,
+                studentName: studentName,
+                institute:   instIdx  !== -1 ? String(row[instIdx]  || '').trim() : '',
+                programCode: progIdx  !== -1 ? String(row[progIdx]  || '').trim() : '',
+                yearSection: ysIdx    !== -1 ? String(row[ysIdx]    || '').trim() : '',
+                email:       emailIdx !== -1 ? String(row[emailIdx] || '').trim() : '',
+                phone:       phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '',
+                hasUnpaidDebt: false,
+                isActive: true,
+                addedAt: new Date().toISOString(),
+                addedBy: 'XLSX Import'
+            };
+
+            try {
+                await getService().addStudentNumber(record);
+                studentNumbers.push(record);
+                imported++;
+            } catch (_) { errors++; }
+        }
+
+        updateStudentNumbersTable();
+        updateTotalCount();
+        var modal = bootstrap.Modal.getInstance(document.getElementById('importCSVModal'));
+        if (modal) modal.hide();
+
+        var msg = 'Imported ' + imported + '.';
+        if (skipped > 0) msg += ' Skipped ' + skipped + ' duplicates.';
+        if (errors  > 0) msg += ' ' + errors + ' errors.';
+        showToast('Import done', msg, 'success');
+
+    } catch (err) {
+        showToast('Error', 'Failed to process XLSX: ' + err.message, 'error');
+        console.error('XLSX import error:', err);
+    }
+}
+
+// ── Export XLSX ──
+function exportStudentNumbers() {
+    if (studentNumbers.length === 0) { showToast('Warning', 'No data to export.', 'warning'); return; }
+    try {
+        var exportData = studentNumbers.map(function(s) {
+            return {
+                studentId:   s.studentId,
+                studentName: s.studentName,
+                institute:   s.institute   || '',
+                programCode: s.programCode || '',
+                yearSection: s.yearSection || '',
+                email:       s.email       || '',
+                phone:       s.phone       || '',
+                hasUnpaidDebt: s.hasUnpaidDebt ? 'yes' : 'no',
+                isActive:    s.isActive    ? 'yes' : 'no',
+                addedAt:     s.addedAt     || ''
+            };
+        });
+        var ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = [14,30,40,12,14,14,30,16,10,12].map(function(w) { return { wch: w }; });
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Student Numbers');
+        XLSX.writeFile(wb, 'student_numbers_' + new Date().toISOString().slice(0,10) + '.xlsx');
+        showToast('Exported', 'Download started.', 'success');
+    } catch (err) {
+        showToast('Error', 'Export failed: ' + err.message, 'error');
+    }
+}
+
+// ── Event listeners ──
+function setupEventListeners() {
+    var el;
+
+    el = document.getElementById('addStudentNumberForm');
+    if (el) el.addEventListener('submit', handleAddStudentNumber);
+
+    el = document.getElementById('editStudentNumberForm');
+    if (el) el.addEventListener('submit', handleEditStudentNumber);
+
+    el = document.getElementById('searchStudentNumbers');
+    if (el) el.addEventListener('input', updateStudentNumbersTable);
+
+    el = document.getElementById('instituteFilter');
+    if (el) el.addEventListener('change', onInstituteFilterChange);
+
+    el = document.getElementById('programFilter');
+    if (el) el.addEventListener('change', updateStudentNumbersTable);
+
+    // Add modal: institute cascade
+    el = document.getElementById('newInstitute');
+    if (el) el.addEventListener('change', function() {
+        populateProgramSelect(document.getElementById('newProgram'), this.value);
+    });
+
+    // Edit modal: institute cascade
+    el = document.getElementById('editInstitute');
+    if (el) el.addEventListener('change', function() {
+        populateProgramSelect(document.getElementById('editProgram'), this.value);
+    });
+}
+
+// ── Bootstrap ──
+document.addEventListener('DOMContentLoaded', async function() {
+    // Populate filter and modal institute selects
+    var instList = Object.keys(INSTITUTE_PROGRAMS);
+
+    var instFilter = document.getElementById('instituteFilter');
+    if (instFilter) instList.forEach(function(i) { instFilter.add(new Option(i, i)); });
+
+    var newInstitute = document.getElementById('newInstitute');
+    if (newInstitute) instList.forEach(function(i) { newInstitute.add(new Option(i, i)); });
+
+    var editInstitute = document.getElementById('editInstitute');
+    if (editInstitute) instList.forEach(function(i) { editInstitute.add(new Option(i, i)); });
+
+    await loadStudentNumbers();
+    setupEventListeners();
+    updateStudentNumbersTable();
+    updateTotalCount();
+});
