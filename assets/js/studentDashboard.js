@@ -1,23 +1,13 @@
 // --- DATA SIMULATION ---
-const servicesData = [
-    // NEW: Parent Group Items
-    { name: "Calculator", org: "Combined", icon: "fa-calculator", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/businessscical.png" },
-    { name: "Rulers", org: "Combined", icon: "fa-ruler", color: "#64748b", backgroundImage: "../assets/photos/studentDashboard/Services/rulerbackground.png" },
+// servicesData, announcementsData, and extendedEvents are built from ORG_DATA (data/orgData.js).
+// To add or change org-specific content, edit data/orgData.js — NOT this file.
 
-    // Existing Specific Items
-    { name: "Shoe Rag", org: "AISERS", icon: "fa-shoe-prints", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/shoerag.png" },
-    { name: "Business Calculator", org: "AISERS", icon: "fa-calculator", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/businesscalculator.png" },
-    { name: "Scientific Calculator", org: "SSC, AERO-ATSO", icon: "fa-square-root-variable", color: "#ef4444", backgroundImage: "../assets/photos/studentDashboard/Services/scical.png" },
-    { name: "Arnis", org: "AISERS", icon: "fa-hand-fist", color: "#f59e0b", backgroundImage: "../assets/photos/studentDashboard/Services/arnis.png" },
-    { name: "Printing", org: "SSC, CYC, AMTSO, AET", icon: "fa-print", color: "#ef4444" },
-    { name: "Network Crimping Tool", org: "ELITECH", icon: "fa-pliers", color: "#6366f1", backgroundImage: "../assets/photos/studentDashboard/Services/crimpingtool.png" },
-    { name: "Mini Fan", org: "ELITECH", icon: "fa-fan", color: "#6366f1", backgroundImage: "../assets/photos/studentDashboard/Services/minifan.png" },
-    { name: "Network Cable Tester", org: "ELITECH", icon: "fa-bolt", color: "#6366f1", backgroundImage: "../assets/photos/studentDashboard/Services/tester.png" },
-    { name: "T-Square", org: "General", icon: "fa-ruler-combined", color: "#64748b", backgroundImage: "../assets/photos/studentDashboard/Services/tsquare.png" },
-    { name: "Triangle Ruler", org: "General", icon: "fa-shapes", color: "#64748b", backgroundImage: "../assets/photos/studentDashboard/Services/triangle.png" },
-    { name: "Protractor", org: "General", icon: "fa-rotate", color: "#64748b", backgroundImage: "../assets/photos/studentDashboard/Services/protractor.png" },
-    { name: "1x1 Photo Processing", org: "SSC", icon: "fa-camera", color: "#ef4444" },
-    { name: "Lockers", org: "SSC", icon: "fa-box-archive", color: "#ef4444", backgroundImage: "../assets/photos/studentDashboard/Services/locker.png" }
+// Flat services list: shared/general items first, then org-specific items tagged with their org key.
+const servicesData = [
+    ...SHARED_SERVICES,
+    ...Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
+        d.services.map(s => ({ ...s, org: orgKey }))
+    )
 ];
 
 const eventsData = [
@@ -26,10 +16,12 @@ const eventsData = [
     { title: "Aero Workshop", date: "Nov 10", org: "AERO-ATSO", desc: "Drone flying basics." }
 ];
 
+// Flat announcements list: system-wide first, then org-specific items tagged with their org key.
 const announcementsData = [
-    { title: "Enrollment for 2nd Sem", date: "Today", content: "Please settle your balance before 25th.", org: "ALL" },
-    { title: "Office Hours", date: "Yesterday", content: "Org offices will be closed on holidays.", org: "ALL" },
-    { title: "Job Fair", date: "2 days ago", content: "Prepare your resumes for upcoming fair.", org: "AISERS" }
+    ...SHARED_ANNOUNCEMENTS,
+    ...Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
+        d.announcements.map(a => ({ ...a, org: orgKey }))
+    )
 ];
 
 const transactionsData = [
@@ -66,98 +58,10 @@ const organizationData = [
     { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669", image: "../assets/photos/studentDashboard/Organization/AERONAUTICA.png", banner: "../assets/photos/studentDashboard/Organization/banners/aeronauticabanner.jpg" }
 ];
 
-// Extended Events Data (for Events Tab)
-// Assuming Today is Feb 7, 2026 based on context
-const extendedEvents = [
-    {
-        title: "University Week Opening",
-        date: "Jan. 15, 2026", // Past
-        time: "08:00 AM - 05:00 PM",
-        venue: "Grandstand",
-        participants: 500,
-        description: "The grand opening of our annual University Week featuring a parade and torch lighting ceremony.",
-        org: "SSC",
-        img: "https://picsum.photos/seed/uniweek/600/400",
-        gallery: ["https://picsum.photos/seed/uniweek/600/400"]
-    },
-    {
-        title: "Creative Writing Workshop",
-        date: "Jan. 28, 2026", // Past
-        time: "01:00 PM - 04:00 PM",
-        venue: "Library Conference Room",
-        participants: 45,
-        description: "Unleash your inner writer with our workshop on poetry and short stories.",
-        org: "ILASSO",
-        img: "https://picsum.photos/seed/writing/600/400",
-        gallery: ["https://picsum.photos/seed/writing/600/400"]
-    },
-    {
-        title: "Tech Talk: AI Future",
-        date: "Feb. 07, 2026", // Today
-        time: "10:00 AM - 12:00 PM",
-        venue: "Main Auditorium",
-        participants: 200,
-        description: "A deep dive into Generative AI and its impact on student life.",
-        org: "AISERS",
-        img: "https://picsum.photos/seed/ai_talk/600/400",
-        gallery: ["https://picsum.photos/seed/ai_talk/600/400"]
-    },
-    {
-        title: "Engine Maintenance Training",
-        date: "Feb. 07, 2026", // Today
-        time: "01:00 PM - 05:00 PM",
-        venue: "Hangar 2",
-        participants: 30,
-        description: "Hands-on training for aircraft engine basic maintenance checks.",
-        org: "AMTSO",
-        img: "https://picsum.photos/seed/engine/600/400",
-        gallery: ["https://picsum.photos/seed/engine/600/400"]
-    },
-    {
-        title: "Leadership Bootcamp",
-        date: "Feb. 10, 2026", // Upcoming
-        time: "08:00 AM - 05:00 PM",
-        venue: "Retreat House",
-        participants: 50,
-        description: "Forming the next generation of student leaders.",
-        org: "CYC",
-        img: "https://picsum.photos/seed/leadership/600/400",
-        gallery: ["https://picsum.photos/seed/leadership/600/400"]
-    },
-    {
-        title: "Robotics Hardware Expo",
-        date: "Feb. 20, 2026", // Upcoming
-        time: "09:00 AM - 04:00 PM",
-        venue: "Engineering Lobby",
-        participants: 120,
-        description: "Showcasing the latest student projects in automation and robotics.",
-        org: "ELITECH",
-        img: "https://picsum.photos/seed/robotics/600/400",
-        gallery: ["https://picsum.photos/seed/robotics/600/400"]
-    },
-    {
-        title: "Aviation Safety Seminar",
-        date: "Mar. 05, 2026", // Upcoming
-        time: "01:00 PM - 03:00 PM",
-        venue: "AV Room 1",
-        participants: 80,
-        description: "Critical safety protocols for aspiring pilots and mechanics.",
-        org: "AERO-ATSO",
-        img: "https://picsum.photos/seed/aviation/600/400",
-        gallery: ["https://picsum.photos/seed/aviation/600/400"]
-    },
-    {
-        title: "Community Clean-up Drive",
-        date: "Mar. 15, 2026", // Upcoming
-        time: "06:00 AM - 10:00 AM",
-        venue: "City Plaza",
-        participants: 150,
-        description: "Giving back to the community by maintaining cleanliness in public spaces.",
-        org: "RCYC",
-        img: "https://picsum.photos/seed/cleanup/600/400",
-        gallery: ["https://picsum.photos/seed/cleanup/600/400"]
-    }
-];
+// Extended Events Data (for Events Tab) — built from ORG_DATA, each event tagged with its org key.
+const extendedEvents = Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
+    d.events.map(e => ({ ...e, org: orgKey }))
+);
 
 // Helper to determine event status relative to "Today" (Feb 7, 2026)
 function getEventStatus(dateStr) {
@@ -336,10 +240,17 @@ function buildCurrentStudentProfile() {
     const normalizedCourse = String(mergedProfile.course || "").toUpperCase().trim();
     const mappedOrg = courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
 
+    // For org-officer logins the session carries the correct active_org_name;
+    // for regular student logins active_org_name is null — always derive from course map.
+    const isOfficerLogin = authSession && authSession.login_role === 'org';
+    const resolvedOrg = isOfficerLogin
+        ? (mergedProfile.organization || mappedOrg)
+        : mappedOrg;
+
     return {
         ...mergedProfile,
         course: mergedProfile.course || fallbackProfile.course,
-        associatedOrg: normalizeOrgName(mergedProfile.organization || mappedOrg)
+        associatedOrg: normalizeOrgName(resolvedOrg)
     };
 }
 
@@ -421,7 +332,10 @@ function renderMyOrganizationTab(contentDiv) {
     const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
     const announcementEvents = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 2);
     const recentActivities = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 3);
-    const fullOrgName = "ALLIANCE IN INFORMATION SYSTEM EMPOWERED RESPONSIVE STUDENTS ORGANIZATION";
+    // fullName and motto come from ORG_DATA (data/orgData.js) — edit there, not here.
+    const orgEntry = (typeof ORG_DATA !== 'undefined' && ORG_DATA[targetOrgName]) || {};
+    const fullOrgName = orgEntry.fullName || organization.name;
+    const orgMotto = orgEntry.motto || profileConfig.tagline || "";
     const formattedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     const announcementMarkup = announcementEvents.map(event => `
@@ -484,8 +398,8 @@ function renderMyOrganizationTab(contentDiv) {
                     <div class="my-org-ref-chip">${organization.category}</div>
                     <div class="my-org-ref-date">${formattedDate}</div>
                     <div class="my-org-ref-hero-content">
-                        <h2>WELCOME TO ALLIANCE IN INFORMATION SYSTEM EMPOWERED RESPONSIVE STUDENTS ORGANIZATION!</h2>
-                        <p>"Excellent in Innovation, Service with Passon"</p>
+                        <h2>WELCOME TO ${fullOrgName.toUpperCase()}!</h2>
+                        <p>"${orgMotto}"</p>
                     </div>
                     <div class="my-org-ref-hero-actions">
                         <button type="button"><i class="fa-solid fa-user-plus"></i> Join</button>
