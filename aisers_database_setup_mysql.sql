@@ -253,6 +253,47 @@ CREATE TABLE announcements (
     CONSTRAINT fk_announce_creator FOREIGN KEY (created_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+CREATE TABLE attendance_records (
+    record_id INT AUTO_INCREMENT PRIMARY KEY,
+    event_id INT NOT NULL,
+    org_id INT NOT NULL,
+    user_id INT NULL,                              -- NULL = walk-in / unregistered student
+    student_number VARCHAR(20) NULL,               -- barcode value scanned (preserved even for registered users)
+    student_name VARCHAR(200) NULL,                -- stored at scan time
+    section VARCHAR(30) NULL,
+    time_in DATETIME NOT NULL,
+    time_out DATETIME NULL,
+    scan_mode VARCHAR(20) NOT NULL DEFAULT 'barcode',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_attendance_scan_mode CHECK (scan_mode IN ('barcode', 'manual')),
+    CONSTRAINT chk_attendance_timeout CHECK (time_out IS NULL OR time_out >= time_in),
+    CONSTRAINT fk_attendance_event FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
+    CONSTRAINT fk_attendance_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE document_submissions (
+    submission_id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id INT NOT NULL,
+    submitted_by_user_id INT NOT NULL,
+    reviewed_by_user_id INT NULL,
+    title VARCHAR(255) NOT NULL,
+    document_type VARCHAR(50) NOT NULL,            -- 'Financial Statement', 'Proposal', 'Legal', etc.
+    file_url VARCHAR(500) NULL,
+    recipient VARCHAR(50) NOT NULL DEFAULT 'OSA',  -- 'OSA', 'SSC', etc.
+    status VARCHAR(30) NOT NULL DEFAULT 'pending',
+    reviewer_notes TEXT NULL,
+    submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_doc_status CHECK (status IN ('pending', 'sent_to_osa', 'ssc_approved', 'approved', 'rejected')),
+    CONSTRAINT fk_doc_sub_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_doc_sub_submitter FOREIGN KEY (submitted_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_doc_sub_reviewer FOREIGN KEY (reviewed_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 -- =====================================================
 -- 3) Indexes
 -- =====================================================
@@ -276,6 +317,12 @@ CREATE INDEX idx_event_types_org ON event_types(org_id, is_active);
 CREATE INDEX idx_events_org_date ON events(org_id, event_date);
 CREATE INDEX idx_events_type ON events(event_type_id);
 CREATE INDEX idx_announcements_org_published ON announcements(org_id, is_published, published_at);
+CREATE INDEX idx_attendance_event   ON attendance_records(event_id, time_in);
+CREATE INDEX idx_attendance_student ON attendance_records(student_number);
+CREATE INDEX idx_attendance_user    ON attendance_records(user_id);
+CREATE INDEX idx_attendance_org     ON attendance_records(org_id);
+CREATE INDEX idx_doc_sub_org_status ON document_submissions(org_id, status);
+CREATE INDEX idx_doc_sub_submitter  ON document_submissions(submitted_by_user_id);
 
 -- =====================================================
 -- 4) Triggers
@@ -381,6 +428,20 @@ BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
 END$$
 
+CREATE TRIGGER trg_attendance_records_updated_at
+BEFORE UPDATE ON attendance_records
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+CREATE TRIGGER trg_document_submissions_updated_at
+BEFORE UPDATE ON document_submissions
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
 CREATE TRIGGER trg_rentals_block_unpaid_student
 BEFORE INSERT ON rentals
 FOR EACH ROW
@@ -473,9 +534,9 @@ DELIMITER ;
 INSERT INTO organizations (
     org_id, org_name, org_code, description, status
 ) VALUES
-(1, 'AISERS', 'AISERS', 'Aviation and engineering student organization', 'active'),
-(2, 'Elitech', 'ELITECH', 'Electronics and technology organization', 'active'),
-(3, 'CYC', 'CYC', 'Campus youth community', 'active');
+(1, 'AISERS',   'AISERS',   'Alliance in Information System Empowered Responsive Students Organization', 'active'),
+(2, 'ELITECH',  'ELITECH',  'Elite Technologist Society', 'active'),
+(3, 'CYC',      'CYC',      'Campus Youth Circle', 'active');
 
 INSERT INTO users (
     user_id, student_number, employee_number, email, password_hash, first_name, last_name, account_type
@@ -499,21 +560,24 @@ INSERT INTO org_roles (
 (9, 3, 'member', 0, 1);
 
 INSERT INTO academic_programs (program_id, program_code, institute_name, is_active) VALUES
-(1, 'BSAIT', 'Institute of Computer Studies', 1),
-(2, 'BSAIS', 'Institute of Computer Studies', 1),
-(3, 'BSAET', 'Institute of Engineering Technology', 1),
-(4, 'BSAT', 'Institute of Engineering Technology', 1),
-(5, 'BSAMT', 'Institute of Engineering Technology', 1),
-(6, 'BSAeE', 'Institute of Engineering Technology', 1),
-(7, 'BAT-AET', 'Institute of Engineering Technology', 1),
-(8, 'AvComm', 'Institute of Liberal Arts and Sciences', 1),
-(9, 'Avlog', 'Institute of Liberal Arts and Sciences', 1),
-(10, 'AvSSm', 'Institute of Liberal Arts and Sciences', 1),
-(11, 'AvTour', 'Institute of Liberal Arts and Sciences', 1);
+(1,  'BSAIT',   'Institute of Computer Studies', 1),
+(2,  'BSAIS',   'Institute of Computer Studies', 1),
+(3,  'BSAET',   'Institute of Engineering Technology', 1),
+(4,  'BSAT',    'Institute of Engineering Technology', 1),
+(5,  'BSAMT',   'Institute of Engineering Technology', 1),
+(6,  'BSAEE',   'Institute of Engineering Technology', 1),
+(7,  'BAT-AET', 'Institute of Engineering Technology', 1),
+(8,  'AVCOMM',  'Institute of Liberal Arts and Sciences', 1),
+(9,  'AVLOG',   'Institute of Liberal Arts and Sciences', 1),
+(10, 'AVSSM',   'Institute of Liberal Arts and Sciences', 1),
+(11, 'AVTOUR',  'Institute of Liberal Arts and Sciences', 1);
 
+-- BSAIT(1) → ELITECH(2), BSAIS(2) → AISERS(1)
+-- Other programs (BSAET, BSAT, BSAMT, BSAEE, BAT-AET → AETSO/AERO-ATSO/AMTSO)
+-- and AVCOMM/AVLOG/AVSSM/AVTOUR → ILASSO will be added once those orgs are seeded.
 INSERT INTO program_org_mappings (program_id, org_id, is_active) VALUES
-(1, 1, 1),
-(2, 1, 1);
+(1, 2, 1),   -- BSAIT   → ELITECH
+(2, 1, 1);   -- BSAIS   → AISERS
 
 INSERT INTO organization_members (
     user_id, org_id, role_id, joined_at, is_active
@@ -577,19 +641,21 @@ INSERT INTO rental_items (rental_id, item_id, quantity, unit_rate, item_cost, ov
 -- =====================================================
 
 SELECT 'users' AS table_name, COUNT(*) AS record_count FROM users
-UNION ALL SELECT 'organizations', COUNT(*) FROM organizations
-UNION ALL SELECT 'org_roles', COUNT(*) FROM org_roles
-UNION ALL SELECT 'organization_members', COUNT(*) FROM organization_members
-UNION ALL SELECT 'academic_programs', COUNT(*) FROM academic_programs
-UNION ALL SELECT 'student_profiles', COUNT(*) FROM student_profiles
-UNION ALL SELECT 'program_org_mappings', COUNT(*) FROM program_org_mappings
-UNION ALL SELECT 'inventory_categories', COUNT(*) FROM inventory_categories
-UNION ALL SELECT 'inventory_items', COUNT(*) FROM inventory_items
-UNION ALL SELECT 'rentals', COUNT(*) FROM rentals
-UNION ALL SELECT 'rental_items', COUNT(*) FROM rental_items
-UNION ALL SELECT 'event_types', COUNT(*) FROM event_types
-UNION ALL SELECT 'events', COUNT(*) FROM events
-UNION ALL SELECT 'announcements', COUNT(*) FROM announcements;
+UNION ALL SELECT 'organizations',         COUNT(*) FROM organizations
+UNION ALL SELECT 'org_roles',             COUNT(*) FROM org_roles
+UNION ALL SELECT 'organization_members',  COUNT(*) FROM organization_members
+UNION ALL SELECT 'academic_programs',     COUNT(*) FROM academic_programs
+UNION ALL SELECT 'student_profiles',      COUNT(*) FROM student_profiles
+UNION ALL SELECT 'program_org_mappings',  COUNT(*) FROM program_org_mappings
+UNION ALL SELECT 'inventory_categories',  COUNT(*) FROM inventory_categories
+UNION ALL SELECT 'inventory_items',       COUNT(*) FROM inventory_items
+UNION ALL SELECT 'rentals',               COUNT(*) FROM rentals
+UNION ALL SELECT 'rental_items',          COUNT(*) FROM rental_items
+UNION ALL SELECT 'event_types',           COUNT(*) FROM event_types
+UNION ALL SELECT 'events',                COUNT(*) FROM events
+UNION ALL SELECT 'announcements',         COUNT(*) FROM announcements
+UNION ALL SELECT 'attendance_records',    COUNT(*) FROM attendance_records
+UNION ALL SELECT 'document_submissions',  COUNT(*) FROM document_submissions;
 
 -- Officer dashboard lookup example (student can also be an officer):
 -- SELECT o.org_id, o.org_name, o.org_code, r.role_name
