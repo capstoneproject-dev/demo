@@ -512,6 +512,7 @@ async function submitPendingRegistration(payload) {
         studentId:    payload.studentId    || '',
         name:         payload.name         || '',
         email:        payload.email        || '',
+        phone:        payload.phone        || '',
         password:     payload.password     || '',
         course:       payload.course       || '',
         yearSection:  payload.yearSection  || '',
@@ -700,6 +701,34 @@ if (courseModal) {
   });
 }
 
+function normalizePhoneInput(value) {
+  const digitsOnly = String(value || '').replace(/\D/g, '');
+  let localDigits = digitsOnly;
+  if (localDigits.startsWith('63')) localDigits = localDigits.slice(2);
+  if (localDigits.startsWith('0')) localDigits = localDigits.slice(1);
+  localDigits = localDigits.slice(0, 10);
+  return `+63 ${localDigits}`;
+}
+
+function isValidPhoneInput(value) {
+  return /^\+63\s\d{10}$/.test(String(value || '').trim());
+}
+
+function setupPhoneInput(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  const applyNormalized = () => {
+    input.value = normalizePhoneInput(input.value);
+  };
+
+  applyNormalized();
+  input.addEventListener('input', applyNormalized);
+  input.addEventListener('focus', () => {
+    if (!input.value || input.value === '+63' || input.value === '+63 ') input.value = '+63 ';
+  });
+}
+
 /* =====================
    DASHBOARD CHOICE MODAL
    ===================== */
@@ -774,12 +803,16 @@ async function registerStudent() {
   const course = (document.getElementById('student-course-input') || {}).value?.trim() || '';
   const section = (document.getElementById('student-section-input') || {}).value?.trim() || '';
   const email = (document.getElementById('student-email-input') || {}).value?.trim() || '';
-  const phone = (document.getElementById('student-phone-input') || {}).value?.trim() || '';
+  const phone = normalizePhoneInput((document.getElementById('student-phone-input') || {}).value?.trim() || '');
   const password = (document.getElementById('student-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('student-confirm-password-input') || {}).value || '';
 
-  if (!studentNumber || !fullName || !course || !section || !email || !password || !confirmPassword) {
+  if (!studentNumber || !fullName || !course || !section || !email || !phone || !password || !confirmPassword) {
     alert('Please complete all Student registration fields.');
+    return;
+  }
+  if (!isValidPhoneInput(phone)) {
+    alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
   if (password !== confirmPassword) {
@@ -791,6 +824,7 @@ async function registerStudent() {
     studentId: studentNumber,
     name: fullName,
     email,
+    phone,
     password,
     course: normalizeCourse(course),
     yearSection: section,
@@ -815,12 +849,16 @@ async function registerOrgOfficer() {
   const section = (document.getElementById('org-section-input') || {}).value?.trim() || '';
   const orgName = normalizeOrgName((document.getElementById('org-input') || {}).value?.trim() || '');
   const email = (document.getElementById('org-email-input') || {}).value?.trim() || '';
-  const phone = (document.getElementById('org-phone-input') || {}).value?.trim() || '';
+  const phone = normalizePhoneInput((document.getElementById('org-phone-input') || {}).value?.trim() || '');
   const password = (document.getElementById('org-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('org-confirm-password-input') || {}).value || '';
 
-  if (!studentNumber || !fullName || !course || !section || !orgName || !email || !password || !confirmPassword) {
+  if (!studentNumber || !fullName || !course || !section || !orgName || !email || !phone || !password || !confirmPassword) {
     alert('Please complete all Organization registration fields.');
+    return;
+  }
+  if (!isValidPhoneInput(phone)) {
+    alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
   if (password !== confirmPassword) {
@@ -854,12 +892,16 @@ async function registerOsa() {
   const employeeNumber = (document.getElementById('osa-employee-number-input') || {}).value?.trim() || '';
   const fullName = (document.getElementById('osa-name-input') || {}).value?.trim() || '';
   const email = (document.getElementById('osa-email-input') || {}).value?.trim() || '';
-  const phone = (document.getElementById('osa-phone-input') || {}).value?.trim() || '';
+  const phone = normalizePhoneInput((document.getElementById('osa-phone-input') || {}).value?.trim() || '');
   const password = (document.getElementById('osa-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('osa-confirm-password-input') || {}).value || '';
 
-  if (!employeeNumber || !fullName || !email || !password || !confirmPassword) {
+  if (!employeeNumber || !fullName || !email || !phone || !password || !confirmPassword) {
     alert('Please complete all OSA registration fields.');
+    return;
+  }
+  if (!isValidPhoneInput(phone)) {
+    alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
   if (password !== confirmPassword) {
@@ -1014,6 +1056,9 @@ async function handleLogin() {
    ===================== */
 document.addEventListener('DOMContentLoaded', () => {
   getAuthDb();
+  setupPhoneInput('student-phone-input');
+  setupPhoneInput('org-phone-input');
+  setupPhoneInput('osa-phone-input');
 
   const studentRegisterBtn = document.getElementById('studentRegisterBtn');
   const orgRegisterBtn = document.getElementById('orgRegisterBtn');
