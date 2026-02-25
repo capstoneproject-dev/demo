@@ -8,7 +8,9 @@ let officers = [];
 let pendingRequests = [];
 let studentNumbers = [];
 
-const DEV_BYPASS_ACCOUNTS_AUTH = true;
+var lastFingerprint = null;  // realtime poll baseline (null = not yet set)
+var pollTimer       = null;
+var POLL_INTERVAL   = 10000; // ms
 
 // --- Helpers ---
 function getService() { return window.accountsLocalStorageService; }
@@ -18,15 +20,26 @@ function redirectFromAccounts(path) {
     else window.location.href = path;
 }
 
-function authorizeIncomingUser() {
-    if (DEV_BYPASS_ACCOUNTS_AUTH) return true;
-    let session = {};
-    try { session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}'); } catch (_) { session = {}; }
-    if (!session || !session.user_id) { redirectFromAccounts('../../pages/login.html'); return false; }
-    if (session.login_role === 'osa' || session.account_type === 'osa_staff') return true;
-    if (session.login_role === 'org') { redirectFromAccounts('../../pages/officerDashboard.html'); return false; }
-    redirectFromAccounts('../../pages/login.html');
-    return false;
+/**
+ * authorizeIncomingUser
+ * Validates the PHP session; only OSA staff may access this page.
+ * Returns true if authorised, false (+ redirects) otherwise.
+ */
+async function authorizeIncomingUser() {
+    try {
+        const res  = await fetch('../../api/auth/session.php', { credentials: 'include' });
+        const json = await res.json();
+        if (!json.authenticated) { redirectFromAccounts('../../pages/login.html'); return false; }
+        const acct = json.session?.account_type || json.user?.account_type || '';
+        const role = json.session?.login_role   || '';
+        if (acct === 'osa_staff' || role === 'osa') return true;
+        if (role === 'org') { redirectFromAccounts('../../pages/officerDashboard.html'); return false; }
+        redirectFromAccounts('../../pages/login.html');
+        return false;
+    } catch (_) {
+        redirectFromAccounts('../../pages/login.html');
+        return false;
+    }
 }
 
 function formatDate(v) {
@@ -289,7 +302,7 @@ function refreshAll() {
 }
 
 // --- Student CRUD ---
-function handleAddStudent(e) {
+async function handleAddStudent(e) {
     e.preventDefault();
     var studentId   = document.getElementById('studentId').value.trim();
     var studentName = document.getElementById('studentName').value.trim();
@@ -307,7 +320,6 @@ function handleAddStudent(e) {
     }
 
     var record = {
-        id: generateId(),
         studentId: studentId,
         studentName: studentName,
         institute: institute,
@@ -316,18 +328,21 @@ function handleAddStudent(e) {
         email: email,
         phone: phone,
         hasUnpaidDebt: false,
-        isActive: true,
-        addedAt: new Date().toISOString(),
-        addedBy: 'Admin'
+        isActive: true
     };
 
-    getService().addStudentAccount(record);
-    students.push(record);
-    bootstrap.Modal.getInstance(document.getElementById('addStudentModal'))?.hide();
-    document.getElementById('addStudentForm').reset();
-    document.getElementById('addProgram').innerHTML = '<option value="">Select Program</option>';
-    showToast('Student added.');
-    renderStudentsTable();
+    try {
+        await getService().addStudentAccount(record);
+        lastFingerprint = null;
+        await loadData();
+        bootstrap.Modal.getInstance(document.getElementById('addStudentModal'))?.hide();
+        document.getElementById('addStudentForm').reset();
+        document.getElementById('addProgram').innerHTML = '<option value="">Select Program</option>';
+        showToast('Student added.');
+        renderStudentsTable();
+    } catch (err) {
+        showToast(err.message || 'Failed to add student.', 'danger');
+    }
 }
 
 function openEditStudentModal(studentId) {
@@ -351,7 +366,7 @@ function openEditStudentModal(studentId) {
     new bootstrap.Modal(document.getElementById('editStudentModal')).show();
 }
 
-function handleEditStudent(e) {
+async function handleEditStudent(e) {
     e.preventDefault();
     var origId      = document.getElementById('editOriginalStudentId').value;
     var newId       = document.getElementById('editStudentId').value.trim();
@@ -373,26 +388,36 @@ function handleEditStudent(e) {
     if (idx === -1) { showToast('Student not found.', 'danger'); return; }
 
     var updated = Object.assign({}, students[idx], { studentId: newId, studentName: studentName, institute: institute, programCode: programCode, yearSection: yearSection, email: email, phone: phone });
-    students[idx] = updated;
-    getService().updateStudentAccount(updated.id, updated);
 
-    bootstrap.Modal.getInstance(document.getElementById('editStudentModal'))?.hide();
-    showToast('Student updated.');
-    renderStudentsTable();
+    try {
+        await getService().updateStudentAccount(updated.id, updated);
+        lastFingerprint = null;
+        await loadData();
+        bootstrap.Modal.getInstance(document.getElementById('editStudentModal'))?.hide();
+        showToast('Student updated.');
+        renderStudentsTable();
+    } catch (err) {
+        showToast(err.message || 'Failed to update student.', 'danger');
+    }
 }
 
-function deleteStudent(studentId) {
+async function deleteStudent(studentId) {
     if (!confirm('Delete student ' + studentId + '?')) return;
     var idx = students.findIndex(function(s) { return s.studentId === studentId; });
     if (idx === -1) return;
-    getService().deleteStudentAccount(students[idx].id);
-    students.splice(idx, 1);
-    showToast('Student deleted.', 'warning');
-    renderStudentsTable();
+    try {
+        await getService().deleteStudentAccount(students[idx].id);
+        lastFingerprint = null;
+        students.splice(idx, 1);
+        showToast('Student deleted.', 'warning');
+        renderStudentsTable();
+    } catch (err) {
+        showToast(err.message || 'Failed to delete student.', 'danger');
+    }
 }
 
 // --- Officer CRUD ---
-function handleAddOfficer(e) {
+async function handleAddOfficer(e) {
     e.preventDefault();
     var studentId = document.getElementById('officerStudentId').value.trim();
     var institute = document.getElementById('officerInstitute').value;
@@ -423,14 +448,19 @@ function handleAddOfficer(e) {
         addedBy: 'Admin'
     };
 
-    getService().addOfficer(record);
-    officers.push(record);
-    bootstrap.Modal.getInstance(document.getElementById('addOfficerModal'))?.hide();
-    document.getElementById('addOfficerForm').reset();
-    document.getElementById('officerOrg').innerHTML = '<option value="">Select Organization</option>';
-    document.getElementById('officerStudentLookup').textContent = '';
-    showToast('Officer added.');
-    renderOfficersTable();
+    try {
+        await getService().addOfficer(record);
+        lastFingerprint = null;
+        await loadData();
+        bootstrap.Modal.getInstance(document.getElementById('addOfficerModal'))?.hide();
+        document.getElementById('addOfficerForm').reset();
+        document.getElementById('officerOrg').innerHTML = '<option value="">Select Organization</option>';
+        document.getElementById('officerStudentLookup').textContent = '';
+        showToast('Officer added.');
+        renderOfficersTable();
+    } catch (err) {
+        showToast(err.message || 'Failed to add officer.', 'danger');
+    }
 }
 
 function openEditOfficerModal(officerId) {
@@ -454,7 +484,7 @@ function openEditOfficerModal(officerId) {
     new bootstrap.Modal(document.getElementById('editOfficerModal')).show();
 }
 
-function handleEditOfficer(e) {
+async function handleEditOfficer(e) {
     e.preventDefault();
     var id        = document.getElementById('editOfficerId').value;
     var institute = document.getElementById('editOfficerInstitute').value;
@@ -471,86 +501,76 @@ function handleEditOfficer(e) {
     if (idx === -1) { showToast('Officer not found.', 'danger'); return; }
 
     var updated = Object.assign({}, officers[idx], { institute: institute, orgCode: orgCode, orgName: orgCode, roleName: roleName, joinedAt: joinedAt, isActive: isActive });
-    officers[idx] = updated;
-    getService().updateOfficer(id, updated);
 
-    bootstrap.Modal.getInstance(document.getElementById('editOfficerModal'))?.hide();
-    showToast('Officer updated.');
-    renderOfficersTable();
+    try {
+        await getService().updateOfficer(id, updated);
+        lastFingerprint = null;
+        await loadData();
+        bootstrap.Modal.getInstance(document.getElementById('editOfficerModal'))?.hide();
+        showToast('Officer updated.');
+        renderOfficersTable();
+    } catch (err) {
+        showToast(err.message || 'Failed to update officer.', 'danger');
+    }
 }
 
-function deleteOfficerRecord(officerId) {
+async function deleteOfficerRecord(officerId) {
     var o = officers.find(function(o) { return o.id === officerId; });
     if (!o) return;
     if (!confirm('Remove ' + o.studentName + ' from ' + o.orgCode + '?')) return;
-    getService().deleteOfficer(officerId);
-    officers = officers.filter(function(x) { return x.id !== officerId; });
-    showToast('Officer removed.', 'warning');
-    renderOfficersTable();
+    try {
+        await getService().deleteOfficer(officerId);
+        lastFingerprint = null;
+        officers = officers.filter(function(x) { return x.id !== officerId; });
+        showToast('Officer removed.', 'warning');
+        renderOfficersTable();
+    } catch (err) {
+        showToast(err.message || 'Failed to remove officer.', 'danger');
+    }
 }
 
 // --- Account Request actions ---
 async function approveRequest(requestId) {
     var request = pendingRequests.find(function(r) { return r.id === requestId; });
     if (!request) return;
-
-    var studentRecord = studentNumbers.find(function(s) {
-        return s.studentId === request.studentId || s.id === request.studentRecordId;
-    });
-
-    if (!studentRecord) {
-        showToast('Student number not in database — cannot approve.', 'danger');
-        return;
+    try {
+        await getService().updatePendingRequest(requestId, { status: 'approved' });
+        lastFingerprint = null;
+        await loadData();
+        showToast('Approved: ' + (request.studentName || request.name || request.studentId));
+        renderStudentsTable();
+        renderRequestTables();
+    } catch (err) {
+        showToast(err.message || 'Failed to approve request.', 'danger');
     }
-
-    var newAccount = {
-        id: generateId(),
-        studentId:   studentRecord.studentId,
-        studentName: studentRecord.studentName || request.studentName || request.name || '',
-        institute:   studentRecord.institute   || '',
-        programCode: studentRecord.programCode || studentRecord.course || request.programCode || request.course || '',
-        yearSection: studentRecord.yearSection || request.yearSection || '',
-        email:       request.email || '',
-        phone:       request.phone || '',
-        password:    request.password || '',
-        hasUnpaidDebt: false,
-        isActive:    true,
-        addedAt:     new Date().toISOString(),
-        addedBy:     'Admin (approved request)'
-    };
-
-    if (!students.find(function(s) { return s.studentId === newAccount.studentId; })) {
-        getService().addStudentAccount(newAccount);
-        students.push(newAccount);
-    }
-
-    request.status     = 'approved';
-    request.approvedAt = new Date().toISOString();
-    getService().updatePendingRequest(requestId, request);
-
-    showToast('Approved: ' + newAccount.studentName);
-    renderStudentsTable();
-    renderRequestTables();
 }
 
 async function rejectRequest(requestId) {
     var request = pendingRequests.find(function(r) { return r.id === requestId; });
     if (!request) return;
-    request.status     = 'rejected';
-    request.rejectedAt = new Date().toISOString();
-    getService().updatePendingRequest(requestId, request);
-    showToast('Request rejected.', 'warning');
-    renderRequestTables();
+    try {
+        await getService().updatePendingRequest(requestId, { status: 'rejected' });
+        lastFingerprint = null;
+        await loadData();
+        showToast('Request rejected.', 'warning');
+        renderRequestTables();
+    } catch (err) {
+        showToast(err.message || 'Failed to reject request.', 'danger');
+    }
 }
 
 async function reopenRequest(requestId) {
     var request = pendingRequests.find(function(r) { return r.id === requestId; });
     if (!request) return;
-    request.status     = 'pending';
-    request.rejectedAt = null;
-    getService().updatePendingRequest(requestId, request);
-    showToast('Request moved back to pending.');
-    renderRequestTables();
+    try {
+        await getService().updatePendingRequest(requestId, { status: 'pending' });
+        lastFingerprint = null;
+        await loadData();
+        showToast('Request moved back to pending.');
+        renderRequestTables();
+    } catch (err) {
+        showToast(err.message || 'Failed to reopen request.', 'danger');
+    }
 }
 
 // --- Import XLSX ---
@@ -628,29 +648,9 @@ async function processStudentsXLSXImport() {
             };
 
             try {
-                svc.addStudentAccount(record);
+                await svc.addStudentAccount(record);
                 students.push(record);
-
-                var approvedRequest = {
-                    id: generateId(),
-                    status: 'approved',
-                    requestedAt: new Date().toISOString(),
-                    approvedAt: new Date().toISOString(),
-                    studentId: studentId,
-                    studentName: studentName,
-                    name: studentName,
-                    email: email,
-                    password: '',
-                    programCode: programCode,
-                    course: programCode,
-                    yearSection: yearSection,
-                    requestedRole: 'student',
-                    requestedOrg: '',
-                    addedBy: 'XLSX Import'
-                };
-                svc.addPendingRequest(approvedRequest);
-                pendingRequests.push(approvedRequest);
-
+                // Note: no addPendingRequest needed – direct DB insert is equivalent to approved import
                 imported++;
             } catch (_) { errors++; }
         }
@@ -714,17 +714,7 @@ function setupEventListeners() {
     var el;
 
     el = document.getElementById('refreshData');
-    if (el) el.addEventListener('click', async function() { await loadData(); refreshAll(); showToast('Data refreshed.'); });
-
-    // Auto-refresh when another tab/page writes to localStorage (e.g. student registers from login page)
-    window.addEventListener('storage', async function(e) {
-        var watched = ['AccountsSystem_pendingRequests', 'AccountsSystem_studentAccounts',
-                       'AccountsSystem_studentNumbers', 'AccountsSystem_officers'];
-        if (watched.indexOf(e.key) !== -1) {
-            await loadData();
-            refreshAll();
-        }
-    });
+    if (el) el.addEventListener('click', async function() { lastFingerprint = null; await loadData(); refreshAll(); showToast('Data refreshed.'); });
 
     el = document.getElementById('exportData');
     if (el) el.addEventListener('click', exportData);
@@ -821,11 +811,59 @@ function setupEventListeners() {
     });
 }
 
+// --- Realtime Polling ---
+
+function anyModalOpen() {
+    return !!document.querySelector('.modal.show');
+}
+
+async function pollForChanges() {
+    if (anyModalOpen()) return; // pause while user has a modal open
+    try {
+        var res  = await fetch('../../api/accounts/poll.php', { credentials: 'include' });
+        if (!res.ok) return;
+        var json = await res.json();
+        if (!json.ok) return;
+        var key = json.students.lastUpdated + '|' + json.students.count
+                + '|' + json.officers.lastUpdated + '|' + json.officers.count
+                + '|' + json.requests.lastUpdated + '|' + json.requests.count
+                + '|' + json.studentNumbers.lastUpdated + '|' + json.studentNumbers.count;
+        if (lastFingerprint === null) {
+            // First check after load or post-mutation reset — set baseline only
+            lastFingerprint = key;
+            return;
+        }
+        if (key !== lastFingerprint) {
+            lastFingerprint = key;
+            await loadData();
+            refreshAll();
+            showToast('Data updated.', 'info');
+        }
+    } catch (_) {
+        // Silent — retry on next interval
+    }
+}
+
+function startPolling() {
+    stopPolling();
+    pollTimer = setInterval(pollForChanges, POLL_INTERVAL);
+}
+
+function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+// Pause polling when tab is hidden, resume when visible
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) { stopPolling(); } else { startPolling(); }
+});
+
 // --- Bootstrap ---
 document.addEventListener('DOMContentLoaded', async function() {
-    if (!authorizeIncomingUser()) return;
+    if (!await authorizeIncomingUser()) return;
     await loadData();
     initFilterDropdowns();
     setupEventListeners();
     refreshAll();
+    startPolling();
 });

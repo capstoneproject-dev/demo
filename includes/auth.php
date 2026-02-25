@@ -72,6 +72,17 @@ function guardSession(string $redirectTo = '../pages/login.html'): array
     return getPhpSession();
 }
 
+/**
+ * API-level auth guard (returns JSON 401 instead of redirecting).
+ * Use this in REST endpoints instead of guardSession().
+ */
+function apiGuard(): void
+{
+    if (!isLoggedIn()) {
+        jsonError('Not authenticated.', 401);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // JSON response helpers (for API endpoints)
 // ---------------------------------------------------------------------------

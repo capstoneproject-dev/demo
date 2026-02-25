@@ -404,6 +404,16 @@ function setupEventListeners() {
 
 // ── Bootstrap ──
 document.addEventListener('DOMContentLoaded', async function() {
+    // Validate PHP session – OSA staff only
+    try {
+        var res  = await fetch('../../api/auth/session.php', { credentials: 'include' });
+        var json = await res.json();
+        if (!json.authenticated) { window.location.href = '../../pages/login.html'; return; }
+        var acct = (json.session && json.session.account_type) || '';
+        var role = (json.session && json.session.login_role)   || '';
+        if (acct !== 'osa_staff' && role !== 'osa') { window.location.href = '../../pages/login.html'; return; }
+    } catch (_) { window.location.href = '../../pages/login.html'; return; }
+
     // Populate filter and modal institute selects
     var instList = Object.keys(INSTITUTE_PROGRAMS);
 

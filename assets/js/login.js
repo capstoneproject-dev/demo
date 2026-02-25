@@ -498,46 +498,34 @@ function requestId() {
   return `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function submitPendingRegistration(payload) {
-  const pendingRequests = getPendingRequests();
-  const approvedAccounts = getApprovedAccounts();
-
-  const duplicatePending = pendingRequests.find((req) =>
-    String(req.studentId || '').toLowerCase() === String(payload.studentId || '').toLowerCase() ||
-    String(req.email || '').toLowerCase() === String(payload.email || '').toLowerCase()
-  );
-  if (duplicatePending && String(duplicatePending.status || '').toLowerCase() === 'pending') {
-    return { ok: false, message: 'A pending request already exists for this student/email.' };
+/**
+ * submitPendingRegistration – async, calls PHP REST endpoint.
+ * Returns { ok: boolean, message: string }
+ */
+async function submitPendingRegistration(payload) {
+  try {
+    const res  = await fetch('../api/accounts/requests/submit.php', {
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify({
+        studentId:    payload.studentId    || '',
+        name:         payload.name         || '',
+        email:        payload.email        || '',
+        password:     payload.password     || '',
+        course:       payload.course       || '',
+        yearSection:  payload.yearSection  || '',
+        section:      payload.section      || '',
+        requestedRole: payload.requestedRole || 'student',
+        requestedOrg:  payload.requestedOrg  || ''
+      })
+    });
+    const json = await res.json();
+    if (json.ok) return { ok: true };
+    return { ok: false, message: json.error || 'Registration failed.' };
+  } catch (err) {
+    return { ok: false, message: 'Network error: ' + err.message };
   }
-
-  const duplicateApproved = approvedAccounts.find((acc) =>
-    String(acc.studentId || '').toLowerCase() === String(payload.studentId || '').toLowerCase() ||
-    String(acc.email || '').toLowerCase() === String(payload.email || '').toLowerCase()
-  );
-  if (duplicateApproved) {
-    return { ok: false, message: 'An approved account already exists for this student/email.' };
-  }
-
-  const request = {
-    id: requestId(),
-    status: 'pending',
-    requestedAt: new Date().toISOString(),
-    studentId: payload.studentId || '',
-    studentName: payload.name || '',
-    name: payload.name || '',           // legacy alias
-    email: payload.email || '',
-    password: payload.password || '',
-    programCode: payload.course || '',
-    course: payload.course || '',       // legacy alias
-    yearSection: payload.yearSection || '',
-    section: payload.section || '',
-    requestedRole: payload.requestedRole || 'student',
-    requestedOrg: payload.requestedOrg || ''
-  };
-
-  pendingRequests.push(request);
-  savePendingRequests(pendingRequests);
-  return { ok: true, request };
 }
 
 function trySyncAuthorizedStudentFromAccounts(db, identifier, password) {
@@ -780,7 +768,7 @@ if (goOfficerDashboardBtn) {
 /* =====================
    REGISTRATION HANDLERS
    ===================== */
-function registerStudent() {
+async function registerStudent() {
   const studentNumber = (document.getElementById('student-number-input') || {}).value?.trim() || '';
   const fullName = (document.getElementById('student-name-input') || {}).value?.trim() || '';
   const course = (document.getElementById('student-course-input') || {}).value?.trim() || '';
@@ -798,7 +786,7 @@ function registerStudent() {
     return;
   }
 
-  const submitted = submitPendingRegistration({
+  const submitted = await submitPendingRegistration({
     studentId: studentNumber,
     name: fullName,
     email,
@@ -819,7 +807,7 @@ function registerStudent() {
   toggleSlide();
 }
 
-function registerOrgOfficer() {
+async function registerOrgOfficer() {
   const studentNumber = (document.getElementById('org-student-number-input') || {}).value?.trim() || '';
   const fullName = (document.getElementById('org-name-input') || {}).value?.trim() || '';
   const course = (document.getElementById('org-course-input') || {}).value?.trim() || '';
@@ -838,7 +826,7 @@ function registerOrgOfficer() {
     return;
   }
 
-  const submitted = submitPendingRegistration({
+  const submitted = await submitPendingRegistration({
     studentId: studentNumber,
     name: fullName,
     email,
