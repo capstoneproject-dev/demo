@@ -31,6 +31,8 @@ if (!$identifier || !$password) {
     jsonError('Please enter your email / ID and password.');
 }
 
+try {
+
 // --- Look up user ---
 $user = findUserByIdentifier($identifier);
 
@@ -82,3 +84,8 @@ jsonOk([
     'memberships'   => $memberships,
     'legacyProfile' => $legacyProfile,
 ]);
+
+} catch (PDOException $e) {
+    error_log('[api/auth/login] ' . $e->getMessage());
+    jsonError('A database error occurred. Please try again.', 500);
+}

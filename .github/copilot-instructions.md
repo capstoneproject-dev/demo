@@ -7,7 +7,7 @@
 ## Project Overview
 - Originally a static demo; now transitioning to a **PHP + MySQL backend** served via XAMPP.
 - The static HTML/CSS/JS structure is preserved; PHP endpoints are being added incrementally.
-- Database: `aisers_db` on XAMPP MySQL. Schema source of truth: `aisers_database_setup_mysql.sql`.
+- Database: `capstone_db` on XAMPP MySQL. Schema source of truth: `aisers_database_setup_mysql.sql`.
 
 ## Key Architecture
 - **HTML pages**: Located in `pages/` — static for now; will become PHP-rendered as features are wired up.
@@ -21,7 +21,7 @@
 ## Developer Workflows
 - **Local testing**: Start XAMPP (Apache + MySQL), open `http://localhost/CAPSTONE/demo/pages/login.html`.
 - **No build step**: All files are static or plain PHP; changes are reflected immediately.
-- **Database setup**: Import `aisers_database_setup_mysql.sql` into phpMyAdmin to create `aisers_db`.
+- **Database setup**: Import `aisers_database_setup_mysql.sql` into phpMyAdmin to create `capstone_db`.
 
 ## Project-Specific Patterns
 - **Login**: `assets/js/login.js` POSTs to `api/auth/login.php`, receives JSON, saves session to `localStorage`, redirects.

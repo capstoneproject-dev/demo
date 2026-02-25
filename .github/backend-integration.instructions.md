@@ -215,7 +215,7 @@ try {
 
 - The project is served at `http://localhost/CAPSTONE/demo/`.
 - Static `.html` files are served by Apache directly; PHP files require the XAMPP Apache server to be running.
-- DB credentials: host `localhost`, user `root`, password `` (empty), database `aisers_db`.
+- DB credentials: host `localhost`, user `root`, password `` (empty), database `capstone_db`.
 - To change credentials, edit **only** `config/db.php` constants (`DB_HOST`, `DB_USER`, `DB_PASS`).
 - Do not hardcode DB credentials anywhere else in the codebase.
 

@@ -5,7 +5,7 @@
  */
 
 define('DB_HOST',    'localhost');
-define('DB_NAME',    'aisers_db');
+define('DB_NAME',    'capstone_db');
 define('DB_USER',    'root');
 define('DB_PASS',    '');
 define('DB_CHARSET', 'utf8mb4');
