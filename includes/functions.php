@@ -256,6 +256,11 @@ function getMappedOrgByProgram(int $programId): ?array
 
 function touchLastLogin(int $userId): void
 {
-    getPdo()->prepare("UPDATE users SET last_login_at = NOW() WHERE user_id = :id")
+    getPdo()->prepare("
+        UPDATE users
+        SET last_login_at = CURRENT_TIMESTAMP,
+            updated_at    = CURRENT_TIMESTAMP
+        WHERE user_id = :id
+    ")
             ->execute([':id' => $userId]);
 }
