@@ -37,7 +37,6 @@ CREATE TABLE organizations (
     org_id INT AUTO_INCREMENT PRIMARY KEY,
     org_name VARCHAR(255) NOT NULL UNIQUE,
     org_code VARCHAR(20) NOT NULL UNIQUE,
-    description TEXT NULL,
     logo_url VARCHAR(500) NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -607,11 +606,11 @@ DELIMITER ;
 -- =====================================================
 
 INSERT INTO organizations (
-    org_id, org_name, org_code, description, status
+    org_id, org_name, org_code, status
 ) VALUES
-(1, 'AISERS',   'AISERS',   'Alliance in Information System Empowered Responsive Students Organization', 'active'),
-(2, 'ELITECH',  'ELITECH',  'Elite Technologist Society', 'active'),
-(3, 'CYC',      'CYC',      'Campus Youth Circle', 'active');
+(1, 'AISERS',   'AISERS',   'active'),
+(2, 'ELITECH',  'ELITECH',  'active'),
+(3, 'CYC',      'CYC',      'active');
 
 -- Demo account password for ALL seed users: 12345678
 -- Hash generated with: password_hash('12345678', PASSWORD_BCRYPT)
