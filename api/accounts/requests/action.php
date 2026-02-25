@@ -64,10 +64,11 @@ try {
         $email    = $req['email'];
         $yearSec  = $req['year_section'] ?: $snRecord['year_section'];
 
-        // Check for existing user
+        // Check for existing user — always resolve $userId
         $dupStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn OR email = :email LIMIT 1");
         $dupStmt->execute([':sn' => $req['student_number'], ':email' => $email]);
-        if (!$dupStmt->fetch()) {
+        $existingUser = $dupStmt->fetch();
+        if (!$existingUser) {
             // Create user
             $insUser = $pdo->prepare("
                 INSERT INTO users
@@ -86,6 +87,38 @@ try {
 
             $pdo->prepare("INSERT INTO student_profiles (user_id, program_id, section) VALUES (:uid, :pid, :sec)")
                 ->execute([':uid' => $userId, ':pid' => $programId, ':sec' => $yearSec]);
+        } else {
+            $userId = (int)$existingUser['user_id'];
+        }
+
+        // If org_officer request, add/update org membership
+        if ($req['requested_role'] === 'org_officer' && !empty($req['requested_org'])) {
+            $orgStmt = $pdo->prepare("SELECT org_id FROM organizations WHERE org_code = :code OR org_name = :name LIMIT 1");
+            $orgStmt->execute([':code' => $req['requested_org'], ':name' => $req['requested_org']]);
+            $org = $orgStmt->fetch();
+
+            if ($org) {
+                $orgId = (int)$org['org_id'];
+
+                // Get or create 'officer' role for this org
+                $roleStmt = $pdo->prepare("SELECT role_id FROM org_roles WHERE org_id = :oid AND role_name = 'officer' LIMIT 1");
+                $roleStmt->execute([':oid' => $orgId]);
+                $role = $roleStmt->fetch();
+
+                if (!$role) {
+                    $pdo->prepare("INSERT INTO org_roles (org_id, role_name, can_access_org_dashboard) VALUES (:oid, 'officer', 1)")
+                        ->execute([':oid' => $orgId]);
+                    $roleId = (int)$pdo->lastInsertId();
+                } else {
+                    $roleId = (int)$role['role_id'];
+                }
+
+                // Upsert organization_members (ignore if already a member)
+                $pdo->prepare("
+                    INSERT IGNORE INTO organization_members (user_id, org_id, role_id, joined_at, is_active)
+                    VALUES (:uid, :oid, :rid, CURDATE(), 1)
+                ")->execute([':uid' => $userId, ':oid' => $orgId, ':rid' => $roleId]);
+            }
         }
 
         // Mark approved
