@@ -64,6 +64,17 @@ try {
         $email    = $req['email'];
         $yearSec  = $req['year_section'] ?: $snRecord['year_section'];
 
+        // Keep student_numbers.email in sync if the whitelist row is still blank.
+        $pdo->prepare("
+            UPDATE student_numbers
+            SET email = :email
+            WHERE student_number = :sn
+              AND (email IS NULL OR TRIM(email) = '')
+        ")->execute([
+            ':email' => $email,
+            ':sn'    => $req['student_number'],
+        ]);
+
         // Check for existing user — always resolve $userId
         $dupStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn OR email = :email LIMIT 1");
         $dupStmt->execute([':sn' => $req['student_number'], ':email' => $email]);
