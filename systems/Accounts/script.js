@@ -553,6 +553,124 @@ async function reopenRequest(requestId) {
     renderRequestTables();
 }
 
+// --- Import XLSX ---
+async function processStudentsXLSXImport() {
+    var fileInput = document.getElementById('importStudentsFile');
+    var file = fileInput ? fileInput.files[0] : null;
+    if (!file) { showToast('Please select an XLSX file.', 'warning'); return; }
+
+    try {
+        var data = await file.arrayBuffer();
+        var workbook = XLSX.read(data, { type: 'array' });
+        var ws = workbook.Sheets[workbook.SheetNames[0]];
+        var jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        if (!jsonData || jsonData.length < 2) {
+            showToast('File needs at least a header row and one data row.', 'warning'); return;
+        }
+
+        var headers = jsonData[0].map(function(h) {
+            return String(h || '').trim().toLowerCase().replace(/[\s_-]/g, '');
+        });
+
+        function col(names) {
+            for (var i = 0; i < names.length; i++) {
+                var idx = headers.indexOf(names[i]);
+                if (idx !== -1) return idx;
+            }
+            return -1;
+        }
+
+        var idIdx    = col(['studentid', 'studentnumber', 'id']);
+        var nameIdx  = col(['studentname', 'name', 'fullname']);
+        var instIdx  = col(['institute', 'institutename']);
+        var progIdx  = col(['programcode', 'program', 'course']);
+        var ysIdx    = col(['yearsection', 'section', 'yearsec']);
+        var emailIdx = col(['email', 'emailaddress']);
+        var phoneIdx = col(['phone', 'phonenumber', 'mobile']);
+
+        if (idIdx === -1 || nameIdx === -1) {
+            showToast('File must have studentId and studentName columns.', 'danger'); return;
+        }
+
+        var imported = 0, skipped = 0, errors = 0;
+        var svc = getService();
+
+        for (var i = 1; i < jsonData.length; i++) {
+            var row = jsonData[i];
+            if (!row || row.length === 0) continue;
+
+            var studentId   = String(row[idIdx]   || '').trim();
+            var studentName = String(row[nameIdx] || '').trim();
+            if (!studentId || !studentName) { errors++; continue; }
+
+            if (students.find(function(s) { return s.studentId === studentId; })) { skipped++; continue; }
+
+            var institute   = instIdx  !== -1 ? String(row[instIdx]  || '').trim() : '';
+            var programCode = progIdx  !== -1 ? String(row[progIdx]  || '').trim() : '';
+            var yearSection = ysIdx    !== -1 ? String(row[ysIdx]    || '').trim() : '';
+            var email       = emailIdx !== -1 ? String(row[emailIdx] || '').trim() : '';
+            var phone       = phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '';
+
+            var record = {
+                id: generateId(),
+                studentId: studentId,
+                studentName: studentName,
+                institute: institute,
+                programCode: programCode,
+                yearSection: yearSection,
+                email: email,
+                phone: phone,
+                hasUnpaidDebt: false,
+                isActive: true,
+                addedAt: new Date().toISOString(),
+                addedBy: 'XLSX Import'
+            };
+
+            try {
+                svc.addStudentAccount(record);
+                students.push(record);
+
+                var approvedRequest = {
+                    id: generateId(),
+                    status: 'approved',
+                    requestedAt: new Date().toISOString(),
+                    approvedAt: new Date().toISOString(),
+                    studentId: studentId,
+                    studentName: studentName,
+                    name: studentName,
+                    email: email,
+                    password: '',
+                    programCode: programCode,
+                    course: programCode,
+                    yearSection: yearSection,
+                    requestedRole: 'student',
+                    requestedOrg: '',
+                    addedBy: 'XLSX Import'
+                };
+                svc.addPendingRequest(approvedRequest);
+                pendingRequests.push(approvedRequest);
+
+                imported++;
+            } catch (_) { errors++; }
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('importStudentsModal'))?.hide();
+        if (fileInput) fileInput.value = '';
+        renderStudentsTable();
+        renderRequestTables();
+
+        var msg = 'Imported ' + imported + ' student(s).';
+        if (skipped > 0) msg += ' Skipped ' + skipped + ' duplicates.';
+        if (errors  > 0) msg += ' ' + errors + ' error(s).';
+        showToast(msg, imported > 0 ? 'success' : 'warning');
+
+    } catch (err) {
+        showToast('Failed to process XLSX: ' + err.message, 'danger');
+        console.error('XLSX import error:', err);
+    }
+}
+
 // --- Export ---
 function exportData() {
     var data = {
