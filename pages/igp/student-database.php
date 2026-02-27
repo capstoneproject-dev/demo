@@ -117,11 +117,19 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             <label for="excelInput" class="form-label">Import Excel File (.xlsx):</label>
             <input type="file" id="excelInput" accept=".xlsx" class="form-control" />
         </div>
-        <div class="mb-3">
-            <div class="input-group">
-                <input type="text" id="searchInput" class="form-control"
-                    placeholder="Search by ID, name, or section...">
-                <button class="btn btn-outline-secondary" type="button" id="clearSearch">Clear</button>
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <select id="programFilter" class="form-select">
+                    <option value="__ORG__">Organization Programs</option>
+                    <option value="__ALL__">All Programs</option>
+                </select>
+            </div>
+            <div class="col-md-8">
+                <div class="input-group">
+                    <input type="text" id="searchInput" class="form-control"
+                        placeholder="Search by ID, name, or section...">
+                    <button class="btn btn-outline-secondary" type="button" id="clearSearch">Clear</button>
+                </div>
             </div>
         </div>
         <div id="database"></div>
