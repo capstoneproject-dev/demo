@@ -242,9 +242,74 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         </div>
     </div>
 
+    <!-- Rental Duration Modal -->
+    <div class="modal fade" id="rentalHoursModal" tabindex="-1" aria-labelledby="rentalHoursModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="rentalHoursModalLabel">Enter Rental Duration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="rentalHoursItemText" class="mb-2"></p>
+                    <div class="mb-2">
+                        <label for="rentalHoursInput" class="form-label">Number of Hours</label>
+                        <input type="number" class="form-control" id="rentalHoursInput" min="1" value="1">
+                    </div>
+                    <div class="alert alert-info mb-0 mt-2 d-none" id="rentalHoursDetails"></div>
+                    <small class="text-muted" id="rentalHoursRateText"></small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmRentalHoursBtn">Confirm Rental</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Return Modal -->
+    <div class="modal fade" id="confirmReturnModal" tabindex="-1" aria-labelledby="confirmReturnModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmReturnModalLabel">Confirm Return</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="confirmReturnText" class="mb-0"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmReturnBtn">Confirm Return</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Return Payment Modal -->
+    <div class="modal fade" id="returnPaymentModal" tabindex="-1" aria-labelledby="returnPaymentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="returnPaymentModalLabel">Rental Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-1">Base Cost: <strong id="paymentBaseCost">₱0.00</strong></p>
+                    <p class="mb-1">Overtime Cost: <strong id="paymentOvertimeCost">₱0.00</strong></p>
+                    <p class="mb-0">Total Cost: <strong id="paymentTotalCost">₱0.00</strong></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep as Unpaid</button>
+                    <button type="button" class="btn btn-success" id="markReturnPaidBtn">Mark as Paid</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
-    <script src="../../assets/js/igp-api.js?v=20260227i"></script>
-    <script src="../../assets/js/igp-index-exact.js?v=20260227i"></script>
+    <script src="../../assets/js/igp-api.js?v=20260227n"></script>
+    <script src="../../assets/js/igp-index-exact.js?v=20260227n"></script>
 </body>
 
 </html>
