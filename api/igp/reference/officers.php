@@ -18,7 +18,9 @@ try {
         JOIN org_roles r ON r.role_id = om.role_id
         WHERE om.org_id = :org
           AND om.is_active = 1
+          AND u.is_active = 1
           AND r.is_active = 1
+          AND r.org_id = :org
           AND r.can_access_org_dashboard = 1
         ORDER BY officer_name ASC"
     );

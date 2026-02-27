@@ -11,6 +11,24 @@ if (session_status() === PHP_SESSION_NONE) {
         'samesite' => 'Lax',
     ]);
     session_start();
+
+    // Normalize session cookie scope so both /api/* and /pages/* routes
+    // share the same PHP session (important for iframe-authenticated pages).
+    if (session_id() !== '') {
+        $name = session_name();
+        $sid  = session_id();
+        setcookie($name, $sid, [
+            'expires' => 0,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+
+        // Best-effort cleanup of older narrow-path cookies that can shadow
+        // the root cookie in some browsers.
+        setcookie($name, '', time() - 3600, '/CAPSTONE/demo/api');
+        setcookie($name, '', time() - 3600, '/CAPSTONE/demo/api/auth');
+    }
 }
 
 require_once __DIR__ . '/../config/db.php';

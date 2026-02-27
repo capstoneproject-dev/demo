@@ -771,7 +771,7 @@ if (goStudentDashboardBtn) {
 }
 
 if (goOfficerDashboardBtn) {
-  goOfficerDashboardBtn.addEventListener('click', () => {
+  goOfficerDashboardBtn.addEventListener('click', async () => {
     if (!pendingOrgLogin) return;
     const selectedOrgId = orgDashboardSelect ? Number(orgDashboardSelect.value || 0) : 0;
     if (!selectedOrgId) {
@@ -788,9 +788,26 @@ if (goOfficerDashboardBtn) {
       active_org_name: selectedMembership.org_name,
       active_role_name: selectedMembership.role_name
     };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-    closeDashboardChoiceModal();
-    window.location.href = 'officerDashboard.html';
+    try {
+      const resp = await fetch('../api/auth/activate-org.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org_id: selectedMembership.org_id })
+      });
+      const data = await resp.json();
+      if (!data.ok) {
+        alert(data.error || 'Could not activate organization session.');
+        return;
+      }
+
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      closeDashboardChoiceModal();
+      window.location.href = 'officerDashboard.html';
+    } catch (err) {
+      console.error('[activate-org] error:', err);
+      alert('Could not activate organization session on server.');
+    }
   });
 }
 
@@ -973,6 +990,7 @@ async function handleLogin() {
   try {
     const resp = await fetch('../api/auth/login.php', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password })
     });

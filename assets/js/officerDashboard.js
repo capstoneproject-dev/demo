@@ -24,6 +24,29 @@ function validatePhpSession() {
         .catch(() => { /* silently ignore — XAMPP may be offline during dev */ });
 }
 
+function syncActiveOrgToPhpSession() {
+    const session = readAuthSession();
+    const orgId = Number(session.active_org_id || 0);
+    if (!orgId) return;
+
+    fetch('../api/auth/activate-org.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ org_id: orgId })
+    })
+        .then((r) => r.json())
+        .then((data) => {
+            if (!data || !data.ok || !data.session) return;
+            localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+            const trackerFrame = document.querySelector('#tracker iframe');
+            if (trackerFrame && trackerFrame.src) {
+                trackerFrame.src = trackerFrame.src;
+            }
+        })
+        .catch(() => { /* keep dashboard usable even if sync fails */ });
+}
+
 function initOfficerAuthContext() {
     const session = readAuthSession();
     const isOfficerSession = session && session.login_role === 'org' && session.user_id;
@@ -68,6 +91,7 @@ function initOfficerAuthContext() {
 
     // Validate PHP session in the background (catches server-side expiry)
     validatePhpSession();
+    syncActiveOrgToPhpSession();
 
     // Seed org-specific data into localStorage so the IGP Rental and QR-Attendance
     // iframes pick up the correct inventory and officer barcodes on first load.
