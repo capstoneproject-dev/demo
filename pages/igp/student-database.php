@@ -192,8 +192,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/IGPRentalSystem/lib/JsBarcode.all.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/encoder.js"></script>
-    <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-students-exact.js"></script>
+    <script src="../../assets/js/igp-api.js?v=20260227e"></script>
+    <script src="../../assets/js/igp-students-exact.js?v=20260227e"></script>
 </body>
 
 </html>

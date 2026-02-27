@@ -142,7 +142,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     <table class="table table-bordered mb-0">
                         <thead>
                             <tr>
-                                <th>Item ID</th>
+                                <th>Item Name</th>
                                 <th>Number of Items</th>
                                 <th>Items Available</th>
                                 <th>Items Rented</th>

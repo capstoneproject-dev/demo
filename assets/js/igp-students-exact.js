@@ -25,7 +25,9 @@
     function groupBySection(list) {
         const grouped = {};
         list.forEach((student) => {
-            const key = student.section || 'Unassigned';
+            const section = student.section || 'Unassigned';
+            const program = student.programCode || 'N/A';
+            const key = `${section}|||${program}`;
             if (!grouped[key]) grouped[key] = [];
             grouped[key].push(student);
         });
@@ -94,11 +96,12 @@
             return;
         }
 
-        sections.forEach((section) => {
+        sections.forEach((groupKey) => {
+            const [section, programCode] = groupKey.split('|||');
             const sectionDiv = document.createElement('div');
-            sectionDiv.innerHTML = `<h2 class="section-title">Section ${section}</h2>`;
+            sectionDiv.innerHTML = `<h2 class="section-title">${programCode} | Section ${section}</h2>`;
 
-            grouped[section].forEach((student) => {
+            grouped[groupKey].forEach((student) => {
                 const ref = window.encodeStudentData ? window.encodeStudentData(student.studentId) : student.studentId;
                 const safeRef = ref.replace(/[^A-Za-z0-9_-]/g, '_');
                 const programLabel = student.programCode.trim() !== '' ? student.programCode : 'Unassigned';

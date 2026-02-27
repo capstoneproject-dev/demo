@@ -72,7 +72,18 @@
 
         Object.keys(groups).sort().forEach((groupName) => {
             const safe = safeGroupName(groupName);
-            const items = [...groups[groupName]].sort((a, b) => Number(a.item_id) - Number(b.item_id));
+            const items = [...groups[groupName]].sort((a, b) => {
+                const aBarcode = String(a.barcode || '');
+                const bBarcode = String(b.barcode || '');
+                const aNum = Number((aBarcode.match(/\d+/) || ['0'])[0]);
+                const bNum = Number((bBarcode.match(/\d+/) || ['0'])[0]);
+                if (aNum !== bNum) return aNum - bNum;
+
+                const barcodeCmp = aBarcode.localeCompare(bBarcode, undefined, { sensitivity: 'base' });
+                if (barcodeCmp !== 0) return barcodeCmp;
+
+                return String(a.item_name || '').localeCompare(String(b.item_name || ''), undefined, { sensitivity: 'base' });
+            });
 
             const headerRow = document.createElement('tr');
             headerRow.className = 'group-header';
@@ -95,7 +106,7 @@
                 <table class="table table-sm mb-0">
                     <thead>
                         <tr>
-                            <th>Item ID</th>
+                            <th>Item Name</th>
                             <th>Barcode</th>
                             <th>Rate / Overtime</th>
                             <th>Last Renter</th>
@@ -111,7 +122,7 @@
                             const status = statusOf(item);
                             return `
                                 <tr>
-                                    <td>${item.item_id}</td>
+                                    <td>${item.item_name}</td>
                                     <td>${item.barcode}</td>
                                     <td>PHP ${fmtNumber(item.hourly_rate)}/hr${item.overtime_interval_minutes ? `<br><small class="text-muted">+ PHP ${fmtNumber(item.overtime_rate_per_block)} / ${item.overtime_interval_minutes} mins</small>` : ''}</td>
                                     <td>-</td>
