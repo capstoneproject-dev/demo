@@ -287,11 +287,17 @@ async function processXLSXImport() {
         var emailIdx     = col(['email','emailaddress']);
         var phoneIdx     = col(['phone','phonenumber','mobile']);
 
-        if (idIdx === -1 || nameIdx === -1) {
-            showToast('Error', 'File must have studentId and studentName columns.', 'error'); return;
+        var missingRequiredHeaders = [];
+        if (idIdx === -1)   missingRequiredHeaders.push('studentId');
+        if (nameIdx === -1) missingRequiredHeaders.push('studentName');
+        if (instIdx === -1) missingRequiredHeaders.push('institute');
+        if (progIdx === -1) missingRequiredHeaders.push('programCode');
+        if (missingRequiredHeaders.length > 0) {
+            showToast('Error', 'Missing required column(s): ' + missingRequiredHeaders.join(', '), 'error'); return;
         }
 
-        var imported = 0, skipped = 0, errors = 0;
+        var records = [];
+        var invalidRows = 0;
 
         for (var i = 1; i < jsonData.length; i++) {
             var row = jsonData[i];
@@ -299,39 +305,46 @@ async function processXLSXImport() {
 
             var studentId   = idIdx   !== -1 ? String(row[idIdx]   || '').trim() : '';
             var studentName = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
-            if (!studentId || !studentName) { errors++; continue; }
+            var institute   = instIdx  !== -1 ? String(row[instIdx]  || '').trim() : '';
+            var programCode = progIdx  !== -1 ? String(row[progIdx]  || '').trim() : '';
+            if (!studentId || !studentName || !institute || !programCode) {
+                invalidRows++;
+                continue;
+            }
 
-            if (studentNumbers.find(function(s) { return s.studentId === studentId; })) { skipped++; continue; }
-
-            var record = {
-                id: generateId(),
+            records.push({
                 studentId: studentId,
                 studentName: studentName,
-                institute:   instIdx  !== -1 ? String(row[instIdx]  || '').trim() : '',
-                programCode: progIdx  !== -1 ? String(row[progIdx]  || '').trim() : '',
+                institute:   institute,
+                programCode: programCode,
                 yearSection: ysIdx    !== -1 ? String(row[ysIdx]    || '').trim() : '',
                 email:       emailIdx !== -1 ? String(row[emailIdx] || '').trim() : '',
                 phone:       phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '',
                 hasUnpaidDebt: false,
-                isActive: true,
-                addedAt: new Date().toISOString(),
-                addedBy: 'XLSX Import'
-            };
-
-            try {
-                await getService().addStudentNumber(record);
-                studentNumbers.push(record);
-                imported++;
-            } catch (_) { errors++; }
+                isActive: true
+            });
         }
 
+        if (records.length === 0) {
+            showToast('Error', 'No valid rows found to import.', 'error');
+            return;
+        }
+
+        var result = await getService().bulkImportStudentNumbers(records);
+        var imported = Number(result.imported || 0);
+        var skipped  = Number(result.skipped  || 0);
+        var errors   = Number(result.errors   || 0);
+
+        await loadStudentNumbers();
         updateStudentNumbersTable();
         updateTotalCount();
         var modal = bootstrap.Modal.getInstance(document.getElementById('importCSVModal'));
         if (modal) modal.hide();
+        if (fileInput) fileInput.value = '';
 
         var msg = 'Imported ' + imported + '.';
         if (skipped > 0) msg += ' Skipped ' + skipped + ' duplicates.';
+        if (invalidRows > 0) msg += ' Skipped ' + invalidRows + ' row(s) with missing required values.';
         if (errors  > 0) msg += ' ' + errors + ' errors.';
         showToast('Import done', msg, 'success');
 
@@ -342,7 +355,8 @@ async function processXLSXImport() {
 }
 
 // ── Export XLSX ──
-function exportStudentNumbers() {
+async function exportStudentNumbers() {
+    await loadStudentNumbers();
     if (studentNumbers.length === 0) { showToast('Warning', 'No data to export.', 'warning'); return; }
     try {
         var exportData = studentNumbers.map(function(s) {

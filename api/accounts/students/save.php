@@ -14,6 +14,7 @@ $programCode   = trim($body['programCode'] ?? '');
 $institute     = trim($body['institute']   ?? '');
 $yearSection   = trim($body['yearSection'] ?? '') ?: null;
 $email         = trim($body['email']       ?? '') ?: null;
+$phone         = trim($body['phone']       ?? '') ?: null;
 $isActive      = isset($body['isActive'])      ? (int)(bool)$body['isActive']      : 1;
 $hasUnpaidDebt = isset($body['hasUnpaidDebt']) ? (int)(bool)$body['hasUnpaidDebt'] : 0;
 // For updates: pass either userId (user_id) or origStudentId (student_number). userId takes priority.
@@ -60,9 +61,9 @@ try {
 
         $ins = $pdo->prepare("
             INSERT INTO users
-                (student_number, email, password_hash, first_name, last_name,
+                (student_number, email, password_hash, first_name, last_name, phone,
                  account_type, has_unpaid_debt, is_active)
-            VALUES (:sn, :email, :pw, :fn, :ln, 'student', :debt, :active)
+            VALUES (:sn, :email, :pw, :fn, :ln, :phone, 'student', :debt, :active)
         ");
         $ins->execute([
             ':sn'     => $studentNumber,
@@ -70,6 +71,7 @@ try {
             ':pw'     => $pwHash,
             ':fn'     => $firstName,
             ':ln'     => $lastName,
+            ':phone'  => $phone,
             ':debt'   => $hasUnpaidDebt,
             ':active' => $isActive,
         ]);
@@ -114,6 +116,7 @@ try {
                 email          = :email,
                 first_name     = :fn,
                 last_name      = :ln,
+                phone          = :phone,
                 has_unpaid_debt = :debt,
                 is_active      = :active
             WHERE user_id = :uid
@@ -123,6 +126,7 @@ try {
             ':email'  => $email,
             ':fn'     => $firstName,
             ':ln'     => $lastName,
+            ':phone'  => $phone,
             ':debt'   => $hasUnpaidDebt,
             ':active' => $isActive,
             ':uid'    => $userId,

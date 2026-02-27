@@ -15,7 +15,7 @@ try {
                COALESCE(ap.program_code, '') AS programCode,
                COALESCE(sp.section, '') AS yearSection,
                COALESCE(u.email, '') AS email,
-               '' AS phone,
+               COALESCE(u.phone, '') AS phone,
                u.has_unpaid_debt AS hasUnpaidDebt,
                u.is_active AS isActive,
                u.created_at AS addedAt,

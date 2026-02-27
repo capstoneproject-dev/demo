@@ -541,8 +541,7 @@ async function approveRequest(requestId) {
         lastFingerprint = null;
         await loadData();
         showToast('Approved: ' + (request.studentName || request.name || request.studentId));
-        renderStudentsTable();
-        renderRequestTables();
+        refreshAll();
     } catch (err) {
         showToast(err.message || 'Failed to approve request.', 'danger');
     }
@@ -614,26 +613,32 @@ async function processStudentsXLSXImport() {
         var emailIdx = col(['email', 'emailaddress']);
         var phoneIdx = col(['phone', 'phonenumber', 'mobile']);
 
-        if (idIdx === -1 || nameIdx === -1) {
-            showToast('File must have studentId and studentName columns.', 'danger'); return;
+        var missingRequiredHeaders = [];
+        if (idIdx === -1)   missingRequiredHeaders.push('studentId');
+        if (nameIdx === -1) missingRequiredHeaders.push('studentName');
+        if (instIdx === -1) missingRequiredHeaders.push('institute');
+        if (progIdx === -1) missingRequiredHeaders.push('programCode');
+        if (ysIdx === -1)   missingRequiredHeaders.push('yearSection');
+        if (missingRequiredHeaders.length > 0) {
+            showToast('Missing required column(s): ' + missingRequiredHeaders.join(', '), 'danger'); return;
         }
 
-        var imported = 0, skipped = 0, errors = 0;
+        var imported = 0, skipped = 0, errors = 0, invalidRows = 0;
         var svc = getService();
 
         for (var i = 1; i < jsonData.length; i++) {
             var row = jsonData[i];
             if (!row || row.length === 0) continue;
 
-            var studentId   = String(row[idIdx]   || '').trim();
-            var studentName = String(row[nameIdx] || '').trim();
-            if (!studentId || !studentName) { errors++; continue; }
-
-            if (students.find(function(s) { return s.studentId === studentId; })) { skipped++; continue; }
-
             var institute   = instIdx  !== -1 ? String(row[instIdx]  || '').trim() : '';
             var programCode = progIdx  !== -1 ? String(row[progIdx]  || '').trim() : '';
             var yearSection = ysIdx    !== -1 ? String(row[ysIdx]    || '').trim() : '';
+            var studentId   = String(row[idIdx]   || '').trim();
+            var studentName = String(row[nameIdx] || '').trim();
+            if (!studentId || !studentName || !institute || !programCode || !yearSection) { invalidRows++; continue; }
+
+            if (students.find(function(s) { return s.studentId === studentId; })) { skipped++; continue; }
+
             var email       = emailIdx !== -1 ? String(row[emailIdx] || '').trim() : '';
             var phone       = phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '';
 
@@ -654,19 +659,19 @@ async function processStudentsXLSXImport() {
 
             try {
                 await svc.addStudentAccount(record);
-                students.push(record);
-                // Note: no addPendingRequest needed – direct DB insert is equivalent to approved import
                 imported++;
             } catch (_) { errors++; }
         }
 
         bootstrap.Modal.getInstance(document.getElementById('importStudentsModal'))?.hide();
         if (fileInput) fileInput.value = '';
-        renderStudentsTable();
-        renderRequestTables();
+        lastFingerprint = null;
+        await loadData();
+        refreshAll();
 
         var msg = 'Imported ' + imported + ' student(s).';
         if (skipped > 0) msg += ' Skipped ' + skipped + ' duplicates.';
+        if (invalidRows > 0) msg += ' Skipped ' + invalidRows + ' row(s) with missing required values.';
         if (errors  > 0) msg += ' ' + errors + ' error(s).';
         showToast(msg, imported > 0 ? 'success' : 'warning');
 
@@ -677,20 +682,74 @@ async function processStudentsXLSXImport() {
 }
 
 // --- Export ---
-function exportData() {
-    var data = {
-        exportedAt: new Date().toISOString(),
-        studentAccounts: students,
-        officers: officers,
-        pendingRequests: pendingRequests
-    };
-    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    var url  = URL.createObjectURL(blob);
-    var a    = document.createElement('a');
-    a.href     = url;
-    a.download = 'accounts_export_' + new Date().toISOString().slice(0, 10) + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
+async function exportData() {
+    await loadData();
+    try {
+        var wb = XLSX.utils.book_new();
+
+        var studentsSheet = students.map(function(s) {
+            return {
+                userId: s.userId || '',
+                studentId: s.studentId || '',
+                studentName: s.studentName || '',
+                institute: s.institute || '',
+                programCode: s.programCode || '',
+                yearSection: s.yearSection || '',
+                email: s.email || '',
+                phone: s.phone || '',
+                hasUnpaidDebt: s.hasUnpaidDebt ? 'yes' : 'no',
+                isActive: s.isActive ? 'yes' : 'no',
+                addedAt: s.addedAt || ''
+            };
+        });
+        var wsStudents = XLSX.utils.json_to_sheet(studentsSheet);
+        wsStudents['!cols'] = [10,14,28,40,16,14,30,18,14,10,22].map(function(w) { return { wch: w }; });
+        XLSX.utils.book_append_sheet(wb, wsStudents, 'Students');
+
+        var officersSheet = officers.map(function(o) {
+            return {
+                officerId: o.id || '',
+                name: o.name || '',
+                role: o.role || '',
+                institute: o.institute || '',
+                organization: o.organization || '',
+                employeeNumber: o.employeeNumber || '',
+                email: o.email || '',
+                status: o.status || '',
+                notes: o.notes || '',
+                createdAt: o.createdAt || ''
+            };
+        });
+        var wsOfficers = XLSX.utils.json_to_sheet(officersSheet);
+        wsOfficers['!cols'] = [12,24,14,36,32,20,30,12,24,22].map(function(w) { return { wch: w }; });
+        XLSX.utils.book_append_sheet(wb, wsOfficers, 'Officers');
+
+        var pendingSheet = pendingRequests.map(function(r) {
+            return {
+                requestId: r.id || '',
+                studentId: r.studentId || '',
+                studentName: r.studentName || '',
+                institute: r.institute || '',
+                programCode: r.programCode || '',
+                yearSection: r.yearSection || '',
+                email: r.email || '',
+                phone: r.phone || '',
+                requestedAs: r.requestedAs || '',
+                requestedOrg: r.requestedOrg || '',
+                status: r.status || '',
+                submittedAt: r.submittedAt || ''
+            };
+        });
+        var wsPending = XLSX.utils.json_to_sheet(pendingSheet);
+        wsPending['!cols'] = [12,14,28,40,16,14,30,18,16,24,12,22].map(function(w) { return { wch: w }; });
+        XLSX.utils.book_append_sheet(wb, wsPending, 'PendingRequests');
+
+        XLSX.writeFile(wb, 'student_numbers_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+        showToast('Export complete.', 'success');
+    } catch (err) {
+        showToast('Export failed: ' + err.message, 'danger');
+        console.error('Export error:', err);
+    }
 }
 
 // --- Filter Dropdowns init ---
@@ -879,4 +938,5 @@ document.addEventListener('DOMContentLoaded', async function() {
     refreshAll();
     startPolling();
 });
+
 

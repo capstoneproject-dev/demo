@@ -189,6 +189,7 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
                 institute:   accountData.institute   || '',
                 yearSection: accountData.yearSection || '',
                 email:       accountData.email       || '',
+                phone:       accountData.phone       || '',
                 hasUnpaidDebt: accountData.hasUnpaidDebt || false,
                 isActive:      accountData.isActive !== undefined ? accountData.isActive : true,
                 userId:        0,  // 0 = INSERT
@@ -209,6 +210,7 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
                 institute:   accountData.institute   || '',
                 yearSection: accountData.yearSection || '',
                 email:       accountData.email       || '',
+                phone:       accountData.phone       || '',
                 hasUnpaidDebt: accountData.hasUnpaidDebt !== undefined ? accountData.hasUnpaidDebt : false,
                 isActive:      accountData.isActive      !== undefined ? accountData.isActive      : true,
             });
