@@ -13,7 +13,7 @@ try {
                CONCAT(u.first_name, ' ', u.last_name) AS studentName,
                COALESCE(i.institute_name, '') AS institute,
                COALESCE(ap.program_code, '') AS programCode,
-               COALESCE(sp.section, '') AS yearSection,
+               COALESCE(sn.year_section, '') AS yearSection,
                COALESCE(u.email, '') AS email,
                COALESCE(u.phone, '') AS phone,
                u.has_unpaid_debt AS hasUnpaidDebt,
@@ -21,9 +21,9 @@ try {
                u.created_at AS addedAt,
                u.updated_at AS updatedAt
         FROM users u
-        LEFT JOIN student_profiles sp  ON sp.user_id      = u.user_id
-        LEFT JOIN academic_programs ap ON ap.program_id   = sp.program_id
-        LEFT JOIN institutes i         ON i.institute_id  = ap.institute_id
+        LEFT JOIN academic_programs ap ON ap.program_id   = u.program_id
+        LEFT JOIN institutes i         ON i.institute_id  = u.institute_id
+        LEFT JOIN student_numbers sn   ON sn.student_number = u.student_number
         WHERE u.account_type = 'student'
         ORDER BY u.student_number ASC
     ");

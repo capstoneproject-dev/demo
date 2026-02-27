@@ -22,9 +22,7 @@ try {
         JOIN users        u   ON u.user_id   = om.user_id
         JOIN organizations org ON org.org_id = om.org_id
         JOIN org_roles     r   ON r.role_id  = om.role_id
-        LEFT JOIN student_profiles sp  ON sp.user_id     = u.user_id
-        LEFT JOIN academic_programs ap ON ap.program_id  = sp.program_id
-        LEFT JOIN institutes i         ON i.institute_id = ap.institute_id
+        LEFT JOIN institutes i         ON i.institute_id = u.institute_id
         ORDER BY org.org_code ASC, u.student_number ASC
     ");
     $stmt->execute();

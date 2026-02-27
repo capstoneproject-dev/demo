@@ -18,8 +18,6 @@ try {
             (
                 SELECT MAX(ts) FROM (
                     SELECT MAX(updated_at) AS ts FROM users WHERE account_type = 'student'
-                    UNION ALL
-                    SELECT MAX(updated_at) AS ts FROM student_profiles
                 ) s
             ) AS students_last,
             (SELECT COUNT(*)      FROM organization_members)                                AS officers_count,
