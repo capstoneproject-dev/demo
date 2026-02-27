@@ -7,6 +7,9 @@
     let students = [];
     let officers = [];
     let scanInputTimer = null;
+    let pendingRent = null;
+    let pendingReturn = null;
+    let pendingPaymentRentalId = 0;
     const scanCtx = {
         rent: { studentId: '', officerId: '' },
         return: { officerId: '' }
@@ -166,6 +169,71 @@
         return inventory.find((it) => String(it.barcode || '').toLowerCase() === v) || null;
     }
 
+    function peso(v) {
+        return `PHP ${Number(v || 0).toFixed(2)}`;
+    }
+
+    function getModalInstance(id) {
+        const el = $(id);
+        if (!el || !window.bootstrap) return null;
+        return window.bootstrap.Modal.getOrCreateInstance(el);
+    }
+
+    function openRentHoursModal(item, renterIdentifier, officerIdentifier) {
+        pendingRent = { item, renterIdentifier, officerIdentifier };
+        const itemText = $('rentalHoursItemText');
+        const rateText = $('rentalHoursRateText');
+        const hoursInput = $('rentalHoursInput');
+        const details = $('rentalHoursDetails');
+        const confirmBtn = $('confirmRentalHoursBtn');
+        const renderPreview = () => {
+            const hours = Math.max(1, Number((hoursInput && hoursInput.value) || 1));
+            const baseCost = (Number(item.hourly_rate) || 0) * hours;
+            if (details) {
+                details.classList.remove('d-none');
+                details.innerHTML =
+                    `Item: <strong>${item.item_name}</strong> [${item.barcode}]<br>` +
+                    `Renter: <strong>${renterIdentifier}</strong><br>` +
+                    `Officer: <strong>${officerIdentifier || '-'}</strong><br>` +
+                    `Hours: <strong>${hours}</strong><br>` +
+                    `Estimated Base Cost: <strong>${peso(baseCost)}</strong>`;
+            }
+            if (rateText) rateText.textContent = `Rate: ${peso(item.hourly_rate)} per hour`;
+        };
+        if (itemText) itemText.textContent = `Item: ${item.item_name} [${item.barcode}]`;
+        if (hoursInput) hoursInput.value = '1';
+        if (details) {
+            details.classList.remove('d-none');
+        }
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Confirm Rental';
+        }
+        if (hoursInput) {
+            hoursInput.oninput = renderPreview;
+        }
+        renderPreview();
+        const modal = getModalInstance('rentalHoursModal');
+        if (modal) modal.show();
+    }
+
+    function openConfirmReturnModal(rental, item) {
+        pendingReturn = { rental, item };
+        const text = $('confirmReturnText');
+        if (text) text.textContent = `Are you sure you want to return ${item.item_name} [${item.barcode}]?`;
+        const modal = getModalInstance('confirmReturnModal');
+        if (modal) modal.show();
+    }
+
+    function openPaymentModal(summary, rentalId) {
+        pendingPaymentRentalId = Number(rentalId || 0);
+        if ($('paymentBaseCost')) $('paymentBaseCost').textContent = peso(summary.base_cost);
+        if ($('paymentOvertimeCost')) $('paymentOvertimeCost').textContent = peso(summary.overtime_cost);
+        if ($('paymentTotalCost')) $('paymentTotalCost').textContent = peso(summary.total_cost);
+        const modal = getModalInstance('returnPaymentModal');
+        if (modal) modal.show();
+    }
+
     function encodeRef(raw, prefix) {
         const source = String(raw || '');
         if (!source) return '';
@@ -223,15 +291,7 @@
                 return;
             }
 
-            await window.igpApi.rentItem({
-                item_id: Number(item.item_id),
-                renter_identifier: scanCtx.rent.studentId,
-                officer_identifier: scanCtx.rent.officerId,
-                hours: 1,
-            });
-            await refresh();
-            setScanResult(`Rental recorded for ${item.item_name} [${item.barcode}].`, 'success');
-            resetScanContext();
+            openRentHoursModal(item, scanCtx.rent.studentId, scanCtx.rent.officerId);
             return;
         }
 
@@ -259,10 +319,7 @@
             return;
         }
 
-        await window.igpApi.returnRental(Number(rental.rental_id));
-        await refresh();
-        setScanResult(`Return recorded for ${item.item_name} [${item.barcode}].`, 'success');
-        resetScanContext();
+        openConfirmReturnModal(rental, item);
     }
 
     async function processBarcodeInputField() {
@@ -303,14 +360,10 @@
                 const renterId = (($('studentId') || {}).value || '').trim();
                 const officerId = (($('barcodeInputOfficer') || {}).value || '').trim();
                 if (!renterId) throw new Error('Student ID is required.');
-                const hours = 1;
-                await window.igpApi.rentItem({
-                    item_id: itemId,
-                    renter_identifier: renterId,
-                    officer_identifier: officerId,
-                    hours,
-                });
-                if (msg) msg.innerHTML = "<span class='success'>Rental recorded.</span>";
+                const item = inventory.find((it) => Number(it.item_id) === itemId);
+                if (!item) throw new Error('Item not found.');
+                openRentHoursModal(item, renterId, officerId);
+                if (msg) msg.innerHTML = "<span class='info'>Set rental duration, then confirm.</span>";
             } else {
                 const active = activeRentals.find((r) => String(r.items_label || '').includes(`(${itemId})`) || String(r.items_label || '').includes(`[${itemId}]`) );
                 const fallback = activeRentals.find((r) => {
@@ -319,12 +372,68 @@
                 });
                 const rental = active || fallback;
                 if (!rental) throw new Error('No active rental found for selected item.');
-                await window.igpApi.returnRental(Number(rental.rental_id));
-                if (msg) msg.innerHTML = "<span class='success'>Return recorded.</span>";
+                const item = inventory.find((it) => Number(it.item_id) === itemId);
+                if (!item) throw new Error('Item not found.');
+                openConfirmReturnModal(rental, item);
+                if (msg) msg.innerHTML = "<span class='info'>Confirm return in modal.</span>";
             }
-            await refresh();
         } catch (e) {
             if (msg) msg.innerHTML = `<span class='error'>${e.message}</span>`;
+        }
+    }
+
+    async function confirmRentalFromModal() {
+        if (!pendingRent) return;
+        const hours = Number((($('rentalHoursInput') || {}).value || 1));
+        if (!Number.isFinite(hours) || hours < 1) {
+            setScanResult('Rental hours must be at least 1.', 'error');
+            return;
+        }
+        const modal = getModalInstance('rentalHoursModal');
+        try {
+            await window.igpApi.rentItem({
+                item_id: Number(pendingRent.item.item_id),
+                renter_identifier: pendingRent.renterIdentifier,
+                officer_identifier: pendingRent.officerIdentifier,
+                hours,
+            });
+            if (modal) modal.hide();
+            await refresh();
+            setScanResult(`Rental recorded for ${pendingRent.item.item_name} [${pendingRent.item.barcode}] for ${hours} hour(s).`, 'success');
+            resetScanContext();
+            pendingRent = null;
+        } catch (err) {
+            setScanResult(err.message, 'error');
+        }
+    }
+
+    async function confirmReturnFromModal() {
+        if (!pendingReturn) return;
+        const modal = getModalInstance('confirmReturnModal');
+        try {
+            const res = await window.igpApi.returnRental(Number(pendingReturn.rental.rental_id));
+            if (modal) modal.hide();
+            await refresh();
+            setScanResult(`Return recorded for ${pendingReturn.item.item_name} [${pendingReturn.item.barcode}].`, 'success');
+            resetScanContext();
+            openPaymentModal(res, res.rental_id || pendingReturn.rental.rental_id);
+            pendingReturn = null;
+        } catch (err) {
+            setScanResult(err.message, 'error');
+        }
+    }
+
+    async function markReturnPaidFromModal() {
+        if (!pendingPaymentRentalId) return;
+        try {
+            await window.igpApi.markPaid(pendingPaymentRentalId, 'cash');
+            const modal = getModalInstance('returnPaymentModal');
+            if (modal) modal.hide();
+            await refresh();
+            setScanResult('Payment marked as paid.', 'success');
+            pendingPaymentRentalId = 0;
+        } catch (err) {
+            setScanResult(err.message, 'error');
         }
     }
 
@@ -387,6 +496,9 @@
         }
 
         if ($('processManualTransaction')) $('processManualTransaction').addEventListener('click', doManualTransaction);
+        if ($('confirmRentalHoursBtn')) $('confirmRentalHoursBtn').addEventListener('click', confirmRentalFromModal);
+        if ($('confirmReturnBtn')) $('confirmReturnBtn').addEventListener('click', confirmReturnFromModal);
+        if ($('markReturnPaidBtn')) $('markReturnPaidBtn').addEventListener('click', markReturnPaidFromModal);
         if ($('cancelTransaction')) $('cancelTransaction').addEventListener('click', () => {
             ['studentName', 'studentId', 'studentSection', 'barcodeInputOfficer', 'barcodeInput', 'barcodeInputItemManual'].forEach((id) => {
                 const el = $(id); if (el) el.value = '';
