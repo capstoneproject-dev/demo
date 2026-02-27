@@ -243,8 +243,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </div>
 
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
-    <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-index-exact.js"></script>
+    <script src="../../assets/js/igp-api.js?v=20260227i"></script>
+    <script src="../../assets/js/igp-index-exact.js?v=20260227i"></script>
 </body>
 
 </html>
