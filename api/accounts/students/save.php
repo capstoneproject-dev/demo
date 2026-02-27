@@ -61,12 +61,14 @@ try {
 
         $ins = $pdo->prepare("
             INSERT INTO users
-                (student_number, email, password_hash, first_name, last_name, phone,
+                (student_number, program_id, institute_id, email, password_hash, first_name, last_name, phone,
                  account_type, has_unpaid_debt, is_active)
-            VALUES (:sn, :email, :pw, :fn, :ln, :phone, 'student', :debt, :active)
+            VALUES (:sn, :pid, (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1), :email, :pw, :fn, :ln, :phone, 'student', :debt, :active)
         ");
         $ins->execute([
             ':sn'     => $studentNumber,
+            ':pid'    => $programId,
+            ':pid2'   => $programId,
             ':email'  => $email,
             ':pw'     => $pwHash,
             ':fn'     => $firstName,
@@ -77,11 +79,20 @@ try {
         ]);
         $userId = (int)$pdo->lastInsertId();
 
-        $insProf = $pdo->prepare("
-            INSERT INTO student_profiles (user_id, program_id, section)
-            VALUES (:uid, :pid, :sec)
+        // Keep whitelist/repository row in sync for year_section/program/institute snapshots.
+        $syncSn = $pdo->prepare("
+            UPDATE student_numbers
+            SET program_id = :pid,
+                institute_id = (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1),
+                year_section = :ys
+            WHERE student_number = :sn
         ");
-        $insProf->execute([':uid' => $userId, ':pid' => $programId, ':sec' => $yearSection]);
+        $syncSn->execute([
+            ':pid' => $programId,
+            ':pid2' => $programId,
+            ':ys' => $yearSection,
+            ':sn' => $studentNumber,
+        ]);
 
         jsonOk(['user_id' => $userId, 'msg' => 'Student account created.']);
     } else {
@@ -113,6 +124,8 @@ try {
         $upd = $pdo->prepare("
             UPDATE users
             SET student_number = :sn,
+                program_id      = :pid,
+                institute_id    = (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1),
                 email          = :email,
                 first_name     = :fn,
                 last_name      = :ln,
@@ -123,6 +136,8 @@ try {
         ");
         $upd->execute([
             ':sn'     => $studentNumber,
+            ':pid'    => $programId,
+            ':pid2'   => $programId,
             ':email'  => $email,
             ':fn'     => $firstName,
             ':ln'     => $lastName,
@@ -132,16 +147,19 @@ try {
             ':uid'    => $userId,
         ]);
 
-        // Update or insert student profile
-        $profStmt = $pdo->prepare("SELECT user_id FROM student_profiles WHERE user_id = :uid");
-        $profStmt->execute([':uid' => $userId]);
-        if ($profStmt->fetch()) {
-            $pdo->prepare("UPDATE student_profiles SET program_id = :pid, section = :sec WHERE user_id = :uid")
-                ->execute([':pid' => $programId, ':sec' => $yearSection, ':uid' => $userId]);
-        } else {
-            $pdo->prepare("INSERT INTO student_profiles (user_id, program_id, section) VALUES (:uid, :pid, :sec)")
-                ->execute([':uid' => $userId, ':pid' => $programId, ':sec' => $yearSection]);
-        }
+        $syncSn = $pdo->prepare("
+            UPDATE student_numbers
+            SET program_id = :pid,
+                institute_id = (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1),
+                year_section = :ys
+            WHERE student_number = :sn
+        ");
+        $syncSn->execute([
+            ':pid' => $programId,
+            ':pid2' => $programId,
+            ':ys' => $yearSection,
+            ':sn' => $studentNumber,
+        ]);
 
         jsonOk(['user_id' => $userId, 'msg' => 'Student account updated.']);
     }
