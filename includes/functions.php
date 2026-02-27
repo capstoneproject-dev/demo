@@ -12,18 +12,16 @@ require_once __DIR__ . '/../config/db.php';
 
 /**
  * Find a user by email, student number, or employee number.
- * Joins student profile + program so the caller gets course/section in one query.
+ * Joins academic program from users.program_id so caller gets course/section in one query.
  */
 function findUserByIdentifier(string $identifier): ?array
 {
     $stmt = getPdo()->prepare(
         "SELECT u.*,
-                sp.section,
                 ap.program_code,
                 ap.program_id
          FROM   users u
-         LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
-         LEFT JOIN academic_programs ap ON ap.program_id = sp.program_id
+         LEFT JOIN academic_programs ap ON ap.program_id = u.program_id
          WHERE  (u.email = :id_email OR u.student_number = :id_sn OR u.employee_number = :id_en)
            AND  u.is_active = 1
          LIMIT 1"
@@ -37,12 +35,10 @@ function getUserById(int $userId): ?array
 {
     $stmt = getPdo()->prepare(
         "SELECT u.*,
-                sp.section,
                 ap.program_code,
                 ap.program_id
          FROM   users u
-         LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
-         LEFT JOIN academic_programs ap ON ap.program_id = sp.program_id
+         LEFT JOIN academic_programs ap ON ap.program_id = u.program_id
          WHERE  u.user_id = :id AND u.is_active = 1
          LIMIT 1"
     );
@@ -127,7 +123,7 @@ function buildSessionPayload(
         'officer_memberships' => array_values($memberships),
         // Extra fields used by buildCurrentStudentProfile() in studentDashboard.js
         'program_code'        => $user['program_code'] ?? null,
-        'section'             => $user['section'] ?? null,
+        'section'             => $user['year_section'] ?? null,
     ];
 }
 
@@ -140,7 +136,7 @@ function buildLegacyProfile(array $user, ?string $orgName): array
         'studentNumber' => $user['student_number'] ?? '',
         'fullName'      => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
         'course'        => $user['program_code'] ?? '',
-        'section'       => $user['section'] ?? '',
+        'section'       => $user['year_section'] ?? '',
         'email'         => $user['email'] ?? '',
         'organization'  => $orgName ?? '',
     ];
