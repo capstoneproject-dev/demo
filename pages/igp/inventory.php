@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../includes/auth.php';
 $session = guardSession('../login.html');
 if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])) {
@@ -17,7 +17,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
     <style>
-        /* Subtle floating group pricing card */
         .group-pricing-card {
             background: #ffffff;
             border: 1px solid #e9ecef;
@@ -33,6 +32,25 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
         .group-header {
             background: #f8f9fa;
+        }
+
+        #inventoryList .group-header strong {
+            font-size: 1.02rem;
+        }
+
+        #inventoryList .group-items table {
+            border: 1px solid #dee2e6;
+        }
+
+        #inventoryList .group-items thead th {
+            background: #f8f9fa;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        #inventoryList .inventory-actions .btn {
+            min-width: 92px;
+            padding: 0.25rem 0.6rem;
         }
     </style>
 </head>
@@ -115,13 +133,11 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             </div>
         </div>
 
-        <!-- Inventory List -->
         <div class="card">
             <div class="card-header">
                 <h2 class="h5 mb-0">Current Inventory</h2>
             </div>
             <div class="card-body">
-                <!-- Inventory Summary Table -->
                 <div class="table-responsive mb-4">
                     <table class="table table-bordered mb-0">
                         <thead>
@@ -147,7 +163,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         </div>
     </div>
 
-    <!-- Delete Item Confirmation Modal -->
     <div class="modal fade" id="deleteItemModal" tabindex="-1" aria-labelledby="deleteItemModalLabel"
         aria-hidden="true">
         <div class="modal-dialog">
@@ -170,10 +185,46 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         </div>
     </div>
 
+    <div class="modal fade" id="priceEditModal" tabindex="-1" aria-labelledby="priceEditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="priceEditModalLabel">Edit Item Pricing</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="priceEditItemLabel" class="mb-3 text-muted"></p>
+                    <div class="mb-3">
+                        <label for="priceModalHourlyRate" class="form-label">Price Per Hour (PHP)</label>
+                        <input type="number" class="form-control" id="priceModalHourlyRate" min="0" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="priceModalOvertimeInterval" class="form-label">Overtime Every (mins)</label>
+                        <input type="number" class="form-control" id="priceModalOvertimeInterval" min="1" step="1" placeholder="Leave blank to disable">
+                    </div>
+                    <div class="mb-3">
+                        <label for="priceModalOvertimeRate" class="form-label">Overtime Rate (PHP/block)</label>
+                        <input type="number" class="form-control" id="priceModalOvertimeRate" min="0" step="0.01" placeholder="Leave blank to disable">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="priceModalApplyAll">
+                        <label class="form-check-label" for="priceModalApplyAll">
+                            Apply to all items in this category
+                        </label>
+                    </div>
+                    <div id="priceModalError" class="text-danger mt-2" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="priceModalSaveBtn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
-    <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-inventory-exact.js"></script>
+    <script src="../../assets/js/igp-api.js?v=20260227c"></script>
+    <script src="../../assets/js/igp-inventory-exact.js?v=20260227c"></script>
 </body>
 
 </html>
-

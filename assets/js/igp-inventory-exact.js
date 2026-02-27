@@ -4,9 +4,14 @@
     const $ = (id) => document.getElementById(id);
     let inventory = [];
     let deleteTargetId = 0;
+    let editingPriceItemId = 0;
 
     function safeGroupName(name) {
         return String(name || 'Unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    function categoryKey(item) {
+        return String(item.category_name || '').trim() || 'Uncategorized';
     }
 
     function statusOf(item) {
@@ -31,7 +36,7 @@
 
     function groupedItems() {
         return inventory.reduce((acc, item) => {
-            const key = item.item_name || 'Unknown';
+            const key = categoryKey(item);
             if (!acc[key]) acc[key] = [];
             acc[key].push(item);
             return acc;
@@ -68,7 +73,6 @@
         Object.keys(groups).sort().forEach((groupName) => {
             const safe = safeGroupName(groupName);
             const items = [...groups[groupName]].sort((a, b) => Number(a.item_id) - Number(b.item_id));
-            const rep = items[0] || {};
 
             const headerRow = document.createElement('tr');
             headerRow.className = 'group-header';
@@ -82,40 +86,6 @@
             `;
             tbody.appendChild(headerRow);
 
-            const pricingRow = document.createElement('tr');
-            pricingRow.className = `group-pricing-row group-${safe}`;
-            pricingRow.style.display = 'none';
-            const pricingCell = document.createElement('td');
-            pricingCell.colSpan = 8;
-            pricingCell.innerHTML = `
-                <div class="group-pricing-card" data-category="${groupName}">
-                    <strong class="d-block mb-2">Pricing for all "${groupName}" items (${items.length} item${items.length !== 1 ? 's' : ''})</strong>
-                    <div class="row g-2 align-items-end">
-                        <div class="col-md-3 col-6">
-                            <label class="form-label form-label-sm mb-1">Price Per Hour (PHP)</label>
-                            <input type="number" class="form-control form-control-sm group-price-input" min="0" step="0.01"
-                                value="${fmtNumber(rep.hourly_rate)}" placeholder="e.g. 10">
-                        </div>
-                        <div class="col-md-3 col-6">
-                            <label class="form-label form-label-sm mb-1">Overtime Every (mins)</label>
-                            <input type="number" class="form-control form-control-sm group-interval-input" min="1" step="1"
-                                value="${rep.overtime_interval_minutes ?? ''}" placeholder="e.g. 30">
-                        </div>
-                        <div class="col-md-3 col-6">
-                            <label class="form-label form-label-sm mb-1">Overtime Rate (PHP/block)</label>
-                            <input type="number" class="form-control form-control-sm group-rate-input" min="0" step="0.01"
-                                value="${rep.overtime_rate_per_block ?? ''}" placeholder="e.g. 5">
-                        </div>
-                        <div class="col-md-3 col-6 d-flex align-items-end">
-                            <button class="btn btn-success btn-sm w-100 save-group-pricing-btn" data-category="${groupName}">Save Pricing</button>
-                        </div>
-                    </div>
-                    <small class="text-muted d-block mt-1">Leave overtime fields blank to disable overtime charges for this group.</small>
-                </div>
-            `;
-            pricingRow.appendChild(pricingCell);
-            tbody.appendChild(pricingRow);
-
             const itemsContainer = document.createElement('tr');
             itemsContainer.className = `group-items group-${safe}`;
             itemsContainer.style.display = 'none';
@@ -127,6 +97,7 @@
                         <tr>
                             <th>Item ID</th>
                             <th>Barcode</th>
+                            <th>Rate / Overtime</th>
                             <th>Last Renter</th>
                             <th>Current Renter / Reserved By</th>
                             <th>Status</th>
@@ -142,13 +113,17 @@
                                 <tr>
                                     <td>${item.item_id}</td>
                                     <td>${item.barcode}</td>
+                                    <td>PHP ${fmtNumber(item.hourly_rate)}/hr${item.overtime_interval_minutes ? `<br><small class="text-muted">+ PHP ${fmtNumber(item.overtime_rate_per_block)} / ${item.overtime_interval_minutes} mins</small>` : ''}</td>
                                     <td>-</td>
                                     <td>-</td>
                                     <td>${statusBadge(status)}</td>
                                     <td>-</td>
                                     <td>-</td>
                                     <td>
-                                        <button class="btn btn-sm btn-danger js-delete" data-id="${item.item_id}">Delete</button>
+                                        <div class="inventory-actions d-flex gap-2 flex-wrap">
+                                            <button class="btn btn-sm btn-outline-primary js-edit-price" data-id="${item.item_id}">Edit Price</button>
+                                            <button class="btn btn-sm btn-danger js-delete" data-id="${item.item_id}">Delete</button>
+                                        </div>
                                     </td>
                                 </tr>
                             `;
@@ -169,45 +144,95 @@
         renderList(groups);
     }
 
-    async function saveGroupPricing(category, card) {
-        const priceInput = card.querySelector('.group-price-input');
-        const intervalInput = card.querySelector('.group-interval-input');
-        const rateInput = card.querySelector('.group-rate-input');
-        const saveBtn = card.querySelector('.save-group-pricing-btn');
+    function openPriceModal(item) {
+        editingPriceItemId = Number(item.item_id);
+        const label = $('priceEditItemLabel');
+        const rate = $('priceModalHourlyRate');
+        const interval = $('priceModalOvertimeInterval');
+        const overtime = $('priceModalOvertimeRate');
+        const applyAll = $('priceModalApplyAll');
+        const err = $('priceModalError');
 
-        const newPrice = Number(priceInput?.value || 0);
-        const parsedInterval = Number(intervalInput?.value || '');
-        const parsedRate = Number(rateInput?.value || '');
-        const overtimeInterval = Number.isFinite(parsedInterval) && parsedInterval > 0 ? parsedInterval : '';
-        const overtimeRate = Number.isFinite(parsedRate) && parsedRate >= 0 ? parsedRate : '';
+        if (label) label.textContent = `Item ${item.item_id} - ${item.item_name} (${categoryKey(item)})`;
+        if (rate) rate.value = fmtNumber(item.hourly_rate);
+        if (interval) interval.value = item.overtime_interval_minutes ?? '';
+        if (overtime) overtime.value = item.overtime_rate_per_block ?? '';
+        if (applyAll) applyAll.checked = false;
+        if (err) err.style.display = 'none';
 
-        const toUpdate = inventory.filter((item) => item.item_name === category);
-        if (toUpdate.length === 0) return;
+        const modalEl = $('priceEditModal');
+        if (modalEl && window.bootstrap) {
+            const modal = new window.bootstrap.Modal(modalEl);
+            modal.show();
+        }
+    }
 
-        saveBtn.disabled = true;
+    async function savePriceModal() {
+        const currentItem = inventory.find((it) => Number(it.item_id) === editingPriceItemId);
+        if (!currentItem) return;
+
+        const rateVal = Number((($('priceModalHourlyRate') || {}).value || ''));
+        const intervalRaw = String((($('priceModalOvertimeInterval') || {}).value || '')).trim();
+        const overtimeRaw = String((($('priceModalOvertimeRate') || {}).value || '')).trim();
+        const applyAll = Boolean((($('priceModalApplyAll') || {}).checked));
+        const err = $('priceModalError');
+
+        if (!Number.isFinite(rateVal) || rateVal < 0) {
+            if (err) {
+                err.textContent = 'Hourly rate must be a non-negative number.';
+                err.style.display = 'block';
+            }
+            return;
+        }
+
+        const intervalVal = intervalRaw === '' ? '' : Number(intervalRaw);
+        if (intervalVal !== '' && (!Number.isFinite(intervalVal) || intervalVal <= 0)) {
+            if (err) {
+                err.textContent = 'Overtime interval must be a positive number.';
+                err.style.display = 'block';
+            }
+            return;
+        }
+
+        const overtimeVal = overtimeRaw === '' ? '' : Number(overtimeRaw);
+        if (overtimeVal !== '' && (!Number.isFinite(overtimeVal) || overtimeVal < 0)) {
+            if (err) {
+                err.textContent = 'Overtime rate must be a non-negative number.';
+                err.style.display = 'block';
+            }
+            return;
+        }
+
+        const targets = applyAll
+            ? inventory.filter((it) => categoryKey(it) === categoryKey(currentItem))
+            : [currentItem];
+
+        const saveBtn = $('priceModalSaveBtn');
+        if (saveBtn) saveBtn.disabled = true;
         try {
-            await Promise.all(toUpdate.map((item) => window.igpApi.saveInventory({
+            await Promise.all(targets.map((item) => window.igpApi.saveInventory({
                 item_id: item.item_id,
                 item_name: item.item_name,
                 barcode: item.barcode,
                 category_name: item.category_name,
                 stock_quantity: item.stock_quantity,
-                hourly_rate: Number.isFinite(newPrice) && newPrice >= 0 ? newPrice : Number(item.hourly_rate || 0),
+                hourly_rate: rateVal,
                 status: item.status || 'available',
-                overtime_interval_minutes: overtimeInterval,
-                overtime_rate_per_block: overtimeRate,
+                overtime_interval_minutes: intervalVal,
+                overtime_rate_per_block: overtimeVal,
             })));
 
-            const originalText = saveBtn.textContent;
-            saveBtn.textContent = 'Saved';
+            const modalEl = $('priceEditModal');
+            const modal = window.bootstrap && window.bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
             await refresh();
-            setTimeout(() => {
-                saveBtn.textContent = originalText;
-                saveBtn.disabled = false;
-            }, 1200);
-        } catch (err) {
-            saveBtn.disabled = false;
-            alert(err.message);
+        } catch (e) {
+            if (err) {
+                err.textContent = e.message;
+                err.style.display = 'block';
+            }
+        } finally {
+            if (saveBtn) saveBtn.disabled = false;
         }
     }
 
@@ -254,26 +279,22 @@
         const root = $('inventoryList');
         if (!root) return;
 
-        root.addEventListener('click', async (e) => {
+        root.addEventListener('click', (e) => {
             const toggle = e.target.closest('.toggle-group');
             if (toggle) {
                 const group = toggle.dataset.group;
-                const pricingRow = root.querySelector(`.group-pricing-row.group-${group}`);
                 const itemsRow = root.querySelector(`.group-items.group-${group}`);
                 const shouldShow = itemsRow && itemsRow.style.display === 'none';
-                if (pricingRow) pricingRow.style.display = shouldShow ? 'table-row' : 'none';
                 if (itemsRow) itemsRow.style.display = shouldShow ? 'table-row' : 'none';
                 toggle.textContent = shouldShow ? 'Hide Items' : 'Show Items';
                 return;
             }
 
-            const savePricing = e.target.closest('.save-group-pricing-btn');
-            if (savePricing) {
-                const card = savePricing.closest('.group-pricing-card');
-                const category = savePricing.dataset.category;
-                if (card && category) {
-                    await saveGroupPricing(category, card);
-                }
+            const editPrice = e.target.closest('.js-edit-price');
+            if (editPrice) {
+                const item = inventory.find((x) => x.item_id === Number(editPrice.dataset.id || 0));
+                if (!item) return;
+                openPriceModal(item);
                 return;
             }
 
@@ -292,6 +313,11 @@
     document.addEventListener('DOMContentLoaded', async () => {
         bindDeleteModal();
         bindActions();
+        if ($('priceModalSaveBtn')) {
+            $('priceModalSaveBtn').addEventListener('click', async () => {
+                await savePriceModal();
+            });
+        }
         try {
             await refresh();
         } catch (e) {
