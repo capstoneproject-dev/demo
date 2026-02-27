@@ -2,6 +2,9 @@
     'use strict';
 
     const $ = (id) => document.getElementById(id);
+    const FILTER_ORG = '__ORG__';
+    const FILTER_ALL = '__ALL__';
+    const FILTER_UNASSIGNED = '__UNASSIGNED__';
     let students = [];
     let studentToDelete = null;
 
@@ -12,7 +15,9 @@
                 studentId: String(row.studentId || ''),
                 studentName: String(row.studentName || ''),
                 section: String(row.section || ''),
-                programCode: String(row.programCode || 'BSAIS'),
+                programId: row.programId !== null && row.programId !== undefined ? Number(row.programId) : null,
+                programCode: String(row.programCode || ''),
+                isOrgProgram: row.isOrgProgram === true,
                 isActive: row.isActive !== false,
             }));
     }
@@ -28,13 +33,51 @@
     }
 
     function filteredStudents() {
+        const programFilter = (($('programFilter') || {}).value || FILTER_ORG).trim();
         const term = (($('searchInput') || {}).value || '').trim().toLowerCase();
-        if (!term) return students;
-        return students.filter((student) =>
+        return students.filter((student) => {
+            const studentProgram = student.programCode.trim();
+            const programMatch =
+                programFilter === FILTER_ALL ||
+                (programFilter === FILTER_ORG && student.isOrgProgram) ||
+                (programFilter === FILTER_UNASSIGNED && studentProgram === '') ||
+                (programFilter !== FILTER_ORG && programFilter !== FILTER_ALL && programFilter !== FILTER_UNASSIGNED && studentProgram === programFilter);
+
+            if (!programMatch) return false;
+            if (!term) return true;
+            return (
             student.studentId.toLowerCase().includes(term) ||
             student.studentName.toLowerCase().includes(term) ||
             student.section.toLowerCase().includes(term)
-        );
+            );
+        });
+    }
+
+    function populateProgramFilter() {
+        const select = $('programFilter');
+        if (!select) return;
+
+        const current = select.value || FILTER_ORG;
+        const unique = [...new Set(students.map((student) => student.programCode.trim()))].sort((a, b) => a.localeCompare(b));
+        const options = [
+            { value: FILTER_ORG, label: 'Organization Programs' },
+            { value: FILTER_ALL, label: 'All Programs' },
+        ];
+
+        unique.forEach((programCode) => {
+            if (programCode === '') {
+                options.push({ value: FILTER_UNASSIGNED, label: 'Unassigned Program' });
+            } else {
+                options.push({ value: programCode, label: programCode });
+            }
+        });
+
+        select.innerHTML = options
+            .map((option) => `<option value="${option.value}">${option.label}</option>`)
+            .join('');
+
+        const values = new Set(options.map((option) => option.value));
+        select.value = values.has(current) ? current : FILTER_ORG;
     }
 
     function renderDatabase() {
@@ -42,14 +85,28 @@
         if (!dbDiv) return;
         dbDiv.innerHTML = '';
 
-        const grouped = groupBySection(filteredStudents());
-        Object.keys(grouped).sort().forEach((section) => {
+        const visibleStudents = filteredStudents();
+        const grouped = groupBySection(visibleStudents);
+        const sections = Object.keys(grouped).sort();
+
+        if (sections.length === 0) {
+            dbDiv.innerHTML = '<div class="alert alert-info">No students found for the selected program filter.</div>';
+            return;
+        }
+
+        sections.forEach((section) => {
             const sectionDiv = document.createElement('div');
             sectionDiv.innerHTML = `<h2 class="section-title">Section ${section}</h2>`;
 
             grouped[section].forEach((student) => {
                 const ref = window.encodeStudentData ? window.encodeStudentData(student.studentId) : student.studentId;
                 const safeRef = ref.replace(/[^A-Za-z0-9_-]/g, '_');
+                const programLabel = student.programCode.trim() !== '' ? student.programCode : 'Unassigned';
+                const actionHtml = student.isOrgProgram
+                    ? `<button class="btn btn-sm btn-danger delete-student" title="Delete Student" data-studentid="${student.studentId}">
+                            <i class="fa-solid fa-trash"></i>
+                       </button>`
+                    : `<span class="badge bg-secondary">Read-only</span>`;
                 const card = document.createElement('div');
                 card.className = 'student-card row align-items-center';
                 card.innerHTML = `
@@ -59,14 +116,13 @@
                     <div class="col-md-8 col-12">
                         <strong>ID:</strong> ${student.studentId}<br>
                         <strong>Name:</strong> ${student.studentName}<br>
+                        <strong>Program:</strong> ${programLabel}<br>
                         <strong>Section:</strong> ${student.section}<br>
                         <strong>Barcode Ref:</strong> ${ref}<br>
                         <small class="text-muted">Unique ID: ${student.studentId}</small>
                     </div>
                     <div class="col-md-1 col-12 text-end">
-                        <button class="btn btn-sm btn-danger delete-student" title="Delete Student" data-studentid="${student.studentId}">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
+                        ${actionHtml}
                     </div>
                 `;
                 sectionDiv.appendChild(card);
@@ -98,6 +154,7 @@
     async function refresh() {
         const result = await window.igpApi.getStudents();
         students = normalizeRows(result.items || []);
+        populateProgramFilter();
         renderDatabase();
     }
 
@@ -174,6 +231,7 @@
         }
 
         if ($('searchInput')) $('searchInput').addEventListener('input', renderDatabase);
+        if ($('programFilter')) $('programFilter').addEventListener('change', renderDatabase);
         if ($('clearSearch')) {
             $('clearSearch').addEventListener('click', () => {
                 $('searchInput').value = '';
@@ -204,7 +262,7 @@
         if ($('confirmDeleteAll')) {
             $('confirmDeleteAll').addEventListener('click', async () => {
                 if ($('deleteConfirmInput').value !== 'Delete') return;
-                for (const student of students) {
+                for (const student of students.filter((s) => s.isOrgProgram)) {
                     await window.igpApi.deleteStudent({ userId: student.userId, studentId: student.studentId });
                 }
                 const modal = window.bootstrap && window.bootstrap.Modal.getInstance($('clearAllModal'));
@@ -255,7 +313,7 @@
             $('exportExcel').addEventListener('click', () => {
                 if (!window.XLSX) return;
                 const exportData = [['uniqueId', 'studentId', 'studentName', 'section']];
-                students.forEach((student) => {
+                filteredStudents().forEach((student) => {
                     exportData.push([student.studentId, student.studentId, student.studentName, student.section]);
                 });
                 const ws = window.XLSX.utils.aoa_to_sheet(exportData);
