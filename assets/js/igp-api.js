@@ -61,5 +61,23 @@
         importLegacy(payload) {
             return req('/migration/import-localstorage.php', { method: 'POST', body: JSON.stringify(payload) });
         },
+        getStudents() {
+            return req('/students/list.php', { method: 'GET' });
+        },
+        saveStudent(payload) {
+            return req('/students/save.php', { method: 'POST', body: JSON.stringify(payload) });
+        },
+        deleteStudent(payload) {
+            return req('/students/delete.php', { method: 'POST', body: JSON.stringify(payload) });
+        },
+        getOrgOfficers() {
+            return req('/officers/list.php', { method: 'GET' });
+        },
+        saveOrgOfficer(payload) {
+            return req('/officers/save.php', { method: 'POST', body: JSON.stringify(payload) });
+        },
+        deleteOrgOfficer(id) {
+            return req('/officers/delete.php', { method: 'POST', body: JSON.stringify({ id }) });
+        },
     };
 })();

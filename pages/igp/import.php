@@ -12,19 +12,30 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IGP Rental - Import</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
 </head>
-<body class="bg-light">
-<div class="container py-4">
-    <h1 class="h4">Legacy localStorage Import</h1>
-    <nav class="mb-3">
-        <a class="btn btn-sm btn-outline-primary" href="index.php">Rental</a>
-        <a class="btn btn-sm btn-outline-primary" href="inventory.php">Inventory</a>
-        <a class="btn btn-sm btn-outline-primary" href="rental-history.php">History</a>
-        <a class="btn btn-sm btn-outline-primary" href="financial-summary.php">Financial</a>
-        <a class="btn btn-sm btn-outline-primary" href="generate-inventory-barcodes.php">Barcodes</a>
-        <a class="btn btn-sm btn-primary" href="import.php">Import</a>
-    </nav>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="#"></a>
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0 nav-pills-custom">
+                <li class="nav-item"><a class="nav-link" href="index.php">Rental</a></li>
+                <li class="nav-item"><a class="nav-link" href="rental-history.php">History</a></li>
+                <li class="nav-item"><a class="nav-link" href="inventory.php">Inventory</a></li>
+                <li class="nav-item"><a class="nav-link" href="financial-summary.php">Financial Summary</a></li>
+                <li class="nav-item"><a class="nav-link" href="generate-inventory-barcodes.php">Inventory Barcodes</a></li>
+                <li class="nav-item"><a class="nav-link active" href="import.php">Import</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<div class="container main-content">
 
     <div class="card mb-3">
         <div class="card-body">
@@ -42,6 +53,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <div id="import_msg" class="small text-danger mb-2"></div>
     <pre id="import_result" class="bg-dark text-light p-3 small rounded"></pre>
 </div>
+<script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
 <script src="../../assets/js/igp-api.js"></script>
 <script src="../../assets/js/igp-import.js"></script>
 </body>

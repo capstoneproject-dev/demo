@@ -12,27 +12,25 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventory Management - Equipment Rental System</title>
+    <title>Barcode Student Database</title>
     <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
     <style>
-        /* Subtle floating group pricing card */
-        .group-pricing-card {
-            background: #ffffff;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            box-shadow: 0 6px 18px rgba(16,24,40,0.04);
+        .barcode-img {
+            margin: 0 10px 10px 0;
+        }
+
+        .student-card {
+            border: 1px solid #ccc;
+            border-radius: 6px;
             padding: 16px;
-            margin-bottom: 8px;
-        }
-
-        .group-pricing-card .form-control {
-            background: transparent;
-        }
-
-        .group-header {
+            margin-bottom: 12px;
             background: #f8f9fa;
+        }
+
+        .section-title {
+            margin-top: 32px;
         }
     </style>
 </head>
@@ -107,73 +105,87 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         </div>
     </nav>
     <div class="container main-content">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="mb-0">Inventory Management</h1>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <a href="index.php" class="btn btn-secondary">&larr; Back</a>
             <div>
-                <a href="welcome.html" class="btn btn-outline-secondary me-2">Home</a>
-                <a href="index.php" class="btn btn-outline-primary">Rental System</a>
+                <button id="clearAll" class="btn btn-danger me-2">Clear All</button>
+                <button id="exportExcel" class="btn btn-success">Export to Excel</button>
             </div>
         </div>
-
-        <!-- Inventory List -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="h5 mb-0">Current Inventory</h2>
+        <h1 class="mb-4">Student Barcode Database</h1>
+        <div class="mb-3">
+            <label for="excelInput" class="form-label">Import Excel File (.xlsx):</label>
+            <input type="file" id="excelInput" accept=".xlsx" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <div class="input-group">
+                <input type="text" id="searchInput" class="form-control"
+                    placeholder="Search by ID, name, or section...">
+                <button class="btn btn-outline-secondary" type="button" id="clearSearch">Clear</button>
             </div>
-            <div class="card-body">
-                <!-- Inventory Summary Table -->
-                <div class="table-responsive mb-4">
-                    <table class="table table-bordered mb-0">
-                        <thead>
-                            <tr>
-                                <th>Item ID</th>
-                                <th>Number of Items</th>
-                                <th>Items Available</th>
-                                <th>Items Rented</th>
-                                <th>Items Reserved</th>
-                            </tr>
-                        </thead>
-                        <tbody id="inventorySummary">
-                        </tbody>
-                    </table>
+        </div>
+        <div id="database"></div>
+    </div>
+
+    <!-- Clear All Confirmation Modal -->
+    <div class="modal fade" id="clearAllModal" tabindex="-1" aria-labelledby="clearAllModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="clearAllModalLabel">Delete All Students</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="table-responsive">
-                    <table class="table">
-                        <tbody id="inventoryList">
-                        </tbody>
-                    </table>
+                <div class="modal-body">
+                    <div class="alert alert-danger" role="alert">
+                        <strong>Warning:</strong> This action cannot be undone. All students will be permanently
+                        deleted.
+                    </div>
+                    <p>To confirm, please type <strong>"Delete"</strong> in the box below:</p>
+                    <input type="text" id="deleteConfirmInput" class="form-control"
+                        placeholder="Type 'Delete' to confirm">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteAll" disabled>Delete All
+                        Students</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Delete Item Confirmation Modal -->
-    <div class="modal fade" id="deleteItemModal" tabindex="-1" aria-labelledby="deleteItemModalLabel"
+    <!-- Delete Single Student Confirmation Modal -->
+    <div class="modal fade" id="deleteStudentModal" tabindex="-1" aria-labelledby="deleteStudentModalLabel"
         aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="deleteItemModalLabel">Confirm Delete</h5>
+                    <h5 class="modal-title" id="deleteStudentModalLabel">Delete Student</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Type <strong>Delete</strong> to confirm deleting this inventory item. This cannot be undone.</p>
-                    <input type="text" class="form-control" id="deleteItemConfirmInput"
+                    <div class="alert alert-danger" role="alert">
+                        <strong>Warning:</strong> This action cannot be undone. This student will be permanently
+                        deleted.
+                    </div>
+                    <p>To confirm, please type <strong>"Delete"</strong> in the box below:</p>
+                    <input type="text" id="deleteStudentConfirmInput" class="form-control"
                         placeholder="Type 'Delete' to confirm">
-                    <div id="deleteItemConfirmError" class="text-danger mt-2" style="display:none;"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="deleteItemConfirmBtn">Delete</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteStudent" disabled>Delete
+                        Student</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
+    <script src="../../systems/IGPRentalSystem/lib/JsBarcode.all.min.js"></script>
+    <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
+    <script src="../../systems/IGPRentalSystem/lib/encoder.js"></script>
     <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-inventory-exact.js"></script>
+    <script src="../../assets/js/igp-students-exact.js"></script>
 </body>
 
 </html>
-
