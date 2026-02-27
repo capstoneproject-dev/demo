@@ -2,12 +2,21 @@
     'use strict';
 
     const $ = (id) => document.getElementById(id);
+    const ADD_NEW_TYPE_VALUE = '__add_new__';
     let inventory = [];
     let deletingId = 0;
 
     function fmtRate(v) {
         const n = Number(v || 0);
         return Number.isInteger(n) ? String(n) : n.toFixed(2);
+    }
+
+    function esc(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     function group(items) {
@@ -18,6 +27,50 @@
             out[key].push(it);
         });
         return out;
+    }
+
+    function getAvailableTypes() {
+        return [...new Set(inventory.map((it) => String(it.category_name || '').trim()).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
+    }
+
+    function populateTypeMenu(selectedType = '') {
+        const select = $('itemType');
+        if (!select) return;
+        const types = getAvailableTypes();
+        const selected = String(selectedType || '').trim();
+        const hasSelected = selected !== '' && types.includes(selected);
+        if (selected !== '' && !hasSelected) {
+            types.unshift(selected);
+        }
+        select.innerHTML = `
+            <option value="">Item Type</option>
+            ${types.map((type) => `<option value="${esc(type)}">${esc(type)}</option>`).join('')}
+            <option value="${ADD_NEW_TYPE_VALUE}">+ Add new type...</option>
+        `;
+        select.value = selected || '';
+        toggleCustomTypeInput(select.value === ADD_NEW_TYPE_VALUE);
+    }
+
+    function toggleCustomTypeInput(show) {
+        const select = $('itemType');
+        const input = $('itemTypeCustom');
+        if (!select || !input) return;
+        select.classList.toggle('d-none', show);
+        input.classList.toggle('d-none', !show);
+        if (show) {
+            input.focus();
+        } else {
+            input.value = '';
+        }
+    }
+
+    function getSelectedType() {
+        const selectValue = String((($('itemType') || {}).value || '')).trim();
+        if (selectValue === ADD_NEW_TYPE_VALUE) {
+            return String((($('itemTypeCustom') || {}).value || '')).trim();
+        }
+        return selectValue;
     }
 
     function render() {
@@ -66,12 +119,13 @@
     async function refresh() {
         const { items } = await window.igpApi.getInventory({});
         inventory = items || [];
+        populateTypeMenu();
         render();
     }
 
     async function saveItem(existing) {
         const item_name = (($('itemName') || {}).value || '').trim();
-        const item_type = (($('itemType') || {}).value || '').trim();
+        const item_type = getSelectedType();
         const barcode = (($('barcode') || {}).value || '').trim();
         const pricePerHour = Number((($('pricePerHour') || {}).value || '0'));
         const overtimeInterval = (($('overtimeInterval') || {}).value || '').trim();
@@ -94,6 +148,7 @@
         if ($('addItemForm')) {
             $('addItemForm').reset();
             delete $('addItemForm').dataset.editId;
+            populateTypeMenu();
         }
         await refresh();
     }
@@ -115,13 +170,35 @@
             });
         }
 
+        if ($('itemType')) {
+            $('itemType').addEventListener('change', () => {
+                toggleCustomTypeInput($('itemType').value === ADD_NEW_TYPE_VALUE);
+            });
+        }
+
+        if ($('itemTypeCustom')) {
+            $('itemTypeCustom').addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    toggleCustomTypeInput(false);
+                    if ($('itemType')) $('itemType').value = '';
+                }
+            });
+            $('itemTypeCustom').addEventListener('blur', () => {
+                const value = String($('itemTypeCustom').value || '').trim();
+                if (value === '') {
+                    toggleCustomTypeInput(false);
+                    if ($('itemType')) $('itemType').value = '';
+                }
+            });
+        }
+
         if ($('barcodeDisplay')) $('barcodeDisplay').addEventListener('click', async (e) => {
             const edit = e.target.closest('.js-edit');
             if (edit) {
                 const it = inventory.find((x) => x.item_id === Number(edit.dataset.id));
                 if (!it) return;
                 $('itemName').value = it.item_name || '';
-                $('itemType').value = it.category_name || '';
+                populateTypeMenu(it.category_name || '');
                 $('barcode').value = it.barcode || '';
                 $('pricePerHour').value = fmtRate(it.hourly_rate);
                 $('overtimeInterval').value = it.overtime_interval_minutes ?? '';
