@@ -151,11 +151,11 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             </div>
             <div class="card-body">
                 <form id="addItemForm" class="row g-2">
+                    <div class="col-md-2">
+                        <input type="text" class="form-control" id="itemType" placeholder="Item Type" required>
+                    </div>
                     <div class="col-md-3">
                         <input type="text" class="form-control" id="itemName" placeholder="Item Name" required>
-                    </div>
-                    <div class="col-md-2">
-                        <input type="text" class="form-control" id="itemId" placeholder="Item ID" required>
                     </div>
                     <div class="col-md-3">
                         <input type="text" class="form-control" id="barcode" placeholder="Barcode" required>

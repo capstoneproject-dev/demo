@@ -13,7 +13,7 @@
     function group(items) {
         const out = {};
         items.forEach((it) => {
-            const key = (it.item_name || 'Item').split(' ')[0];
+            const key = String(it.category_name || '').trim() || 'Uncategorized';
             if (!out[key]) out[key] = [];
             out[key].push(it);
         });
@@ -71,19 +71,20 @@
 
     async function saveItem(existing) {
         const item_name = (($('itemName') || {}).value || '').trim();
+        const item_type = (($('itemType') || {}).value || '').trim();
         const barcode = (($('barcode') || {}).value || '').trim();
         const pricePerHour = Number((($('pricePerHour') || {}).value || '0'));
         const overtimeInterval = (($('overtimeInterval') || {}).value || '').trim();
         const overtimeRate = (($('overtimeRate') || {}).value || '').trim();
-        if (!item_name || !barcode) {
-            alert('Item name and barcode are required.');
+        if (!item_name || !item_type || !barcode) {
+            alert('Item name, item type, and barcode are required.');
             return;
         }
         await window.igpApi.saveInventory({
             item_id: existing ? existing.item_id : 0,
             item_name,
             barcode,
-            category_name: item_name.split(' ')[0] || 'General',
+            category_name: item_type,
             stock_quantity: 1,
             hourly_rate: Number.isFinite(pricePerHour) ? pricePerHour : 0,
             status: existing ? existing.status : 'available',
@@ -120,6 +121,7 @@
                 const it = inventory.find((x) => x.item_id === Number(edit.dataset.id));
                 if (!it) return;
                 $('itemName').value = it.item_name || '';
+                $('itemType').value = it.category_name || '';
                 $('barcode').value = it.barcode || '';
                 $('pricePerHour').value = fmtRate(it.hourly_rate);
                 $('overtimeInterval').value = it.overtime_interval_minutes ?? '';
