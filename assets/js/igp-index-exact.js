@@ -6,7 +6,9 @@
     let activeRentals = [];
     let students = [];
     let officers = [];
+    let categories = [];
     let scanInputTimer = null;
+    let officerInputTimer = null;
     let pendingRent = null;
     let pendingReturn = null;
     let pendingPaymentRentalId = 0;
@@ -45,23 +47,50 @@
     function renderAvailable() {
         const tbody = $('availableItems');
         if (!tbody) return;
-        const nameFilter = $('itemFilter') ? $('itemFilter').value : 'all';
+        const categoryFilter = $('itemFilter') ? $('itemFilter').value : 'all';
         tbody.innerHTML = '';
-        inventory
-            .filter((it) => nameFilter === 'all' || String(it.item_name).toLowerCase().includes(nameFilter.toLowerCase()))
-            .forEach((it) => {
-                const st = statusByItem(it);
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${it.item_id}</td>
-                    <td>${it.item_name}</td>
-                    <td>${st.status}</td>
-                    <td>${st.renter || '-'}</td>
-                    <td>${fmtDate(st.rentTime)}</td>
-                    <td>${fmtDate(st.due)}</td>
-                `;
-                tbody.appendChild(tr);
+        
+        let filtered = inventory.filter((it) => categoryFilter === 'all' || String(it.category_name).toLowerCase() === categoryFilter.toLowerCase());
+        
+        // Sort items
+        if (categoryFilter === 'all') {
+            // When "All" is selected: group by category, then sort by barcode within each category
+            filtered = filtered.sort((a, b) => {
+                const catA = String(a.category_name || '').toLowerCase();
+                const catB = String(b.category_name || '').toLowerCase();
+                
+                // First compare by category
+                if (catA !== catB) {
+                    return catA.localeCompare(catB);
+                }
+                
+                // Then compare by barcode within same category
+                const barcodeA = String(a.barcode || a.item_id || '').toLowerCase();
+                const barcodeB = String(b.barcode || b.item_id || '').toLowerCase();
+                return barcodeA.localeCompare(barcodeB);
             });
+        } else {
+            // When specific category is selected: just sort by barcode
+            filtered = filtered.sort((a, b) => {
+                const barcodeA = String(a.barcode || a.item_id || '').toLowerCase();
+                const barcodeB = String(b.barcode || b.item_id || '').toLowerCase();
+                return barcodeA.localeCompare(barcodeB);
+            });
+        }
+        
+        filtered.forEach((it) => {
+            const st = statusByItem(it);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${it.barcode || it.item_id}</td>
+                <td>${it.item_name}</td>
+                <td>${st.status}</td>
+                <td>${st.renter || '-'}</td>
+                <td>${fmtDate(st.rentTime)}</td>
+                <td>${fmtDate(st.due)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
     }
 
     function renderCurrent() {
@@ -69,10 +98,14 @@
         if (!tbody) return;
         tbody.innerHTML = '';
         activeRentals.forEach((r) => {
+            // Extract barcode from items_label (format: "ItemName [BARCODE]")
+            const barcodeMatch = String(r.items_label || '').match(/\[([^\]]+)\]/);
+            const itemBarcode = barcodeMatch ? barcodeMatch[1] : r.rental_id;
+            
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td><button class="btn btn-warning btn-sm js-return" data-rid="${r.rental_id}">Return</button></td>
-                <td>${r.rental_id}</td>
+                <td>${itemBarcode}</td>
                 <td>${r.items_label || '-'}</td>
                 <td>${r.renter_name || '-'} (${r.renter_student_number || '-'})</td>
                 <td>-</td>
@@ -84,6 +117,32 @@
             `;
             tbody.appendChild(row);
         });
+    }
+
+    function populateCategoryFilter() {
+        const sel = $('itemFilter');
+        if (!sel) return;
+        
+        // Extract unique categories from inventory
+        const uniqueCategories = [...new Set(inventory.map(it => it.category_name).filter(Boolean))];
+        uniqueCategories.sort();
+        
+        // Store current selection
+        const currentValue = sel.value;
+        
+        // Clear and rebuild options
+        sel.innerHTML = '<option value="all">All</option>';
+        uniqueCategories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat;
+            sel.appendChild(opt);
+        });
+        
+        // Restore selection if it still exists
+        if (currentValue && [...sel.options].some(opt => opt.value === currentValue)) {
+            sel.value = currentValue;
+        }
     }
 
     function populateManualItems() {
@@ -113,6 +172,7 @@
         activeRentals = rent.items || [];
         students = stu.items || [];
         officers = off.items || [];
+        populateCategoryFilter();
         renderAvailable();
         renderCurrent();
         populateManualItems();
@@ -220,7 +280,16 @@
     function openConfirmReturnModal(rental, item) {
         pendingReturn = { rental, item };
         const text = $('confirmReturnText');
-        if (text) text.textContent = `Are you sure you want to return ${item.item_name} [${item.barcode}]?`;
+        const renterEl = $('confirmReturnRenter');
+        
+        if (text) text.textContent = `Are you sure you want to return ${item.item_name} (${item.barcode})?`;
+        
+        if (renterEl) {
+            const renterName = rental.renter_name || 'Unknown';
+            const renterNumber = rental.renter_student_number || '-';
+            renterEl.innerHTML = `Renter: <strong>${renterName} (${renterNumber})</strong>`;
+        }
+        
         const modal = getModalInstance('confirmReturnModal');
         if (modal) modal.show();
     }
@@ -410,15 +479,83 @@
     async function confirmReturnFromModal() {
         if (!pendingReturn) return;
         const modal = getModalInstance('confirmReturnModal');
+        if (modal) modal.hide();
+        
+        // Show officer verification modal
+        openOfficerVerificationModal();
+    }
+
+    function openOfficerVerificationModal() {
+        if (!pendingReturn) return;
+        const text = $('officerVerificationText');
+        if (text) text.textContent = `Please scan officer barcode to confirm return of ${pendingReturn.item.item_name} [${pendingReturn.item.barcode}].`;
+        const input = $('officerVerificationInput');
+        if (input) {
+            input.value = '';
+        }
+        const msg = $('officerVerificationMessage');
+        if (msg) msg.textContent = '';
+        
+        const modalEl = $('officerVerificationModal');
+        if (modalEl) {
+            // Auto-focus input when modal is shown
+            modalEl.addEventListener('shown.bs.modal', function focusInput() {
+                if (input) input.focus();
+                modalEl.removeEventListener('shown.bs.modal', focusInput);
+            });
+            
+            // Clear timer when modal is hidden
+            modalEl.addEventListener('hidden.bs.modal', function clearTimer() {
+                if (officerInputTimer) {
+                    clearTimeout(officerInputTimer);
+                    officerInputTimer = null;
+                }
+                modalEl.removeEventListener('hidden.bs.modal', clearTimer);
+            });
+        }
+        
+        const modal = getModalInstance('officerVerificationModal');
+        if (modal) modal.show();
+    }
+
+    async function verifyOfficerAndProcessReturn() {
+        if (!pendingReturn) return;
+        
+        // Clear any pending timer
+        if (officerInputTimer) {
+            clearTimeout(officerInputTimer);
+            officerInputTimer = null;
+        }
+        
+        const input = $('officerVerificationInput');
+        const msg = $('officerVerificationMessage');
+        if (!input || !msg) return;
+
+        const scannedValue = input.value.trim();
+        if (!scannedValue) {
+            msg.textContent = '✗ Please scan officer barcode';
+            return;
+        }
+
+        const officer = findOfficerByScan(scannedValue);
+        if (!officer) {
+            msg.textContent = `✗ Invalid officer barcode: ${scannedValue}`;
+            input.select();
+            return;
+        }
+
+        // Officer verified, process return
+        const modal = getModalInstance('officerVerificationModal');
         try {
             const res = await window.igpApi.returnRental(Number(pendingReturn.rental.rental_id));
             if (modal) modal.hide();
             await refresh();
-            setScanResult(`Return recorded for ${pendingReturn.item.item_name} [${pendingReturn.item.barcode}].`, 'success');
+            setScanResult(`Return recorded for ${pendingReturn.item.item_name} [${pendingReturn.item.barcode}]. Officer: ${officer.officer_name || officer.student_number}`, 'success');
             resetScanContext();
             openPaymentModal(res, res.rental_id || pendingReturn.rental.rental_id);
             pendingReturn = null;
         } catch (err) {
+            if (modal) modal.hide();
             setScanResult(err.message, 'error');
         }
     }
@@ -498,7 +635,29 @@
         if ($('processManualTransaction')) $('processManualTransaction').addEventListener('click', doManualTransaction);
         if ($('confirmRentalHoursBtn')) $('confirmRentalHoursBtn').addEventListener('click', confirmRentalFromModal);
         if ($('confirmReturnBtn')) $('confirmReturnBtn').addEventListener('click', confirmReturnFromModal);
+        if ($('verifyOfficerBtn')) $('verifyOfficerBtn').addEventListener('click', verifyOfficerAndProcessReturn);
         if ($('markReturnPaidBtn')) $('markReturnPaidBtn').addEventListener('click', markReturnPaidFromModal);
+        
+        // Officer verification input - process on Enter key and auto-process after scan
+        if ($('officerVerificationInput')) {
+            $('officerVerificationInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (officerInputTimer) {
+                        clearTimeout(officerInputTimer);
+                        officerInputTimer = null;
+                    }
+                    verifyOfficerAndProcessReturn();
+                }
+            });
+            $('officerVerificationInput').addEventListener('input', () => {
+                if (officerInputTimer) clearTimeout(officerInputTimer);
+                // Auto-process scanner input when typing pauses briefly
+                officerInputTimer = setTimeout(() => {
+                    verifyOfficerAndProcessReturn();
+                }, 180);
+            });
+        }
         if ($('cancelTransaction')) $('cancelTransaction').addEventListener('click', () => {
             ['studentName', 'studentId', 'studentSection', 'barcodeInputOfficer', 'barcodeInput', 'barcodeInputItemManual'].forEach((id) => {
                 const el = $(id); if (el) el.value = '';
@@ -513,12 +672,26 @@
                 if (!btn) return;
                 const rid = Number(btn.dataset.rid);
                 if (!rid) return;
-                try {
-                    await window.igpApi.returnRental(rid);
-                    await refresh();
-                } catch (err) {
-                    if ($('scanResult')) $('scanResult').innerHTML = `<span class='error'>${err.message}</span>`;
+                
+                // Find the rental and item
+                const rental = activeRentals.find((r) => Number(r.rental_id) === rid);
+                if (!rental) {
+                    setScanResult('Rental not found.', 'error');
+                    return;
                 }
+                
+                // Extract item barcode from items_label
+                const barcodeMatch = String(rental.items_label || '').match(/\[([^\]]+)\]/);
+                const barcode = barcodeMatch ? barcodeMatch[1] : null;
+                const item = barcode ? inventory.find((it) => it.barcode === barcode) : null;
+                
+                if (!item) {
+                    setScanResult('Item not found.', 'error');
+                    return;
+                }
+                
+                // Open confirmation modal
+                openConfirmReturnModal(rental, item);
             });
         }
     }

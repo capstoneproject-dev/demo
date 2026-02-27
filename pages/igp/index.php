@@ -184,12 +184,9 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     <div class="col-md-6">
                         <h3 class="h6">Available Items</h3>
                         <div class="mb-2">
-                            <label for="itemFilter" class="form-label mb-0 me-2">Filter by Name:</label>
+                            <label for="itemFilter" class="form-label mb-0 me-2">Filter by Category:</label>
                             <select id="itemFilter" class="form-select form-select-sm w-auto d-inline-block">
                                 <option value="all">All</option>
-                                <option value="Arnis">Arnis</option>
-                                <option value="Calculator">Calculator</option>
-                                <option value="Shoe Cover" selected>Shoe Cover</option>
                             </select>
                         </div>
                         <div class="table-responsive">
@@ -276,11 +273,39 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p id="confirmReturnText" class="mb-0"></p>
+                    <p id="confirmReturnText" class="mb-2"></p>
+                    <ul class="mb-0">
+                        <li id="confirmReturnRenter"></li>
+                    </ul>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" id="confirmReturnBtn">Confirm Return</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Officer Verification Modal -->
+    <div class="modal fade" id="officerVerificationModal" tabindex="-1" aria-labelledby="officerVerificationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="officerVerificationModalLabel">Officer Verification</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="officerVerificationText"></p>
+                    <div class="mb-3">
+                        <label for="officerVerificationInput" class="form-label">Officer Barcode</label>
+                        <input type="text" class="form-control" id="officerVerificationInput" 
+                            placeholder="Scan officer barcode here..." autocomplete="off">
+                    </div>
+                    <div id="officerVerificationMessage" class="small text-danger"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="verifyOfficerBtn">Verify and Return</button>
                 </div>
             </div>
         </div>
