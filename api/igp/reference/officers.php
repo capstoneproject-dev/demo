@@ -20,11 +20,14 @@ try {
           AND om.is_active = 1
           AND u.is_active = 1
           AND r.is_active = 1
-          AND r.org_id = :org
+          AND r.org_id = :org_role
           AND r.can_access_org_dashboard = 1
         ORDER BY officer_name ASC"
     );
-    $stmt->execute([':org' => $ctx['org_id']]);
+    $stmt->execute([
+        ':org' => $ctx['org_id'],
+        ':org_role' => $ctx['org_id']
+    ]);
     $items = $stmt->fetchAll();
     jsonOk(['items' => $items]);
 } catch (IgpAuthorizationException $e) {

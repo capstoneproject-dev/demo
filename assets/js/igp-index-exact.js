@@ -4,6 +4,13 @@
     const $ = (id) => document.getElementById(id);
     let inventory = [];
     let activeRentals = [];
+    let students = [];
+    let officers = [];
+    let scanInputTimer = null;
+    const scanCtx = {
+        rent: { studentId: '', officerId: '' },
+        return: { officerId: '' }
+    };
 
     function fmtDate(s) {
         if (!s) return '-';
@@ -93,15 +100,182 @@
     }
 
     async function refresh() {
-        const [inv, rent] = await Promise.all([
+        const [inv, rent, stu, off] = await Promise.all([
             window.igpApi.getInventory({}),
             window.igpApi.getRentals({ status: 'active' }),
+            window.igpApi.getStudents(),
+            window.igpApi.getOfficers(),
         ]);
         inventory = inv.items || [];
         activeRentals = rent.items || [];
+        students = stu.items || [];
+        officers = off.items || [];
         renderAvailable();
         renderCurrent();
         populateManualItems();
+    }
+
+    function setScanResult(message, kind = 'info') {
+        const el = $('scanResult');
+        if (!el) return;
+        const cls = kind === 'error' ? 'error' : (kind === 'success' ? 'success' : 'info');
+        el.innerHTML = `<span class="${cls}">${message}</span>`;
+    }
+
+    function resetScanContext() {
+        scanCtx.rent.studentId = '';
+        scanCtx.rent.officerId = '';
+        scanCtx.return.officerId = '';
+        const input = $('barcodeInput');
+        if (input) input.value = '';
+    }
+
+    function currentMode() {
+        return $('returnMode') && $('returnMode').checked ? 'return' : 'rent';
+    }
+
+    function findStudentByScan(value) {
+        const v = String(value || '').trim().toLowerCase();
+        return students.find((s) => {
+            const studentId = String(s.studentId || '');
+            return studentId.toLowerCase() === v || encodeRef(studentId, 'S').toLowerCase() === v;
+        }) || null;
+    }
+
+    function findOfficerByScan(value) {
+        const v = String(value || '').trim().toLowerCase();
+        return officers.find((o) => {
+            // Officers payload comes from organization_members-scoped API rows.
+            const idCandidates = [
+                String(o.student_number || ''),
+                String(o.employee_number || ''),
+                String(o.officerId || ''),
+            ].filter(Boolean);
+
+            return idCandidates.some((id) =>
+                id.toLowerCase() === v ||
+                encodeRef(id, 'O').toLowerCase() === v ||
+                // Some generated officer cards used student-style encoder prefix.
+                encodeRef(id, 'S').toLowerCase() === v
+            );
+        }) || null;
+    }
+
+    function findItemByBarcode(value) {
+        const v = String(value || '').trim().toLowerCase();
+        return inventory.find((it) => String(it.barcode || '').toLowerCase() === v) || null;
+    }
+
+    function encodeRef(raw, prefix) {
+        const source = String(raw || '');
+        if (!source) return '';
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        let hash = 0;
+        for (let i = 0; i < source.length; i++) {
+            hash = ((hash << 5) - hash) + source.charCodeAt(i);
+            hash |= 0;
+        }
+        let num = Math.abs(hash);
+        let encoded = '';
+        for (let i = 0; i < 4; i++) {
+            encoded = chars[num % 62] + encoded;
+            num = Math.floor(num / 62);
+        }
+        return `${prefix}${encoded}`;
+    }
+
+    async function processScanToken(rawToken) {
+        const token = String(rawToken || '').trim();
+        if (!token) return;
+
+        const mode = currentMode();
+        if (mode === 'rent') {
+            if (!scanCtx.rent.studentId) {
+                const student = findStudentByScan(token);
+                if (!student) {
+                    setScanResult('Unknown student ID. Scan a registered student barcode first.', 'error');
+                    return;
+                }
+                scanCtx.rent.studentId = student.studentId;
+                setScanResult(`Student verified: ${student.studentName || student.studentId}. Next: scan officer ID.`, 'info');
+                return;
+            }
+
+            if (!scanCtx.rent.officerId) {
+                const officer = findOfficerByScan(token);
+                if (!officer) {
+                    setScanResult('Unknown officer ID. Scan a valid officer barcode.', 'error');
+                    return;
+                }
+                scanCtx.rent.officerId = officer.student_number || officer.employee_number || '';
+                setScanResult(`Officer verified: ${officer.officer_name || scanCtx.rent.officerId}. Next: scan item barcode.`, 'info');
+                return;
+            }
+
+            const item = findItemByBarcode(token);
+            if (!item) {
+                setScanResult('Unknown item barcode.', 'error');
+                return;
+            }
+            const st = statusByItem(item);
+            if (st.status !== 'available') {
+                setScanResult(`Item is not available (${st.status}).`, 'error');
+                return;
+            }
+
+            await window.igpApi.rentItem({
+                item_id: Number(item.item_id),
+                renter_identifier: scanCtx.rent.studentId,
+                officer_identifier: scanCtx.rent.officerId,
+                hours: 1,
+            });
+            await refresh();
+            setScanResult(`Rental recorded for ${item.item_name} [${item.barcode}].`, 'success');
+            resetScanContext();
+            return;
+        }
+
+        // return mode
+        if (!scanCtx.return.officerId) {
+            const officer = findOfficerByScan(token);
+            if (!officer) {
+                setScanResult('Unknown officer ID. Scan a valid officer barcode first.', 'error');
+                return;
+            }
+            scanCtx.return.officerId = officer.student_number || officer.employee_number || '';
+            setScanResult(`Officer verified: ${officer.officer_name || scanCtx.return.officerId}. Next: scan item barcode to return.`, 'info');
+            return;
+        }
+
+        const item = findItemByBarcode(token);
+        if (!item) {
+            setScanResult('Unknown item barcode.', 'error');
+            return;
+        }
+
+        const rental = activeRentals.find((r) => String(r.items_label || '').includes(`[${item.barcode}]`));
+        if (!rental) {
+            setScanResult('No active rental found for this item.', 'error');
+            return;
+        }
+
+        await window.igpApi.returnRental(Number(rental.rental_id));
+        await refresh();
+        setScanResult(`Return recorded for ${item.item_name} [${item.barcode}].`, 'success');
+        resetScanContext();
+    }
+
+    async function processBarcodeInputField() {
+        const input = $('barcodeInput');
+        if (!input) return;
+        const token = String(input.value || '').trim();
+        if (!token) return;
+        input.value = '';
+        try {
+            await processScanToken(token);
+        } catch (err) {
+            setScanResult(err.message, 'error');
+        }
     }
 
     function ensureManualButton() {
@@ -174,8 +348,41 @@
                 if (scan.checked) {
                     barcodeSection.style.display = 'block';
                     manualSection.style.display = 'none';
-                    if ($('scanResult')) $('scanResult').innerHTML = "<span class='info'>DB mode: use Manual Input for now.</span>";
+                    setScanResult('Scan mode ready.', 'info');
+                    if ($('barcodeInput')) $('barcodeInput').focus();
                 }
+            });
+        }
+
+        if ($('rentMode')) {
+            $('rentMode').addEventListener('change', () => {
+                resetScanContext();
+                setScanResult('Rent mode: scan student ID, then officer ID, then item barcode.', 'info');
+            });
+        }
+        if ($('returnMode')) {
+            $('returnMode').addEventListener('change', () => {
+                resetScanContext();
+                setScanResult('Return mode: scan officer ID, then item barcode.', 'info');
+            });
+        }
+
+        if ($('barcodeInput')) {
+            $('barcodeInput').addEventListener('keydown', async (e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                if (scanInputTimer) {
+                    clearTimeout(scanInputTimer);
+                    scanInputTimer = null;
+                }
+                await processBarcodeInputField();
+            });
+            $('barcodeInput').addEventListener('input', () => {
+                if (scanInputTimer) clearTimeout(scanInputTimer);
+                // Auto-process scanner input when typing pauses briefly.
+                scanInputTimer = setTimeout(() => {
+                    processBarcodeInputField();
+                }, 180);
             });
         }
 
@@ -184,7 +391,8 @@
             ['studentName', 'studentId', 'studentSection', 'barcodeInputOfficer', 'barcodeInput', 'barcodeInputItemManual'].forEach((id) => {
                 const el = $(id); if (el) el.value = '';
             });
-            if ($('scanResult')) $('scanResult').textContent = 'Transaction reset.';
+            resetScanContext();
+            setScanResult('Transaction reset.', 'info');
         });
 
         if ($('rentalRecords')) {
@@ -208,9 +416,10 @@
         bindEvents();
         try {
             await refresh();
+            setScanResult('Scan mode ready.', 'info');
             setInterval(renderCurrent, 1000);
         } catch (err) {
-            if ($('scanResult')) $('scanResult').innerHTML = `<span class='error'>${err.message}</span>`;
+            setScanResult(err.message, 'error');
         }
     });
 })();

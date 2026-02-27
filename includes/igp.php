@@ -77,8 +77,11 @@ function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
 
     $q = trim((string)($filters['q'] ?? ''));
     if ($q !== '') {
-        $where[] = "(i.item_name LIKE :q OR i.barcode LIKE :q OR c.category_name LIKE :q)";
-        $params[':q'] = '%' . $q . '%';
+        $where[] = "(i.item_name LIKE :q_name OR i.barcode LIKE :q_barcode OR c.category_name LIKE :q_category)";
+        $qLike = '%' . $q . '%';
+        $params[':q_name'] = $qLike;
+        $params[':q_barcode'] = $qLike;
+        $params[':q_category'] = $qLike;
     }
 
     $status = trim((string)($filters['status'] ?? ''));
@@ -279,8 +282,12 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
         $params[':dt'] = $filters['date_to'];
     }
     if (!empty($filters['q'])) {
-        $where[] = "(u.student_number LIKE :q OR u.email LIKE :q OR i.item_name LIKE :q OR i.barcode LIKE :q)";
-        $params[':q'] = '%' . $filters['q'] . '%';
+        $where[] = "(u.student_number LIKE :q_student OR u.email LIKE :q_email OR i.item_name LIKE :q_item OR i.barcode LIKE :q_barcode)";
+        $qLike = '%' . $filters['q'] . '%';
+        $params[':q_student'] = $qLike;
+        $params[':q_email'] = $qLike;
+        $params[':q_item'] = $qLike;
+        $params[':q_barcode'] = $qLike;
     }
 
     $sql = "
@@ -331,10 +338,14 @@ function igpFindUserByIdentifier(PDO $pdo, string $identifier): ?array
     $stmt = $pdo->prepare(
         "SELECT user_id, student_number, employee_number, email, first_name, last_name, has_unpaid_debt, is_active, account_type
          FROM users
-         WHERE (student_number = :id OR employee_number = :id OR email = :id)
+         WHERE (student_number = :student_number OR employee_number = :employee_number OR email = :email)
          LIMIT 1"
     );
-    $stmt->execute([':id' => $id]);
+    $stmt->execute([
+        ':student_number' => $id,
+        ':employee_number' => $id,
+        ':email' => $id,
+    ]);
     return $stmt->fetch() ?: null;
 }
 
