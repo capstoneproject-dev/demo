@@ -152,7 +152,12 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             <div class="card-body">
                 <form id="addItemForm" class="row g-2">
                     <div class="col-md-2">
-                        <input type="text" class="form-control" id="itemType" placeholder="Item Type" required>
+                        <select class="form-select" id="itemType">
+                            <option value="">Item Type</option>
+                            <option value="__add_new__">+ Add new type...</option>
+                        </select>
+                        <input type="text" class="form-control d-none" id="itemTypeCustom"
+                            placeholder="Item Type">
                     </div>
                     <div class="col-md-3">
                         <input type="text" class="form-control" id="itemName" placeholder="Item Name" required>
