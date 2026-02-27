@@ -9,17 +9,16 @@ requirePost();
 $body = getRequestBody();
 $studentNumber = trim($body['studentId'] ?? '');
 $studentName   = trim($body['studentName'] ?? '');
+$programId     = isset($body['programId']) ? (int)$body['programId'] : 0;
+$instituteId   = isset($body['instituteId']) ? (int)$body['instituteId'] : 0;
 $programCode   = trim($body['programCode'] ?? '');
 $institute     = trim($body['institute'] ?? '');
 $yearSection   = trim($body['yearSection'] ?? '');
-$email         = trim($body['email'] ?? '') ?: null;
-$phone         = trim($body['phone'] ?? '') ?: null;
-$hasUnpaidDebt = isset($body['hasUnpaidDebt']) ? (int)(bool)$body['hasUnpaidDebt'] : 0;
 $isActive      = isset($body['isActive'])      ? (int)(bool)$body['isActive']      : 1;
 $origId        = trim($body['origStudentId'] ?? ''); // empty = new record
 
-if (!$studentNumber || !$studentName || !$programCode || !$institute) {
-    jsonError('studentId, studentName, programCode, and institute are required.', 422);
+if (!$studentNumber || !$studentName) {
+    jsonError('studentId and studentName are required.', 422);
 }
 
 $session  = getPhpSession();
@@ -28,23 +27,52 @@ $actorId  = $session['user_id'] ?? null;
 try {
     $pdo = getPdo();
 
+    if ($programId <= 0 && $programCode !== '') {
+        $progStmt = $pdo->prepare("SELECT program_id, institute_id FROM academic_programs WHERE UPPER(program_code) = UPPER(:code) LIMIT 1");
+        $progStmt->execute([':code' => $programCode]);
+        $prog = $progStmt->fetch();
+        if ($prog) {
+            $programId = (int)$prog['program_id'];
+            if ($instituteId <= 0 && !empty($prog['institute_id'])) {
+                $instituteId = (int)$prog['institute_id'];
+            }
+        } else {
+            jsonError("Unknown programCode '$programCode'.", 422);
+        }
+    }
+    if ($instituteId <= 0 && $institute !== '') {
+        $instStmt = $pdo->prepare("SELECT institute_id FROM institutes WHERE UPPER(institute_name) = UPPER(:name) LIMIT 1");
+        $instStmt->execute([':name' => $institute]);
+        $inst = $instStmt->fetch();
+        if ($inst) {
+            $instituteId = (int)$inst['institute_id'];
+        } else {
+            jsonError("Unknown institute '$institute'.", 422);
+        }
+    }
+    if ($programId > 0 && $instituteId <= 0) {
+        $instByProgStmt = $pdo->prepare("SELECT institute_id FROM academic_programs WHERE program_id = :pid LIMIT 1");
+        $instByProgStmt->execute([':pid' => $programId]);
+        $instByProg = $instByProgStmt->fetch();
+        if ($instByProg) {
+            $instituteId = (int)$instByProg['institute_id'];
+        }
+    }
+
     if ($origId === '') {
         // INSERT
         $stmt = $pdo->prepare("
             INSERT INTO student_numbers
-                (student_number, student_name, program_code, institute, year_section,
-                 email, phone, has_unpaid_debt, is_active, added_by_user_id)
-            VALUES (:sn, :name, :prog, :inst, :ys, :email, :phone, :debt, :active, :by)
+                (student_number, student_name, program_id, institute_id, year_section,
+                 is_active, added_by_user_id)
+            VALUES (:sn, :name, :prog_id, :inst_id, :ys, :active, :by)
         ");
         $stmt->execute([
             ':sn'     => $studentNumber,
             ':name'   => $studentName,
-            ':prog'   => $programCode,
-            ':inst'   => $institute,
+            ':prog_id'=> $programId > 0 ? $programId : null,
+            ':inst_id'=> $instituteId > 0 ? $instituteId : null,
             ':ys'     => $yearSection ?: null,
-            ':email'  => $email,
-            ':phone'  => $phone,
-            ':debt'   => $hasUnpaidDebt,
             ':active' => $isActive,
             ':by'     => $actorId,
         ]);
@@ -55,24 +83,18 @@ try {
             UPDATE student_numbers
             SET student_number = :sn,
                 student_name   = :name,
-                program_code   = :prog,
-                institute      = :inst,
+                program_id     = :prog_id,
+                institute_id   = :inst_id,
                 year_section   = :ys,
-                email          = :email,
-                phone          = :phone,
-                has_unpaid_debt = :debt,
                 is_active      = :active
             WHERE student_number = :orig
         ");
         $stmt->execute([
             ':sn'     => $studentNumber,
             ':name'   => $studentName,
-            ':prog'   => $programCode,
-            ':inst'   => $institute,
+            ':prog_id'=> $programId > 0 ? $programId : null,
+            ':inst_id'=> $instituteId > 0 ? $instituteId : null,
             ':ys'     => $yearSection ?: null,
-            ':email'  => $email,
-            ':phone'  => $phone,
-            ':debt'   => $hasUnpaidDebt,
             ':active' => $isActive,
             ':orig'   => $origId,
         ]);

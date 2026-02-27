@@ -11,22 +11,24 @@ try {
         SELECT sn_id AS id,
                student_number AS studentId,
                student_name   AS studentName,
-               program_code   AS programCode,
-               institute,
+               sn.program_id  AS programId,
+               ap.program_code AS programCode,
+               sn.institute_id AS instituteId,
+               i.institute_name AS institute,
                year_section   AS yearSection,
-               email,
-               phone,
-               has_unpaid_debt AS hasUnpaidDebt,
-               is_active       AS isActive,
-               added_at        AS addedAt,
-               updated_at      AS updatedAt
-        FROM student_numbers
+               sn.is_active    AS isActive,
+               sn.added_at     AS addedAt,
+               sn.updated_at   AS updatedAt
+        FROM student_numbers sn
+        LEFT JOIN academic_programs ap ON ap.program_id = sn.program_id
+        LEFT JOIN institutes i ON i.institute_id = sn.institute_id
         ORDER BY student_number ASC
     ");
     $stmt->execute();
     $rows = $stmt->fetchAll();
     foreach ($rows as &$r) {
-        $r['hasUnpaidDebt'] = (bool)$r['hasUnpaidDebt'];
+        $r['programId'] = $r['programId'] !== null ? (int)$r['programId'] : null;
+        $r['instituteId'] = $r['instituteId'] !== null ? (int)$r['instituteId'] : null;
         $r['isActive']      = (bool)$r['isActive'];
     }
     jsonOk(['items' => $rows]);

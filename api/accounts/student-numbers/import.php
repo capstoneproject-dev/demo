@@ -20,9 +20,9 @@ try {
     $pdo  = getPdo();
     $stmt = $pdo->prepare("
         INSERT IGNORE INTO student_numbers
-            (student_number, student_name, program_code, institute, year_section,
-             email, phone, has_unpaid_debt, is_active, added_by_user_id)
-        VALUES (:sn, :name, :prog, :inst, :ys, :email, :phone, :debt, :active, :by)
+            (student_number, student_name, program_id, institute_id, year_section,
+             is_active, added_by_user_id)
+        VALUES (:sn, :name, :prog_id, :inst_id, :ys, :active, :by)
     ");
 
     $imported = 0;
@@ -35,15 +35,45 @@ try {
         if (!$sn || !$name) { $errors++; continue; }
 
         try {
+            $programId = isset($row['programId']) ? (int)$row['programId'] : 0;
+            $instituteId = isset($row['instituteId']) ? (int)$row['instituteId'] : 0;
+            $programCode = trim((string)($row['programCode'] ?? ''));
+            $instituteName = trim((string)($row['institute'] ?? ''));
+
+            if ($programId <= 0 && $programCode !== '') {
+                $pStmt = $pdo->prepare("SELECT program_id, institute_id FROM academic_programs WHERE UPPER(program_code) = UPPER(:code) LIMIT 1");
+                $pStmt->execute([':code' => $programCode]);
+                $pRow = $pStmt->fetch();
+                if ($pRow) {
+                    $programId = (int)$pRow['program_id'];
+                    if ($instituteId <= 0 && !empty($pRow['institute_id'])) {
+                        $instituteId = (int)$pRow['institute_id'];
+                    }
+                }
+            }
+            if ($instituteId <= 0 && $instituteName !== '') {
+                $iStmt = $pdo->prepare("SELECT institute_id FROM institutes WHERE UPPER(institute_name) = UPPER(:name) LIMIT 1");
+                $iStmt->execute([':name' => $instituteName]);
+                $iRow = $iStmt->fetch();
+                if ($iRow) {
+                    $instituteId = (int)$iRow['institute_id'];
+                }
+            }
+            if ($programId > 0 && $instituteId <= 0) {
+                $ipStmt = $pdo->prepare("SELECT institute_id FROM academic_programs WHERE program_id = :pid LIMIT 1");
+                $ipStmt->execute([':pid' => $programId]);
+                $ipRow = $ipStmt->fetch();
+                if ($ipRow) {
+                    $instituteId = (int)$ipRow['institute_id'];
+                }
+            }
+
             $stmt->execute([
                 ':sn'     => $sn,
                 ':name'   => $name,
-                ':prog'   => trim($row['programCode'] ?? ''),
-                ':inst'   => trim($row['institute']   ?? ''),
+                ':prog_id'=> $programId > 0 ? $programId : null,
+                ':inst_id'=> $instituteId > 0 ? $instituteId : null,
                 ':ys'     => trim($row['yearSection'] ?? '') ?: null,
-                ':email'  => trim($row['email']  ?? '') ?: null,
-                ':phone'  => trim($row['phone']  ?? '') ?: null,
-                ':debt'   => 0,
                 ':active' => 1,
                 ':by'     => $actorId,
             ]);
