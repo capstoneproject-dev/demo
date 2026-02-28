@@ -107,7 +107,6 @@ CREATE TABLE `attendance_records` (
   `section` varchar(30) DEFAULT NULL,
   `time_in` datetime NOT NULL,
   `time_out` datetime DEFAULT NULL,
-  `scan_mode` varchar(20) NOT NULL DEFAULT 'barcode',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ;

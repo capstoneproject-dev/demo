@@ -85,7 +85,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         </a>
                         <ul class="dropdown-menu mega-menu shadow-lg border-0" aria-labelledby="databaseDropdown">
                             <li>
-                                <a class="dropdown-item" href="student-database.php">
+                                <a class="dropdown-item" href="../shared/student-database.php?return=../igp/admin.php">
                                     <div class="fw-bold text-dark">Student Database</div>
                                     <small class="text-muted d-block">Manage customer records</small>
                                 </a>
@@ -196,3 +196,4 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 </body>
 
 </html>
+

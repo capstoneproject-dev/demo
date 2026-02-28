@@ -1,0 +1,124 @@
+<?php
+require_once __DIR__ . '/../../includes/auth.php';
+$session = guardSession('../login.html');
+if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])) {
+    header('Location: ../login.html');
+    exit;
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Barcode - QR Attendance System</title>
+    <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
+            </a>
+
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="mainNav">
+
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 nav-pills-custom">
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="events.php">Events</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="generate-qr.php">Generate Barcodes</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="../shared/student-database.php?return=../qr-attendance/index.php">Database</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.php">Home</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container main-content">
+        <h1 class="text-center mb-4">Generate Barcode</h1>
+
+        <!-- Back to Home Button -->
+        <div class="mb-4">
+            <a href="index.php" class="btn btn-secondary">Ã¢â€ Â Back to Home</a>
+        </div>
+
+        <!-- Bulk Upload Section -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Bulk Generate Barcodes</h2>
+            </div>
+            <div class="card-body">
+                <form id="bulkUploadForm">
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label">Upload Excel File</label>
+                        <input type="file" class="form-control" id="excelFile" accept=".xlsx,.xls" required>
+                        <div class="form-text">Upload an Excel file with columns: Student ID, Student Name, Section
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Generate Barcodes</button>
+                </form>
+                <div id="bulkBarcodes" class="mt-3"></div>
+                <div class="text-center mt-2">
+                    <button id="downloadAllBarcodes" class="btn btn-success" style="display: none;">Download All
+                        Barcodes</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Single Barcode Generation Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Generate Single Barcode</h2>
+            </div>
+            <div class="card-body">
+                <form id="barcodeForm">
+                    <div class="mb-3">
+                        <label for="studentId" class="form-label">Student ID</label>
+                        <input type="text" class="form-control" id="studentId" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="studentName" class="form-label">Student Name</label>
+                        <input type="text" class="form-control" id="studentName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="section" class="form-label">Section</label>
+                        <input type="text" class="form-control" id="section" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Generate Barcode</button>
+                </form>
+                <div id="barcode" class="mt-3 text-center"></div>
+                <div class="text-center mt-2">
+                    <button id="downloadBarcode" class="btn btn-success" style="display: none;">Download
+                        Barcode</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../../systems/QR-Attendance/lib/bootstrap.bundle.min.js"></script>
+    <script src="../../systems/QR-Attendance/lib/JsBarcode.all.min.js"></script>
+    <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
+    <script src="../../systems/QR-Attendance/lib/jszip.min.js"></script>
+    <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
+    <script src="../../systems/QR-Attendance/lib/generate-qr.js"></script>
+</body>
+
+</html>

@@ -860,7 +860,7 @@ function viewEventsList() {
     // 2. Change the iframe source to the Events List page
     const eventsFrame = document.querySelector('#events iframe');
     if (eventsFrame) {
-        eventsFrame.src = "../systems/QR-Attendance/events.html";
+        eventsFrame.src = "../pages/qr-attendance/events.php";
     }
 }
 
