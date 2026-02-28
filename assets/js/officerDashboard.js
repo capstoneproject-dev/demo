@@ -119,10 +119,22 @@ function getActiveOfficerOrgName() {
     return normalizeOfficerOrgName(session.active_org_name || '');
 }
 
-function officerOrgMatch(orgName) {
-    const active = getActiveOfficerOrgName();
-    if (!active) return true;
-    return normalizeOfficerOrgName(orgName) === active;
+function officerOrgMatch(orgValue) {
+    const session = readAuthSession();
+    const activeName = normalizeOfficerOrgName(session.active_org_name || '');
+    const activeId = Number(session.active_org_id || 0);
+
+    // If nothing to compare against, allow all.
+    if (!activeName && !activeId) return true;
+
+    // If orgValue is numeric (id), match against activeId.
+    const numVal = Number(orgValue);
+    if (!Number.isNaN(numVal) && numVal > 0 && activeId > 0) {
+        return numVal === activeId;
+    }
+
+    // Fallback to name-based match.
+    return normalizeOfficerOrgName(orgValue) === activeName;
 }
 
 // --- DATA  (read from orgData.js — ORG_DATA is the source of truth) ---
@@ -712,17 +724,56 @@ function filterDocs(filter, btnElement) {
     renderDocs(filter, btnElement);
 }
 
+function formatAnnouncementDate(dateString) {
+    if (!dateString) return 'Just now';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return dateString;
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMinutes = Math.floor(diffMs / 60000);
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function renderAnnouncements() {
     const feed = document.getElementById('announcement-feed');
+    if (!feed) return;
+    if (!announcementsData.length) {
+        feed.innerHTML = `<div style="padding: 12px; color: var(--muted);">No announcements yet.</div>`;
+        return;
+    }
     feed.innerHTML = getOfficerScopedAnnouncements().map(ann => `
         <div class="announcement-card">
             <div class="announcement-meta">
                 <strong>${ann.title}</strong>
-                <span>${ann.date}</span>
+                <span>${formatAnnouncementDate(ann.date)}</span>
             </div>
             <p style="font-size: 0.9rem;">${ann.content}</p>
         </div>
     `).join('');
+}
+
+async function fetchAnnouncementsFromApi() {
+    try {
+        const res = await fetch('../api/announcements/list.php', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Failed to load announcements');
+        announcementsData = (data.items || []).map(item => ({
+            id: item.announcement_id,
+            title: item.title,
+            content: item.content,
+            audience_type: item.audience_type,
+            date: item.published_at || item.created_at,
+            org: getActiveOfficerOrgName(),
+            org_id: item.org_id
+        }));
+        renderAnnouncements();
+    } catch (err) {
+        console.error('Failed to load announcements', err);
+    }
 }
 
 // --- ACTIONS ---
@@ -789,41 +840,63 @@ function handleDocSubmit(e) {
     alert(`Document successfully sent to ${recipient}.`);
 }
 
-function postAnnouncement(e) {
+async function postAnnouncement(e) {
     e.preventDefault();
     const title = document.getElementById('ann-title').value;
     const content = document.getElementById('ann-content').value;
+    const audience = document.getElementById('ann-audience') ? document.getElementById('ann-audience').value : 'all_students';
     const syncEvent = document.getElementById('sync-event').checked; // Get checkbox state
 
-    // 1. Add to Local Dashboard Feed
-    announcementsData.unshift({
-        title: title,
-        content: content,
-        date: "Just now",
-        org: readAuthSession().active_org_name || 'AISERS'
-    });
-    renderAnnouncements();
-
-    // 2. CROSS-POSTING LOGIC
-    if (syncEvent) {
-        // Find the Events iframe
-        const eventsFrame = document.querySelector('#events iframe');
-
-        // Send message to the iframe
-        if (eventsFrame && eventsFrame.contentWindow) {
-            eventsFrame.contentWindow.postMessage({
-                type: 'CREATE_EVENT',
-                eventName: title,
-                description: content,
-                date: new Date().toISOString().split('T')[0] // YYYY-MM-DD
-            }, '*');
-
-            alert(`Announcement Posted & Event "${title}" created in Attendance System!`);
-        } else {
-            alert("Announcement posted, but could not sync to Events tab (Frame not loaded).");
+    try {
+        const res = await fetch('../api/announcements/create.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                title,
+                content,
+                audience_type: audience,
+                publish: true
+            })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            throw new Error(data.error || 'Failed to post announcement');
         }
-    } else {
-        alert("Announcement Posted!");
+
+        const item = data.item || {};
+        announcementsData.unshift({
+            id: item.announcement_id || null,
+            title: item.title || title,
+            content: item.content || content,
+            audience_type: item.audience_type || audience,
+            date: item.published_at || item.created_at || new Date().toISOString(),
+            org: getActiveOfficerOrgName(),
+            org_id: item.org_id || (readAuthSession().active_org_id || 0)
+        });
+        renderAnnouncements();
+
+        // 2. CROSS-POSTING LOGIC
+        if (syncEvent) {
+            const eventsFrame = document.querySelector('#events iframe');
+            if (eventsFrame && eventsFrame.contentWindow) {
+                eventsFrame.contentWindow.postMessage({
+                    type: 'CREATE_EVENT',
+                    eventName: title,
+                    description: content,
+                    date: new Date().toISOString().split('T')[0] // YYYY-MM-DD
+                }, '*');
+                alert(`Announcement Posted & Event "${title}" created in Attendance System!`);
+            } else {
+                alert("Announcement posted, but could not sync to Events tab (Frame not loaded).");
+            }
+        } else {
+            alert("Announcement Posted!");
+        }
+
+    } catch (error) {
+        console.error(error);
+        alert(error.message || 'Failed to post announcement. Please try again.');
     }
 
     e.target.reset();
@@ -1119,6 +1192,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderDocs();
     renderRecentDocs();
     renderAnnouncements();
+    fetchAnnouncementsFromApi();
     // Initialize repository counts
     if (typeof updateFolderCounts === 'function') {
         updateFolderCounts();

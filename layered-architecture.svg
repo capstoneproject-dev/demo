@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="950" viewBox="0 0 1200 950" font-family="Arial, sans-serif">
+  <style>
+    .box { fill:#4e9bd5; stroke:#1f6a9c; stroke-width:2; rx:10; ry:10; }
+    .partial { fill:#b6d7a8; stroke:#6d9e45; }
+    .planned { fill:#f7c79a; stroke:#d9822b; }
+    .text { font-size:17px; fill:#0c2b40; text-anchor:middle; }
+    .title { font-size:20px; fill:#0c2b40; font-weight:bold; }
+    .layer { fill:#eef4fb; stroke:#c7d6ea; stroke-width:1.5; rx:14; ry:14; }
+    .db { fill:#d9e4ef; stroke:#1f6a9c; stroke-width:2; }
+    .arrow { stroke:#333; stroke-width:2; marker-end:url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+  </defs>
+
+  <text x="600" y="40" class="title">AISERS Layered System Architecture</text>
+
+  <!-- Users layer -->
+  <rect x="60" y="60" width="1080" height="120" class="layer"/>
+  <text x="1000" y="90" class="text" style="text-anchor:end;">Users</text>
+  <rect x="110" y="100" width="150" height="50" class="box"/>
+  <text x="185" y="132" class="text">Students</text>
+  <rect x="290" y="100" width="150" height="50" class="box"/>
+  <text x="365" y="132" class="text">Officers</text>
+  <rect x="470" y="100" width="170" height="50" class="box"/>
+  <text x="555" y="132" class="text">OSA Admin / Staff</text>
+  <rect x="670" y="100" width="150" height="50" class="box"/>
+  <text x="745" y="132" class="text">Adviser</text>
+
+  <!-- Presentation layer -->
+  <rect x="60" y="210" width="1080" height="140" class="layer"/>
+  <text x="1000" y="240" class="text" style="text-anchor:end;">Presentation Layer</text>
+  <rect x="200" y="250" width="280" height="60" class="box"/>
+  <text x="340" y="286" class="text">Web / Mobile UI</text>
+  <text x="340" y="304" class="text" style="font-size:15px;">Student, Officer, OSA dashboards</text>
+  <rect x="640" y="250" width="220" height="60" class="box"/>
+  <text x="750" y="286" class="text">Mobile Camera / QR Scanner</text>
+
+  <!-- Application layer -->
+  <rect x="60" y="380" width="1080" height="280" class="layer"/>
+  <text x="1000" y="410" class="text" style="text-anchor:end;">Application Layer</text>
+  <rect x="120" y="430" width="200" height="60" class="box"/>
+  <text x="220" y="466" class="text">Authentication &amp; Session</text>
+  <rect x="360" y="430" width="220" height="60" class="box"/>
+  <text x="470" y="466" class="text">Organization &amp; Membership</text>
+  <rect x="620" y="430" width="200" height="60" class="box"/>
+  <text x="720" y="466" class="text">IGP Rental Service</text>
+  <rect x="860" y="430" width="200" height="60" class="box"/>
+  <text x="960" y="466" class="text">QR Attendance Service</text>
+
+  <rect x="160" y="520" width="220" height="60" class="partial box"/>
+  <text x="270" y="556" class="text">OSA Admin &amp; Approvals</text>
+  <text x="270" y="574" class="text" style="font-size:15px;">(partial)</text>
+
+  <rect x="440" y="520" width="220" height="60" class="box"/>
+  <text x="550" y="556" class="text">Dashboards &amp; Reporting</text>
+  <text x="550" y="574" class="text" style="font-size:15px;">role-based</text>
+
+  <rect x="720" y="520" width="200" height="60" class="planned box"/>
+  <text x="820" y="556" class="text">Document Submission</text>
+  <text x="820" y="574" class="text" style="font-size:15px;">&amp; Approval (planned)</text>
+
+  <rect x="960" y="520" width="140" height="60" class="planned box"/>
+  <text x="1030" y="556" class="text">Notifications</text>
+  <text x="1030" y="574" class="text" style="font-size:15px;">(planned)</text>
+
+  <!-- Data layer -->
+  <rect x="60" y="690" width="1080" height="170" class="layer"/>
+  <text x="1000" y="720" class="text" style="text-anchor:end;">Data Management Layer</text>
+  <ellipse cx="400" cy="780" rx="170" ry="50" class="db"/>
+  <text x="400" y="786" class="text">Centralized Database</text>
+
+  <ellipse cx="760" cy="750" rx="140" ry="40" class="planned db planned"/>
+  <text x="760" y="756" class="text">Documents Table (planned)</text>
+  <ellipse cx="940" cy="820" rx="140" ry="40" class="planned db planned"/>
+  <text x="940" y="826" class="text">Notifications Table (planned)</text>
+
+  <!-- Arrows Users -> Presentation -->
+  <line x1="185" y1="150" x2="280" y2="250" class="arrow"/>
+  <line x1="365" y1="150" x2="320" y2="250" class="arrow"/>
+  <line x1="555" y1="150" x2="360" y2="250" class="arrow"/>
+  <line x1="745" y1="150" x2="400" y2="250" class="arrow"/>
+
+  <!-- QR device to QR service -->
+  <line x1="750" y1="310" x2="960" y2="430" class="arrow"/>
+
+  <!-- Presentation to Application -->
+  <line x1="340" y1="310" x2="220" y2="430" class="arrow"/>
+  <line x1="340" y1="310" x2="470" y2="430" class="arrow"/>
+  <line x1="340" y1="310" x2="720" y2="430" class="arrow"/>
+  <line x1="340" y1="310" x2="960" y2="430" class="arrow"/>
+
+  <!-- Application internal arrows -->
+  <line x1="220" y1="490" x2="470" y2="520" class="arrow"/>
+  <line x1="470" y1="490" x2="550" y2="520" class="arrow"/>
+  <line x1="720" y1="490" x2="550" y2="520" class="arrow"/>
+  <line x1="960" y1="490" x2="550" y2="520" class="arrow"/>
+  <line x1="270" y1="580" x2="400" y2="730" class="arrow"/>
+  <line x1="550" y1="580" x2="400" y2="730" class="arrow"/>
+  <line x1="820" y1="580" x2="760" y2="710" class="arrow"/>
+  <line x1="1030" y1="580" x2="940" y2="780" class="arrow"/>
+  <line x1="720" y1="490" x2="400" y2="730" class="arrow"/>
+  <line x1="960" y1="490" x2="400" y2="730" class="arrow"/>
+
+  <!-- Legend -->
+  <rect x="70" y="870" width="24" height="14" class="box"/><text x="110" y="882" class="text" style="text-anchor:start;font-size:14px;">Implemented</text>
+  <rect x="220" y="870" width="24" height="14" class="partial box"/><text x="250" y="882" class="text" style="text-anchor:start;font-size:14px;">Partial</text>
+  <rect x="350" y="870" width="24" height="14" class="planned box"/><text x="380" y="882" class="text" style="text-anchor:start;font-size:14px;">Planned</text>
+</svg>

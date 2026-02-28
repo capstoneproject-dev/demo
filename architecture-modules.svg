@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" font-family="Arial, sans-serif">
+  <style>
+    .box { fill:#4e9bd5; stroke:#1f6a9c; stroke-width:2; rx:10; ry:10; }
+    .planned { fill:#f7c79a; stroke:#d9822b; }
+    .partial { fill:#b6d7a8; stroke:#6d9e45; }
+    .text { font-size:18px; fill:#0c2b40; text-anchor:middle; }
+    .small { font-size:16px; }
+    .root { fill:#3a82c2; stroke:#1f6a9c; stroke-width:3; rx:12; ry:12; }
+    .db { fill:#d9e4ef; stroke:#1f6a9c; stroke-width:2; }
+    .arrow { stroke:#333; stroke-width:2; marker-end:url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+
+  <!-- Root -->
+  <rect x="360" y="30" width="480" height="60" class="root" />
+  <text x="600" y="68" class="text" fill="#fff">Integrated Student Organization Management System</text>
+
+  <!-- Row 1 -->
+  <rect x="120" y="150" width="240" height="60" class="box" />
+  <text x="240" y="186" class="text">Authentication &amp; Access Control</text>
+
+  <rect x="480" y="150" width="240" height="60" class="planned box planned" />
+  <text x="600" y="186" class="text">Document Submission &amp; Approval</text>
+  <text x="600" y="206" class="text small">(planned)</text>
+
+  <rect x="840" y="150" width="240" height="60" class="partial box partial" />
+  <text x="960" y="186" class="text">OSA Administration &amp; Approvals</text>
+  <text x="960" y="206" class="text small">(partial: UI only)</text>
+
+  <!-- Row 2 -->
+  <rect x="120" y="280" width="240" height="60" class="box" />
+  <text x="240" y="316" class="text">Organization &amp; Membership</text>
+
+  <rect x="480" y="280" width="240" height="60" class="box" />
+  <text x="600" y="316" class="text">IGP Rental Service</text>
+
+  <rect x="840" y="280" width="240" height="60" class="box" />
+  <text x="960" y="316" class="text">QR Attendance Service</text>
+
+  <!-- Row 3 -->
+  <rect x="480" y="410" width="240" height="60" class="partial box partial" />
+  <text x="600" y="446" class="text">Dashboards &amp; Reporting</text>
+  <text x="600" y="466" class="text small">(Officer / OSA / Student)</text>
+
+  <rect x="840" y="410" width="240" height="60" class="planned box planned" />
+  <text x="960" y="446" class="text">Notification &amp; Communication</text>
+  <text x="960" y="466" class="text small">(planned)</text>
+
+  <!-- Row 4 -->
+  <ellipse cx="600" cy="560" rx="180" ry="40" class="db" />
+  <text x="600" y="566" class="text">Centralized Database</text>
+
+  <!-- Arrows from root -->
+  <line x1="600" y1="90" x2="240" y2="150" class="arrow" />
+  <line x1="600" y1="90" x2="600" y2="150" class="arrow" />
+  <line x1="600" y1="90" x2="960" y2="150" class="arrow" />
+  <line x1="600" y1="90" x2="600" y2="280" class="arrow" />
+  <line x1="600" y1="90" x2="960" y2="280" class="arrow" />
+  <line x1="600" y1="90" x2="240" y2="280" class="arrow" />
+  <line x1="600" y1="90" x2="960" y2="410" class="arrow" />
+
+  <!-- Arrows between modules -->
+  <line x1="240" y1="210" x2="240" y2="280" class="arrow" />
+  <line x1="240" y1="340" x2="600" y2="410" class="arrow" />
+  <line x1="600" y1="340" x2="600" y2="410" class="arrow" />
+  <line x1="960" y1="340" x2="600" y2="410" class="arrow" />
+  <line x1="960" y1="210" x2="960" y2="280" class="arrow" />
+  <line x1="600" y1="210" x2="600" y2="280" class="arrow" />
+
+  <!-- Arrows to DB -->
+  <line x1="600" y1="470" x2="600" y2="520" class="arrow" />
+  <line x1="600" y1="340" x2="600" y2="520" class="arrow" />
+  <line x1="960" y1="340" x2="700" y2="530" class="arrow" />
+  <line x1="240" y1="340" x2="480" y2="530" class="arrow" />
+  <line x1="960" y1="470" x2="720" y2="540" class="arrow" />
+  <line x1="600" y1="210" x2="640" y2="520" class="arrow" />
+</svg>
