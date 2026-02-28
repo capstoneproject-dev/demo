@@ -1,0 +1,66 @@
+%% AISERS layered system architecture
+%% Implemented (blue), Partial (green), Planned (orange)
+flowchart TB
+
+    %% Users
+    subgraph Users
+        Students[Students]
+        Officers[Officers]
+        OSA[OSA Admin / Staff]
+        Adviser[Adviser]
+    end
+
+    %% Presentation
+    subgraph Presentation Layer
+        WebUI[Web Browser / Mobile-Responsive UI<br/>(Student, Officer, OSA dashboards)]
+        QRDevice[Mobile Camera / QR Scanner]
+    end
+
+    %% Application
+    subgraph Application Layer
+        Auth[Authentication & Session Mgmt]
+        Org[Organization & Membership Mgmt]
+        IGP[IGP Rental Service]
+        QR[QR Attendance Service]
+        OSAApp[OSA Administration & Approvals<br/>(partial)]
+        Dash[Dashboards & Reporting<br/>(role-based)]
+        Doc[Document Submission & Approval<br/>(planned)]
+        Notify[Notification & Communication<br/>(planned)]
+    end
+
+    %% Data
+    subgraph Data Management Layer
+        DB[(Centralized Database)]
+        FutureDoc[(Documents Table — planned)]
+        FutureNotif[(Notifications Table — planned)]
+    end
+
+    %% Flows
+    Students & Officers & OSA & Adviser --> WebUI
+    QRDevice --> QR
+    WebUI --> Auth
+    Auth --> Org
+    Org --> Dash
+    IGP --> Dash
+    QR --> Dash
+    OSAApp --> Dash
+    Notify --> Dash
+    Doc --> Dash
+
+    Auth --> DB
+    Org --> DB
+    IGP --> DB
+    QR --> DB
+    OSAApp --> DB
+    Dash --> DB
+    Doc --> FutureDoc
+    Notify --> FutureNotif
+
+    %% Legend styles
+    classDef implemented fill:#4e9bd5,stroke:#1f6a9c,color:#0c2b40;
+    classDef partial fill:#b6d7a8,stroke:#6d9e45,color:#0c2b40;
+    classDef planned fill:#f7c79a,stroke:#d9822b,color:#0c2b40;
+
+    class WebUI,Auth,Org,IGP,QR,Dash,DB implemented;
+    class OSAApp partial;
+    class Doc,Notify,FutureDoc,FutureNotif planned;

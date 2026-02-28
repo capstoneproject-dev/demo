@@ -1,0 +1,40 @@
+flowchart TD
+    AISERS["Integrated Student Organization Management System"]
+
+    Auth["Authentication & Access Control"]
+    Org["Organization & Membership Management"]
+    IGP["IGP Rental Service"]
+    QR["QR Attendance Service"]
+    OSA["OSA Administration & Approvals<br/>(partial: UI only)"]
+    Dash["Dashboards & Reporting<br/>(Officer / OSA / Student)"]
+    Doc[["Document Submission & Approval<br/>(planned)"]]
+    Notify[["Notification & Communication<br/>(planned)"]]
+    DB[([Centralized Database])]
+
+    AISERS --> Auth
+    AISERS --> Doc
+    AISERS --> OSA
+    AISERS --> IGP
+    AISERS --> QR
+    AISERS --> Notify
+
+    Auth --> Org
+    Org --> Dash
+    IGP --> Dash
+    QR --> Dash
+    OSA --> Dash
+    Notify --> Dash
+
+    Dash --> DB
+    Org --> DB
+    IGP --> DB
+    QR --> DB
+    Doc --> DB
+
+    classDef implemented fill:#4e9bd5,stroke:#1f6a9c,color:#0c2b40;
+    classDef partial fill:#b6d7a8,stroke:#6d9e45,color:#0c2b40;
+    classDef planned fill:#f7c79a,stroke:#d9822b,color:#0c2b40;
+
+    class AISERS,Auth,Org,IGP,QR,Dash,DB implemented;
+    class OSA partial;
+    class Doc,Notify planned;
