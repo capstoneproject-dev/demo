@@ -19,6 +19,16 @@ $actorId  = $session['user_id'] ?? null;
 
 try {
     $pdo = getPdo();
+    $usersHasYearSection = false;
+    $colStmt = $pdo->prepare("
+        SELECT COUNT(*) AS cnt
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'users'
+          AND COLUMN_NAME = 'year_section'
+    ");
+    $colStmt->execute();
+    $usersHasYearSection = ((int)$colStmt->fetchColumn() > 0);
 
     // Fetch request
     $getStmt = $pdo->prepare("SELECT * FROM pending_registrations WHERE reg_id = :id");
@@ -35,8 +45,12 @@ try {
 
         // Verify student number is in whitelist
         $snStmt = $pdo->prepare("
-            SELECT sn_id, student_name, program_id, institute_id, year_section
-            FROM student_numbers WHERE student_number = :sn LIMIT 1
+            SELECT sn.sn_id, sn.student_name, sn.program_id, sn.institute_id, ap.program_code AS whitelist_program_code
+            FROM student_numbers sn
+            LEFT JOIN academic_programs ap ON ap.program_id = sn.program_id
+            WHERE sn.student_number = :sn
+              AND sn.is_active = 1
+            LIMIT 1
         ");
         $snStmt->execute([':sn' => $req['student_number']]);
         $snRecord = $snStmt->fetch();
@@ -45,18 +59,18 @@ try {
             jsonError('Student number ' . $req['student_number'] . ' is not in the student numbers database. Cannot approve.', 422);
         }
 
-        // Resolve program from pending request program_code first, then fallback to whitelist program_id.
+        // Resolve program from whitelist first (canonical), then fallback to pending request program_code.
         $programId = 0;
-        if (!empty($req['program_code'])) {
+        if (!empty($snRecord['program_id'])) {
+            $programId = (int)$snRecord['program_id'];
+        }
+        if ($programId <= 0 && !empty($req['program_code'])) {
             $progStmt = $pdo->prepare("SELECT program_id FROM academic_programs WHERE program_code = :code LIMIT 1");
             $progStmt->execute([':code' => $req['program_code']]);
             $prog = $progStmt->fetch();
             if ($prog) {
                 $programId = (int)$prog['program_id'];
             }
-        }
-        if ($programId <= 0 && !empty($snRecord['program_id'])) {
-            $programId = (int)$snRecord['program_id'];
         }
         if ($programId <= 0) {
             jsonError("Program for this registration request is not resolvable.", 422);
@@ -69,7 +83,7 @@ try {
         $firstName = count($parts) > 0 ? implode(' ', $parts) : $fullName;
 
         $email    = $req['email'];
-        $yearSec  = $req['year_section'] ?: $snRecord['year_section'];
+        $yearSec  = $req['year_section'] ?: null;
 
         // Check for existing user — always resolve $userId
         $dupStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn OR email = :email LIMIT 1");
@@ -77,38 +91,70 @@ try {
         $existingUser = $dupStmt->fetch();
         if (!$existingUser) {
             // Create user
-            $insUser = $pdo->prepare("
-                INSERT INTO users
-                    (student_number, email, password_hash, first_name, last_name,
-                     phone, account_type, has_unpaid_debt, is_active, program_id, institute_id, year_section)
-                VALUES (:sn, :email, :pw, :fn, :ln, :phone, 'student', 0, 1, :pid, :iid, :ys)
-            ");
-            $insUser->execute([
-                ':sn'    => $req['student_number'],
-                ':email' => $email,
-                ':pw'    => $req['password_hash'],
-                ':fn'    => $firstName,
-                ':ln'    => $lastName,
-                ':phone' => $req['phone'] ?? null,
-                ':pid'   => $programId,
-                ':iid'   => $snRecord['institute_id'] ?? null,
-                ':ys'    => $yearSec ?: null,
-            ]);
+            if ($usersHasYearSection) {
+                $insUser = $pdo->prepare("
+                    INSERT INTO users
+                        (student_number, email, password_hash, first_name, last_name,
+                         phone, account_type, has_unpaid_debt, is_active, program_id, institute_id, year_section)
+                    VALUES (:sn, :email, :pw, :fn, :ln, :phone, 'student', 0, 1, :pid, :iid, :ys)
+                ");
+                $insUser->execute([
+                    ':sn'    => $req['student_number'],
+                    ':email' => $email,
+                    ':pw'    => $req['password_hash'],
+                    ':fn'    => $firstName,
+                    ':ln'    => $lastName,
+                    ':phone' => $req['phone'] ?? null,
+                    ':pid'   => $programId,
+                    ':iid'   => $snRecord['institute_id'] ?? null,
+                    ':ys'    => $yearSec ?: null,
+                ]);
+            } else {
+                $insUser = $pdo->prepare("
+                    INSERT INTO users
+                        (student_number, email, password_hash, first_name, last_name,
+                         phone, account_type, has_unpaid_debt, is_active, program_id, institute_id)
+                    VALUES (:sn, :email, :pw, :fn, :ln, :phone, 'student', 0, 1, :pid, :iid)
+                ");
+                $insUser->execute([
+                    ':sn'    => $req['student_number'],
+                    ':email' => $email,
+                    ':pw'    => $req['password_hash'],
+                    ':fn'    => $firstName,
+                    ':ln'    => $lastName,
+                    ':phone' => $req['phone'] ?? null,
+                    ':pid'   => $programId,
+                    ':iid'   => $snRecord['institute_id'] ?? null,
+                ]);
+            }
             $userId = (int)$pdo->lastInsertId();
         } else {
             $userId = (int)$existingUser['user_id'];
-            $pdo->prepare("
-                UPDATE users
-                SET program_id = :pid,
-                    institute_id = :iid,
-                    year_section = :ys
-                WHERE user_id = :uid
-            ")->execute([
-                ':pid' => $programId,
-                ':iid' => $snRecord['institute_id'] ?? null,
-                ':ys' => $yearSec ?: null,
-                ':uid' => $userId,
-            ]);
+            if ($usersHasYearSection) {
+                $pdo->prepare("
+                    UPDATE users
+                    SET program_id = :pid,
+                        institute_id = :iid,
+                        year_section = :ys
+                    WHERE user_id = :uid
+                ")->execute([
+                    ':pid' => $programId,
+                    ':iid' => $snRecord['institute_id'] ?? null,
+                    ':ys' => $yearSec ?: null,
+                    ':uid' => $userId,
+                ]);
+            } else {
+                $pdo->prepare("
+                    UPDATE users
+                    SET program_id = :pid,
+                        institute_id = :iid
+                    WHERE user_id = :uid
+                ")->execute([
+                    ':pid' => $programId,
+                    ':iid' => $snRecord['institute_id'] ?? null,
+                    ':uid' => $userId,
+                ]);
+            }
         }
 
         // If org_officer request, add/update org membership
