@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 27, 2026 at 10:15 AM
+-- Generation Time: Feb 28, 2026 at 12:59 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -388,7 +388,8 @@ CREATE TABLE `organization_members` (
 INSERT INTO `organization_members` (`membership_id`, `user_id`, `org_id`, `role_id`, `joined_at`, `is_active`, `created_at`, `updated_at`) VALUES
 (3, 4, 2, 10, '2026-02-27', 1, '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
 (4, 5, 3, 11, '2026-02-27', 1, '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
-(5, 6, 2, 10, '2026-02-27', 1, '2026-02-27 13:48:26', '2026-02-27 13:48:26');
+(5, 6, 2, 10, '2026-02-27', 1, '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
+(6, 7, 1, 12, '2026-02-28', 1, '2026-02-28 19:45:28', '2026-02-28 19:45:28');
 
 --
 -- Triggers `organization_members`
@@ -422,7 +423,8 @@ CREATE TABLE `org_roles` (
 
 INSERT INTO `org_roles` (`role_id`, `org_id`, `role_name`, `can_access_org_dashboard`, `is_active`, `created_at`, `updated_at`) VALUES
 (10, 2, 'officer', 1, 1, '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
-(11, 3, 'officer', 1, 1, '2026-02-27 13:46:39', '2026-02-27 13:46:39');
+(11, 3, 'officer', 1, 1, '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
+(12, 1, 'officer', 1, 1, '2026-02-28 19:45:28', '2026-02-28 19:45:28');
 
 --
 -- Triggers `org_roles`
@@ -464,11 +466,11 @@ CREATE TABLE `pending_registrations` (
 --
 
 INSERT INTO `pending_registrations` (`reg_id`, `student_number`, `student_name`, `email`, `phone`, `password_hash`, `program_code`, `year_section`, `requested_role`, `requested_org`, `status`, `reviewed_by_user_id`, `reviewer_notes`, `requested_at`, `reviewed_at`, `updated_at`) VALUES
-(1, 'ISstudent', 'ISstudent', 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$TYRv/U.13zlAuolfsEEawuI1knp3BAkPMYRsbcHjuzpUJazMCvLsi', 'BSAIS', '3-2', 'student', NULL, 'approved', 1, NULL, '2026-02-25 18:34:35', '2026-02-25 18:48:16', '2026-02-25 18:48:16'),
 (2, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'BSAIT', '3-2', 'student', NULL, 'approved', 1, NULL, '2026-02-25 18:41:30', '2026-02-25 18:48:15', '2026-02-25 18:48:15'),
 (3, 'aisers', 'aisers', 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, NULL, '2026-02-27 11:44:03', '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
 (4, 'elitech', 'elitech', 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'BSAIT', '3-2', 'org_officer', 'ELITECH', 'approved', 1, NULL, '2026-02-27 13:46:28', '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
-(5, '12324MN-000094', 'Charles Gabriel A. Martinez', 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, NULL, '2026-02-27 13:48:15', '2026-02-27 13:48:26', '2026-02-27 13:48:26');
+(5, '12324MN-000094', 'Charles Gabriel A. Martinez', 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, NULL, '2026-02-27 13:48:15', '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
+(6, 'ssc', 'ssc', 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'BSAIS', '3-2', 'org_officer', 'Supreme Student Council', 'approved', 1, NULL, '2026-02-28 19:37:43', '2026-02-28 19:45:28', '2026-02-28 19:45:28');
 
 --
 -- Triggers `pending_registrations`
@@ -672,6 +674,7 @@ CREATE TABLE `student_numbers` (
   `sn_id` int(11) NOT NULL,
   `student_number` varchar(20) NOT NULL,
   `student_name` varchar(200) NOT NULL,
+  `year_section` varchar(50) DEFAULT NULL,
   `program_id` int(11) DEFAULT NULL,
   `institute_id` int(11) DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
@@ -684,12 +687,13 @@ CREATE TABLE `student_numbers` (
 -- Dumping data for table `student_numbers`
 --
 
-INSERT INTO `student_numbers` (`sn_id`, `student_number`, `student_name`, `program_id`, `institute_id`, `is_active`, `added_by_user_id`, `added_at`, `updated_at`) VALUES
-(1, 'ISstudent', 'ISstudent', 2, 1, 1, 1, '2026-02-25 18:29:37', '2026-02-27 16:21:25'),
-(2, 'ITstudent', 'ITstudent', 1, 1, 1, 1, '2026-02-25 18:41:23', '2026-02-27 16:21:25'),
-(3, 'aisers', 'aisers', 2, 1, 1, 1, '2026-02-27 11:43:50', '2026-02-27 16:21:25'),
-(4, 'elitech', 'elitech', 1, 1, 1, 1, '2026-02-27 13:46:19', '2026-02-27 16:21:25'),
-(5, '12324MN-000094', 'Charles Gabriel A. Martinez', 2, 1, 1, 1, '2026-02-27 13:47:48', '2026-02-27 16:21:25');
+INSERT INTO `student_numbers` (`sn_id`, `student_number`, `student_name`, `year_section`, `program_id`, `institute_id`, `is_active`, `added_by_user_id`, `added_at`, `updated_at`) VALUES
+(1, 'ISstudent', 'ISstudent', '3-2', 2, 1, 1, 1, '2026-02-25 18:29:37', '2026-02-27 17:23:07'),
+(2, 'ITstudent', 'ITstudent', '3-2', 1, 1, 1, 1, '2026-02-25 18:41:23', '2026-02-27 17:23:07'),
+(3, 'aisers', 'aisers', '3-2', 2, 1, 1, 1, '2026-02-27 11:43:50', '2026-02-27 17:23:07'),
+(4, 'elitech', 'elitech', '3-2', 1, 1, 1, 1, '2026-02-27 13:46:19', '2026-02-27 17:23:07'),
+(5, '12324MN-000094', 'Charles Gabriel A. Martinez', '3-2', 2, 1, 1, 1, '2026-02-27 13:47:48', '2026-02-27 17:23:07'),
+(6, 'ssc', 'ssc', '3-2', 2, 1, 1, 1, '2026-02-28 19:37:41', '2026-02-28 19:37:41');
 
 --
 -- Triggers `student_numbers`
@@ -714,7 +718,6 @@ CREATE TABLE `users` (
   `institute_id` int(11) DEFAULT NULL,
   `first_name` varchar(100) NOT NULL,
   `last_name` varchar(100) NOT NULL,
-  `year_section` varchar(50) DEFAULT NULL,
   `employee_number` varchar(20) DEFAULT NULL,
   `email` varchar(255) NOT NULL,
   `phone` varchar(30) DEFAULT NULL,
@@ -731,13 +734,13 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`user_id`, `student_number`, `program_id`, `institute_id`, `first_name`, `last_name`, `year_section`, `employee_number`, `email`, `phone`, `password_hash`, `account_type`, `has_unpaid_debt`, `is_active`, `last_login_at`, `created_at`, `updated_at`) VALUES
-(1, NULL, NULL, NULL, 'osa', '-', NULL, 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-02-27 13:48:21', '2026-02-25 18:19:21', '2026-02-27 13:48:21'),
-(2, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', '3-2', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'student', 0, 1, '2026-02-25 18:50:04', '2026-02-25 18:48:15', '2026-02-27 17:12:24'),
-(3, 'ISstudent', 2, 1, 'ISstudent', 'ISstudent', '3-2', NULL, 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$TYRv/U.13zlAuolfsEEawuI1knp3BAkPMYRsbcHjuzpUJazMCvLsi', 'student', 0, 1, '2026-02-25 18:49:54', '2026-02-25 18:48:16', '2026-02-27 17:12:24'),
-(4, 'aisers', 2, 1, 'aisers', 'aisers', '3-2', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-02-27 14:19:46', '2026-02-27 11:44:45', '2026-02-27 17:12:24'),
-(5, 'elitech', 1, 1, 'elitech', 'elitech', '3-2', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'student', 0, 1, '2026-02-27 14:19:35', '2026-02-27 13:46:39', '2026-02-27 17:12:24'),
-(6, '12324MN-000094', 2, 1, 'Charles Gabriel A.', 'Martinez', '3-2', NULL, 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'student', 0, 1, '2026-02-27 13:48:36', '2026-02-27 13:48:26', '2026-02-27 17:12:24');
+INSERT INTO `users` (`user_id`, `student_number`, `program_id`, `institute_id`, `first_name`, `last_name`, `employee_number`, `email`, `phone`, `password_hash`, `account_type`, `has_unpaid_debt`, `is_active`, `last_login_at`, `created_at`, `updated_at`) VALUES
+(1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-02-28 19:36:02', '2026-02-25 18:19:21', '2026-02-28 19:36:02'),
+(2, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'student', 0, 1, '2026-02-27 17:18:46', '2026-02-25 18:48:15', '2026-02-27 17:18:46'),
+(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-02-28 19:51:55', '2026-02-27 11:44:45', '2026-02-28 19:51:55'),
+(5, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'student', 0, 1, '2026-02-27 17:43:16', '2026-02-27 13:46:39', '2026-02-27 17:43:16'),
+(6, '12324MN-000094', 2, 1, 'Charles Gabriel A.', 'Martinez', NULL, 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'student', 0, 1, '2026-02-27 17:32:33', '2026-02-27 13:48:26', '2026-02-27 17:32:33'),
+(7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-02-28 19:45:38', '2026-02-28 19:45:28', '2026-02-28 19:45:38');
 
 --
 -- Triggers `users`
@@ -959,7 +962,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `academic_programs`
 --
 ALTER TABLE `academic_programs`
-  MODIFY `program_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+  MODIFY `program_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `announcements`
@@ -1019,13 +1022,13 @@ ALTER TABLE `organizations`
 -- AUTO_INCREMENT for table `organization_members`
 --
 ALTER TABLE `organization_members`
-  MODIFY `membership_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `membership_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `org_roles`
 --
 ALTER TABLE `org_roles`
-  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `pending_registrations`
@@ -1055,7 +1058,7 @@ ALTER TABLE `rental_items`
 -- AUTO_INCREMENT for table `student_numbers`
 --
 ALTER TABLE `student_numbers`
-  MODIFY `sn_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `sn_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `users`
