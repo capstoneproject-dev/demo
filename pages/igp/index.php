@@ -218,8 +218,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                                 <thead style="position: sticky; top: 0; background: white; z-index: 1;">
                                     <tr>
                                         <th>Action</th>
-                                        <th>Item ID</th>
-                                        <th>Name</th>
+                                        <th>Name/Item ID</th>
                                         <th>Rented By</th>
                                         <th>Section</th>
                                         <th>Time Rented</th>
@@ -338,5 +337,4 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 </body>
 
 </html>
-
 

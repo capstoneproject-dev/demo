@@ -10,6 +10,22 @@ require_once __DIR__ . '/../config/db.php';
 class IgpValidationException extends RuntimeException {}
 class IgpAuthorizationException extends RuntimeException {}
 
+function igpColumnExists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = :table_name
+           AND COLUMN_NAME = :column_name"
+    );
+    $stmt->execute([
+        ':table_name' => $table,
+        ':column_name' => $column,
+    ]);
+    return ((int)$stmt->fetchColumn() > 0);
+}
+
 function igpRequireOfficerOrgContext(): array
 {
     $session = getPhpSession();
@@ -262,6 +278,19 @@ function igpDeleteInventoryItem(PDO $pdo, int $orgId, int $itemId): void
 
 function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
 {
+    $hasUsersYearSection = igpColumnExists($pdo, 'users', 'year_section');
+    $hasStudentNumbersYearSection = igpColumnExists($pdo, 'student_numbers', 'year_section');
+
+    if ($hasUsersYearSection && $hasStudentNumbersYearSection) {
+        $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), NULLIF(ru.year_section, ''), '')";
+    } elseif ($hasStudentNumbersYearSection) {
+        $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), '')";
+    } elseif ($hasUsersYearSection) {
+        $renterSectionExpr = "COALESCE(NULLIF(ru.year_section, ''), '')";
+    } else {
+        $renterSectionExpr = "''";
+    }
+
     $where = ["r.org_id = :org"];
     $params = [':org' => $orgId];
 
@@ -296,6 +325,7 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
              r.renter_user_id,
              CONCAT(ru.first_name, ' ', ru.last_name) AS renter_name,
              ru.student_number AS renter_student_number,
+             {$renterSectionExpr} AS renter_section,
              r.processed_by_user_id,
              CONCAT(pu.first_name, ' ', pu.last_name) AS processor_name,
              r.rent_time,
@@ -308,10 +338,12 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
              r.status,
              r.notes,
              SUM(ri.quantity) AS item_count,
+             SUM(ri.unit_rate * ri.quantity) AS hourly_total,
              GROUP_CONCAT(CONCAT(i.item_name, ' [', i.barcode, ']') ORDER BY i.item_name SEPARATOR ', ') AS items_label
       FROM rentals r
       JOIN users ru ON ru.user_id = r.renter_user_id
       JOIN users pu ON pu.user_id = r.processed_by_user_id
+      LEFT JOIN student_numbers sn ON sn.student_number = ru.student_number
       JOIN rental_items ri ON ri.rental_id = r.rental_id
       JOIN inventory_items i ON i.item_id = ri.item_id
       WHERE " . implode(' AND ', $where) . "
@@ -327,6 +359,7 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
         $r['processed_by_user_id'] = (int)$r['processed_by_user_id'];
         $r['item_count'] = (int)$r['item_count'];
         $r['total_cost'] = (float)$r['total_cost'];
+        $r['hourly_total'] = (float)$r['hourly_total'];
     }
     return $rows;
 }
@@ -429,7 +462,8 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
             throw new IgpValidationException('Item is not currently available for rent.');
         }
 
-        $rentTime = new DateTimeImmutable('now');
+        $tz = new DateTimeZone('Asia/Manila');
+        $rentTime = new DateTimeImmutable('now', $tz);
         $expected = $rentTime->modify('+' . $hours . ' hours');
         $unitRate = (float)$item['hourly_rate'];
         $itemCost = $unitRate * $hours;
@@ -520,7 +554,8 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
         $items = $itemsStmt->fetchAll();
         if (!$items) throw new IgpValidationException('No rental items found.');
 
-        $actual = new DateTimeImmutable('now');
+        $tz = new DateTimeZone('Asia/Manila');
+        $actual = new DateTimeImmutable('now', $tz);
         $expected = new DateTimeImmutable($rental['expected_return_time']);
         $baseCost = 0.0;
         $overtimeCost = 0.0;
