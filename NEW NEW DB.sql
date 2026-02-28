@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 28, 2026 at 06:16 PM
+-- Generation Time: Feb 28, 2026 at 06:29 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -143,6 +143,23 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `documents_approved`
+--
+
+CREATE TABLE `documents_approved` (
+  `repo_id` int(11) NOT NULL,
+  `submission_id` int(11) NOT NULL,
+  `org_id` int(11) NOT NULL,
+  `approved_by_user_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `document_type` varchar(50) NOT NULL,
+  `file_url` varchar(500) DEFAULT NULL,
+  `approved_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `document_submissions`
 --
 
@@ -166,6 +183,17 @@ CREATE TABLE `document_submissions` (
 --
 -- Triggers `document_submissions`
 --
+DELIMITER $$
+CREATE TRIGGER `trg_doc_sub_to_repo` AFTER UPDATE ON `document_submissions` FOR EACH ROW BEGIN
+  IF NEW.status='approved' AND OLD.status <> 'approved' THEN
+    INSERT INTO approved_documents (submission_id, org_id, approved_by_user_id, title, document_type, file_url, approved_at)
+    VALUES (NEW.submission_id, NEW.org_id, COALESCE(NEW.reviewed_by_user_id, NEW.submitted_by_user_id),
+            NEW.title, NEW.document_type, NEW.file_url, NOW())
+    ON DUPLICATE KEY UPDATE approved_at = VALUES(approved_at), file_url = VALUES(file_url);
+  END IF;
+END
+$$
+DELIMITER ;
 DELIMITER $$
 CREATE TRIGGER `trg_document_submissions_updated_at` BEFORE UPDATE ON `document_submissions` FOR EACH ROW BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
@@ -818,6 +846,15 @@ ALTER TABLE `attendance_records`
   ADD KEY `idx_attendance_user` (`user_id`);
 
 --
+-- Indexes for table `documents_approved`
+--
+ALTER TABLE `documents_approved`
+  ADD PRIMARY KEY (`repo_id`),
+  ADD UNIQUE KEY `submission_id` (`submission_id`),
+  ADD KEY `fk_repo_org` (`org_id`),
+  ADD KEY `fk_repo_approver` (`approved_by_user_id`);
+
+--
 -- Indexes for table `document_submissions`
 --
 ALTER TABLE `document_submissions`
@@ -971,6 +1008,12 @@ ALTER TABLE `attendance_records`
   MODIFY `record_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `documents_approved`
+--
+ALTER TABLE `documents_approved`
+  MODIFY `repo_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `document_submissions`
 --
 ALTER TABLE `document_submissions`
@@ -1077,6 +1120,14 @@ ALTER TABLE `announcements`
 ALTER TABLE `attendance_records`
   ADD CONSTRAINT `fk_attendance_event` FOREIGN KEY (`event_id`) REFERENCES `events` (`event_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_attendance_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `documents_approved`
+--
+ALTER TABLE `documents_approved`
+  ADD CONSTRAINT `fk_repo_approver` FOREIGN KEY (`approved_by_user_id`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `fk_repo_org` FOREIGN KEY (`org_id`) REFERENCES `organizations` (`org_id`),
+  ADD CONSTRAINT `fk_repo_submission` FOREIGN KEY (`submission_id`) REFERENCES `document_submissions` (`submission_id`);
 
 --
 -- Constraints for table `document_submissions`
