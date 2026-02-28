@@ -19,7 +19,8 @@
 
     function fmtDate(s) {
         if (!s) return '-';
-        const d = new Date(s);
+        const raw = String(s).trim();
+        const d = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T'));
         if (Number.isNaN(d.getTime())) return '-';
         return d.toLocaleString();
     }
@@ -27,7 +28,8 @@
     function dueClock(expectedReturn) {
         if (!expectedReturn) return '-';
         const now = Date.now();
-        const due = new Date(expectedReturn).getTime();
+        const raw = String(expectedReturn).trim();
+        const due = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
         if (Number.isNaN(due)) return '-';
         let diff = due - now;
         const neg = diff < 0;
@@ -101,18 +103,18 @@
             // Extract barcode from items_label (format: "ItemName [BARCODE]")
             const barcodeMatch = String(r.items_label || '').match(/\[([^\]]+)\]/);
             const itemBarcode = barcodeMatch ? barcodeMatch[1] : r.rental_id;
+            const itemLabelBase = String(r.items_label || '-').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || '-';
             
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td><button class="btn btn-warning btn-sm js-return" data-rid="${r.rental_id}">Return</button></td>
-                <td>${itemBarcode}</td>
-                <td>${r.items_label || '-'}</td>
+                <td>${itemLabelBase} [${itemBarcode}]</td>
                 <td>${r.renter_name || '-'} (${r.renter_student_number || '-'})</td>
-                <td>-</td>
+                <td>${r.renter_section || '-'}</td>
                 <td>${fmtDate(r.rent_time)}</td>
                 <td>${fmtDate(r.expected_return_time)}</td>
                 <td>${dueClock(r.expected_return_time)}</td>
-                <td>${Number(r.total_cost || 0).toFixed(2)}</td>
+                <td>${Number(accumulatedPrice(r)).toFixed(2)}</td>
                 <td>${r.status}</td>
             `;
             tbody.appendChild(row);
@@ -231,6 +233,22 @@
 
     function peso(v) {
         return `PHP ${Number(v || 0).toFixed(2)}`;
+    }
+
+    function accumulatedPrice(rental) {
+        if (!rental) return 0;
+        if (String(rental.status || '').toLowerCase() !== 'active') {
+            return Number(rental.total_cost || 0);
+        }
+        const hourly = Number(rental.hourly_total || 0);
+        const raw = String(rental.rent_time || '').trim();
+        const start = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
+        if (Number.isNaN(start) || hourly <= 0) {
+            return Number(rental.total_cost || 0);
+        }
+        const elapsedMs = Math.max(0, Date.now() - start);
+        const elapsedHours = Math.max(1, Math.ceil(elapsedMs / 3600000));
+        return hourly * elapsedHours;
     }
 
     function getModalInstance(id) {
