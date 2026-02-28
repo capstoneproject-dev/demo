@@ -7,20 +7,52 @@ apiGuard();
 
 try {
     $ctx = igpRequireOfficerOrgContext();
-    $stmt = getPdo()->prepare(
+    $pdo = getPdo();
+
+    $hasUsersYearSectionStmt = $pdo->prepare("
+        SELECT COUNT(*) AS cnt
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'users'
+          AND COLUMN_NAME = 'year_section'
+    ");
+    $hasUsersYearSectionStmt->execute();
+    $hasUsersYearSection = ((int)$hasUsersYearSectionStmt->fetchColumn() > 0);
+
+    $hasSnYearSectionStmt = $pdo->prepare("
+        SELECT COUNT(*) AS cnt
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'student_numbers'
+          AND COLUMN_NAME = 'year_section'
+    ");
+    $hasSnYearSectionStmt->execute();
+    $hasSnYearSection = ((int)$hasSnYearSectionStmt->fetchColumn() > 0);
+
+    if ($hasUsersYearSection && $hasSnYearSection) {
+        $sectionExpr = "COALESCE(NULLIF(u.year_section, ''), NULLIF(sn.year_section, ''), '')";
+    } elseif ($hasUsersYearSection) {
+        $sectionExpr = "COALESCE(NULLIF(u.year_section, ''), '')";
+    } elseif ($hasSnYearSection) {
+        $sectionExpr = "COALESCE(NULLIF(sn.year_section, ''), '')";
+    } else {
+        $sectionExpr = "''";
+    }
+
+    $stmt = $pdo->prepare(
         "SELECT u.user_id,
                 u.student_number AS studentId,
                 CONCAT(u.first_name, ' ', u.last_name) AS studentName,
-                sp.program_id AS programId,
-                COALESCE(sp.section, '') AS section,
+                COALESCE(u.program_id, sn.program_id) AS programId,
+                {$sectionExpr} AS section,
                 COALESCE(ap.program_code, '') AS programCode,
                 CASE WHEN pom.program_id IS NULL THEN 0 ELSE 1 END AS isOrgProgram,
                 u.is_active AS isActive
          FROM users u
-         LEFT JOIN student_profiles sp ON sp.user_id = u.user_id
-         LEFT JOIN academic_programs ap ON ap.program_id = sp.program_id
+         LEFT JOIN student_numbers sn ON sn.student_number = u.student_number
+         LEFT JOIN academic_programs ap ON ap.program_id = COALESCE(u.program_id, sn.program_id)
          LEFT JOIN program_org_mappings pom
-                ON pom.program_id = sp.program_id
+                ON pom.program_id = COALESCE(u.program_id, sn.program_id)
                AND pom.org_id = :org
                AND pom.is_active = 1
          WHERE u.account_type = 'student'
