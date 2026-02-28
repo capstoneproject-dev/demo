@@ -756,6 +756,22 @@ function renderAnnouncements() {
     `).join('');
 }
 
+function toggleEventSyncFields() {
+    const checkbox = document.getElementById('sync-event');
+    const container = document.getElementById('event-sync-fields');
+    if (!checkbox || !container) return;
+    container.style.display = checkbox.checked ? 'block' : 'none';
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
 async function fetchAnnouncementsFromApi() {
     try {
         const res = await fetch('../api/announcements/list.php', { credentials: 'same-origin' });
@@ -840,12 +856,40 @@ function handleDocSubmit(e) {
     alert(`Document successfully sent to ${recipient}.`);
 }
 
+function formatTimeRange(start, end) {
+    if (!start || !end) return '';
+    return `${start} - ${end}`;
+}
+
 async function postAnnouncement(e) {
     e.preventDefault();
     const title = document.getElementById('ann-title').value;
     const content = document.getElementById('ann-content').value;
     const audience = document.getElementById('ann-audience') ? document.getElementById('ann-audience').value : 'all_students';
     const syncEvent = document.getElementById('sync-event').checked; // Get checkbox state
+    const eventDate = document.getElementById('event-date')?.value || '';
+    const eventTimeStart = (document.getElementById('event-time-start')?.value || '').trim();
+    const eventTimeEnd   = (document.getElementById('event-time-end')?.value || '').trim();
+    const eventTimeRange = formatTimeRange(eventTimeStart, eventTimeEnd);
+    const eventLocation = document.getElementById('event-location')?.value || '';
+    const eventPhotoFile = document.getElementById('event-photo')?.files?.[0];
+    let eventPhotoDataUrl = '';
+
+    if (syncEvent) {
+        if (!eventDate || !eventTimeStart || !eventTimeEnd) {
+            alert('Please select Event Date, Start Time, and End Time.');
+            return;
+        }
+        if (eventPhotoFile) {
+            try {
+                eventPhotoDataUrl = await readFileAsDataUrl(eventPhotoFile);
+            } catch (err) {
+                console.error('Failed to read event photo', err);
+                alert('Could not read the event photo. Please try another image.');
+                return;
+            }
+        }
+    }
 
     try {
         const res = await fetch('../api/announcements/create.php', {
@@ -879,16 +923,38 @@ async function postAnnouncement(e) {
         // 2. CROSS-POSTING LOGIC
         if (syncEvent) {
             const eventsFrame = document.querySelector('#events iframe');
-            if (eventsFrame && eventsFrame.contentWindow) {
-                eventsFrame.contentWindow.postMessage({
-                    type: 'CREATE_EVENT',
-                    eventName: title,
-                    description: content,
-                    date: new Date().toISOString().split('T')[0] // YYYY-MM-DD
-                }, '*');
-                alert(`Announcement Posted & Event "${title}" created in Attendance System!`);
+            const payload = {
+                type: 'CREATE_EVENT',
+                eventName: title,
+                description: content,
+                date: eventDate || new Date().toISOString().split('T')[0],
+                time: eventTimeRange || eventTimeStart,
+                location: eventLocation || 'TBA',
+                photo: eventPhotoDataUrl
+            };
+
+            const sendToEventsFrame = () => {
+                try {
+                    eventsFrame.contentWindow.postMessage(payload, '*');
+                    alert(`Announcement Posted & Event "${title}" created in Attendance System!`);
+                } catch (_err) {
+                    alert("Announcement posted, but could not sync to Events tab (Frame not loaded).");
+                }
+            };
+
+            if (eventsFrame) {
+                // Ensure iframe is loaded before posting
+                if (eventsFrame.contentWindow && eventsFrame.contentDocument?.readyState === 'complete') {
+                    sendToEventsFrame();
+                } else {
+                    eventsFrame.addEventListener('load', sendToEventsFrame, { once: true });
+                    // If src is empty, set it to events page to trigger load
+                    if (!eventsFrame.src) {
+                        eventsFrame.src = "../pages/qr-attendance/events.php";
+                    }
+                }
             } else {
-                alert("Announcement posted, but could not sync to Events tab (Frame not loaded).");
+                alert("Announcement posted, but Events frame is missing.");
             }
         } else {
             alert("Announcement Posted!");

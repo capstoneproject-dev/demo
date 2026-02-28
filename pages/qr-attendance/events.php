@@ -1071,13 +1071,26 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 console.log("Received Cross-Post Request (Events Tab):", event.data);
 
                 try {
+                    // Build a proper datetime using the start time (if provided)
+                    const timeRangeRaw = String(event.data.time || '').trim();
+                    const startTime = timeRangeRaw.includes('-')
+                        ? timeRangeRaw.split('-')[0].trim()
+                        : timeRangeRaw;
+                    let eventDateTime = String(event.data.date || '').trim();
+                    if (eventDateTime) {
+                        eventDateTime = startTime
+                            ? `${eventDateTime} ${startTime}`
+                            : `${eventDateTime} 00:00`;
+                    }
                     await qrApiRequest('/events/save.php', {
                         method: 'POST',
                         body: JSON.stringify({
                             event_name: normalizeEventName(event.data.eventName || ''),
                             description: String(event.data.description || ''),
-                            event_date: String(event.data.date || ''),
-                            location: 'TBA',
+                            event_datetime: eventDateTime,
+                            location: event.data.location || 'TBA',
+                            photo: event.data.photo || '',
+                            time_range: timeRangeRaw,
                             is_published: 1
                         })
                     });

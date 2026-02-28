@@ -612,12 +612,38 @@
 
                         <div class="sync-option">
                             <label>
-                                <input type="checkbox" id="sync-event">
+                                <input type="checkbox" id="sync-event" onclick="toggleEventSyncFields()">
                                 <span class="sync-text">
                                     <i class="fa-solid fa-calendar-plus"></i>
                                     Also create this as an Event
                                 </span>
                             </label>
+                        </div>
+                        <div id="event-sync-fields" style="display:none; margin-top:10px; border:1px dashed var(--border); padding:10px; border-radius:8px;">
+                            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:10px;">
+                                <div>
+                                    <label style="margin-bottom:4px;">Event Date</label>
+                                    <input type="date" id="event-date">
+                                </div>
+                                <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+                                    <div style="flex:1; min-width:120px;">
+                                        <label style="margin-bottom:4px;">Start</label>
+                                        <input type="time" id="event-time-start">
+                                    </div>
+                                    <div style="flex:1; min-width:120px;">
+                                        <label style="margin-bottom:4px;">End</label>
+                                        <input type="time" id="event-time-end">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="margin-bottom:4px;">Location</label>
+                                    <input type="text" id="event-location" placeholder="e.g., Auditorium A">
+                                </div>
+                                <div>
+                                    <label style="margin-bottom:4px;">Event Photo (optional)</label>
+                                    <input type="file" id="event-photo" accept="image/*">
+                                </div>
+                            </div>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <label style="margin: 0; font-weight: 400; font-size: 0.85rem;">

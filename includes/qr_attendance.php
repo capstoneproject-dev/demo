@@ -108,7 +108,8 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
                e.event_name,
                e.description,
                e.location,
-               e.event_date,
+               e.event_datetime,
+               e.event_datetime AS event_date,
                e.event_type_id,
                e.is_published,
                e.created_at,
@@ -122,7 +123,7 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
         LEFT JOIN attendance_records ar ON ar.event_id = e.event_id
         WHERE " . implode(' AND ', $where) . "
         GROUP BY e.event_id
-        ORDER BY COALESCE(MAX(ar.time_in), e.event_date) DESC, e.event_id DESC";
+        ORDER BY COALESCE(MAX(ar.time_in), e.event_datetime) DESC, e.event_id DESC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -144,10 +145,12 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     $eventName = trim((string)($data['event_name'] ?? $data['name'] ?? ''));
     $description = trim((string)($data['description'] ?? ''));
     $location = trim((string)($data['location'] ?? ''));
-    $eventDate = trim((string)($data['event_date'] ?? ''));
+    $eventDate = trim((string)($data['event_datetime'] ?? $data['event_date'] ?? ''));
     $eventTypeId = isset($data['event_type_id']) ? (int)$data['event_type_id'] : 0;
     $eventTypeName = trim((string)($data['event_type_name'] ?? 'QR Attendance'));
     $isPublished = !empty($data['is_published']) ? 1 : 0;
+    $photoDataUrl = trim((string)($data['photo'] ?? ''));
+    $photoBlob = null;
 
     if ($eventName === '') {
         throw new QrAttendanceValidationException('event_name is required.');
@@ -156,9 +159,43 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         throw new QrAttendanceValidationException('Invalid processor user.');
     }
 
+    if ($photoDataUrl !== '') {
+        // Accept full data URLs or plain base64
+        $encoded = $photoDataUrl;
+        if (str_starts_with($photoDataUrl, 'data:')) {
+            $parts = explode(',', $photoDataUrl, 2);
+            if (count($parts) === 2) {
+                $encoded = $parts[1];
+            }
+        }
+        $photoBlob = base64_decode($encoded, true);
+        if ($photoBlob === false) {
+            throw new QrAttendanceValidationException('Invalid photo data.');
+        }
+    }
+
     $tz = new DateTimeZone('Asia/Manila');
     $now = new DateTimeImmutable('now', $tz);
-    if ($eventDate === '') $eventDate = $now->format('Y-m-d');
+    if ($eventDate === '') {
+        $eventDate = $now->format('Y-m-d H:i:s');
+    } else {
+        // Accept "YYYY-MM-DD", "YYYY-MM-DD HH:MM", or ISO "YYYY-MM-DDTHH:MM"
+        $normalized = str_replace('T', ' ', $eventDate);
+        // If only date was provided, add 00:00
+        if (preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $normalized)) {
+            $normalized .= ' 00:00:00';
+        }
+        // If date + time without seconds
+        if (preg_match('/^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}$/', $normalized)) {
+            $normalized .= ':00';
+        }
+        try {
+            $dt = new DateTimeImmutable($normalized, $tz);
+            $eventDate = $dt->format('Y-m-d H:i:s');
+        } catch (Exception $_) {
+            throw new QrAttendanceValidationException('Invalid event_datetime format.');
+        }
+    }
     if ($location === '') $location = 'TBA';
 
     if ($eventTypeId <= 0) {
@@ -177,7 +214,8 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
              SET event_name = :name,
                  description = :description,
                  location = :location,
-                 event_date = :event_date,
+                 event_datetime = :event_datetime,
+                 event_photo = :event_photo,
                  event_type_id = :event_type_id,
                  is_published = :is_published
              WHERE event_id = :id AND org_id = :org"
@@ -186,7 +224,8 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
             ':name' => $eventName,
             ':description' => $description !== '' ? $description : null,
             ':location' => $location,
-            ':event_date' => $eventDate,
+            ':event_datetime' => $eventDate,
+            ':event_photo' => $photoBlob,
             ':event_type_id' => $eventTypeId,
             ':is_published' => $isPublished,
             ':id' => $eventId,
@@ -197,9 +236,9 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
 
     $ins = $pdo->prepare(
         "INSERT INTO events
-            (org_id, created_by_user_id, event_name, description, location, event_date, event_type_id, is_published)
+            (org_id, created_by_user_id, event_name, description, location, event_datetime, event_photo, event_type_id, is_published)
          VALUES
-            (:org, :uid, :name, :description, :location, :event_date, :event_type_id, :is_published)"
+            (:org, :uid, :name, :description, :location, :event_datetime, :event_photo, :event_type_id, :is_published)"
     );
     $ins->execute([
         ':org' => $orgId,
@@ -207,7 +246,8 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         ':name' => $eventName,
         ':description' => $description !== '' ? $description : null,
         ':location' => $location,
-        ':event_date' => $eventDate,
+        ':event_datetime' => $eventDate,
+        ':event_photo' => $photoBlob,
         ':event_type_id' => $eventTypeId,
         ':is_published' => $isPublished,
     ]);
@@ -235,7 +275,7 @@ function qrFindEventIdByName(PDO $pdo, int $orgId, string $eventName): ?int
         "SELECT event_id
          FROM events
          WHERE org_id = :org AND event_name = :name
-         ORDER BY event_date DESC, event_id DESC
+         ORDER BY event_datetime DESC, event_id DESC
          LIMIT 1"
     );
     $stmt->execute([':org' => $orgId, ':name' => $name]);
