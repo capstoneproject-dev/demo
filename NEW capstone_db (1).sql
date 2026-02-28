@@ -168,10 +168,7 @@ CREATE TABLE `events` (
   `description` text DEFAULT NULL,
   `location` varchar(255) NOT NULL,
   `event_date` date NOT NULL,
-  `start_time` time NOT NULL,
-  `end_time` time NOT NULL,
   `event_type_id` int(11) NOT NULL,
-  `approval_status` varchar(20) NOT NULL DEFAULT 'draft',
   `is_published` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()

@@ -203,7 +203,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/QR-Attendance/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
     <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
-    <script src="../../systems/QR-Attendance/lib/script.js?v=20260228c"></script>
+    <script src="../../systems/QR-Attendance/lib/script.js?v=20260228d"></script>
     <script>
         // Utility to check if any of the filter/search/section controls are focused
         function updateBarcodeInputState() {

@@ -234,7 +234,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 id: row.event_id,
                 name: row.event_name,
                 description: row.description || '',
-                status: row.approval_status || 'draft',
+                status: row.status || 'active',
                 createdAt: row.created_at || '',
                 firstDate: row.first_record_date || null,
                 lastDate: row.last_record_date || null,
@@ -351,7 +351,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         id: event.id || event.event_id || null,
                         name: normalizedName,
                         description: event.description || '',
-                        status: event.status || event.approval_status || '',
+                        status: event.status || '',
                         createdAt: event.createdAt || event.created_at || '',
                         records: [],
                         firstDate: event.firstDate || event.first_record_date || null,
@@ -1052,7 +1052,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             event_name: normalizedEventName,
                             description: '',
                             location: 'TBA',
-                            approval_status: 'approved',
                             is_published: 1
                         })
                     });
@@ -1079,7 +1078,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             description: String(event.data.description || ''),
                             event_date: String(event.data.date || ''),
                             location: 'TBA',
-                            approval_status: 'approved',
                             is_published: 1
                         })
                     });

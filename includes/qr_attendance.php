@@ -109,10 +109,7 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
                e.description,
                e.location,
                e.event_date,
-               e.start_time,
-               e.end_time,
                e.event_type_id,
-               e.approval_status,
                e.is_published,
                e.created_at,
                e.updated_at,
@@ -125,7 +122,7 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
         LEFT JOIN attendance_records ar ON ar.event_id = e.event_id
         WHERE " . implode(' AND ', $where) . "
         GROUP BY e.event_id
-        ORDER BY COALESCE(MAX(ar.time_in), CONCAT(e.event_date, ' ', e.start_time)) DESC, e.event_id DESC";
+        ORDER BY COALESCE(MAX(ar.time_in), e.event_date) DESC, e.event_id DESC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -148,11 +145,8 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     $description = trim((string)($data['description'] ?? ''));
     $location = trim((string)($data['location'] ?? ''));
     $eventDate = trim((string)($data['event_date'] ?? ''));
-    $startTime = trim((string)($data['start_time'] ?? ''));
-    $endTime = trim((string)($data['end_time'] ?? ''));
     $eventTypeId = isset($data['event_type_id']) ? (int)$data['event_type_id'] : 0;
     $eventTypeName = trim((string)($data['event_type_name'] ?? 'QR Attendance'));
-    $approvalStatus = trim((string)($data['approval_status'] ?? 'draft'));
     $isPublished = !empty($data['is_published']) ? 1 : 0;
 
     if ($eventName === '') {
@@ -165,14 +159,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     $tz = new DateTimeZone('Asia/Manila');
     $now = new DateTimeImmutable('now', $tz);
     if ($eventDate === '') $eventDate = $now->format('Y-m-d');
-    if ($startTime === '') $startTime = '00:00:00';
-    if ($endTime === '') $endTime = '23:59:59';
     if ($location === '') $location = 'TBA';
-
-    $allowedStatus = ['draft', 'pending', 'approved', 'rejected', 'cancelled'];
-    if (!in_array($approvalStatus, $allowedStatus, true)) {
-        $approvalStatus = 'draft';
-    }
 
     if ($eventTypeId <= 0) {
         $eventTypeId = qrGetOrCreateEventTypeId($pdo, $orgId, $eventTypeName);
@@ -191,10 +178,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
                  description = :description,
                  location = :location,
                  event_date = :event_date,
-                 start_time = :start_time,
-                 end_time = :end_time,
                  event_type_id = :event_type_id,
-                 approval_status = :approval_status,
                  is_published = :is_published
              WHERE event_id = :id AND org_id = :org"
         );
@@ -203,10 +187,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
             ':description' => $description !== '' ? $description : null,
             ':location' => $location,
             ':event_date' => $eventDate,
-            ':start_time' => $startTime,
-            ':end_time' => $endTime,
             ':event_type_id' => $eventTypeId,
-            ':approval_status' => $approvalStatus,
             ':is_published' => $isPublished,
             ':id' => $eventId,
             ':org' => $orgId,
@@ -216,9 +197,9 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
 
     $ins = $pdo->prepare(
         "INSERT INTO events
-            (org_id, created_by_user_id, event_name, description, location, event_date, start_time, end_time, event_type_id, approval_status, is_published)
+            (org_id, created_by_user_id, event_name, description, location, event_date, event_type_id, is_published)
          VALUES
-            (:org, :uid, :name, :description, :location, :event_date, :start_time, :end_time, :event_type_id, :approval_status, :is_published)"
+            (:org, :uid, :name, :description, :location, :event_date, :event_type_id, :is_published)"
     );
     $ins->execute([
         ':org' => $orgId,
@@ -227,10 +208,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         ':description' => $description !== '' ? $description : null,
         ':location' => $location,
         ':event_date' => $eventDate,
-        ':start_time' => $startTime,
-        ':end_time' => $endTime,
         ':event_type_id' => $eventTypeId,
-        ':approval_status' => $approvalStatus,
         ':is_published' => $isPublished,
     ]);
     return (int)$pdo->lastInsertId();

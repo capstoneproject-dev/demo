@@ -225,16 +225,10 @@ CREATE TABLE events (
     description TEXT NULL,
     location VARCHAR(255) NOT NULL,
     event_date DATE NOT NULL,
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
     event_type_id INT NOT NULL,
-    approval_status VARCHAR(20) NOT NULL DEFAULT 'draft',
     is_published TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_events_approval CHECK (approval_status IN ('draft', 'pending', 'approved', 'rejected')),
-    CONSTRAINT chk_events_time CHECK (end_time > start_time),
-    CONSTRAINT chk_events_publish CHECK (is_published = 0 OR approval_status = 'approved'),
     CONSTRAINT fk_events_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
     CONSTRAINT fk_events_creator FOREIGN KEY (created_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_events_type FOREIGN KEY (event_type_id) REFERENCES event_types(event_type_id) ON DELETE RESTRICT,
@@ -720,10 +714,10 @@ INSERT INTO event_types (event_type_id, org_id, event_type_name, is_active) VALU
 (2, 2, 'workshop', 1),
 (3, 3, 'meeting', 1);
 
-INSERT INTO events (org_id, created_by_user_id, event_name, description, location, event_date, start_time, end_time, event_type_id, approval_status, is_published) VALUES
-(1, 1, 'AISERS Skills Workshop', 'Technical workshop for AISERS members', 'Lab 1', '2026-03-10', '09:00:00', '12:00:00', 1, 'approved', 1),
-(2, 2, 'Elitech Build Day', 'Electronics prototyping session', 'Lab 2', '2026-03-12', '13:00:00', '17:00:00', 2, 'approved', 1),
-(3, 3, 'CYC Outreach Planning', 'Community outreach preparation', 'Student Hub', '2026-03-15', '10:00:00', '12:00:00', 3, 'approved', 1);
+INSERT INTO events (org_id, created_by_user_id, event_name, description, location, event_date, event_type_id, is_published) VALUES
+(1, 1, 'AISERS Skills Workshop', 'Technical workshop for AISERS members', 'Lab 1', '2026-03-10', 1, 1),
+(2, 2, 'Elitech Build Day', 'Electronics prototyping session', 'Lab 2', '2026-03-12', 2, 1),
+(3, 3, 'CYC Outreach Planning', 'Community outreach preparation', 'Student Hub', '2026-03-15', 3, 1);
 
 INSERT INTO announcements (org_id, created_by_user_id, title, content, audience_type, is_published, published_at) VALUES
 (1, 1, 'AISERS Rental Desk Open', 'AISERS members may now reserve uniform items online.', 'members_only', 1, '2026-02-23 08:00:00'),
