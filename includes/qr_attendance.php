@@ -62,31 +62,6 @@ function qrSplitFullName(string $fullName): array
     return [$first, $last];
 }
 
-function qrGetOrCreateEventTypeId(PDO $pdo, int $orgId, string $eventTypeName = 'QR Attendance'): int
-{
-    $name = trim($eventTypeName);
-    if ($name === '') $name = 'QR Attendance';
-
-    $find = $pdo->prepare(
-        "SELECT event_type_id
-         FROM event_types
-         WHERE org_id = :org AND event_type_name = :name
-         LIMIT 1"
-    );
-    $find->execute([':org' => $orgId, ':name' => $name]);
-    $row = $find->fetch();
-    if ($row) {
-        return (int)$row['event_type_id'];
-    }
-
-    $ins = $pdo->prepare(
-        "INSERT INTO event_types (org_id, event_type_name, is_active)
-         VALUES (:org, :name, 1)"
-    );
-    $ins->execute([':org' => $orgId, ':name' => $name]);
-    return (int)$pdo->lastInsertId();
-}
-
 function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
 {
     $where = ["e.org_id = :org"];
@@ -110,16 +85,13 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
                e.location,
                e.event_datetime,
                e.event_datetime AS event_date,
-               e.event_type_id,
                e.is_published,
                e.created_at,
                e.updated_at,
-               et.event_type_name,
                COUNT(ar.record_id) AS attendance_count,
                MIN(DATE(ar.time_in)) AS first_record_date,
                MAX(DATE(ar.time_in)) AS last_record_date
         FROM events e
-        LEFT JOIN event_types et ON et.event_type_id = e.event_type_id
         LEFT JOIN attendance_records ar ON ar.event_id = e.event_id
         WHERE " . implode(' AND ', $where) . "
         GROUP BY e.event_id
@@ -132,7 +104,6 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
         $row['event_id'] = (int)$row['event_id'];
         $row['org_id'] = (int)$row['org_id'];
         $row['created_by_user_id'] = (int)$row['created_by_user_id'];
-        $row['event_type_id'] = (int)$row['event_type_id'];
         $row['is_published'] = (int)$row['is_published'];
         $row['attendance_count'] = (int)$row['attendance_count'];
     }
@@ -146,8 +117,6 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     $description = trim((string)($data['description'] ?? ''));
     $location = trim((string)($data['location'] ?? ''));
     $eventDate = trim((string)($data['event_datetime'] ?? $data['event_date'] ?? ''));
-    $eventTypeId = isset($data['event_type_id']) ? (int)$data['event_type_id'] : 0;
-    $eventTypeName = trim((string)($data['event_type_name'] ?? 'QR Attendance'));
     $isPublished = !empty($data['is_published']) ? 1 : 0;
     $photoDataUrl = trim((string)($data['photo'] ?? ''));
     $photoBlob = null;
@@ -198,10 +167,6 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     }
     if ($location === '') $location = 'TBA';
 
-    if ($eventTypeId <= 0) {
-        $eventTypeId = qrGetOrCreateEventTypeId($pdo, $orgId, $eventTypeName);
-    }
-
     if ($eventId > 0) {
         $chk = $pdo->prepare("SELECT event_id FROM events WHERE event_id = :id AND org_id = :org LIMIT 1");
         $chk->execute([':id' => $eventId, ':org' => $orgId]);
@@ -216,7 +181,6 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
                  location = :location,
                  event_datetime = :event_datetime,
                  event_photo = :event_photo,
-                 event_type_id = :event_type_id,
                  is_published = :is_published
              WHERE event_id = :id AND org_id = :org"
         );
@@ -226,7 +190,6 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
             ':location' => $location,
             ':event_datetime' => $eventDate,
             ':event_photo' => $photoBlob,
-            ':event_type_id' => $eventTypeId,
             ':is_published' => $isPublished,
             ':id' => $eventId,
             ':org' => $orgId,
@@ -236,9 +199,9 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
 
     $ins = $pdo->prepare(
         "INSERT INTO events
-            (org_id, created_by_user_id, event_name, description, location, event_datetime, event_photo, event_type_id, is_published)
+            (org_id, created_by_user_id, event_name, description, location, event_datetime, event_photo, is_published)
          VALUES
-            (:org, :uid, :name, :description, :location, :event_datetime, :event_photo, :event_type_id, :is_published)"
+            (:org, :uid, :name, :description, :location, :event_datetime, :event_photo, :is_published)"
     );
     $ins->execute([
         ':org' => $orgId,
@@ -248,7 +211,6 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         ':location' => $location,
         ':event_datetime' => $eventDate,
         ':event_photo' => $photoBlob,
-        ':event_type_id' => $eventTypeId,
         ':is_published' => $isPublished,
     ]);
     return (int)$pdo->lastInsertId();
