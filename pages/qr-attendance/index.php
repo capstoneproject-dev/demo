@@ -1,0 +1,336 @@
+<?php
+require_once __DIR__ . '/../../includes/auth.php';
+$session = guardSession('../login.html');
+if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])) {
+    header('Location: ../login.html');
+    exit;
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Attendance System</title>
+    <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
+            </a>
+
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="mainNav">
+
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 nav-pills-custom">
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="events.php">Events</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="generate-qr.php">Generate Barcodes</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="../shared/student-database.php?return=../qr-attendance/index.php">Database</a>
+                    </li>
+                </ul>
+
+
+            </div>
+        </div>
+    </nav>
+
+    <div class="container main-content">
+        <!-- Toasts -->
+        <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="mb-0">Attendance System</h1>
+            <div>
+                <a href="events.php" class="btn btn-outline-primary">Change Event</a>
+            </div>
+        </div>
+
+        <!-- Current Event Display -->
+        <div class="alert alert-info mb-4" id="currentEventDisplay">
+            Current Event: <span id="eventNameDisplay">Loading...</span>
+        </div>
+
+        <!-- Student Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Student Panel</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="btn-group mb-2" role="group" style="margin-bottom: 0.5rem;">
+                        <!-- Activate/Deactivate Scanning buttons removed -->
+                        <button id="manualCheckInBtn" class="btn btn-outline-primary" type="button">Manual Check-in</button>
+                    </div>
+                    <label for="barcodeInput" class="form-label">Scan Barcode (Auto-focus)</label>
+                    <input type="text" class="form-control" id="barcodeInput" autofocus autocomplete="off"
+                        placeholder="Scan barcode here...">
+                </div>
+                <div class="result-box mb-3">
+                    <h3 class="h6">Last Scan Result:</h3>
+                    <div id="scanResult">No barcode scanned yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manual Check-in Modal -->
+        <div class="modal fade" id="manualCheckInModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form id="manualCheckInForm">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Manual Check-in</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="manualStudentId" class="form-label">Student Number</label>
+                                <input type="text" class="form-control" id="manualStudentId" required autocomplete="off"
+                                    autofocus>
+                            </div>
+                            <div class="mb-3">
+                                <label for="manualStudentName" class="form-label">Name</label>
+                                <input type="text" class="form-control" id="manualStudentName" required
+                                    autocomplete="off">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Course & Section</label>
+                                <div class="mb-2">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="manualCourse"
+                                            id="manualCourseBsisAis" value="BSIS-AIS" checked>
+                                        <label class="form-check-label" for="manualCourseBsisAis">BSIS-AIS</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio" name="manualCourse"
+                                            id="manualCourseAis" value="BSAIS">
+                                        <label class="form-check-label" for="manualCourseAis">BSAIS</label>
+                                    </div>
+                                </div>
+                                <input type="text" class="form-control" id="manualYearSection"
+                                    placeholder="Year-Section, e.g., 3-3 or 1-2" required autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="manualCheckInSubmit">Check In</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Attendance Records (Two Tables Side by Side) -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h5 mb-0">Attendance Records</h2>
+                <div class="ms-auto">
+                    <select id="eventFilter" class="form-select form-select-sm me-2 d-inline-block w-auto">
+                        <option value="all">All Events</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Left: Student List by Section -->
+                    <div class="col-md-6">
+                        <div class="mb-2 d-flex align-items-center">
+                            <label for="sectionDropdown" class="form-label me-2 mb-0">Section:</label>
+                            <select id="sectionDropdown" class="form-select form-select-sm w-auto"></select>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Student#</th>
+                                        <th>Name</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="studentListBySection">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Right: Scanned Attendance Records -->
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <input type="text" class="form-control" id="attendanceSearch"
+                                placeholder="Search by student number, name, or section...">
+                        </div>
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Action</th>
+                                        <th>#</th>
+                                        <th>Student#</th>
+                                        <th>Name</th>
+                                        <th>Section</th>
+                                        <th>Event</th>
+                                        <th>Date</th>
+                                        <th>Time-in</th>
+                                        <th>Time-out</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attendanceRecords">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../../systems/QR-Attendance/lib/bootstrap.bundle.min.js"></script>
+    <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
+    <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
+    <script src="../../systems/QR-Attendance/lib/script.js?v=20260228c"></script>
+    <script>
+        // Utility to check if any of the filter/search/section controls are focused
+        function updateBarcodeInputState() {
+            const barcodeInput = document.getElementById('barcodeInput');
+            const sectionDropdown = document.getElementById('sectionDropdown');
+            const attendanceSearch = document.getElementById('attendanceSearch');
+            const eventFilter = document.getElementById('eventFilter');
+
+            // If any of the three are focused, disable barcodeInput
+            if (
+                document.activeElement === sectionDropdown ||
+                document.activeElement === attendanceSearch ||
+                document.activeElement === eventFilter
+            ) {
+                barcodeInput.disabled = true;
+            } else {
+                barcodeInput.disabled = false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const sectionDropdown = document.getElementById('sectionDropdown');
+            const attendanceSearch = document.getElementById('attendanceSearch');
+            const eventFilter = document.getElementById('eventFilter');
+            const barcodeInput = document.getElementById('barcodeInput');
+
+            // Update Current Event display when eventFilter changes
+            if (eventFilter) {
+                eventFilter.addEventListener('change', function () {
+                    const selectedOption = eventFilter.options[eventFilter.selectedIndex];
+                    const eventNameDisplay = document.getElementById('eventNameDisplay');
+                    if (eventNameDisplay) {
+                        if (selectedOption.value === 'all') {
+                            eventNameDisplay.textContent = 'All Events';
+                        } else {
+                            eventNameDisplay.textContent = selectedOption.textContent;
+                        }
+                    }
+                });
+            }
+
+            // Add focus/blur listeners to all three controls
+            [sectionDropdown, attendanceSearch, eventFilter].forEach(el => {
+                if (el) {
+                    el.addEventListener('focus', updateBarcodeInputState);
+                    el.addEventListener('blur', function () {
+                        // Use setTimeout to allow focus to move to another control before checking
+                        setTimeout(updateBarcodeInputState, 0);
+                    });
+                }
+            });
+        });
+
+        // Search functionality for Attendance Records
+        document.addEventListener('DOMContentLoaded', function () {
+            const attendanceSearch = document.getElementById('attendanceSearch');
+            if (attendanceSearch) {
+                attendanceSearch.addEventListener('input', function () {
+                    const searchTerm = this.value.toLowerCase();
+                    const tbody = document.getElementById('attendanceRecords');
+                    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+                    // First filter the rows based on search term
+                    rows.forEach(row => {
+                        const text = row.textContent.toLowerCase();
+                        row.style.display = text.includes(searchTerm) ? '' : 'none';
+                    });
+
+                    // Then sort the visible rows
+                    const visibleRows = rows.filter(row => row.style.display !== 'none');
+                    visibleRows.sort((a, b) => {
+                        // Get the time-out values (last column)
+                        const timeOutA = a.cells[8].textContent.trim();
+                        const timeOutB = b.cells[8].textContent.trim();
+
+                        // If both have time-out, keep original order
+                        if (timeOutA && timeOutB) return 0;
+                        // If only A has time-out, move it to bottom
+                        if (timeOutA) return 1;
+                        // If only B has time-out, move it to bottom
+                        if (timeOutB) return -1;
+                        // If neither has time-out, keep original order
+                        return 0;
+                    });
+
+                    // Reorder the rows in the table
+                    visibleRows.forEach(row => {
+                        tbody.appendChild(row);
+                    });
+                });
+            }
+        });
+    </script>
+    <audio id="beepSound" src="../../systems/QR-Attendance/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
+    <script>
+        window.addEventListener('message', async function (event) {
+            // Check for the CREATE_EVENT command
+            if (event.data && event.data.type === 'CREATE_EVENT') {
+                console.log("Received Cross-Post Request (Scanner View):", event.data);
+
+                const newEvent = {
+                    id: Date.now().toString(),
+                    name: event.data.eventName,
+                    description: event.data.description,
+                    createdAt: new Date().toISOString(),
+                    status: 'active',
+                    firstDate: event.data.date,
+                    lastDate: event.data.date,
+                    records: []
+                };
+
+                // 1. Save to LocalStorage (Primary persistence)
+                try {
+                    const localEvents = JSON.parse(localStorage.getItem('events')) || [];
+                    localEvents.push(newEvent);
+                    localStorage.setItem('events', JSON.stringify(localEvents));
+                } catch (e) {
+                    console.error("Error saving to LocalStorage:", e);
+                }
+
+                // 2. OfflineSync Support
+                if (window.offlineSync) {
+                    window.offlineSync.saveToLocalStorage('events', newEvent, 'add');
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

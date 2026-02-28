@@ -5,6 +5,10 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     header('Location: ../login.html');
     exit;
 }
+$returnTo = trim((string)($_GET['return'] ?? '../officerDashboard.html'));
+if ($returnTo === '' || strpos($returnTo, '..') !== 0) {
+    $returnTo = '../officerDashboard.html';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,11 +50,9 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             </button>
 
             <div class="collapse navbar-collapse" id="mainNav">
-
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0 nav-pills-custom">
-
                     <li class="nav-item">
-                        <a class="nav-link" href="rental-history.php">History</a>
+                        <a class="nav-link" href="../igp/rental-history.php">History</a>
                     </li>
 
                     <li class="nav-item dropdown">
@@ -60,13 +62,13 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         </a>
                         <ul class="dropdown-menu mega-menu shadow-lg border-0" aria-labelledby="inventoryDropdown">
                             <li>
-                                <a class="dropdown-item" href="inventory.php">
+                                <a class="dropdown-item" href="../igp/inventory.php">
                                     <div class="fw-bold text-dark">Manage Inventory</div>
                                     <small class="text-muted d-block">Update stocks & availability</small>
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item mt-2" href="generate-inventory-barcodes.php">
+                                <a class="dropdown-item mt-2" href="../igp/generate-inventory-barcodes.php">
                                     <div class="fw-bold text-dark">Inventory Barcodes</div>
                                     <small class="text-muted d-block">Create equipment labels</small>
                                 </a>
@@ -75,7 +77,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     </li>
 
                     <li class="nav-item">
-                        <a class="nav-link" href="financial-summary.php">Financial Summary</a>
+                        <a class="nav-link" href="../igp/financial-summary.php">Financial Summary</a>
                     </li>
 
                     <li class="nav-item dropdown">
@@ -85,20 +87,22 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         </a>
                         <ul class="dropdown-menu mega-menu shadow-lg border-0" aria-labelledby="databaseDropdown">
                             <li>
-                                <a class="dropdown-item" href="student-database.php">
+                                <a class="dropdown-item" href="../shared/student-database.php?return=../igp/index.php">
                                     <div class="fw-bold text-dark">Student Database</div>
                                     <small class="text-muted d-block">Manage customer records</small>
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item mt-2" href="admin.php">
+                                <a class="dropdown-item mt-2" href="../igp/admin.php">
                                     <div class="fw-bold text-dark">Officer Database</div>
                                     <small class="text-muted d-block">Manage authorized personnel</small>
                                 </a>
                             </li>
                         </ul>
+                    </li>
+
                     <li class="nav-item">
-                        <a class="nav-link" href="index.php">Home</a>
+                        <a class="nav-link" href="<?php echo htmlspecialchars($returnTo, ENT_QUOTES, 'UTF-8'); ?>">Home</a>
                     </li>
                 </ul>
             </div>
@@ -106,7 +110,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </nav>
     <div class="container main-content">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <a href="index.php" class="btn btn-secondary">&larr; Back</a>
+            <a href="<?php echo htmlspecialchars($returnTo, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">&larr; Back</a>
             <div>
                 <button id="clearAll" class="btn btn-danger me-2">Clear All</button>
                 <button id="exportExcel" class="btn btn-success">Export to Excel</button>

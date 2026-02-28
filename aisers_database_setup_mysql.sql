@@ -267,10 +267,8 @@ CREATE TABLE attendance_records (
     section VARCHAR(30) NULL,
     time_in DATETIME NOT NULL,
     time_out DATETIME NULL,
-    scan_mode VARCHAR(20) NOT NULL DEFAULT 'barcode',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_attendance_scan_mode CHECK (scan_mode IN ('barcode', 'manual')),
     CONSTRAINT chk_attendance_timeout CHECK (time_out IS NULL OR time_out >= time_in),
     CONSTRAINT fk_attendance_event FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
     CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL

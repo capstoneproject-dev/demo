@@ -1,6 +1,103 @@
 // Local-only storage mode
 let attendanceRecords = [];
 let students = [];
+const QR_ATTENDANCE_API_BASE = '../../api/qr-attendance';
+
+async function qrAttendanceApiRequest(path, options = {}) {
+    const response = await fetch(QR_ATTENDANCE_API_BASE + path, {
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || `Request failed (${response.status})`);
+    }
+    return payload;
+}
+
+function formatDateForUi(value) {
+    if (!value) return '';
+    const d = new Date(String(value).includes('T') ? value : String(value).replace(' ', 'T'));
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString();
+}
+
+function formatTimeForUi(value) {
+    if (!value) return '';
+    const d = new Date(String(value).includes('T') ? value : String(value).replace(' ', 'T'));
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString();
+}
+
+function normalizeAttendanceFromApi(rows) {
+    return (rows || []).map((row) => {
+        const timeInRaw = row.time_in || '';
+        const timeOutRaw = row.time_out || '';
+        return {
+            recordId: Number(row.record_id || 0),
+            eventId: Number(row.event_id || 0),
+            studentId: String(row.student_number || '').trim(),
+            studentName: String(row.student_name || '').trim(),
+            section: String(row.section || '').trim(),
+            event: String(row.event_name || '').trim(),
+            date: formatDateForUi(timeInRaw),
+            timeIn: formatTimeForUi(timeInRaw),
+            timeOut: formatTimeForUi(timeOutRaw),
+            checkInMs: timeInRaw ? new Date(String(timeInRaw).replace(' ', 'T')).getTime() : 0,
+            lastUpdateMs: timeOutRaw ? new Date(String(timeOutRaw).replace(' ', 'T')).getTime() : 0,
+            createdAt: row.created_at || null,
+            updatedAt: row.updated_at || null
+        };
+    });
+}
+
+async function loadAttendanceFromApi() {
+    const payload = await qrAttendanceApiRequest('/attendance/list.php', { method: 'GET' });
+    const normalized = normalizeAttendanceFromApi(payload.items || []);
+    attendanceRecords = normalized;
+    localStorage.setItem('attendanceRecords', JSON.stringify(normalized));
+    return normalized;
+}
+
+async function loadStudentsFromApi() {
+    // Prefer the existing users-backed endpoint used by shared student database.
+    const endpoints = [
+        '../../api/igp/students/list.php',
+        '../../api/qr-attendance/students/list.php'
+    ];
+
+    for (const endpoint of endpoints) {
+        try {
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                credentials: 'same-origin'
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok || !Array.isArray(payload.items)) {
+                continue;
+            }
+
+            const normalized = payload.items
+                .map((row) => ({
+                    studentId: String(row.studentId || row.student_number || '').trim(),
+                    studentName: String(row.studentName || row.student_name || '').trim(),
+                    section: String(row.section || '').trim()
+                }))
+                .filter((row) => row.studentId !== '');
+
+            if (normalized.length > 0) {
+                // Keep the legacy cache updated for compatibility.
+                localStorage.setItem('barcodeStudents', JSON.stringify(normalized));
+                return normalized;
+            }
+        } catch (error) {
+            // Try next endpoint; fallback to localStorage if all fail.
+        }
+    }
+
+    return null;
+}
 
 // Initialize QR code scanner
 let html5QrcodeScanner = null;
@@ -20,8 +117,35 @@ function getCurrentEvent() {
 }
 
 async function initializeLocalData() {
-    attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-    students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
+    try {
+        await loadAttendanceFromApi();
+    } catch (_error) {
+        attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+    }
+    const apiStudents = await loadStudentsFromApi();
+    if (Array.isArray(apiStudents)) {
+        students = apiStudents;
+    } else {
+        students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
+    }
+    if (Array.isArray(students)) {
+        console.info('[QR] students loaded:', students.length);
+    }
+}
+
+function findStudentByScanValue(scannedValue) {
+    const normalizedScan = String(scannedValue || '').trim().toLowerCase();
+    if (!normalizedScan) return null;
+
+    for (const s of students || []) {
+        const studentId = String(s.studentId || '').trim();
+        if (!studentId) continue;
+        const encodedRef = String(encodeStudentData(studentId) || '').trim();
+        const idMatch = studentId.toLowerCase() === normalizedScan;
+        const encodedMatch = encodedRef.toLowerCase() === normalizedScan;
+        if (idMatch || encodedMatch) return s;
+    }
+    return null;
 }
 
 // Update offline status indicator (make it globally accessible)
@@ -35,11 +159,11 @@ window.updateOfflineStatus = function () {
     const pendingCount = window.offlineSync.getPendingSyncCount();
 
     if (!isOnline) {
-        offlineStatusEl.textContent = '● Offline';
+        offlineStatusEl.textContent = 'â— Offline';
         offlineStatusEl.className = 'ms-3 badge bg-danger';
         offlineStatusEl.style.display = 'inline-block';
     } else {
-        offlineStatusEl.textContent = '● Online';
+        offlineStatusEl.textContent = 'â— Online';
         offlineStatusEl.className = 'ms-3 badge bg-success';
         offlineStatusEl.style.display = 'inline-block';
     }
@@ -63,7 +187,6 @@ window.addEventListener('offlineStatusChanged', function (event) {
 document.addEventListener('DOMContentLoaded', async function () {
     await initializeLocalData();
     attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-    students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
 
     localStorage.removeItem('currentEvent');
     const currentEvent = getCurrentEvent();
@@ -94,23 +217,22 @@ document.addEventListener('DOMContentLoaded', async function () {
             // Play beep sound once per scan
             const beep = document.getElementById('beepSound');
             if (beep) { beep.currentTime = 0; beep.play(); }
-
-            const scanMode = document.querySelector('input[name="scanMode"]:checked').value;
             const today = new Date().toLocaleDateString();
             const currentEvent = getCurrentEvent();
 
-            // Lookup student by barcode
-            let foundStudent = null;
-            for (const s of students) {
-                if (encodeStudentData(s.studentId) === scannedValue) {
-                    foundStudent = s;
-                    break;
+            // Lookup student by encoded barcode OR direct student number
+            let foundStudent = findStudentByScanValue(scannedValue);
+            // If not found, refresh from API once and retry immediately.
+            if (!foundStudent) {
+                const latestStudents = await loadStudentsFromApi();
+                if (Array.isArray(latestStudents) && latestStudents.length > 0) {
+                    students = latestStudents;
+                    foundStudent = findStudentByScanValue(scannedValue);
                 }
             }
 
             if (foundStudent) {
-                if (scanMode === 'normal') {
-                    scanResult.innerHTML = `<span class='success'>✓ Found: ${foundStudent.studentName} (${foundStudent.studentId}) - ${foundStudent.section}</span>`;
+                    scanResult.innerHTML = `<span class='success'>âœ“ Found: ${foundStudent.studentName} (${foundStudent.studentId}) - ${foundStudent.section}</span>`;
                     try {
                         const allRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
                         const existingRec = allRecords.find(r =>
@@ -132,32 +254,8 @@ document.addEventListener('DOMContentLoaded', async function () {
                         }
                     } catch (e) { }
                     markAttendance(foundStudent);
-                } else if (scanMode === 'timeIn') {
-                    const updated = updateStudentTimeIn(foundStudent.studentId, foundStudent.section, currentEvent, today);
-                    if (updated) {
-                        scanResult.innerHTML = `<span class='success'>✓ Updated time-in for: ${foundStudent.studentName} (${foundStudent.studentId})</span>`;
-                        showToast('Updated time-in', `${foundStudent.studentName} (${foundStudent.studentId})`, 'success');
-                        if (document.getElementById('autoSwitchMode').checked) {
-                            document.getElementById('normalMode').checked = true;
-                        }
-                    } else {
-                        scanResult.innerHTML = `<span class='error'>✗ No attendance record found for: ${foundStudent.studentName}</span>`;
-                        showToast('Student Not Found', `${foundStudent.studentName} (${foundStudent.studentId})`, 'error');
-                    }
-                } else if (scanMode === 'timeOut') {
-                    const updated = updateStudentTimeOut(foundStudent.studentId, foundStudent.section, currentEvent, today, 'manual');
-                    if (updated) {
-                        scanResult.innerHTML = `<span class='success'>✓ Updated time-out for: ${foundStudent.studentName} (${foundStudent.studentId})</span>`;
-                        if (document.getElementById('autoSwitchMode').checked) {
-                            document.getElementById('normalMode').checked = true;
-                        }
-                    } else {
-                        scanResult.innerHTML = `<span class='error'>✗ No attendance record found for: ${foundStudent.studentName}</span>`;
-                        showToast('Student Not Found', `${foundStudent.studentName} (${foundStudent.studentId})`, 'error');
-                    }
-                }
             } else {
-                scanResult.innerHTML = `<span class='error'>✗ Student not found for barcode: ${scannedValue}</span>`;
+                scanResult.innerHTML = `<span class='error'>âœ— Student not found for barcode: ${scannedValue}</span>`;
                 showToast('Student Not Found', `Barcode: ${scannedValue}`, 'error');
             }
         }
@@ -292,7 +390,7 @@ function showToast(title, message, type) {
     toast.innerHTML = `
         <span class="toast-title">${title}</span>
         <span>${message || ''}</span>
-        <button class="toast-close" aria-label="Close">×</button>
+        <button class="toast-close" aria-label="Close">Ã—</button>
     `;
     container.appendChild(toast);
     // Trigger animation
@@ -440,50 +538,57 @@ function updateStudentListBySection(section) {
 
 // Function to update time-in for a specific student
 async function updateStudentTimeIn(studentId, section, event, date) {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString();
-    const nowMs = Date.now();
-
-    let localAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-    const recordIndex = localAttendanceRecords.findIndex(record =>
-        record.studentId === studentId &&
-        record.section === section &&
-        record.event === event &&
-        record.date === date
+    const localAttendanceRecords = attendanceRecords || [];
+    const record = localAttendanceRecords.find(r =>
+        r.studentId === studentId &&
+        r.section === section &&
+        r.event === event &&
+        r.date === date
     );
+    if (!record || !record.recordId) return false;
 
-    if (recordIndex !== -1) {
-        localAttendanceRecords[recordIndex].timeIn = timeString;
-        localAttendanceRecords[recordIndex].lastUpdateMs = nowMs;
-        localStorage.setItem('attendanceRecords', JSON.stringify(localAttendanceRecords));
-        attendanceRecords = localAttendanceRecords;
+    try {
+        await qrAttendanceApiRequest('/attendance/update-time.php', {
+            method: 'POST',
+            body: JSON.stringify({
+                record_id: record.recordId,
+                field: 'time_in'
+            })
+        });
+        await loadAttendanceFromApi();
         updateAttendanceTable();
         return true;
+    } catch (_error) {
+        return false;
     }
-    return false;
 }
 
 // Function to update time-out for a specific student
 async function updateStudentTimeOut(studentId, section, event, date, source = 'auto') {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString();
-    const nowMs = Date.now();
+    try {
+        const existing = (attendanceRecords || []).find(r =>
+            r.studentId === studentId &&
+            r.section === section &&
+            r.event === event &&
+            r.date === date
+        );
+        const payload = existing && existing.recordId
+            ? { record_id: existing.recordId }
+            : {
+                event_name: event,
+                student_number: studentId,
+                date: date
+            };
+        await qrAttendanceApiRequest('/attendance/checkout.php', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
 
-    let localAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
-    const recordIndex = localAttendanceRecords.findIndex(record =>
-        record.studentId === studentId &&
-        record.section === section &&
-        record.event === event &&
-        record.date === date
-    );
-
-    if (recordIndex !== -1) {
-        localAttendanceRecords[recordIndex].timeOut = timeString;
-        localAttendanceRecords[recordIndex].lastUpdateMs = nowMs;
-        localStorage.setItem('attendanceRecords', JSON.stringify(localAttendanceRecords));
-        attendanceRecords = localAttendanceRecords;
+        await loadAttendanceFromApi();
         try {
-            const r = localAttendanceRecords[recordIndex];
+            const r = (attendanceRecords || []).find(x =>
+                x.studentId === studentId && x.event === event && x.date === date
+            ) || existing || { studentName: '', studentId };
             const title = source === 'manual' ? 'Updated time-out' : 'Time-out';
             showToast(title, `${r.studentName} (${r.studentId})`, 'error');
         } catch (e) { }
@@ -495,8 +600,9 @@ async function updateStudentTimeOut(studentId, section, event, date, source = 'a
         }, 2000);
         updateAttendanceTable();
         return true;
+    } catch (_error) {
+        return false;
     }
-    return false;
 }
 
 // Update the updateAttendanceTable function
@@ -685,63 +791,74 @@ if (exportBtn) {
 }
 
 async function markAttendance(student) {
-    const today = new Date().toLocaleDateString();
-    const currentTime = new Date().toLocaleTimeString();
-    const nowMs = Date.now();
     const currentEvent = getCurrentEvent();
+    if (!currentEvent) return;
 
     // Check if there are any records for the current event before adding
     let eventRecordsBefore = attendanceRecords.filter(r => r.event === currentEvent);
     const wasEventEmpty = eventRecordsBefore.length === 0;
 
-    // Find if student already checked in today for this event
-    let existing = attendanceRecords.find(
-        r => r.studentId === student.studentId &&
-            r.section === student.section &&
-            r.date === today &&
-            r.event === currentEvent
-    );
-
-    if (!existing) {
-        // First scan: check-in
-        // Ensure record structure matches local document format
-        const record = {
-            studentId: student.studentId || '',
-            studentName: student.studentName || '',
-            section: student.section || '',
-            event: currentEvent || '',
-            date: today,
-            timeIn: currentTime,
-            timeOut: '',
-            checkInMs: nowMs,
-            createdAt: new Date(),
-            updatedAt: new Date()
-        };
-
-        attendanceRecords.push(record);
-        const uniqueMap = new Map();
-        attendanceRecords.forEach(rec => {
-            const key = `${rec.studentId}-${rec.section}-${rec.event}-${rec.date}`;
-            uniqueMap.set(key, rec);
+    // First scan: check-in, second scan: check-out
+    try {
+        const checkinResult = await qrAttendanceApiRequest('/attendance/checkin.php', {
+            method: 'POST',
+            body: JSON.stringify({
+                event_name: currentEvent,
+                student_number: student.studentId || '',
+                student_name: student.studentName || '',
+                section: student.section || ''
+            })
         });
-        attendanceRecords = Array.from(uniqueMap.values());
-        localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
 
-        // Set event filter to current event and update table
-        const eventFilter = document.getElementById('eventFilter');
-        if (eventFilter && currentEvent) {
-            eventFilter.value = currentEvent;
-            eventFilter.dispatchEvent(new Event('change'));
+        if (checkinResult.already_checked_in && !checkinResult.already_checked_out) {
+            await qrAttendanceApiRequest('/attendance/checkout.php', {
+                method: 'POST',
+                body: JSON.stringify({
+                    record_id: Number(checkinResult.record_id || 0),
+                    event_name: currentEvent,
+                    student_number: student.studentId || ''
+                })
+            });
         }
-        updateAttendanceTable();
-    } else if (!existing.timeOut) {
-        // Second scan: check-out, only if at least 5 seconds have passed
-        if (nowMs - (existing.checkInMs || 0) >= 5000) {
-            // Only call updateStudentTimeOut, do not update table here
+        await loadAttendanceFromApi();
+    } catch (_error) {
+        // Fallback behavior (cache-only) if API unavailable
+        const today = new Date().toLocaleDateString();
+        const currentTime = new Date().toLocaleTimeString();
+        const nowMs = Date.now();
+        let existing = attendanceRecords.find(
+            r => r.studentId === student.studentId &&
+                r.section === student.section &&
+                r.date === today &&
+                r.event === currentEvent
+        );
+        if (!existing) {
+            const record = {
+                studentId: student.studentId || '',
+                studentName: student.studentName || '',
+                section: student.section || '',
+                event: currentEvent || '',
+                date: today,
+                timeIn: currentTime,
+                timeOut: '',
+                checkInMs: nowMs,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            attendanceRecords.push(record);
+            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+        } else if (!existing.timeOut && nowMs - (existing.checkInMs || 0) >= 5000) {
             await updateStudentTimeOut(student.studentId, student.section, currentEvent, today, 'auto');
-            // Do not call updateAttendanceTable or eventFilter change here
         }
     }
+
+    // Set event filter to current event and update table
+    const eventFilter = document.getElementById('eventFilter');
+    if (eventFilter && currentEvent) {
+        eventFilter.value = currentEvent;
+        eventFilter.dispatchEvent(new Event('change'));
+    }
+    updateAttendanceTable();
 
     // Automatically select the student's section in the section dropdown and update the left table
     const sectionDropdown = document.getElementById('sectionDropdown');
