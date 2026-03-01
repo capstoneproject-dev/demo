@@ -139,7 +139,6 @@
             item_name,
             barcode,
             category_name: item_type,
-            stock_quantity: 1,
             hourly_rate: Number.isFinite(pricePerHour) ? pricePerHour : 0,
             status: existing ? existing.status : 'available',
             overtime_interval_minutes: overtimeInterval,

@@ -43,7 +43,7 @@
     function statusByItem(item) {
         const rental = activeRentals.find((r) => String(r.items_label || '').includes(`[${item.barcode}]`));
         if (rental) return { status: 'rented', renter: `${rental.renter_name} (${rental.renter_student_number || '-'})`, rentTime: rental.rent_time, due: rental.expected_return_time };
-        return { status: item.available_quantity > 0 ? 'available' : item.status, renter: '', rentTime: null, due: null };
+        return { status: item.status, renter: '', rentTime: null, due: null };
     }
 
     function renderAvailable() {

@@ -204,13 +204,12 @@ try {
         if ($req['status'] !== 'pending') {
             jsonError('Only pending requests can be rejected.', 409);
         }
-        $notes = trim($body['reviewerNotes'] ?? '') ?: null;
         $pdo->prepare("
             UPDATE pending_registrations
             SET status = 'rejected', reviewed_by_user_id = :actor,
-                reviewed_at = NOW(), reviewer_notes = :notes
+                reviewed_at = NOW()
             WHERE reg_id = :id
-        ")->execute([':actor' => $actorId, ':notes' => $notes, ':id' => $requestId]);
+        ")->execute([':actor' => $actorId, ':id' => $requestId]);
 
         jsonOk(['msg' => 'Request rejected.']);
 
@@ -221,7 +220,7 @@ try {
         $pdo->prepare("
             UPDATE pending_registrations
             SET status = 'pending', reviewed_by_user_id = NULL,
-                reviewed_at = NULL, reviewer_notes = NULL
+                reviewed_at = NULL
             WHERE reg_id = :id
         ")->execute([':id' => $requestId]);
 

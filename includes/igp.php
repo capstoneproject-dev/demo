@@ -113,8 +113,6 @@ function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
                i.barcode,
                i.category_id,
                c.category_name,
-               i.stock_quantity,
-               i.available_quantity,
                i.hourly_rate,
                i.overtime_interval_minutes,
                i.overtime_rate_per_block,
@@ -133,8 +131,6 @@ function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
     foreach ($rows as &$r) {
         $r['item_id'] = (int)$r['item_id'];
         $r['category_id'] = (int)$r['category_id'];
-        $r['stock_quantity'] = (int)$r['stock_quantity'];
-        $r['available_quantity'] = (int)$r['available_quantity'];
         $r['hourly_rate'] = (float)$r['hourly_rate'];
         $r['overtime_interval_minutes'] = $r['overtime_interval_minutes'] !== null ? (int)$r['overtime_interval_minutes'] : null;
         $r['overtime_rate_per_block'] = $r['overtime_rate_per_block'] !== null ? (float)$r['overtime_rate_per_block'] : null;
@@ -147,7 +143,6 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
     $itemId = isset($data['item_id']) ? (int)$data['item_id'] : 0;
     $itemName = trim((string)($data['item_name'] ?? ''));
     $barcode = trim((string)($data['barcode'] ?? ''));
-    $stockQty = max(0, (int)($data['stock_quantity'] ?? 1));
     $hourlyRate = (float)($data['hourly_rate'] ?? 0);
     $status = trim((string)($data['status'] ?? 'available'));
     $categoryId = isset($data['category_id']) ? (int)$data['category_id'] : null;
@@ -184,30 +179,17 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
     $resolvedCategoryId = igpResolveCategoryId($pdo, $orgId, $categoryId, $categoryName);
 
     if ($itemId > 0) {
-        $stmt = $pdo->prepare(
-            "SELECT item_id, stock_quantity, available_quantity
-             FROM inventory_items
-             WHERE item_id = :id AND org_id = :org
-             LIMIT 1"
-        );
-        $stmt->execute([':id' => $itemId, ':org' => $orgId]);
-        $existing = $stmt->fetch();
-        if (!$existing) {
+        $check = $pdo->prepare("SELECT item_id FROM inventory_items WHERE item_id = :id AND org_id = :org LIMIT 1");
+        $check->execute([':id' => $itemId, ':org' => $orgId]);
+        if (!$check->fetch()) {
             throw new IgpValidationException('Item not found for this organization.');
         }
-        $currentlyRented = max(0, (int)$existing['stock_quantity'] - (int)$existing['available_quantity']);
-        if ($stockQty < $currentlyRented) {
-            throw new IgpValidationException('Stock quantity cannot be less than currently rented quantity.');
-        }
-        $newAvailable = $stockQty - $currentlyRented;
 
         $upd = $pdo->prepare(
             "UPDATE inventory_items
              SET item_name = :name,
                  barcode = :barcode,
                  category_id = :cid,
-                 stock_quantity = :stock,
-                 available_quantity = :avail,
                  hourly_rate = :rate,
                  overtime_interval_minutes = :ot_int,
                  overtime_rate_per_block = :ot_rate,
@@ -218,8 +200,6 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
             ':name' => $itemName,
             ':barcode' => $barcode,
             ':cid' => $resolvedCategoryId,
-            ':stock' => $stockQty,
-            ':avail' => $newAvailable,
             ':rate' => $hourlyRate,
             ':ot_int' => $overtimeInterval,
             ':ot_rate' => $overtimeRate,
@@ -232,17 +212,15 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
 
     $ins = $pdo->prepare(
         "INSERT INTO inventory_items
-            (org_id, item_name, barcode, category_id, stock_quantity, available_quantity, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status)
+            (org_id, item_name, barcode, category_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status)
          VALUES
-            (:org, :name, :barcode, :cid, :stock, :avail, :rate, :ot_int, :ot_rate, :status)"
+            (:org, :name, :barcode, :cid, :rate, :ot_int, :ot_rate, :status)"
     );
     $ins->execute([
         ':org' => $orgId,
         ':name' => $itemName,
         ':barcode' => $barcode,
         ':cid' => $resolvedCategoryId,
-        ':stock' => $stockQty,
-        ':avail' => $stockQty,
         ':rate' => $hourlyRate,
         ':ot_int' => $overtimeInterval,
         ':ot_rate' => $overtimeRate,
@@ -406,7 +384,6 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
     $renterIdentifier = trim((string)($data['renter_identifier'] ?? ''));
     $processorUserId = (int)($data['processor_user_id'] ?? 0);
     $officerIdentifier = trim((string)($data['officer_identifier'] ?? ''));
-    $notes = trim((string)($data['notes'] ?? ''));
 
     if ($itemId <= 0 || $hours <= 0 || $renterIdentifier === '') {
         throw new IgpValidationException('item_id, hours, and renter_identifier are required.');
@@ -448,7 +425,7 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
     $pdo->beginTransaction();
     try {
         $itemStmt = $pdo->prepare(
-            "SELECT item_id, available_quantity, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status
+            "SELECT item_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status
              FROM inventory_items
              WHERE item_id = :id AND org_id = :org
              FOR UPDATE"
@@ -458,7 +435,7 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
         if (!$item) {
             throw new IgpValidationException('Item not found for this organization.');
         }
-        if ((int)$item['available_quantity'] <= 0 || $item['status'] === 'maintenance') {
+        if ($item['status'] !== 'available') {
             throw new IgpValidationException('Item is not currently available for rent.');
         }
 
@@ -470,9 +447,9 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
 
         $insRental = $pdo->prepare(
             "INSERT INTO rentals
-                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, total_cost, payment_status, status, notes)
+                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, total_cost, payment_status, status)
              VALUES
-                (:org, :renter, :proc, :rent_time, :expected, :total, 'unpaid', 'active', :notes)"
+                (:org, :renter, :proc, :rent_time, :expected, :total, 'unpaid', 'active')"
         );
         $insRental->execute([
             ':org' => $orgId,
@@ -481,7 +458,6 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
             ':rent_time' => $rentTime->format('Y-m-d H:i:s'),
             ':expected' => $expected->format('Y-m-d H:i:s'),
             ':total' => $itemCost,
-            ':notes' => $notes !== '' ? $notes : null,
         ]);
         $rentalId = (int)$pdo->lastInsertId();
 
@@ -500,19 +476,10 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
             ':ot_rate' => $item['overtime_rate_per_block'] !== null ? (float)$item['overtime_rate_per_block'] : null,
         ]);
 
-        $newAvail = (int)$item['available_quantity'] - 1;
-        $newStatus = $newAvail > 0 ? 'available' : 'rented';
         $updItem = $pdo->prepare(
-            "UPDATE inventory_items
-             SET available_quantity = :avail, status = :status
-             WHERE item_id = :id AND org_id = :org"
+            "UPDATE inventory_items SET status = 'rented' WHERE item_id = :id AND org_id = :org"
         );
-        $updItem->execute([
-            ':avail' => $newAvail,
-            ':status' => $newStatus,
-            ':id' => $itemId,
-            ':org' => $orgId
-        ]);
+        $updItem->execute([':id' => $itemId, ':org' => $orgId]);
 
         $pdo->commit();
         return $rentalId;
@@ -544,7 +511,7 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
 
         $itemsStmt = $pdo->prepare(
             "SELECT ri.rental_item_id, ri.item_id, ri.quantity, ri.unit_rate, ri.item_cost, ri.overtime_interval_minutes, ri.overtime_rate_per_block,
-                    i.stock_quantity, i.available_quantity, i.status AS item_status
+                    i.status AS item_status
              FROM rental_items ri
              JOIN inventory_items i ON i.item_id = ri.item_id
              WHERE ri.rental_id = :rid
@@ -594,19 +561,12 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
         ]);
 
         foreach ($items as $it) {
-            $qty = (int)$it['quantity'];
-            $avail = min((int)$it['stock_quantity'], (int)$it['available_quantity'] + $qty);
-            $status = ($it['item_status'] === 'maintenance')
-                ? 'maintenance'
-                : ($avail > 0 ? 'available' : 'rented');
+            $newItemStatus = ($it['item_status'] === 'maintenance') ? 'maintenance' : 'available';
             $updItem = $pdo->prepare(
-                "UPDATE inventory_items
-                 SET available_quantity = :avail, status = :status
-                 WHERE item_id = :iid AND org_id = :org"
+                "UPDATE inventory_items SET status = :status WHERE item_id = :iid AND org_id = :org"
             );
             $updItem->execute([
-                ':avail' => $avail,
-                ':status' => $status,
+                ':status' => $newItemStatus,
                 ':iid' => (int)$it['item_id'],
                 ':org' => $orgId,
             ]);

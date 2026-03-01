@@ -19,7 +19,7 @@
         if (status === 'reserved' || status === 'maintenance' || status === 'rented' || status === 'available') {
             return status;
         }
-        return Number(item.available_quantity) <= 0 ? 'rented' : 'available';
+        return 'available';
     }
 
     function statusBadge(status) {
@@ -226,7 +226,6 @@
                 item_name: item.item_name,
                 barcode: item.barcode,
                 category_name: item.category_name,
-                stock_quantity: item.stock_quantity,
                 hourly_rate: rateVal,
                 status: item.status || 'available',
                 overtime_interval_minutes: intervalVal,

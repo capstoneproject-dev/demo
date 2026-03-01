@@ -17,7 +17,6 @@ try {
                requested_role  AS requestedRole,
                requested_org   AS requestedOrg,
                status,
-               reviewer_notes  AS reviewerNotes,
                requested_at    AS requestedAt,
                reviewed_at     AS reviewedAt,
                updated_at      AS updatedAt

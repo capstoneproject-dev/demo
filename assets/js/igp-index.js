@@ -10,7 +10,7 @@
         items.forEach((it) => {
             const opt = document.createElement('option');
             opt.value = String(it.item_id);
-            opt.textContent = `${it.item_name} [${it.barcode}] (avail: ${it.available_quantity})`;
+            opt.textContent = `${it.item_name} [${it.barcode}] (${it.status})`;
             sel.appendChild(opt);
         });
     }
