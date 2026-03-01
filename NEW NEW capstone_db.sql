@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 01, 2026 at 05:27 AM
+-- Generation Time: Mar 01, 2026 at 06:41 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -160,6 +160,39 @@ CREATE TABLE `documents_approved` (
   `approved_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `documents_approved`
+--
+
+INSERT INTO `documents_approved` (`repo_id`, `submission_id`, `org_id`, `approved_by_user_id`, `title`, `document_type`, `file_url`, `description`, `semester`, `academic_year`, `approved_at`) VALUES
+(1, 4, 2, 1, 'wedding', 'Proposal', '/CAPSTONE/demo/uploads/documents/20260301_055446_f772b164_WEDDING-CEREMONY-SCRIPT.pdf', 'wedding', '2nd', '2026-2027', '2026-03-01 13:21:08'),
+(2, 3, 2, 1, 'TRY', 'Activity Report', '/CAPSTONE/demo/uploads/documents/20260301_055245_d3fb5dfe_CyberSecurity.pdf', 'TRY', '2nd', '2026-2027', '2026-03-01 13:27:24');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `document_annotations`
+--
+
+CREATE TABLE `document_annotations` (
+  `annotation_id` int(11) NOT NULL,
+  `submission_id` int(11) NOT NULL,
+  `page_number` int(11) NOT NULL,
+  `selected_text` text NOT NULL,
+  `rects_json` longtext NOT NULL,
+  `comment_text` text DEFAULT NULL,
+  `created_by_user_id` int(11) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `document_annotations`
+--
+
+INSERT INTO `document_annotations` (`annotation_id`, `submission_id`, `page_number`, `selected_text`, `rects_json`, `comment_text`, `created_by_user_id`, `created_at`, `updated_at`) VALUES
+(1, 4, 1, 'ed here today in the presence of family and friends to witness and celebrate the\nunion of [Name of Groom] and [Name', '[{\"x\":28.266607546338847,\"y\":31.922743055555557,\"width\":91.93152134714563,\"height\":2.146464646464646},{\"x\":0,\"y\":7.7020202020202015,\"width\":0,\"height\":2.6515151515151514},{\"x\":11.759599673202615,\"y\":33.88967803030303,\"width\":9.297419529335171,\"height\":2.0202020202020203},{\"x\":11.759599673202615,\"y\":33.7634154040404,\"width\":9.297419529335171,\"height\":2.146464646464646},{\"x\":18.15767973856209,\"y\":33.88967803030303,\"width\":0.7276348039215687,\"height\":2.0202020202020203},{\"x\":18.15767973856209,\"y\":33.7634154040404,\"width\":0.7276348039215687,\"height\":2.146464646464646},{\"x\":18.65808823529412,\"y\":33.88967803030303,\"width\":21.337067847158394,\"height\":2.0202020202020203},{\"x\":18.65808823529412,\"y\":33.7634154040404,\"width\":21.337067847158394,\"height\":2.146464646464646},{\"x\":33.318014705882355,\"y\":33.88967803030303,\"width\":0.7276348039215687,\"height\":2.0202020202020203},{\"x\":33.318014705882355,\"y\":33.7634154040404,\"width\":0.7276348039215687,\"height\":2.146464646464646},{\"x\":33.818423202614376,\"y\":33.88967803030303,\"width\":4.361191294551675,\"height\":2.0202020202020203},{\"x\":33.818423202614376,\"y\":33.7634154040404,\"width\":4.361191294551675,\"height\":2.146464646464646},{\"x\":36.81832107843137,\"y\":33.88967803030303,\"width\":0.7276348039215687,\"height\":2.0202020202020203},{\"x\":36.81832107843137,\"y\":33.7634154040404,\"width\":0.7276348039215687,\"height\":2.146464646464646},{\"x\":37.3187295751634,\"y\":33.7634154040404,\"width\":9.025862949346406,\"height\":2.146464646464646}]', 'test', 4, '2026-03-01 13:17:13', '2026-03-01 13:17:13');
+
 -- --------------------------------------------------------
 
 --
@@ -172,10 +205,10 @@ CREATE TABLE `document_submissions` (
   `submitted_by_user_id` int(11) NOT NULL,
   `reviewed_by_user_id` int(11) DEFAULT NULL,
   `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
   `document_type` varchar(50) NOT NULL,
   `file_url` varchar(500) DEFAULT NULL,
   `recipient` varchar(50) NOT NULL DEFAULT 'OSA',
-  `description` text DEFAULT NULL,
   `status` varchar(30) NOT NULL DEFAULT 'pending',
   `reviewer_notes` text DEFAULT NULL,
   `semester` enum('1st','2nd') DEFAULT NULL,
@@ -190,9 +223,9 @@ CREATE TABLE `document_submissions` (
 -- Dumping data for table `document_submissions`
 --
 
-INSERT INTO `document_submissions` (`submission_id`, `org_id`, `submitted_by_user_id`, `reviewed_by_user_id`, `title`, `document_type`, `file_url`, `recipient`, `description`, `status`, `reviewer_notes`, `semester`, `academic_year`, `submitted_at`, `reviewed_at`, `created_at`, `updated_at`) VALUES
-(1, 4, 2, NULL, 'Test Submit', 'Anything You Want', 'uploads/test.pdf', 'OSA', 'test', 'pending', NULL, '2nd', '2026-2027', '2026-03-01 12:23:02', NULL, '2026-03-01 12:23:02', '2026-03-01 12:23:02'),
-(2, 2, 4, NULL, 'awd', 'Activity Report', 'uploads/documents/1772339046871_awd.pdf', 'OSA', 'awd', 'pending', NULL, '2nd', '2026-2027', '2026-03-01 12:24:06', NULL, '2026-03-01 12:24:06', '2026-03-01 12:24:06');
+INSERT INTO `document_submissions` (`submission_id`, `org_id`, `submitted_by_user_id`, `reviewed_by_user_id`, `title`, `description`, `document_type`, `file_url`, `recipient`, `status`, `reviewer_notes`, `semester`, `academic_year`, `submitted_at`, `reviewed_at`, `created_at`, `updated_at`) VALUES
+(3, 2, 4, 1, 'TRY', 'TRY', 'Activity Report', '/CAPSTONE/demo/uploads/documents/20260301_055245_d3fb5dfe_CyberSecurity.pdf', 'OSA', 'approved', 'COMMENT COMMENT', '2nd', '2026-2027', '2026-03-01 12:52:45', '2026-03-01 13:27:24', '2026-03-01 12:52:45', '2026-03-01 13:27:24'),
+(4, 2, 4, 1, 'wedding', 'wedding', 'Proposal', '/CAPSTONE/demo/uploads/documents/20260301_055446_f772b164_WEDDING-CEREMONY-SCRIPT.pdf', 'OSA', 'approved', NULL, '2nd', '2026-2027', '2026-03-01 12:54:46', '2026-03-01 13:21:08', '2026-03-01 12:54:46', '2026-03-01 13:21:08');
 
 --
 -- Triggers `document_submissions`
@@ -221,24 +254,6 @@ CREATE TRIGGER `trg_document_submissions_updated_at` BEFORE UPDATE ON `document_
 END
 $$
 DELIMITER ;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `document_annotations`
---
-
-CREATE TABLE `document_annotations` (
-  `annotation_id` int(11) NOT NULL,
-  `submission_id` int(11) NOT NULL,
-  `page_number` int(11) NOT NULL,
-  `selected_text` text NOT NULL,
-  `rects_json` longtext NOT NULL,
-  `comment_text` text DEFAULT NULL,
-  `created_by_user_id` int(11) NOT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -807,10 +822,10 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `student_number`, `program_id`, `institute_id`, `first_name`, `last_name`, `employee_number`, `email`, `phone`, `password_hash`, `account_type`, `has_unpaid_debt`, `is_active`, `last_login_at`, `created_at`, `updated_at`) VALUES
-(1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-02-28 21:27:13', '2026-02-25 18:19:21', '2026-02-28 21:27:13'),
+(1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-03-01 13:40:46', '2026-02-25 18:19:21', '2026-03-01 13:40:46'),
 (2, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'student', 0, 1, '2026-03-01 00:32:59', '2026-02-25 18:48:15', '2026-03-01 00:32:59'),
-(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-01 11:03:36', '2026-02-27 11:44:45', '2026-03-01 11:03:36'),
-(5, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'student', 0, 1, '2026-03-01 00:17:05', '2026-02-27 13:46:39', '2026-03-01 00:17:05'),
+(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-01 13:41:12', '2026-02-27 11:44:45', '2026-03-01 13:41:12'),
+(5, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'student', 0, 1, '2026-03-01 13:28:07', '2026-02-27 13:46:39', '2026-03-01 13:28:07'),
 (6, '12324MN-000094', 2, 1, 'Charles Gabriel A.', 'Martinez', NULL, 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'student', 0, 1, '2026-02-27 17:32:33', '2026-02-27 13:48:26', '2026-02-27 17:32:33'),
 (7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-02-28 19:45:38', '2026-02-28 19:45:28', '2026-02-28 19:45:38');
 
@@ -894,15 +909,6 @@ ALTER TABLE `documents_approved`
   ADD KEY `fk_repo_approver` (`approved_by_user_id`);
 
 --
--- Indexes for table `document_submissions`
---
-ALTER TABLE `document_submissions`
-  ADD PRIMARY KEY (`submission_id`),
-  ADD KEY `fk_doc_sub_reviewer` (`reviewed_by_user_id`),
-  ADD KEY `idx_doc_sub_org_status` (`org_id`,`status`),
-  ADD KEY `idx_doc_sub_submitter` (`submitted_by_user_id`);
-
---
 -- Indexes for table `document_annotations`
 --
 ALTER TABLE `document_annotations`
@@ -910,6 +916,15 @@ ALTER TABLE `document_annotations`
   ADD KEY `fk_doc_ann_submission` (`submission_id`),
   ADD KEY `fk_doc_ann_user` (`created_by_user_id`),
   ADD KEY `idx_doc_ann_submission_page` (`submission_id`,`page_number`);
+
+--
+-- Indexes for table `document_submissions`
+--
+ALTER TABLE `document_submissions`
+  ADD PRIMARY KEY (`submission_id`),
+  ADD KEY `fk_doc_sub_reviewer` (`reviewed_by_user_id`),
+  ADD KEY `idx_doc_sub_org_status` (`org_id`,`status`),
+  ADD KEY `idx_doc_sub_submitter` (`submitted_by_user_id`);
 
 --
 -- Indexes for table `events`
@@ -1059,19 +1074,19 @@ ALTER TABLE `attendance_records`
 -- AUTO_INCREMENT for table `documents_approved`
 --
 ALTER TABLE `documents_approved`
-  MODIFY `repo_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `repo_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `document_annotations`
+--
+ALTER TABLE `document_annotations`
+  MODIFY `annotation_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `document_submissions`
 --
 ALTER TABLE `document_submissions`
   MODIFY `submission_id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `document_annotations`
---
-ALTER TABLE `document_annotations`
-  MODIFY `annotation_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `events`
@@ -1184,19 +1199,19 @@ ALTER TABLE `documents_approved`
   ADD CONSTRAINT `fk_repo_submission` FOREIGN KEY (`submission_id`) REFERENCES `document_submissions` (`submission_id`);
 
 --
+-- Constraints for table `document_annotations`
+--
+ALTER TABLE `document_annotations`
+  ADD CONSTRAINT `fk_doc_ann_submission` FOREIGN KEY (`submission_id`) REFERENCES `document_submissions` (`submission_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_doc_ann_user` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`user_id`);
+
+--
 -- Constraints for table `document_submissions`
 --
 ALTER TABLE `document_submissions`
   ADD CONSTRAINT `fk_doc_sub_org` FOREIGN KEY (`org_id`) REFERENCES `organizations` (`org_id`),
   ADD CONSTRAINT `fk_doc_sub_reviewer` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_doc_sub_submitter` FOREIGN KEY (`submitted_by_user_id`) REFERENCES `users` (`user_id`);
-
---
--- Constraints for table `document_annotations`
---
-ALTER TABLE `document_annotations`
-  ADD CONSTRAINT `fk_doc_ann_submission` FOREIGN KEY (`submission_id`) REFERENCES `document_submissions` (`submission_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_doc_ann_user` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`user_id`);
 
 --
 -- Constraints for table `events`
