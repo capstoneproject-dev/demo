@@ -572,7 +572,6 @@ function renderDocs(filter = 'All', btnElement = null) {
     const monthVal = document.getElementById('filter-by-month') ? document.getElementById('filter-by-month').value : '';
 
     // DATA SIMULATION POOLS
-    const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
     const sscOfficers = ["Pres. Cruz", "VP Santos", "Sec. Reyes"];
     const osaAdmins = ["Dir. Fury", "Mrs. Potts", "Admin Stark"];
 
@@ -613,8 +612,7 @@ function renderDocs(filter = 'All', btnElement = null) {
         let actionButtons = '';
         let statusBadge = '';
 
-        // Deterministic random names based on title length (keeps it consistent per render)
-        const sender = senders[doc.title.length % senders.length];
+        const sender = doc.submittedByName || `User #${doc.submittedByUserId ?? 'N/A'}`;
         const sscOfficer = sscOfficers[doc.title.length % sscOfficers.length];
         const osaAdmin = osaAdmins[doc.title.length % osaAdmins.length];
 
@@ -1325,6 +1323,11 @@ async function loadDocsFromApi() {
             status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
             org: item.org_name || '',
             id: item.submission_id,
+            submittedByUserId: item.submitted_by_user_id,
+            submittedByName: [item.submitted_by_first_name, item.submitted_by_last_name]
+                .filter(Boolean)
+                .join(' ')
+                .trim(),
         }));
         renderDocs(currentDocFilter);
         renderRecentDocs();

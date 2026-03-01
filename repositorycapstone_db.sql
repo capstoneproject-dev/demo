@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 28, 2026 at 06:29 PM
+-- Generation Time: Mar 01, 2026 at 05:27 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -143,20 +143,21 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `documents_approved`
 --
 
 CREATE TABLE `documents_approved` (
-    `repo_id` int(11) NOT NULL,
-    `submission_id` int(11) NOT NULL,
-    `org_id` int(11) NOT NULL,
-    `approved_by_user_id` int(11) NOT NULL,
-    `title` varchar(255) NOT NULL,
-    `document_type` varchar(50) NOT NULL,
-    `file_url` varchar(500) DEFAULT NULL,
-    `description` text DEFAULT NULL,
-    `semester` enum('1st','2nd') DEFAULT NULL,
-    `academic_year` varchar(9) DEFAULT NULL,
-    `approved_at` datetime NOT NULL DEFAULT current_timestamp()
+  `repo_id` int(11) NOT NULL,
+  `submission_id` int(11) NOT NULL,
+  `org_id` int(11) NOT NULL,
+  `approved_by_user_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `document_type` varchar(50) NOT NULL,
+  `file_url` varchar(500) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `semester` enum('1st','2nd') DEFAULT NULL,
+  `academic_year` varchar(9) DEFAULT NULL,
+  `approved_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -166,40 +167,51 @@ CREATE TABLE `documents_approved` (
 --
 
 CREATE TABLE `document_submissions` (
-    `submission_id` int(11) NOT NULL,
-    `org_id` int(11) NOT NULL,
-    `submitted_by_user_id` int(11) NOT NULL,
-    `reviewed_by_user_id` int(11) DEFAULT NULL,
-    `title` varchar(255) NOT NULL,
-    `document_type` varchar(50) NOT NULL,
-    `file_url` varchar(500) DEFAULT NULL,
-    `recipient` varchar(50) NOT NULL DEFAULT 'OSA',
-    `description` text DEFAULT NULL,
-    `status` varchar(30) NOT NULL DEFAULT 'pending',
-    `reviewer_notes` text DEFAULT NULL,
-    `semester` enum('1st','2nd') DEFAULT NULL,
-    `academic_year` varchar(9) DEFAULT NULL,
-    `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
-    `reviewed_at` datetime DEFAULT NULL,
-    `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-    `updated_at` datetime NOT NULL DEFAULT current_timestamp()
+  `submission_id` int(11) NOT NULL,
+  `org_id` int(11) NOT NULL,
+  `submitted_by_user_id` int(11) NOT NULL,
+  `reviewed_by_user_id` int(11) DEFAULT NULL,
+  `title` varchar(255) NOT NULL,
+  `document_type` varchar(50) NOT NULL,
+  `file_url` varchar(500) DEFAULT NULL,
+  `recipient` varchar(50) NOT NULL DEFAULT 'OSA',
+  `description` text DEFAULT NULL,
+  `status` varchar(30) NOT NULL DEFAULT 'pending',
+  `reviewer_notes` text DEFAULT NULL,
+  `semester` enum('1st','2nd') DEFAULT NULL,
+  `academic_year` varchar(9) DEFAULT NULL,
+  `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `reviewed_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ;
+
+--
+-- Dumping data for table `document_submissions`
+--
+
+INSERT INTO `document_submissions` (`submission_id`, `org_id`, `submitted_by_user_id`, `reviewed_by_user_id`, `title`, `document_type`, `file_url`, `recipient`, `description`, `status`, `reviewer_notes`, `semester`, `academic_year`, `submitted_at`, `reviewed_at`, `created_at`, `updated_at`) VALUES
+(1, 4, 2, NULL, 'Test Submit', 'Anything You Want', 'uploads/test.pdf', 'OSA', 'test', 'pending', NULL, '2nd', '2026-2027', '2026-03-01 12:23:02', NULL, '2026-03-01 12:23:02', '2026-03-01 12:23:02'),
+(2, 2, 4, NULL, 'awd', 'Activity Report', 'uploads/documents/1772339046871_awd.pdf', 'OSA', 'awd', 'pending', NULL, '2nd', '2026-2027', '2026-03-01 12:24:06', NULL, '2026-03-01 12:24:06', '2026-03-01 12:24:06');
 
 --
 -- Triggers `document_submissions`
 --
 DELIMITER $$
 CREATE TRIGGER `trg_doc_sub_to_repo` AFTER UPDATE ON `document_submissions` FOR EACH ROW BEGIN
-    IF NEW.status='approved' AND OLD.status <> 'approved' THEN
-      INSERT INTO documents_approved (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, approved_at)
-      VALUES (NEW.submission_id, NEW.org_id, COALESCE(NEW.reviewed_by_user_id, NEW.submitted_by_user_id),
-              NEW.title, NEW.document_type, NEW.file_url, NEW.description, NEW.semester, NEW.academic_year, NOW())
-      ON DUPLICATE KEY UPDATE approved_at = VALUES(approved_at),
-                              file_url    = VALUES(file_url),
-                              description = VALUES(description),
-                              semester    = VALUES(semester),
-                              academic_year = VALUES(academic_year);
-    END IF;
+  IF NEW.status='approved' AND OLD.status <> 'approved' THEN
+    INSERT INTO documents_approved
+      (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, approved_at)
+    VALUES
+      (NEW.submission_id, NEW.org_id, COALESCE(NEW.reviewed_by_user_id, NEW.submitted_by_user_id),
+       NEW.title, NEW.document_type, NEW.file_url, NEW.description, NEW.semester, NEW.academic_year, NOW())
+    ON DUPLICATE KEY UPDATE
+      approved_at = VALUES(approved_at),
+      file_url = VALUES(file_url),
+      description = VALUES(description),
+      semester = VALUES(semester),
+      academic_year = VALUES(academic_year);
+  END IF;
 END
 $$
 DELIMITER ;
@@ -779,7 +791,7 @@ CREATE TABLE `users` (
 INSERT INTO `users` (`user_id`, `student_number`, `program_id`, `institute_id`, `first_name`, `last_name`, `employee_number`, `email`, `phone`, `password_hash`, `account_type`, `has_unpaid_debt`, `is_active`, `last_login_at`, `created_at`, `updated_at`) VALUES
 (1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-02-28 21:27:13', '2026-02-25 18:19:21', '2026-02-28 21:27:13'),
 (2, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'student', 0, 1, '2026-03-01 00:32:59', '2026-02-25 18:48:15', '2026-03-01 00:32:59'),
-(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-01 01:07:08', '2026-02-27 11:44:45', '2026-03-01 01:07:08'),
+(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-01 11:03:36', '2026-02-27 11:44:45', '2026-03-01 11:03:36'),
 (5, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'student', 0, 1, '2026-03-01 00:17:05', '2026-02-27 13:46:39', '2026-03-01 00:17:05'),
 (6, '12324MN-000094', 2, 1, 'Charles Gabriel A.', 'Martinez', NULL, 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'student', 0, 1, '2026-02-27 17:32:33', '2026-02-27 13:48:26', '2026-02-27 17:32:33'),
 (7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-02-28 19:45:38', '2026-02-28 19:45:28', '2026-02-28 19:45:38');
@@ -858,10 +870,10 @@ ALTER TABLE `attendance_records`
 -- Indexes for table `documents_approved`
 --
 ALTER TABLE `documents_approved`
-    ADD PRIMARY KEY (`repo_id`),
-    ADD UNIQUE KEY `submission_id` (`submission_id`),
-    ADD KEY `fk_repo_org` (`org_id`),
-    ADD KEY `fk_repo_approver` (`approved_by_user_id`);
+  ADD PRIMARY KEY (`repo_id`),
+  ADD UNIQUE KEY `submission_id` (`submission_id`),
+  ADD KEY `fk_repo_org` (`org_id`),
+  ADD KEY `fk_repo_approver` (`approved_by_user_id`);
 
 --
 -- Indexes for table `document_submissions`
