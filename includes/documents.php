@@ -67,19 +67,9 @@ function docValidateSemester(?string $sem): ?string
 
 function docValidateType(string $type): string
 {
-    $allowed = [
-        'Activity Report',
-        'Financial Statement',
-        'Proposal',
-        'Event Proposal',
-        'Resolution',
-        'Operational Plan',
-        'Document',
-        'Other'
-    ];
     $type = trim($type);
-    if (!in_array($type, $allowed, true)) {
-        throw new DocumentValidationException('Invalid document_type.');
+    if ($type === '') {
+        throw new DocumentValidationException('document_type is required.');
     }
     return $type;
 }
@@ -171,9 +161,13 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
         $params[':to'] = $filters['to'];
     }
 
-    $sql = "SELECT ds.*, o.org_name
+    $sql = "SELECT ds.*,
+                   o.org_name,
+                   u.first_name AS submitted_by_first_name,
+                   u.last_name AS submitted_by_last_name
             FROM document_submissions ds
             JOIN organizations o ON o.org_id = ds.org_id
+            LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
             " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
             ORDER BY ds.submitted_at DESC, ds.submission_id DESC";
 
@@ -266,4 +260,3 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
     }
     return $rows;
 }
-
