@@ -138,10 +138,11 @@ function officerOrgMatch(orgValue) {
 }
 
 // --- DATA  (read from orgData.js — ORG_DATA is the source of truth) ---
-// All three arrays are seeded from ORG_DATA on login, then extended/mutated at runtime.
+// All three arrays now populated via API instead of static mocks.
 let announcementsData = [];
 let docsData          = [];
 let rentalsData       = [];
+let repositoryData    = [];
 
 /**
  * Seed all runtime data arrays from orgData.js for the active officer org.
@@ -345,8 +346,25 @@ function openSubmitModal() {
 function closeSubmitModal() {
     const modal = document.getElementById('submit-doc-modal');
     modal.classList.remove('show');
+    // Reset file upload label on close
+    const label = document.getElementById('file-upload-label');
+    if (label) label.textContent = ' Click to upload PDF';
+    const fileInput = document.getElementById('doc-file-input');
+    if (fileInput) fileInput.value = '';
     // Optional: Reset form on close if desired
     // document.getElementById('doc-form').reset();
+}
+
+function updateFileUploadLabel(input) {
+    const label = document.getElementById('file-upload-label');
+    if (!label) return;
+    if (input.files && input.files.length > 0) {
+        label.textContent = ' ' + input.files[0].name;
+        label.style.color = 'var(--primary)';
+    } else {
+        label.textContent = ' Click to upload PDF';
+        label.style.color = '';
+    }
 }
 
 // Close modal when clicking outside content
@@ -570,20 +588,14 @@ function renderDocs(filter = 'All', btnElement = null) {
 
     if (from && to) {
         filteredData = filteredData.filter(doc => {
-            let docDate;
-            if (doc.date === "Just now") {
-                docDate = new Date();
-            } else if (doc.date === "Yesterday") {
-                docDate = new Date();
-                docDate.setDate(docDate.getDate() - 1);
-            } else {
-                docDate = new Date(`${doc.date}, 2026`);
-            }
+            const docDate = doc.submittedAt ? new Date(doc.submittedAt) : new Date(`${doc.date}, 2026`);
 
             // Normalize times for accurate comparison
             const checkDate = new Date(docDate.setHours(0, 0, 0, 0));
-            const fromDate = new Date(from.setHours(0, 0, 0, 0));
-            const toDate = new Date(to.setHours(23, 59, 59, 999));
+            const fromDate = new Date(from);
+            const toDate = new Date(to);
+            fromDate.setHours(0, 0, 0, 0);
+            toDate.setHours(23, 59, 59, 999);
 
             return checkDate >= fromDate && checkDate <= toDate;
         });
@@ -830,30 +842,52 @@ window.onclick = function (event) {
     }
 }
 
-function handleDocSubmit(e) {
+async function handleDocSubmit(e) {
     e.preventDefault();
 
     const recipient = document.getElementById('doc-recipient').value;
     const type = document.getElementById('doc-type').value;
-    const title = e.currentTarget.querySelector('input[type="text"]').value;
+    const title = (e.currentTarget.querySelector('input[type="text"]')?.value || '').trim();
+    const description = (e.currentTarget.querySelector('textarea')?.value || '').trim();
+    const academicYear = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+    const month = new Date().getMonth();
+    const semester = (month >= 7 && month <= 11) ? '1st' : '2nd';
 
-    docsData.unshift({
-        title: title,
-        type: type,
-        date: "Just now",
-        status: `Sent to ${recipient}`,
-        org: readAuthSession().active_org_name || 'AISERS'
-    });
+    if (!title) {
+        alert('Title is required.');
+        return;
+    }
 
-    // Refresh list
-    // If we are currently on "Rejected" or "Approved", switch to "All" or "Pending" to see new item
-    const allBtn = document.querySelector('.repo-filters .filter-tab:first-child');
-    renderDocs('All', allBtn);
-    renderRecentDocs(); // Refresh the sidebar
+    // The current UI does not upload a file yet; keep a placeholder URL for now.
+    const fileUrl = `uploads/documents/${Date.now()}_${title.replace(/[^a-z0-9]+/gi, '_')}.pdf`;
 
-    e.target.reset();
-    closeSubmitModal();
-    alert(`Document successfully sent to ${recipient}.`);
+    try {
+        const res = await fetch('../api/documents/submit.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                title,
+                document_type: type,
+                recipient,
+                description,
+                semester,
+                academic_year: academicYear,
+                file_url: fileUrl
+            })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            throw new Error(data.error || 'Failed to submit document.');
+        }
+        await loadDocsFromApi();
+        e.target.reset();
+        closeSubmitModal();
+        alert(`Document successfully sent to ${recipient}.`);
+    } catch (error) {
+        console.error(error);
+        alert(error.message || 'Failed to submit document.');
+    }
 }
 
 function formatTimeRange(start, end) {
@@ -1259,6 +1293,8 @@ window.addEventListener('DOMContentLoaded', () => {
     renderRecentDocs();
     renderAnnouncements();
     fetchAnnouncementsFromApi();
+    loadDocsFromApi();
+    loadRepoFromApi();
     // Initialize repository counts
     if (typeof updateFolderCounts === 'function') {
         updateFolderCounts();
@@ -1267,6 +1303,59 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // --- DOCUMENT REPOSITORY LOGIC ---
+
+const DOCUMENTS_API_BASE = '../api/documents';
+
+function fmtDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+}
+
+async function loadDocsFromApi() {
+    try {
+        const res = await fetch(`${DOCUMENTS_API_BASE}/list.php`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data.ok) return;
+        docsData = (data.items || []).map(item => ({
+            title: item.title,
+            type: item.document_type,
+            date: fmtDateShort(item.submitted_at),
+            submittedAt: item.submitted_at || null,
+            status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+            org: item.org_name || '',
+            id: item.submission_id,
+        }));
+        renderDocs(currentDocFilter);
+        renderRecentDocs();
+    } catch (e) {
+        console.error('loadDocsFromApi failed', e);
+    }
+}
+
+async function loadRepoFromApi() {
+    try {
+        const params = new URLSearchParams();
+        const res = await fetch(`${DOCUMENTS_API_BASE}/repository.php?${params.toString()}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data.ok) return;
+        repositoryData = (data.items || []).map(item => ({
+            id: item.repo_id,
+            name: item.title,
+            category: item.document_type,
+            org: item.org_name,
+            date: fmtDateShort(item.approved_at),
+            approvedAt: item.approved_at || null,
+            semester: item.semester || null,
+            academicYear: item.academic_year || null,
+            file_url: item.file_url,
+        }));
+        renderRepoTable();
+        updateRepoCategoryDropdown();
+    } catch (e) {
+        console.error('loadRepoFromApi failed', e);
+    }
+}
 
 // 1. Switch View Function (Status Board <-> Repository)
 // 1. Switch View Function (Status Board <-> Repository)
@@ -1283,26 +1372,12 @@ function switchDocsSubView(view, btn) {
     if (view === 'repository') {
         statusView.style.display = 'none';
         repoView.style.display = 'block';
-        initRepository(); // Recalculates counts and renders table
+        loadRepoFromApi();
     } else {
-        statusView.style.display = 'flex'; // Restore flex layout
+        statusView.style.display = ''; // Let CSS class (docs-layout grid) take over
         repoView.style.display = 'none';
     }
 }
-
-// 2. Mock Data for Repository
-const repositoryData = [
-    { id: 'r1', name: "Annual Activity Report 2023", category: "Activity Report", org: "Supreme Student Council", date: "Jan 10, 2024" },
-    { id: 'r2', name: "Q4 Financial Statement", category: "Financial Statement", org: "AISERS", date: "Jan 15, 2024" },
-    { id: 'r3', name: "Tech Week Proposal", category: "Event Proposal", org: "ELITECH", date: "Feb 01, 2024" },
-    { id: 'r4', name: "Res. 2024-001: Budget Allocation", category: "Resolution", org: "SSC", date: "Jan 05, 2024" },
-    { id: 'r5', name: "Semestral Operational Plan", category: "Operational Plan", org: "ILASSO", date: "Aug 12, 2023" },
-    { id: 'r6', name: "Outreach Activity Report", category: "Activity Report", org: "RCYC", date: "Dec 20, 2023" },
-    { id: 'r7', name: "Audit Report 2023", category: "Financial Statement", org: "AETSO", date: "Dec 15, 2023" },
-    { id: 'r8', name: "General Assembly Proposal", category: "Event Proposal", org: "AERO-ATSO", date: "Feb 05, 2024" },
-    { id: 'r9', name: "Res. 2023-09: Constitution Amendment", category: "Resolution", org: "SSC", date: "Nov 10, 2023" },
-    { id: 'r10', name: "Year-End Operational Plan", category: "Operational Plan", org: "Scholars Guild", date: "Dec 01, 2023" }
-];
 
 let currentRepoCategory = 'All';
 
@@ -1375,25 +1450,20 @@ function renderRepoTable() {
             item.category.toLowerCase().includes(searchInput);
 
         // 3. Date Logic (Updated)
-        const itemDate = new Date(item.date);
+        const itemDate = item.approvedAt ? new Date(item.approvedAt) : new Date(item.date);
         let matchesDate = true;
 
         if (repoDateFilter.from && repoDateFilter.to) {
             const checkDate = new Date(itemDate.setHours(0, 0, 0, 0));
-            const fromDate = new Date(repoDateFilter.from.setHours(0, 0, 0, 0));
-            const toDate = new Date(repoDateFilter.to.setHours(23, 59, 59, 999));
+            const fromDate = new Date(repoDateFilter.from);
+            const toDate = new Date(repoDateFilter.to);
+            fromDate.setHours(0, 0, 0, 0);
+            toDate.setHours(23, 59, 59, 999);
 
             matchesDate = checkDate >= fromDate && checkDate <= toDate;
 
         } else if (filterSem !== 'all') {
-            const month = itemDate.getMonth(); // 0-11
-            if (filterSem === '1st') {
-                // Aug(7) to Dec(11)
-                matchesDate = month >= 7 && month <= 11;
-            } else if (filterSem === '2nd') {
-                // Jan(0) to May(4)
-                matchesDate = month >= 0 && month <= 4;
-            }
+            matchesDate = (item.semester || '').toLowerCase() === filterSem.toLowerCase();
         }
 
         return matchesType && matchesSearch && matchesDate;

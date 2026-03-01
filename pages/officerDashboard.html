@@ -809,8 +809,10 @@
                     <textarea rows="3" placeholder="Brief details..."></textarea>
 
                     <label>Attach File</label>
-                    <div class="file-upload-box">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> Click to upload PDF
+                    <input type="file" id="doc-file-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display:none;" onchange="updateFileUploadLabel(this)">
+                    <div class="file-upload-box" onclick="document.getElementById('doc-file-input').click()">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span id="file-upload-label"> Click to upload PDF</span>
                     </div>
 
                     <div class="modal-footer">

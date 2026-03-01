@@ -30,6 +30,85 @@ function initOsaAuthContext() {
     if (profileRole) profileRole.innerText = String(roleLabel).replace('_', ' ').toUpperCase();
 }
 
+const DOCUMENTS_API_BASE = '../api/documents';
+
+function fmtDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+}
+
+async function loadDocsFromApi() {
+    try {
+        const params = new URLSearchParams({ status: 'all' });
+        const response = await fetch(`${DOCUMENTS_API_BASE}/list.php?${params.toString()}`, {
+            credentials: 'same-origin'
+        });
+        const data = await response.json();
+        if (!data.ok) return;
+        docsData = (data.items || []).map(item => ({
+            id: item.submission_id,
+            title: item.title,
+            type: item.document_type,
+            org: item.org_name || '',
+            status: item.status || 'pending',
+            date: fmtDateShort(item.submitted_at),
+            submittedAt: item.submitted_at || null
+        }));
+        renderDocs(currentDocFilter);
+        renderRecentDocs();
+    } catch (error) {
+        console.error('loadDocsFromApi failed', error);
+    }
+}
+
+async function loadRepoFromApi() {
+    try {
+        const response = await fetch(`${DOCUMENTS_API_BASE}/repository.php`, {
+            credentials: 'same-origin'
+        });
+        const data = await response.json();
+        if (!data.ok) return;
+        repositoryData = (data.items || []).map(item => ({
+            id: item.repo_id,
+            name: item.title,
+            category: item.document_type,
+            org: item.org_name || '',
+            date: fmtDateShort(item.approved_at),
+            approvedAt: item.approved_at || null,
+            semester: item.semester || null,
+            academicYear: item.academic_year || null
+        }));
+        updateRepoCategoryDropdown();
+        renderRepoTable();
+    } catch (error) {
+        console.error('loadRepoFromApi failed', error);
+    }
+}
+
+async function reviewDocument(submissionId, decision) {
+    try {
+        const response = await fetch(`${DOCUMENTS_API_BASE}/review.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                submission_id: submissionId,
+                decision
+            })
+        });
+        const data = await response.json();
+        if (!data.ok) {
+            throw new Error(data.error || 'Failed to review document.');
+        }
+        await Promise.all([loadDocsFromApi(), loadRepoFromApi()]);
+    } catch (error) {
+        console.error(error);
+        alert(error.message || 'Failed to review document.');
+    }
+}
+
 // --- INTEGRATED THEME LOGIC ---
 
 // Helper function to switch the theme
@@ -121,12 +200,7 @@ const requests = [
     { id: 104, type: "Event Proposal", org: "SCHOLAR'S GUILD", sender: "PO Martinez", title: "Mental Health Week", date: "Oct 22, 2023", status: "Pending" }
 ];
 
-const docsData = [
-    { title: "September Financial Statement", type: "Financial Statement", date: "Oct 05", status: "Approved" },
-    { title: "Team Building Proposal", type: "Proposal", date: "Oct 18", status: "Sent to OSA" },
-    { title: "Election Guidelines", type: "Document", date: "Oct 20", status: "Pending" },
-    { title: "Constitution Amendment", type: "Legal", date: "Oct 24", status: "SSC Approved" }
-];
+let docsData = [];
 
 const transactions = [
     { org: "Supreme Student Council", sender: "Juan Dela Cruz", doc: "Budget Proposal Q4", date: "Oct 25, 2023", status: "Pending" },
@@ -420,15 +494,15 @@ function renderRecentDocs() {
         let statusClass = '';
 
         // Mapping statuses to specific requirements: Approved, Rejected, For Revision
-        if (doc.status === 'Approved') {
+        const status = String(doc.status || '').toLowerCase();
+        if (status === 'approved') {
             statusText = 'Approved';
             statusClass = 'status-approved';
-        } else if (doc.status.includes('Rejected')) {
+        } else if (status === 'rejected') {
             statusText = 'Rejected';
             statusClass = 'status-rejected';
         } else {
-            // Treat Pending, SSC Approved, or Sent to OSA as "For Revision" for OSA view
-            statusText = 'For Revision';
+            statusText = 'Pending Review';
             statusClass = 'status-pending';
         }
 
@@ -484,28 +558,28 @@ function renderDocs(filter = 'All', btnElement = null) {
 
     // Filter Logic
     let filteredData = docsData.filter(doc => {
+        const statusText = String(doc.status || '').toLowerCase();
+
         // 1. Status Filter
         const matchesStatus = (filter === 'All') ||
-            (filter === 'Pending' && (doc.status.includes('Sent') || doc.status.includes('Pending') || doc.status === 'SSC Approved')) ||
-            (doc.status.includes(filter));
+            (filter === 'Pending' && statusText === 'pending') ||
+            (filter === 'Approved' && statusText === 'approved') ||
+            (filter === 'Rejected' && statusText === 'rejected');
 
         // 2. Organization Filter
-        const docOrg = organizations[doc.title.length % organizations.length].name;
-        const matchesOrg = (orgVal === 'all') || (docOrg === orgVal);
+        const matchesOrg = (orgVal === 'all') || (doc.org === orgVal);
         // 3. Date/Month Filter
         let matchesDate = true;
         let docDateObj;
 
-        if (doc.date === "Just now") docDateObj = new Date();
-        else if (doc.date === "Yesterday") {
-            docDateObj = new Date();
-            docDateObj.setDate(docDateObj.getDate() - 1);
-        } else {
-            docDateObj = new Date(`${doc.date}, 2026`);
-        }
+        docDateObj = doc.submittedAt ? new Date(doc.submittedAt) : new Date(`${doc.date}, 2026`);
 
         if (docsDateFilter.from && docsDateFilter.to) {
-            matchesDate = docDateObj >= docsDateFilter.from && docDateObj <= docsDateFilter.to;
+            const fromDate = new Date(docsDateFilter.from);
+            const toDate = new Date(docsDateFilter.to);
+            fromDate.setHours(0, 0, 0, 0);
+            toDate.setHours(23, 59, 59, 999);
+            matchesDate = docDateObj >= fromDate && docDateObj <= toDate;
         }
 
         return matchesStatus && matchesOrg && matchesDate;
@@ -523,15 +597,20 @@ function renderDocs(filter = 'All', btnElement = null) {
                 <i class="fa-solid fa-eye"></i> View
             </button>`;
 
-        if (doc.status === 'Approved') {
+        const statusText = String(doc.status || '').toLowerCase();
+        if (statusText === 'approved') {
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
-        } else if (doc.status.includes('Sent to OSA')) {
-            // Update: Changed from "Sent to OSA" to "Pending Review" for the OSA view
-            statusBadge = '<span class="status-badge status-sent" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending Review</span>';
-        } else if (doc.status.includes('Rejected')) {
+        } else if (statusText === 'rejected') {
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
         } else {
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
+            actionButtons += `
+                <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'approved')">
+                    Approve
+                </button>
+                <button class="btn btn-sm btn-outline" style="color:#dc2626; border-color:#dc2626;" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'rejected')">
+                    Reject
+                </button>`;
         }
 
         const sender = senders[doc.title.length % senders.length];
@@ -551,7 +630,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                 </div>
             </div>
             <div class="col-sent mobile-hide">${sender}</div>
-            <div class="col-ssc mobile-hide">Organization Name</div>
+            <div class="col-ssc mobile-hide">${doc.org || 'N/A'}</div>
             <div class="col-osa mobile-hide">OSA Internal</div>
             <div class="col-status">
                 <div class="action-btn-group">
@@ -1091,6 +1170,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initDocOrgFilter(); // Initialize document organization filter
     renderDocs();
     renderRecentDocs();
+    loadDocsFromApi();
 
     // Initialize Requests
     initReqOrgFilter();
@@ -1105,6 +1185,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Initialize Transactions
     renderTransactions();
+    loadRepoFromApi();
 
     // Add Enter key listener for confirmation modal
     const actionInput = document.getElementById('request-action-input');
@@ -1126,18 +1207,7 @@ document.addEventListener('pdfviewer:ready', () => {
 
 // --- UPDATED REPOSITORY LOGIC ---
 
-const repositoryData = [
-    { id: 'r1', name: "Annual Activity Report 2023", category: "Activity Report", org: "Supreme Student Council", date: "Jan 10, 2024" },
-    { id: 'r2', name: "Q4 Financial Statement", category: "Financial Statement", org: "AISERS", date: "Jan 15, 2024" },
-    { id: 'r3', name: "Tech Week Proposal", category: "Event Proposal", org: "ELITECH", date: "Feb 01, 2024" },
-    { id: 'r4', name: "Res. 2024-001: Budget Allocation", category: "Resolution", org: "SSC", date: "Jan 05, 2024" },
-    { id: 'r5', name: "Semestral Operational Plan", category: "Operational Plan", org: "ILASSO", date: "Aug 12, 2023" },
-    { id: 'r6', name: "Outreach Activity Report", category: "Activity Report", org: "RCYC", date: "Dec 20, 2023" },
-    { id: 'r7', name: "Audit Report 2023", category: "Financial Statement", org: "AETSO", date: "Dec 15, 2023" },
-    { id: 'r8', name: "General Assembly Proposal", category: "Event Proposal", org: "AERO-ATSO", date: "Feb 05, 2024" },
-    { id: 'r9', name: "Res. 2023-09: Constitution Amendment", category: "Resolution", org: "SSC", date: "Nov 10, 2023" },
-    { id: 'r10', name: "Year-End Operational Plan", category: "Operational Plan", org: "Scholars Guild", date: "Dec 01, 2023" }
-];
+let repositoryData = [];
 
 let currentRepoCategory = 'All';
 
@@ -1223,20 +1293,17 @@ function renderRepoTable() {
             item.org.toLowerCase().includes(searchInput);
 
         // 4. Date Logic
-        const itemDate = new Date(item.date);
+        const itemDate = item.approvedAt ? new Date(item.approvedAt) : new Date(item.date);
         let matchesDate = true;
 
         if (repoDateFilter.from && repoDateFilter.to) {
-            matchesDate = itemDate >= repoDateFilter.from && itemDate <= repoDateFilter.to;
+            const fromDate = new Date(repoDateFilter.from);
+            const toDate = new Date(repoDateFilter.to);
+            fromDate.setHours(0, 0, 0, 0);
+            toDate.setHours(23, 59, 59, 999);
+            matchesDate = itemDate >= fromDate && itemDate <= toDate;
         } else if (filterSem !== 'all') {
-            const month = itemDate.getMonth(); // 0 = Jan, 11 = Dec
-            if (filterSem === '1st') {
-                // Matches Aug to Dec
-                matchesDate = month >= 7 && month <= 11;
-            } else if (filterSem === '2nd') {
-                // Matches Jan to May
-                matchesDate = month >= 0 && month <= 4;
-            }
+            matchesDate = (item.semester || '').toLowerCase() === filterSem.toLowerCase();
         }
 
         return matchesType && matchesOrg && matchesSearch && matchesDate;
@@ -1304,7 +1371,8 @@ function switchDocsSubView(view, btn) {
     if (view === 'repository') {
         statusView.style.display = 'none';
         repoView.style.display = 'block';
-        initRepository(); // Recalculates counts and renders table
+        loadRepoFromApi();
+        initRepository();
     } else {
         statusView.style.display = 'grid';
         repoView.style.display = 'none';

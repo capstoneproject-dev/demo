@@ -1,0 +1,269 @@
+<?php
+/**
+ * Document submission & repository domain services.
+ */
+
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../config/db.php';
+
+class DocumentValidationException extends RuntimeException {}
+class DocumentAuthorizationException extends RuntimeException {}
+
+function docRequireOfficerOrgContext(): array
+{
+    $session = getPhpSession();
+    if (!isLoggedIn()) {
+        throw new DocumentAuthorizationException('Not authenticated.');
+    }
+    if (($session['login_role'] ?? null) !== 'org') {
+        throw new DocumentAuthorizationException('Officer organization context required.');
+    }
+    $orgId = (int)($session['active_org_id'] ?? 0);
+    if ($orgId <= 0) {
+        throw new DocumentAuthorizationException('No active organization selected.');
+    }
+    return [
+        'session' => $session,
+        'org_id'  => $orgId,
+        'user_id' => (int)($session['user_id'] ?? 0),
+    ];
+}
+
+function docRequireOsaContext(): array
+{
+    $session = getPhpSession();
+    if (!isLoggedIn()) {
+        throw new DocumentAuthorizationException('Not authenticated.');
+    }
+    if (($session['login_role'] ?? '') !== 'osa' && ($session['account_type'] ?? '') !== 'osa_staff') {
+        throw new DocumentAuthorizationException('OSA staff context required.');
+    }
+    return [
+        'session' => $session,
+        'user_id' => (int)($session['user_id'] ?? 0),
+    ];
+}
+
+function docValidateAcademicYear(?string $ay): ?string
+{
+    $ay = $ay ? trim($ay) : null;
+    if (!$ay) return null;
+    if (!preg_match('/^\d{4}-\d{4}$/', $ay)) {
+        throw new DocumentValidationException('academic_year must be in YYYY-YYYY format.');
+    }
+    return $ay;
+}
+
+function docValidateSemester(?string $sem): ?string
+{
+    $sem = $sem ? trim($sem) : null;
+    if (!$sem) return null;
+    $sem = strtolower($sem);
+    if (!in_array($sem, ['1st', '2nd'], true)) {
+        throw new DocumentValidationException('semester must be 1st or 2nd.');
+    }
+    return $sem;
+}
+
+function docValidateType(string $type): string
+{
+    $allowed = [
+        'Activity Report',
+        'Financial Statement',
+        'Proposal',
+        'Event Proposal',
+        'Resolution',
+        'Operational Plan',
+        'Document',
+        'Other'
+    ];
+    $type = trim($type);
+    if (!in_array($type, $allowed, true)) {
+        throw new DocumentValidationException('Invalid document_type.');
+    }
+    return $type;
+}
+
+function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): array
+{
+    $title        = trim((string)($data['title'] ?? ''));
+    $documentType = docValidateType((string)($data['document_type'] ?? ''));
+    $recipient    = trim((string)($data['recipient'] ?? 'OSA')) ?: 'OSA';
+    $description  = trim((string)($data['description'] ?? '')) ?: null;
+    $fileUrl      = trim((string)($data['file_url'] ?? ''));
+    $semester     = docValidateSemester($data['semester'] ?? null);
+    $academicYear = docValidateAcademicYear($data['academic_year'] ?? null);
+
+    if ($title === '')  throw new DocumentValidationException('title is required.');
+    if ($fileUrl === '')throw new DocumentValidationException('file_url is required.');
+    if ($orgId <= 0 || $userId <= 0) throw new DocumentValidationException('Invalid org/user context.');
+
+    $stmt = $pdo->prepare(
+        "INSERT INTO document_submissions
+         (org_id, submitted_by_user_id, title, document_type, file_url, recipient, description, status, semester, academic_year)
+         VALUES (:org, :uid, :title, :type, :file, :recipient, :description, 'pending', :semester, :ay)"
+    );
+    $stmt->execute([
+        ':org'         => $orgId,
+        ':uid'         => $userId,
+        ':title'       => $title,
+        ':type'        => $documentType,
+        ':file'        => $fileUrl,
+        ':recipient'   => $recipient,
+        ':description' => $description,
+        ':semester'    => $semester,
+        ':ay'          => $academicYear,
+    ]);
+
+    $id = (int)$pdo->lastInsertId();
+    return docFetchSubmission($pdo, $id);
+}
+
+function docFetchSubmission(PDO $pdo, int $id): array
+{
+    $stmt = $pdo->prepare(
+        "SELECT ds.*, o.org_name
+         FROM document_submissions ds
+         JOIN organizations o ON o.org_id = ds.org_id
+         WHERE ds.submission_id = :id"
+    );
+    $stmt->execute([':id' => $id]);
+    $row = $stmt->fetch();
+    if (!$row) throw new RuntimeException('Submission not found.');
+    $row['submission_id'] = (int)$row['submission_id'];
+    $row['org_id']        = (int)$row['org_id'];
+    $row['submitted_by_user_id'] = (int)$row['submitted_by_user_id'];
+    $row['reviewed_by_user_id']  = $row['reviewed_by_user_id'] !== null ? (int)$row['reviewed_by_user_id'] : null;
+    return $row;
+}
+
+function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null): array
+{
+    $where  = [];
+    $params = [];
+
+    if ($orgScope !== null) {
+        $where[] = 'ds.org_id = :org';
+        $params[':org'] = $orgScope;
+    }
+
+    if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        $where[] = 'ds.status = :status';
+        $params[':status'] = $filters['status'];
+    }
+
+    if (!empty($filters['recipient'])) {
+        $where[] = 'ds.recipient = :recipient';
+        $params[':recipient'] = $filters['recipient'];
+    }
+
+    if (!empty($filters['q'])) {
+        $where[] = '(ds.title LIKE :q OR ds.document_type LIKE :q)';
+        $params[':q'] = '%' . trim($filters['q']) . '%';
+    }
+
+    if (!empty($filters['from'])) {
+        $where[] = 'ds.submitted_at >= :from';
+        $params[':from'] = $filters['from'];
+    }
+    if (!empty($filters['to'])) {
+        $where[] = 'ds.submitted_at <= :to';
+        $params[':to'] = $filters['to'];
+    }
+
+    $sql = "SELECT ds.*, o.org_name
+            FROM document_submissions ds
+            JOIN organizations o ON o.org_id = ds.org_id
+            " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
+            ORDER BY ds.submitted_at DESC, ds.submission_id DESC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    foreach ($rows as &$r) {
+        $r['submission_id'] = (int)$r['submission_id'];
+        $r['org_id']        = (int)$r['org_id'];
+        $r['submitted_by_user_id'] = (int)$r['submitted_by_user_id'];
+        $r['reviewed_by_user_id']  = $r['reviewed_by_user_id'] !== null ? (int)$r['reviewed_by_user_id'] : null;
+    }
+    return $rows;
+}
+
+function docReviewSubmission(PDO $pdo, int $submissionId, int $reviewerId, string $decision, ?string $notes = null): array
+{
+    $decision = strtolower(trim($decision));
+    if (!in_array($decision, ['approved', 'rejected'], true)) {
+        throw new DocumentValidationException('decision must be approved or rejected');
+    }
+    $notes = $notes !== null ? trim($notes) : null;
+
+    $stmt = $pdo->prepare(
+        "UPDATE document_submissions
+         SET status = :status,
+             reviewer_notes = :notes,
+             reviewed_by_user_id = :uid,
+             reviewed_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE submission_id = :id"
+    );
+    $stmt->execute([
+        ':status' => $decision,
+        ':notes'  => $notes,
+        ':uid'    => $reviewerId,
+        ':id'     => $submissionId,
+    ]);
+
+    return docFetchSubmission($pdo, $submissionId);
+}
+
+function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null): array
+{
+    $where  = [];
+    $params = [];
+    if ($orgScope !== null) {
+        $where[] = 'da.org_id = :org';
+        $params[':org'] = $orgScope;
+    }
+    if (!empty($filters['document_type']) && $filters['document_type'] !== 'All') {
+        $where[] = 'da.document_type = :dtype';
+        $params[':dtype'] = $filters['document_type'];
+    }
+    if (!empty($filters['semester']) && $filters['semester'] !== 'all') {
+        $where[] = 'da.semester = :sem';
+        $params[':sem'] = $filters['semester'];
+    }
+    if (!empty($filters['academic_year'])) {
+        $where[] = 'da.academic_year = :ay';
+        $params[':ay'] = $filters['academic_year'];
+    }
+    if (!empty($filters['from'])) {
+        $where[] = 'da.approved_at >= :from';
+        $params[':from'] = $filters['from'];
+    }
+    if (!empty($filters['to'])) {
+        $where[] = 'da.approved_at <= :to';
+        $params[':to'] = $filters['to'];
+    }
+    if (!empty($filters['q'])) {
+        $where[] = '(da.title LIKE :q OR da.document_type LIKE :q)';
+        $params[':q'] = '%' . trim($filters['q']) . '%';
+    }
+
+    $sql = "SELECT da.*, o.org_name
+            FROM documents_approved da
+            JOIN organizations o ON o.org_id = da.org_id
+            " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
+            ORDER BY da.approved_at DESC, da.repo_id DESC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    foreach ($rows as &$r) {
+        $r['repo_id'] = (int)$r['repo_id'];
+        $r['submission_id'] = (int)$r['submission_id'];
+        $r['org_id'] = (int)$r['org_id'];
+        $r['approved_by_user_id'] = (int)$r['approved_by_user_id'];
+    }
+    return $rows;
+}
+

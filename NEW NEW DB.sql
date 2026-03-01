@@ -143,18 +143,20 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
--- Table structure for table `documents_approved`
 --
 
 CREATE TABLE `documents_approved` (
-  `repo_id` int(11) NOT NULL,
-  `submission_id` int(11) NOT NULL,
-  `org_id` int(11) NOT NULL,
-  `approved_by_user_id` int(11) NOT NULL,
-  `title` varchar(255) NOT NULL,
-  `document_type` varchar(50) NOT NULL,
-  `file_url` varchar(500) DEFAULT NULL,
-  `approved_at` datetime NOT NULL DEFAULT current_timestamp()
+    `repo_id` int(11) NOT NULL,
+    `submission_id` int(11) NOT NULL,
+    `org_id` int(11) NOT NULL,
+    `approved_by_user_id` int(11) NOT NULL,
+    `title` varchar(255) NOT NULL,
+    `document_type` varchar(50) NOT NULL,
+    `file_url` varchar(500) DEFAULT NULL,
+    `description` text DEFAULT NULL,
+    `semester` enum('1st','2nd') DEFAULT NULL,
+    `academic_year` varchar(9) DEFAULT NULL,
+    `approved_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -164,20 +166,23 @@ CREATE TABLE `documents_approved` (
 --
 
 CREATE TABLE `document_submissions` (
-  `submission_id` int(11) NOT NULL,
-  `org_id` int(11) NOT NULL,
-  `submitted_by_user_id` int(11) NOT NULL,
-  `reviewed_by_user_id` int(11) DEFAULT NULL,
-  `title` varchar(255) NOT NULL,
-  `document_type` varchar(50) NOT NULL,
-  `file_url` varchar(500) DEFAULT NULL,
-  `recipient` varchar(50) NOT NULL DEFAULT 'OSA',
-  `status` varchar(30) NOT NULL DEFAULT 'pending',
-  `reviewer_notes` text DEFAULT NULL,
-  `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `reviewed_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
+    `submission_id` int(11) NOT NULL,
+    `org_id` int(11) NOT NULL,
+    `submitted_by_user_id` int(11) NOT NULL,
+    `reviewed_by_user_id` int(11) DEFAULT NULL,
+    `title` varchar(255) NOT NULL,
+    `document_type` varchar(50) NOT NULL,
+    `file_url` varchar(500) DEFAULT NULL,
+    `recipient` varchar(50) NOT NULL DEFAULT 'OSA',
+    `description` text DEFAULT NULL,
+    `status` varchar(30) NOT NULL DEFAULT 'pending',
+    `reviewer_notes` text DEFAULT NULL,
+    `semester` enum('1st','2nd') DEFAULT NULL,
+    `academic_year` varchar(9) DEFAULT NULL,
+    `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
+    `reviewed_at` datetime DEFAULT NULL,
+    `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+    `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ;
 
 --
@@ -185,12 +190,16 @@ CREATE TABLE `document_submissions` (
 --
 DELIMITER $$
 CREATE TRIGGER `trg_doc_sub_to_repo` AFTER UPDATE ON `document_submissions` FOR EACH ROW BEGIN
-  IF NEW.status='approved' AND OLD.status <> 'approved' THEN
-    INSERT INTO approved_documents (submission_id, org_id, approved_by_user_id, title, document_type, file_url, approved_at)
-    VALUES (NEW.submission_id, NEW.org_id, COALESCE(NEW.reviewed_by_user_id, NEW.submitted_by_user_id),
-            NEW.title, NEW.document_type, NEW.file_url, NOW())
-    ON DUPLICATE KEY UPDATE approved_at = VALUES(approved_at), file_url = VALUES(file_url);
-  END IF;
+    IF NEW.status='approved' AND OLD.status <> 'approved' THEN
+      INSERT INTO documents_approved (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, approved_at)
+      VALUES (NEW.submission_id, NEW.org_id, COALESCE(NEW.reviewed_by_user_id, NEW.submitted_by_user_id),
+              NEW.title, NEW.document_type, NEW.file_url, NEW.description, NEW.semester, NEW.academic_year, NOW())
+      ON DUPLICATE KEY UPDATE approved_at = VALUES(approved_at),
+                              file_url    = VALUES(file_url),
+                              description = VALUES(description),
+                              semester    = VALUES(semester),
+                              academic_year = VALUES(academic_year);
+    END IF;
 END
 $$
 DELIMITER ;
@@ -849,10 +858,10 @@ ALTER TABLE `attendance_records`
 -- Indexes for table `documents_approved`
 --
 ALTER TABLE `documents_approved`
-  ADD PRIMARY KEY (`repo_id`),
-  ADD UNIQUE KEY `submission_id` (`submission_id`),
-  ADD KEY `fk_repo_org` (`org_id`),
-  ADD KEY `fk_repo_approver` (`approved_by_user_id`);
+    ADD PRIMARY KEY (`repo_id`),
+    ADD UNIQUE KEY `submission_id` (`submission_id`),
+    ADD KEY `fk_repo_org` (`org_id`),
+    ADD KEY `fk_repo_approver` (`approved_by_user_id`);
 
 --
 -- Indexes for table `document_submissions`
