@@ -19,7 +19,9 @@ const PDFViewer = {
     totalPages: 0,
     scale: 1.0,
     currentDocId: null,
+    currentSubmissionId: null,
     isReadOnly: false,
+    annotations: [],
 
     // Mode states
     highlightMode: false,
@@ -33,6 +35,8 @@ const PDFViewer = {
 
     // Uploaded PDFs storage
     uploadedPdfs: {},
+    // Remote PDFs storage (from DB file_url)
+    remotePdfs: {},
 
     // ============================================
     // INITIALIZATION
@@ -114,6 +118,32 @@ const PDFViewer = {
         }));
     },
 
+    registerRemote(docId, name, url, meta = {}) {
+        if (!docId || !url) return;
+        const cleaned = String(url).trim().replace(/\\/g, '/');
+        const parts = cleaned.split('/');
+        const fileName = parts[parts.length - 1];
+        const candidates = [cleaned];
+
+        if (!/^https?:\/\//i.test(cleaned)) {
+            if (!cleaned.startsWith('/')) {
+                candidates.push(`../${cleaned.replace(/^\.?\//, '')}`);
+            }
+            if (fileName) {
+                candidates.push(`../uploads/documents/${fileName}`);
+                candidates.push(`/CAPSTONE/demo/uploads/documents/${fileName}`);
+            }
+        }
+
+        this.remotePdfs[docId] = {
+            id: docId,
+            name: name || 'Document',
+            url: cleaned,
+            candidates: Array.from(new Set(candidates)),
+            submissionId: Number.isInteger(meta.submissionId) ? meta.submissionId : null
+        };
+    },
+
     // ============================================
     // PDF UPLOAD
     // ============================================
@@ -150,9 +180,11 @@ const PDFViewer = {
     // ============================================
     async open(docId, readonly = false) {
         this.currentDocId = docId;
+        this.currentSubmissionId = this.resolveSubmissionId(docId);
         this.isReadOnly = readonly;
         this.currentPage = 1;
         this.scale = 1.0;
+        this.annotations = [];
 
         const modal = this.elements.modal;
         if (!modal) return;
@@ -162,17 +194,36 @@ const PDFViewer = {
         document.body.style.overflow = 'hidden';
 
         // Get PDF data
-        const doc = this.uploadedPdfs[docId];
-        if (!doc || !doc.data) {
+        const localDoc = this.uploadedPdfs[docId];
+        const remoteDoc = this.remotePdfs[docId];
+
+        if (!localDoc?.data && !remoteDoc?.url) {
             this.showLoading('No PDF data available');
             return;
         }
 
-        this.elements.docName.textContent = doc.name;
+        this.elements.docName.textContent = localDoc?.name || remoteDoc?.name || 'Document';
         this.showLoading('Loading PDF...');
 
         try {
-            await this.loadDocument(doc.data);
+            if (localDoc?.data) {
+                await this.loadDocument(localDoc.data);
+            } else {
+                let loaded = false;
+                const tries = remoteDoc.candidates || [remoteDoc.url];
+                for (const candidate of tries) {
+                    try {
+                        await this.loadDocument(candidate);
+                        loaded = true;
+                        break;
+                    } catch (_err) {
+                        // try next candidate path
+                    }
+                }
+                if (!loaded) {
+                    throw new Error('MissingPDFException');
+                }
+            }
         } catch (error) {
             console.error('Failed to load PDF:', error);
             this.showLoading('Failed to load PDF');
@@ -189,10 +240,12 @@ const PDFViewer = {
         // Reset state
         this.pdfDoc = null;
         this.currentDocId = null;
+        this.currentSubmissionId = null;
         this.currentPage = 1;
         this.highlightMode = false;
         this.commentMode = false;
         this.pendingHighlight = null;
+        this.annotations = [];
 
         // Clear viewer
         if (this.elements.viewerContainer) {
@@ -225,7 +278,7 @@ const PDFViewer = {
 
         this.updatePageInfo();
         await this.renderAllPages();
-        this.loadAnnotations();
+        await this.loadAnnotations();
     },
 
     async renderAllPages() {
@@ -423,7 +476,10 @@ const PDFViewer = {
             this.openCommentModal(selectedText);
         } else if (this.highlightMode) {
             // Create highlight immediately (no comment)
-            this.createAnnotation(this.pendingHighlight, '');
+            this.createAnnotation(this.pendingHighlight, '').catch((error) => {
+                console.error('Failed to save annotation:', error);
+                if (typeof showToast === 'function') showToast(error.message || 'Failed to save annotation', 'error');
+            });
             selection.removeAllRanges();
             this.pendingHighlight = null;
         }
@@ -454,7 +510,10 @@ const PDFViewer = {
         const comment = this.elements.commentTextarea?.value.trim() || '';
 
         if (this.pendingHighlight) {
-            this.createAnnotation(this.pendingHighlight, comment);
+            this.createAnnotation(this.pendingHighlight, comment).catch((error) => {
+                console.error('Failed to save comment annotation:', error);
+                if (typeof showToast === 'function') showToast(error.message || 'Failed to save comment', 'error');
+            });
             this.pendingHighlight = null;
         }
 
@@ -466,40 +525,106 @@ const PDFViewer = {
     // ANNOTATION STORAGE
     // ============================================
     getAnnotations() {
-        const stored = localStorage.getItem('pdf_annotations_' + this.currentDocId);
-        if (stored) {
+        return this.annotations || [];
+    },
+
+    async fetchAnnotationsFromApi() {
+        if (!this.currentSubmissionId) return [];
+        const res = await fetch(
+            `../api/documents/annotations/list.php?submission_id=${encodeURIComponent(this.currentSubmissionId)}`,
+            { credentials: 'same-origin' }
+        );
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Failed to load annotations.');
+        return (data.items || []).map(item => {
+            let rects = [];
             try {
-                return JSON.parse(stored);
+                rects = JSON.parse(item.rects_json || '[]');
+            } catch (_e) {
+                rects = [];
+            }
+            return {
+                id: `ann_${item.annotation_id}`,
+                dbId: item.annotation_id,
+                submissionId: item.submission_id,
+                page: item.page_number,
+                text: item.selected_text || '',
+                rects: Array.isArray(rects) ? rects : [],
+                comment: item.comment_text || '',
+                createdAt: item.created_at,
+                createdByUserId: item.created_by_user_id,
+                createdByName: [item.first_name, item.last_name].filter(Boolean).join(' ').trim()
+            };
+        });
+    },
+
+    async loadAnnotations() {
+        if (this.currentSubmissionId) {
+            try {
+                this.annotations = await this.fetchAnnotationsFromApi();
             } catch (e) {
-                return [];
+                console.error('Failed to load annotations from API:', e);
+                this.annotations = [];
+            }
+        } else {
+            const stored = localStorage.getItem('document_annotations_' + this.currentDocId);
+            if (stored) {
+                try {
+                    this.annotations = JSON.parse(stored);
+                } catch (_e) {
+                    this.annotations = [];
+                }
+            } else {
+                this.annotations = [];
             }
         }
-        return [];
-    },
-
-    saveAnnotations(annotations) {
-        localStorage.setItem('pdf_annotations_' + this.currentDocId, JSON.stringify(annotations));
-    },
-
-    loadAnnotations() {
         this.renderAllAnnotations();
         this.renderAnnotationsSidebar();
     },
 
-    createAnnotation(highlightData, comment) {
-        const annotations = this.getAnnotations();
-
-        const annotation = {
-            id: 'ann_' + Date.now(),
-            page: highlightData.page,
-            text: highlightData.text,
-            rects: highlightData.rects,
-            comment: comment,
-            createdAt: new Date().toISOString()
-        };
-
-        annotations.push(annotation);
-        this.saveAnnotations(annotations);
+    async createAnnotation(highlightData, comment) {
+        let annotation = null;
+        if (this.currentSubmissionId) {
+            const res = await fetch('../api/documents/annotations/create.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    submission_id: this.currentSubmissionId,
+                    page: highlightData.page,
+                    text: highlightData.text,
+                    rects: highlightData.rects,
+                    comment: comment
+                })
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to save annotation.');
+            const item = data.item || {};
+            let rects = [];
+            try { rects = JSON.parse(item.rects_json || '[]'); } catch (_e) {}
+            annotation = {
+                id: `ann_${item.annotation_id}`,
+                dbId: item.annotation_id,
+                submissionId: item.submission_id,
+                page: item.page_number,
+                text: item.selected_text || '',
+                rects: Array.isArray(rects) ? rects : [],
+                comment: item.comment_text || '',
+                createdAt: item.created_at
+            };
+            this.annotations.push(annotation);
+        } else {
+            annotation = {
+                id: 'ann_' + Date.now(),
+                page: highlightData.page,
+                text: highlightData.text,
+                rects: highlightData.rects,
+                comment: comment,
+                createdAt: new Date().toISOString()
+            };
+            this.annotations.push(annotation);
+            localStorage.setItem('document_annotations_' + this.currentDocId, JSON.stringify(this.annotations));
+        }
 
         this.renderPageAnnotations(annotation.page);
         this.renderAnnotationsSidebar();
@@ -509,14 +634,27 @@ const PDFViewer = {
         }
     },
 
-    deleteAnnotation(annotationId) {
+    async deleteAnnotation(annotationId) {
         if (this.isReadOnly) return;
 
-        let annotations = this.getAnnotations();
-        const annotation = annotations.find(a => a.id === annotationId);
+        const annotation = this.annotations.find(a => a.id === annotationId);
+        if (!annotation) return;
 
-        annotations = annotations.filter(a => a.id !== annotationId);
-        this.saveAnnotations(annotations);
+        if (this.currentSubmissionId && annotation.dbId) {
+            const res = await fetch('../api/documents/annotations/delete.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ annotation_id: annotation.dbId })
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to delete annotation.');
+        }
+
+        this.annotations = this.annotations.filter(a => a.id !== annotationId);
+        if (!this.currentSubmissionId) {
+            localStorage.setItem('document_annotations_' + this.currentDocId, JSON.stringify(this.annotations));
+        }
 
         if (annotation) {
             this.renderPageAnnotations(annotation.page);
@@ -615,7 +753,7 @@ const PDFViewer = {
                         <span>Page ${ann.page}</span>
                     </div>
                     <button class="pdf-annotation-delete" 
-                            onclick="event.stopPropagation(); PDFViewer.deleteAnnotation('${ann.id}')"
+                            onclick="event.stopPropagation(); PDFViewer.deleteAnnotation('${ann.id}').catch(function(e){console.error(e);})"
                             title="Delete">
                         <i class="fa-solid fa-trash"></i>
                     </button>
@@ -683,6 +821,15 @@ const PDFViewer = {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    },
+
+    resolveSubmissionId(docId) {
+        const remote = this.remotePdfs[docId];
+        if (remote && Number.isInteger(remote.submissionId) && remote.submissionId > 0) {
+            return remote.submissionId;
+        }
+        const m = String(docId || '').match(/^submission_(\d+)$/);
+        return m ? parseInt(m[1], 10) : null;
     }
 };
 

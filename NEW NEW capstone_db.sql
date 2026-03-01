@@ -225,6 +225,24 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `document_annotations`
+--
+
+CREATE TABLE `document_annotations` (
+  `annotation_id` int(11) NOT NULL,
+  `submission_id` int(11) NOT NULL,
+  `page_number` int(11) NOT NULL,
+  `selected_text` text NOT NULL,
+  `rects_json` longtext NOT NULL,
+  `comment_text` text DEFAULT NULL,
+  `created_by_user_id` int(11) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `events`
 --
 
@@ -885,6 +903,15 @@ ALTER TABLE `document_submissions`
   ADD KEY `idx_doc_sub_submitter` (`submitted_by_user_id`);
 
 --
+-- Indexes for table `document_annotations`
+--
+ALTER TABLE `document_annotations`
+  ADD PRIMARY KEY (`annotation_id`),
+  ADD KEY `fk_doc_ann_submission` (`submission_id`),
+  ADD KEY `fk_doc_ann_user` (`created_by_user_id`),
+  ADD KEY `idx_doc_ann_submission_page` (`submission_id`,`page_number`);
+
+--
 -- Indexes for table `events`
 --
 ALTER TABLE `events`
@@ -1041,6 +1068,12 @@ ALTER TABLE `document_submissions`
   MODIFY `submission_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `document_annotations`
+--
+ALTER TABLE `document_annotations`
+  MODIFY `annotation_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `events`
 --
 ALTER TABLE `events`
@@ -1157,6 +1190,13 @@ ALTER TABLE `document_submissions`
   ADD CONSTRAINT `fk_doc_sub_org` FOREIGN KEY (`org_id`) REFERENCES `organizations` (`org_id`),
   ADD CONSTRAINT `fk_doc_sub_reviewer` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_doc_sub_submitter` FOREIGN KEY (`submitted_by_user_id`) REFERENCES `users` (`user_id`);
+
+--
+-- Constraints for table `document_annotations`
+--
+ALTER TABLE `document_annotations`
+  ADD CONSTRAINT `fk_doc_ann_submission` FOREIGN KEY (`submission_id`) REFERENCES `document_submissions` (`submission_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_doc_ann_user` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`user_id`);
 
 --
 -- Constraints for table `events`

@@ -641,6 +641,29 @@
     </main>
 
 
+    <!-- Approve with Optional Comment Modal -->
+    <div id="approve-comment-modal" class="request-action-modal">
+        <div class="request-action-modal-content">
+            <div class="request-action-modal-header">
+                <h3>Approve Document</h3>
+                <button class="modal-close-btn" onclick="closeApproveCommentModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="request-action-modal-body">
+                <p>You can add an optional reviewer note before approving.</p>
+                <textarea id="approve-comment-text" rows="4" placeholder="Optional comments..."
+                    style="margin-top: 10px; width: 100%;"></textarea>
+            </div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-outline" onclick="closeApproveCommentModal()">Cancel</button>
+                <button class="btn btn-success" onclick="confirmApproveWithComment()">
+                    <i class="fa-solid fa-check"></i> Approve
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Request Action Confirmation Modal -->
     <div id="request-action-modal" class="request-action-modal">
         <div class="request-action-modal-content">
