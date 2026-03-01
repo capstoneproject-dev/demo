@@ -137,6 +137,15 @@ function officerOrgMatch(orgValue) {
     return normalizeOfficerOrgName(orgValue) === activeName;
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // --- DATA  (read from orgData.js — ORG_DATA is the source of truth) ---
 // All three arrays now populated via API instead of static mocks.
 let announcementsData = [];
@@ -355,6 +364,27 @@ function closeSubmitModal() {
     // document.getElementById('doc-form').reset();
 }
 
+function openReviewerNoteModal(encodedNote) {
+    const modal = document.getElementById('review-comment-modal');
+    const body = document.getElementById('review-comment-body');
+    if (!modal || !body) return;
+
+    let noteText = '';
+    try {
+        noteText = decodeURIComponent(encodedNote || '');
+    } catch (_error) {
+        noteText = String(encodedNote || '');
+    }
+
+    body.innerHTML = escapeHtml(noteText).replace(/\n/g, '<br>');
+    modal.classList.add('show');
+}
+
+function closeReviewerNoteModal() {
+    const modal = document.getElementById('review-comment-modal');
+    if (modal) modal.classList.remove('show');
+}
+
 function updateFileUploadLabel(input) {
     const label = document.getElementById('file-upload-label');
     if (!label) return;
@@ -372,6 +402,10 @@ window.addEventListener('click', function (event) {
     const modal = document.getElementById('submit-doc-modal');
     if (event.target === modal) {
         closeSubmitModal();
+    }
+    const reviewCommentModal = document.getElementById('review-comment-modal');
+    if (event.target === reviewCommentModal) {
+        closeReviewerNoteModal();
     }
 });
 
@@ -615,6 +649,11 @@ function renderDocs(filter = 'All', btnElement = null) {
         const sender = doc.submittedByName || `User #${doc.submittedByUserId ?? 'N/A'}`;
         const sscOfficer = sscOfficers[doc.title.length % sscOfficers.length];
         const osaAdmin = osaAdmins[doc.title.length % osaAdmins.length];
+        const reviewNoteButton = (doc.status === 'Approved' && doc.reviewerNotes)
+            ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.reviewerNotes)}')">
+                    <i class="fa-regular fa-message"></i> Comment
+                </button>`
+            : '';
 
         if (doc.status === 'Approved') {
             // Both Approved
@@ -697,6 +736,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             <div class="col-status">
                 <div class="action-btn-group">
                     ${actionButtons}
+                    ${reviewNoteButton}
                 </div>
             </div>
         </div>`;
@@ -1358,6 +1398,7 @@ async function loadDocsFromApi() {
                 .filter(Boolean)
                 .join(' ')
                 .trim(),
+            reviewerNotes: item.reviewer_notes || '',
         }));
         docsData.forEach(doc => {
             if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
