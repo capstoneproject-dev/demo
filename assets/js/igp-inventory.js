@@ -16,7 +16,7 @@
                 <td>${it.item_name}</td>
                 <td>${it.barcode}</td>
                 <td>${it.category_name}</td>
-                <td>${it.available_quantity}/${it.stock_quantity}</td>
+                <td>${it.status}</td>
                 <td>${it.hourly_rate.toFixed(2)}</td>
                 <td>${it.status}</td>
                 <td>
@@ -33,7 +33,7 @@
         $('item_name').value = it ? it.item_name : '';
         $('barcode').value = it ? it.barcode : '';
         $('category_name').value = it ? it.category_name : '';
-        $('stock_quantity').value = it ? it.stock_quantity : 1;
+
         $('hourly_rate').value = it ? it.hourly_rate : 0;
         $('status').value = it ? it.status : 'available';
         $('overtime_interval_minutes').value = it && it.overtime_interval_minutes !== null ? it.overtime_interval_minutes : '';
@@ -52,7 +52,6 @@
                     item_name: $('item_name').value.trim(),
                     barcode: $('barcode').value.trim(),
                     category_name: $('category_name').value.trim(),
-                    stock_quantity: Number($('stock_quantity').value),
                     hourly_rate: Number($('hourly_rate').value),
                     status: $('status').value,
                     overtime_interval_minutes: $('overtime_interval_minutes').value.trim(),

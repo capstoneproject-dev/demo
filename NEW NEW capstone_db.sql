@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 01, 2026 at 06:41 AM
+-- Generation Time: Mar 01, 2026 at 09:54 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -374,8 +374,6 @@ CREATE TABLE `inventory_items` (
   `item_name` varchar(255) NOT NULL,
   `barcode` varchar(50) NOT NULL,
   `category_id` int(11) NOT NULL,
-  `stock_quantity` int(11) NOT NULL DEFAULT 1,
-  `available_quantity` int(11) NOT NULL DEFAULT 1,
   `hourly_rate` decimal(10,2) NOT NULL DEFAULT 0.00,
   `overtime_interval_minutes` int(11) DEFAULT NULL COMMENT 'Minutes per overtime block (e.g., 30). NULL = no overtime charging.',
   `overtime_rate_per_block` decimal(10,2) DEFAULT NULL COMMENT 'Fee per overtime block (e.g., 5.00). NULL = no overtime charging.',
@@ -388,11 +386,11 @@ CREATE TABLE `inventory_items` (
 -- Dumping data for table `inventory_items`
 --
 
-INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `category_id`, `stock_quantity`, `available_quantity`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `status`, `created_at`, `updated_at`) VALUES
-(1, 2, 'shoe', 'SH001', 1, 1, 0, 10.00, 30, 5.00, 'rented', '2026-02-27 14:03:59', '2026-02-28 20:16:40'),
-(2, 2, 'shoe', 'SH002', 1, 1, 0, 10.00, 30, 5.00, 'rented', '2026-02-27 14:07:03', '2026-02-28 20:19:08'),
-(3, 2, 'Sci Cal', 'CAL001', 2, 1, 1, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-02-28 20:16:22'),
-(4, 2, 'Business Calculator', 'CAL002', 2, 1, 1, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-02-27 14:18:55');
+INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `status`, `created_at`, `updated_at`) VALUES
+(1, 2, 'shoe', 'SH001', 1, 10.00, 30, 5.00, 'rented', '2026-02-27 14:03:59', '2026-02-28 20:16:40'),
+(2, 2, 'shoe', 'SH002', 1, 10.00, 30, 5.00, 'rented', '2026-02-27 14:07:03', '2026-02-28 20:19:08'),
+(3, 2, 'Sci Cal', 'CAL001', 2, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-02-28 20:16:22'),
+(4, 2, 'Business Calculator', 'CAL002', 2, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-02-27 14:18:55');
 
 --
 -- Triggers `inventory_items`
@@ -538,7 +536,6 @@ CREATE TABLE `pending_registrations` (
   `requested_org` varchar(255) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',
   `reviewed_by_user_id` int(11) DEFAULT NULL,
-  `reviewer_notes` text DEFAULT NULL,
   `requested_at` datetime NOT NULL DEFAULT current_timestamp(),
   `reviewed_at` datetime DEFAULT NULL,
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
@@ -548,12 +545,12 @@ CREATE TABLE `pending_registrations` (
 -- Dumping data for table `pending_registrations`
 --
 
-INSERT INTO `pending_registrations` (`reg_id`, `student_number`, `student_name`, `email`, `phone`, `password_hash`, `program_code`, `year_section`, `requested_role`, `requested_org`, `status`, `reviewed_by_user_id`, `reviewer_notes`, `requested_at`, `reviewed_at`, `updated_at`) VALUES
-(2, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'BSAIT', '3-2', 'student', NULL, 'approved', 1, NULL, '2026-02-25 18:41:30', '2026-02-25 18:48:15', '2026-02-25 18:48:15'),
-(3, 'aisers', 'aisers', 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, NULL, '2026-02-27 11:44:03', '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
-(4, 'elitech', 'elitech', 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'BSAIT', '3-2', 'org_officer', 'ELITECH', 'approved', 1, NULL, '2026-02-27 13:46:28', '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
-(5, '12324MN-000094', 'Charles Gabriel A. Martinez', 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, NULL, '2026-02-27 13:48:15', '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
-(6, 'ssc', 'ssc', 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'BSAIS', '3-2', 'org_officer', 'Supreme Student Council', 'approved', 1, NULL, '2026-02-28 19:37:43', '2026-02-28 19:45:28', '2026-02-28 19:45:28');
+INSERT INTO `pending_registrations` (`reg_id`, `student_number`, `student_name`, `email`, `phone`, `password_hash`, `program_code`, `year_section`, `requested_role`, `requested_org`, `status`, `reviewed_by_user_id`, `requested_at`, `reviewed_at`, `updated_at`) VALUES
+(2, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'BSAIT', '3-2', 'student', NULL, 'approved', 1, '2026-02-25 18:41:30', '2026-02-25 18:48:15', '2026-02-25 18:48:15'),
+(3, 'aisers', 'aisers', 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, '2026-02-27 11:44:03', '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
+(4, 'elitech', 'elitech', 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'BSAIT', '3-2', 'org_officer', 'ELITECH', 'approved', 1, '2026-02-27 13:46:28', '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
+(5, '12324MN-000094', 'Charles Gabriel A. Martinez', 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, '2026-02-27 13:48:15', '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
+(6, 'ssc', 'ssc', 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'BSAIS', '3-2', 'org_officer', 'Supreme Student Council', 'approved', 1, '2026-02-28 19:37:43', '2026-02-28 19:45:28', '2026-02-28 19:45:28');
 
 --
 -- Triggers `pending_registrations`
@@ -626,7 +623,6 @@ CREATE TABLE `rentals` (
   `payment_method` varchar(20) DEFAULT NULL,
   `paid_at` datetime DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'active',
-  `notes` text DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ;
@@ -635,18 +631,18 @@ CREATE TABLE `rentals` (
 -- Dumping data for table `rentals`
 --
 
-INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_user_id`, `rent_time`, `expected_return_time`, `actual_return_time`, `total_cost`, `payment_status`, `payment_method`, `paid_at`, `status`, `notes`, `created_at`, `updated_at`) VALUES
-(1, 2, 6, 6, '2026-02-27 08:16:32', '2026-02-27 09:16:32', '2026-02-27 08:20:52', 15.00, 'paid', 'cash', '2026-02-27 15:21:09', 'returned', NULL, '2026-02-27 15:16:32', '2026-02-27 15:21:09'),
-(2, 2, 6, 6, '2026-02-27 08:21:17', '2026-02-27 09:21:17', '2026-02-27 08:21:44', 15.00, 'paid', 'cash', '2026-02-27 15:21:54', 'returned', NULL, '2026-02-27 15:21:17', '2026-02-27 15:21:54'),
-(3, 2, 6, 6, '2026-02-27 08:22:03', '2026-02-27 10:22:03', '2026-02-27 08:26:45', 30.00, 'paid', 'cash', '2026-02-27 15:26:48', 'returned', NULL, '2026-02-27 15:22:03', '2026-02-27 15:26:48'),
-(4, 2, 6, 6, '2026-02-27 08:26:58', '2026-02-27 09:26:58', '2026-02-27 08:27:24', 15.00, 'paid', 'cash', '2026-02-27 15:27:26', 'returned', NULL, '2026-02-27 15:26:58', '2026-02-27 15:27:26'),
-(5, 2, 6, 6, '2026-02-27 08:30:48', '2026-02-27 09:30:48', '2026-02-27 08:31:02', 15.00, 'paid', 'cash', '2026-02-27 15:31:04', 'returned', NULL, '2026-02-27 15:30:48', '2026-02-27 15:31:04'),
-(6, 2, 6, 6, '2026-02-27 08:32:30', '2026-02-27 09:32:30', '2026-02-27 08:33:56', 15.00, 'paid', 'cash', '2026-02-27 15:33:58', 'returned', NULL, '2026-02-27 15:32:30', '2026-02-27 15:33:58'),
-(7, 2, 6, 6, '2026-02-27 08:34:02', '2026-02-27 09:34:02', '2026-02-27 08:49:17', 15.00, 'paid', 'cash', '2026-02-27 15:49:19', 'returned', NULL, '2026-02-27 15:34:02', '2026-02-27 15:49:19'),
-(8, 2, 6, 6, '2026-02-27 08:49:45', '2026-02-27 10:49:45', '2026-02-27 08:52:29', 30.00, 'paid', 'cash', '2026-02-27 15:52:31', 'returned', NULL, '2026-02-27 15:49:45', '2026-02-27 15:52:31'),
-(9, 2, 6, 6, '2026-02-27 09:00:12', '2026-02-27 12:00:12', '2026-02-28 13:16:22', 300.00, 'paid', 'cash', '2026-02-28 20:16:28', 'overdue', NULL, '2026-02-27 16:00:12', '2026-02-28 20:16:28'),
-(10, 2, 6, 6, '2026-02-28 13:16:40', '2026-02-28 14:16:40', NULL, 10.00, 'unpaid', NULL, NULL, 'active', NULL, '2026-02-28 20:16:40', '2026-02-28 20:16:40'),
-(11, 2, 6, 6, '2026-02-28 20:19:08', '2026-02-28 21:19:08', NULL, 10.00, 'unpaid', NULL, NULL, 'active', NULL, '2026-02-28 20:19:08', '2026-02-28 20:19:08');
+INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_user_id`, `rent_time`, `expected_return_time`, `actual_return_time`, `total_cost`, `payment_status`, `payment_method`, `paid_at`, `status`, `created_at`, `updated_at`) VALUES
+(1, 2, 6, 6, '2026-02-27 08:16:32', '2026-02-27 09:16:32', '2026-02-27 08:20:52', 15.00, 'paid', 'cash', '2026-02-27 15:21:09', 'returned', '2026-02-27 15:16:32', '2026-02-27 15:21:09'),
+(2, 2, 6, 6, '2026-02-27 08:21:17', '2026-02-27 09:21:17', '2026-02-27 08:21:44', 15.00, 'paid', 'cash', '2026-02-27 15:21:54', 'returned', '2026-02-27 15:21:17', '2026-02-27 15:21:54'),
+(3, 2, 6, 6, '2026-02-27 08:22:03', '2026-02-27 10:22:03', '2026-02-27 08:26:45', 30.00, 'paid', 'cash', '2026-02-27 15:26:48', 'returned', '2026-02-27 15:22:03', '2026-02-27 15:26:48'),
+(4, 2, 6, 6, '2026-02-27 08:26:58', '2026-02-27 09:26:58', '2026-02-27 08:27:24', 15.00, 'paid', 'cash', '2026-02-27 15:27:26', 'returned', '2026-02-27 15:26:58', '2026-02-27 15:27:26'),
+(5, 2, 6, 6, '2026-02-27 08:30:48', '2026-02-27 09:30:48', '2026-02-27 08:31:02', 15.00, 'paid', 'cash', '2026-02-27 15:31:04', 'returned', '2026-02-27 15:30:48', '2026-02-27 15:31:04'),
+(6, 2, 6, 6, '2026-02-27 08:32:30', '2026-02-27 09:32:30', '2026-02-27 08:33:56', 15.00, 'paid', 'cash', '2026-02-27 15:33:58', 'returned', '2026-02-27 15:32:30', '2026-02-27 15:33:58'),
+(7, 2, 6, 6, '2026-02-27 08:34:02', '2026-02-27 09:34:02', '2026-02-27 08:49:17', 15.00, 'paid', 'cash', '2026-02-27 15:49:19', 'returned', '2026-02-27 15:34:02', '2026-02-27 15:49:19'),
+(8, 2, 6, 6, '2026-02-27 08:49:45', '2026-02-27 10:49:45', '2026-02-27 08:52:29', 30.00, 'paid', 'cash', '2026-02-27 15:52:31', 'returned', '2026-02-27 15:49:45', '2026-02-27 15:52:31'),
+(9, 2, 6, 6, '2026-02-27 09:00:12', '2026-02-27 12:00:12', '2026-02-28 13:16:22', 300.00, 'paid', 'cash', '2026-02-28 20:16:28', 'overdue', '2026-02-27 16:00:12', '2026-02-28 20:16:28'),
+(10, 2, 6, 6, '2026-02-28 13:16:40', '2026-02-28 14:16:40', NULL, 10.00, 'unpaid', NULL, NULL, 'active', '2026-02-28 20:16:40', '2026-02-28 20:16:40'),
+(11, 2, 6, 6, '2026-02-28 20:19:08', '2026-02-28 21:19:08', NULL, 10.00, 'unpaid', NULL, NULL, 'active', '2026-02-28 20:19:08', '2026-02-28 20:19:08');
 
 --
 -- Triggers `rentals`

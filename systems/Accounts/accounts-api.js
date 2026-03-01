@@ -157,15 +157,14 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
             if (!action) throw new Error('Unknown request status: ' + updateData.status);
             await post('/requests/action.php', {
                 requestId,
-                action,
-                reviewerNotes: updateData.reviewerNotes || ''
+                action
             });
             return true;
         }
 
         async deletePendingRequest(requestId) {
             // No hard-delete exposed; mark as rejected instead
-            await post('/requests/action.php', { requestId, action: 'reject', reviewerNotes: 'Deleted by admin' });
+            await post('/requests/action.php', { requestId, action: 'reject' });
             return true;
         }
 
