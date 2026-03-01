@@ -260,3 +260,166 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
     }
     return $rows;
 }
+
+function docResolveSubmissionAccess(PDO $pdo, int $submissionId, array $session): ?array
+{
+    $stmt = $pdo->prepare(
+        "SELECT ds.submission_id, ds.org_id
+         FROM document_submissions ds
+         WHERE ds.submission_id = :id
+         LIMIT 1"
+    );
+    $stmt->execute([':id' => $submissionId]);
+    $row = $stmt->fetch();
+    if (!$row) return null;
+
+    $isOsa = (($session['login_role'] ?? '') === 'osa' || ($session['account_type'] ?? '') === 'osa_staff');
+    if ($isOsa) return $row;
+
+    if (($session['login_role'] ?? '') !== 'org') return null;
+    $activeOrgId = (int)($session['active_org_id'] ?? 0);
+    if ($activeOrgId <= 0 || $activeOrgId !== (int)$row['org_id']) return null;
+
+    return $row;
+}
+
+function docListAnnotations(PDO $pdo, int $submissionId, array $session): array
+{
+    $access = docResolveSubmissionAccess($pdo, $submissionId, $session);
+    if (!$access) {
+        throw new DocumentAuthorizationException('No access to this submission.');
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT a.annotation_id,
+                a.submission_id,
+                a.page_number,
+                a.selected_text,
+                a.rects_json,
+                a.comment_text,
+                a.created_by_user_id,
+                a.created_at,
+                a.updated_at,
+                u.first_name,
+                u.last_name
+         FROM document_annotations a
+         LEFT JOIN users u ON u.user_id = a.created_by_user_id
+         WHERE a.submission_id = :sid
+         ORDER BY a.created_at ASC, a.annotation_id ASC"
+    );
+    $stmt->execute([':sid' => $submissionId]);
+    $rows = $stmt->fetchAll();
+
+    foreach ($rows as &$row) {
+        $row['annotation_id'] = (int)$row['annotation_id'];
+        $row['submission_id'] = (int)$row['submission_id'];
+        $row['page_number'] = (int)$row['page_number'];
+        $row['created_by_user_id'] = (int)$row['created_by_user_id'];
+    }
+
+    return $rows;
+}
+
+function docCreateAnnotation(PDO $pdo, int $submissionId, int $userId, array $session, array $payload): array
+{
+    $access = docResolveSubmissionAccess($pdo, $submissionId, $session);
+    if (!$access) {
+        throw new DocumentAuthorizationException('No access to this submission.');
+    }
+    if ($userId <= 0) {
+        throw new DocumentValidationException('Invalid user context.');
+    }
+
+    $page = (int)($payload['page'] ?? 0);
+    $text = trim((string)($payload['text'] ?? ''));
+    $rects = $payload['rects'] ?? null;
+    $comment = trim((string)($payload['comment'] ?? ''));
+    if ($page <= 0) {
+        throw new DocumentValidationException('page is required.');
+    }
+    if ($text === '') {
+        throw new DocumentValidationException('text is required.');
+    }
+    if (!is_array($rects) || count($rects) === 0) {
+        throw new DocumentValidationException('rects is required.');
+    }
+
+    $rectsJson = json_encode($rects);
+    if ($rectsJson === false) {
+        throw new DocumentValidationException('rects must be JSON encodable.');
+    }
+
+    $insert = $pdo->prepare(
+        "INSERT INTO document_annotations
+         (submission_id, page_number, selected_text, rects_json, comment_text, created_by_user_id)
+         VALUES
+         (:sid, :page, :text, :rects, :comment, :uid)"
+    );
+    $insert->execute([
+        ':sid' => $submissionId,
+        ':page' => $page,
+        ':text' => $text,
+        ':rects' => $rectsJson,
+        ':comment' => ($comment === '' ? null : $comment),
+        ':uid' => $userId,
+    ]);
+
+    $id = (int)$pdo->lastInsertId();
+    $fetch = $pdo->prepare(
+        "SELECT a.annotation_id,
+                a.submission_id,
+                a.page_number,
+                a.selected_text,
+                a.rects_json,
+                a.comment_text,
+                a.created_by_user_id,
+                a.created_at,
+                a.updated_at,
+                u.first_name,
+                u.last_name
+         FROM document_annotations a
+         LEFT JOIN users u ON u.user_id = a.created_by_user_id
+         WHERE a.annotation_id = :id
+         LIMIT 1"
+    );
+    $fetch->execute([':id' => $id]);
+    $row = $fetch->fetch();
+    if (!$row) {
+        throw new RuntimeException('Failed to load created annotation.');
+    }
+
+    $row['annotation_id'] = (int)$row['annotation_id'];
+    $row['submission_id'] = (int)$row['submission_id'];
+    $row['page_number'] = (int)$row['page_number'];
+    $row['created_by_user_id'] = (int)$row['created_by_user_id'];
+    return $row;
+}
+
+function docDeleteAnnotation(PDO $pdo, int $annotationId, int $userId, array $session): bool
+{
+    $stmt = $pdo->prepare(
+        "SELECT annotation_id, submission_id, created_by_user_id
+         FROM document_annotations
+         WHERE annotation_id = :id
+         LIMIT 1"
+    );
+    $stmt->execute([':id' => $annotationId]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        return false;
+    }
+
+    $access = docResolveSubmissionAccess($pdo, (int)$row['submission_id'], $session);
+    if (!$access) {
+        throw new DocumentAuthorizationException('No access to this submission.');
+    }
+
+    $isOsa = (($session['login_role'] ?? '') === 'osa' || ($session['account_type'] ?? '') === 'osa_staff');
+    if (!$isOsa && (int)$row['created_by_user_id'] !== $userId) {
+        throw new DocumentAuthorizationException('Only the author can delete this annotation.');
+    }
+
+    $del = $pdo->prepare("DELETE FROM document_annotations WHERE annotation_id = :id");
+    $del->execute([':id' => $annotationId]);
+    return $del->rowCount() > 0;
+}

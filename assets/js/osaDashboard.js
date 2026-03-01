@@ -39,6 +39,18 @@ function fmtDateShort(iso) {
     return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 }
 
+function resolvePdfUrl(fileUrl) {
+    if (!fileUrl) return '';
+    let raw = String(fileUrl).trim().replace(/\\/g, '/');
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw;
+    if (raw.startsWith('./')) raw = raw.slice(2);
+    if (raw.startsWith('../')) raw = raw.slice(3);
+    if (!raw.includes('/')) raw = `uploads/documents/${raw}`;
+    if (raw.startsWith('documents/')) raw = `uploads/${raw}`;
+    if (!raw.startsWith('uploads/')) raw = `uploads/documents/${raw.replace(/^uploads?\/?/i, '')}`;
+    return `../${raw}`;
+}
+
 async function loadDocsFromApi() {
     try {
         const params = new URLSearchParams({ status: 'all' });
@@ -49,13 +61,21 @@ async function loadDocsFromApi() {
         if (!data.ok) return;
         docsData = (data.items || []).map(item => ({
             id: item.submission_id,
+            submission_id: item.submission_id,
             title: item.title,
             type: item.document_type,
             org: item.org_name || '',
             status: item.status || 'pending',
             date: fmtDateShort(item.submitted_at),
-            submittedAt: item.submitted_at || null
+            submittedAt: item.submitted_at || null,
+            fileUrl: resolvePdfUrl(item.file_url),
+            viewerId: `submission_${item.submission_id}`
         }));
+        docsData.forEach(doc => {
+            if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
+                PDFViewer.registerRemote(doc.viewerId, doc.title, doc.fileUrl, { submissionId: doc.submission_id });
+            }
+        });
         renderDocs(currentDocFilter);
         renderRecentDocs();
     } catch (error) {
@@ -72,14 +92,22 @@ async function loadRepoFromApi() {
         if (!data.ok) return;
         repositoryData = (data.items || []).map(item => ({
             id: item.repo_id,
+            submission_id: item.submission_id,
             name: item.title,
             category: item.document_type,
             org: item.org_name || '',
             date: fmtDateShort(item.approved_at),
             approvedAt: item.approved_at || null,
             semester: item.semester || null,
-            academicYear: item.academic_year || null
+            academicYear: item.academic_year || null,
+            file_url: resolvePdfUrl(item.file_url),
+            viewerId: `submission_${item.submission_id}`
         }));
+        repositoryData.forEach(item => {
+            if (typeof PDFViewer !== 'undefined' && item.file_url) {
+                PDFViewer.registerRemote(item.viewerId, item.name, item.file_url, { submissionId: item.submission_id });
+            }
+        });
         updateRepoCategoryDropdown();
         renderRepoTable();
     } catch (error) {
@@ -87,7 +115,7 @@ async function loadRepoFromApi() {
     }
 }
 
-async function reviewDocument(submissionId, decision) {
+async function submitReviewDecision(submissionId, decision, notes = '') {
     try {
         const response = await fetch(`${DOCUMENTS_API_BASE}/review.php`, {
             method: 'POST',
@@ -95,7 +123,8 @@ async function reviewDocument(submissionId, decision) {
             credentials: 'same-origin',
             body: JSON.stringify({
                 submission_id: submissionId,
-                decision
+                decision,
+                notes
             })
         });
         const data = await response.json();
@@ -107,6 +136,14 @@ async function reviewDocument(submissionId, decision) {
         console.error(error);
         alert(error.message || 'Failed to review document.');
     }
+}
+
+function reviewDocument(submissionId, decision) {
+    if (String(decision).toLowerCase() === 'approved') {
+        openApproveCommentModal(submissionId);
+        return;
+    }
+    submitReviewDecision(submissionId, decision, '');
 }
 
 // --- INTEGRATED THEME LOGIC ---
@@ -350,6 +387,7 @@ function renderOrgs() {
 // --- REQUESTS & APPROVALS STATE ---
 let currentReqStatus = 'all';
 let pendingRequestAction = null; // Stores {id, action} for modal confirmation
+let pendingApproveSubmissionId = null;
 
 // Date picker state
 let calendarCurrentMonth = new Date().getMonth();
@@ -524,7 +562,7 @@ function renderRecentDocs() {
                     </div>
                 </div>
                 <div class="recent-activity-actions">
-                    <button class="btn btn-primary btn-sm icon-only-btn" onclick="openPdfViewer('doc_${index}')" title="View Document">
+                    <button class="btn btn-primary btn-sm icon-only-btn" onclick="openPdfViewer('${doc.viewerId || ('doc_' + index)}')" title="View Document">
                         <i class="fa-solid fa-eye"></i>
                     </button>
                 </div>
@@ -593,7 +631,7 @@ function renderDocs(filter = 'All', btnElement = null) {
     list.innerHTML = filteredData.map((doc, index) => {
         let statusBadge = '';
         let actionButtons = `
-            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId || ('doc_' + index)}')">
                 <i class="fa-solid fa-eye"></i> View
             </button>`;
 
@@ -616,7 +654,7 @@ function renderDocs(filter = 'All', btnElement = null) {
         const sender = senders[doc.title.length % senders.length];
 
         return `
-        <div class="list-item" onclick="openPdfViewer('doc_${index}')">
+        <div class="list-item" onclick="openPdfViewer('${doc.viewerId || ('doc_' + index)}')">
             <div class="col-name" style="display: flex; gap: 15px; align-items: center;">
                 <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
                     <i class="fa-solid fa-file-pdf"></i>
@@ -854,6 +892,33 @@ function closeRequestActionModal() {
     modal.classList.remove('active');
     input.value = '';
     pendingRequestAction = null;
+}
+
+function openApproveCommentModal(submissionId) {
+    const modal = document.getElementById('approve-comment-modal');
+    const textarea = document.getElementById('approve-comment-text');
+    if (!modal || !textarea) return;
+    pendingApproveSubmissionId = Number(submissionId) || null;
+    textarea.value = '';
+    modal.classList.add('active');
+    textarea.focus();
+}
+
+function closeApproveCommentModal() {
+    const modal = document.getElementById('approve-comment-modal');
+    const textarea = document.getElementById('approve-comment-text');
+    if (modal) modal.classList.remove('active');
+    if (textarea) textarea.value = '';
+    pendingApproveSubmissionId = null;
+}
+
+async function confirmApproveWithComment() {
+    if (!pendingApproveSubmissionId) return;
+    const textarea = document.getElementById('approve-comment-text');
+    const notes = (textarea?.value || '').trim();
+    const submissionId = pendingApproveSubmissionId;
+    closeApproveCommentModal();
+    await submitReviewDecision(submissionId, 'approved', notes);
 }
 
 function confirmRequestAction() {
@@ -1196,11 +1261,27 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    const approveCommentInput = document.getElementById('approve-comment-text');
+    if (approveCommentInput) {
+        approveCommentInput.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                confirmApproveWithComment();
+            }
+        });
+    }
 });
 
 document.addEventListener('pdfviewer:ready', () => {
     syncPdfUploadsIntoTransactions();
     renderTransactions();
+});
+
+window.addEventListener('click', function (event) {
+    const modal = document.getElementById('approve-comment-modal');
+    if (modal && event.target === modal) {
+        closeApproveCommentModal();
+    }
 });
 
 // --- DOCUMENT REPOSITORY LOGIC ---
@@ -1331,7 +1412,7 @@ function renderRepoTable() {
             <td>${item.org}</td>
             <td>${item.date}</td>
             <td class="text-right">
-                <button class="btn btn-sm btn-outline" onclick="openPdfViewer('repo_${item.id}')">
+                <button class="btn btn-sm btn-outline" onclick="openPdfViewer('${item.viewerId || ('repo_' + item.id)}')">
                     <i class="fa-solid fa-download"></i>
                 </button>
             </td>

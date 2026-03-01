@@ -621,7 +621,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
             osaHtml = `<span>${osaAdmin}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
             actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')">
                     <i class="fa-solid fa-eye"></i> View
                 </button>`;
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
@@ -641,7 +641,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
             osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
             actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')">
                     <i class="fa-solid fa-eye"></i> View
                 </button>`;
             statusBadge = '<span class="status-badge status-sent" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Sent to OSA</span>';
@@ -667,14 +667,14 @@ function renderDocs(filter = 'All', btnElement = null) {
             sscHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
             osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting</span>`;
             actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('doc_${index}')">
+                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')">
                     <i class="fa-solid fa-eye"></i> View
                 </button>`;
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
         }
 
         return `
-        <div class="list-item" onclick="openPdfViewer('doc_${index}')">
+        <div class="list-item" onclick="openPdfViewer('${doc.viewerId}')">
             <div class="col-name" style="display: flex; gap: 15px; align-items: center;">
                 <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
                     <i class="fa-solid fa-file-pdf"></i>
@@ -843,6 +843,8 @@ window.onclick = function (event) {
 async function handleDocSubmit(e) {
     e.preventDefault();
 
+    const fileInput = document.getElementById('doc-file-input');
+    const file = fileInput?.files?.[0] || null;
     const recipient = document.getElementById('doc-recipient').value;
     const type = document.getElementById('doc-type').value;
     const title = (e.currentTarget.querySelector('input[type="text"]')?.value || '').trim();
@@ -855,11 +857,24 @@ async function handleDocSubmit(e) {
         alert('Title is required.');
         return;
     }
-
-    // The current UI does not upload a file yet; keep a placeholder URL for now.
-    const fileUrl = `uploads/documents/${Date.now()}_${title.replace(/[^a-z0-9]+/gi, '_')}.pdf`;
+    if (!file) {
+        alert('Please attach a PDF file.');
+        return;
+    }
 
     try {
+        const uploadForm = new FormData();
+        uploadForm.append('file', file);
+        const uploadRes = await fetch('../api/documents/upload.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: uploadForm
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadData.ok || !uploadData.file_url) {
+            throw new Error(uploadData.error || 'Failed to upload file.');
+        }
+
         const res = await fetch('../api/documents/submit.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -871,7 +886,7 @@ async function handleDocSubmit(e) {
                 description,
                 semester,
                 academic_year: academicYear,
-                file_url: fileUrl
+                file_url: uploadData.file_url
             })
         });
         const data = await res.json();
@@ -1310,6 +1325,18 @@ function fmtDateShort(iso) {
     return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 }
 
+function resolvePdfUrl(fileUrl) {
+    if (!fileUrl) return '';
+    let raw = String(fileUrl).trim().replace(/\\/g, '/');
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw;
+    if (raw.startsWith('./')) raw = raw.slice(2);
+    if (raw.startsWith('../')) raw = raw.slice(3);
+    if (!raw.includes('/')) raw = `uploads/documents/${raw}`;
+    if (raw.startsWith('documents/')) raw = `uploads/${raw}`;
+    if (!raw.startsWith('uploads/')) raw = `uploads/documents/${raw.replace(/^uploads?\/?/i, '')}`;
+    return `../${raw}`;
+}
+
 async function loadDocsFromApi() {
     try {
         const res = await fetch(`${DOCUMENTS_API_BASE}/list.php`, { credentials: 'same-origin' });
@@ -1323,12 +1350,20 @@ async function loadDocsFromApi() {
             status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
             org: item.org_name || '',
             id: item.submission_id,
+            submission_id: item.submission_id,
+            fileUrl: resolvePdfUrl(item.file_url),
+            viewerId: `submission_${item.submission_id}`,
             submittedByUserId: item.submitted_by_user_id,
             submittedByName: [item.submitted_by_first_name, item.submitted_by_last_name]
                 .filter(Boolean)
                 .join(' ')
                 .trim(),
         }));
+        docsData.forEach(doc => {
+            if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
+                PDFViewer.registerRemote(doc.viewerId, doc.title, doc.fileUrl, { submissionId: doc.submission_id });
+            }
+        });
         renderDocs(currentDocFilter);
         renderRecentDocs();
     } catch (e) {
@@ -1344,6 +1379,7 @@ async function loadRepoFromApi() {
         if (!data.ok) return;
         repositoryData = (data.items || []).map(item => ({
             id: item.repo_id,
+            submission_id: item.submission_id,
             name: item.title,
             category: item.document_type,
             org: item.org_name,
@@ -1351,8 +1387,14 @@ async function loadRepoFromApi() {
             approvedAt: item.approved_at || null,
             semester: item.semester || null,
             academicYear: item.academic_year || null,
-            file_url: item.file_url,
+            file_url: resolvePdfUrl(item.file_url),
+            viewerId: `submission_${item.submission_id}`,
         }));
+        repositoryData.forEach(item => {
+            if (typeof PDFViewer !== 'undefined' && item.file_url) {
+                PDFViewer.registerRemote(item.viewerId, item.name, item.file_url, { submissionId: item.submission_id });
+            }
+        });
         renderRepoTable();
         updateRepoCategoryDropdown();
     } catch (e) {
@@ -1494,7 +1536,7 @@ function renderRepoTable() {
             <td>${item.org}</td>
             <td>${item.date}</td>
             <td class="text-right">
-                <button class="btn btn-sm btn-outline" onclick="openPdfViewer('repo_${item.id}')">
+                <button class="btn btn-sm btn-outline" onclick="openPdfViewer('${item.viewerId}')">
                     <i class="fa-solid fa-download"></i>
                 </button>
             </td>
