@@ -42,7 +42,10 @@
 
     function statusByItem(item) {
         const rental = activeRentals.find((r) => String(r.items_label || '').includes(`[${item.barcode}]`));
-        if (rental) return { status: 'rented', renter: `${rental.renter_name} (${rental.renter_student_number || '-'})`, rentTime: rental.rent_time, due: rental.expected_return_time };
+        if (rental) {
+            const openStatus = String(rental.status || '').toLowerCase() === 'reserved' ? 'reserved' : 'rented';
+            return { status: openStatus, renter: `${rental.renter_name} (${rental.renter_student_number || '-'})`, rentTime: rental.rent_time, due: rental.expected_return_time };
+        }
         return { status: item.status, renter: '', rentTime: null, due: null };
     }
 
@@ -107,7 +110,9 @@
             
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td><button class="btn btn-warning btn-sm js-return" data-rid="${r.rental_id}">Return</button></td>
+                <td>${String(r.status || '').toLowerCase() === 'reserved'
+                    ? '<span class="badge bg-info text-dark">Reserved</span>'
+                    : `<button class="btn btn-warning btn-sm js-return" data-rid="${r.rental_id}">Return</button>`}</td>
                 <td>${itemLabelBase} [${itemBarcode}]</td>
                 <td>${r.renter_name || '-'} (${r.renter_student_number || '-'})</td>
                 <td>${r.renter_section || '-'}</td>
@@ -166,7 +171,7 @@
     async function refresh() {
         const [inv, rent, stu, off] = await Promise.all([
             window.igpApi.getInventory({}),
-            window.igpApi.getRentals({ status: 'active' }),
+            window.igpApi.getRentals({ status: 'open' }),
             window.igpApi.getStudents(),
             window.igpApi.getOfficers(),
         ]);

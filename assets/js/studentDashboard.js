@@ -2387,6 +2387,7 @@ function calculateRental() {
     rentalData.date = dateVal;
     rentalData.startTime = startVal;
     rentalData.hours = totalHours;
+    rentalData.duration = durationVal;
     rentalData.endTime = minutesToTime(endMinutes);
     rentalData.amount = calculatedAmount;
 
@@ -2408,16 +2409,46 @@ function showError(message) {
     document.getElementById('totalAmountDisplay').innerText = "₱0.00";
 }
 
-function confirmRental() {
-    // Final Data Model check
-    console.log("FINAL RENTAL DATA:", {
-        service: currentSelectedService,
-        organization: currentSelectedOrg,
-        ...rentalData
-    });
+async function confirmRental() {
+    const confirmBtn = document.getElementById('btnStep2Confirm');
+    const errorMsg = document.getElementById('rentalErrorMessage');
 
-    showToast(`Rental Confirmed: ${currentSelectedOrg} - ${rentalData.date} @ ${rentalData.startTime}`);
-    closeServiceModal();
+    if (!currentSelectedService || !currentSelectedOrg || !rentalData.hours) {
+        showError('Complete the rental details first.');
+        return;
+    }
+
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (errorMsg) {
+        errorMsg.innerText = "";
+        errorMsg.classList.remove('visible');
+    }
+
+    try {
+        const scheduledStart = `${rentalData.date} ${rentalData.startTime}:00`;
+        const resp = await fetch('../api/student/rentals/create.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                organization: currentSelectedOrg,
+                item_name: currentSelectedService,
+                hours: rentalData.hours,
+                scheduled_start: scheduledStart
+            })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) {
+            throw new Error(data.error || 'Could not create rental.');
+        }
+
+        showToast(`Reservation Confirmed: ${currentSelectedService} on ${rentalData.date} at ${rentalData.startTime}`);
+        closeServiceModal();
+    } catch (err) {
+        showError(err.message || 'Could not create rental.');
+    } finally {
+        if (confirmBtn) confirmBtn.disabled = false;
+    }
 }
 
 function showToast(message) {

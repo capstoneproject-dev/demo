@@ -156,7 +156,7 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
     if ($hourlyRate < 0) {
         throw new IgpValidationException('Hourly rate must be non-negative.');
     }
-    if (!in_array($status, ['available', 'rented', 'maintenance'], true)) {
+    if (!in_array($status, ['available', 'reserved', 'rented', 'maintenance'], true)) {
         throw new IgpValidationException('Invalid inventory status.');
     }
     if ($overtimeInterval !== null && $overtimeInterval !== '') {
@@ -273,8 +273,12 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
     $params = [':org' => $orgId];
 
     if (!empty($filters['status'])) {
-        $where[] = "r.status = :status";
-        $params[':status'] = $filters['status'];
+        if ($filters['status'] === 'open') {
+            $where[] = "r.status IN ('reserved', 'active')";
+        } else {
+            $where[] = "r.status = :status";
+            $params[':status'] = $filters['status'];
+        }
     }
     if (!empty($filters['payment_status'])) {
         $where[] = "r.payment_status = :pay";
@@ -355,6 +359,38 @@ function igpFindUserByIdentifier(PDO $pdo, string $identifier): ?array
         ':student_number' => $id,
         ':employee_number' => $id,
         ':email' => $id,
+    ]);
+    return $stmt->fetch() ?: null;
+}
+
+function igpGetUserById(PDO $pdo, int $userId): ?array
+{
+    if ($userId <= 0) return null;
+    $stmt = $pdo->prepare(
+        "SELECT user_id, student_number, employee_number, email, first_name, last_name, has_unpaid_debt, is_active, account_type
+         FROM users
+         WHERE user_id = :uid
+         LIMIT 1"
+    );
+    $stmt->execute([':uid' => $userId]);
+    return $stmt->fetch() ?: null;
+}
+
+function igpResolveOrgByCodeOrName(PDO $pdo, string $orgRef): ?array
+{
+    $ref = trim($orgRef);
+    if ($ref === '') return null;
+
+    $stmt = $pdo->prepare(
+        "SELECT org_id, org_name, org_code
+         FROM organizations
+         WHERE UPPER(org_code) = UPPER(:ref_code)
+            OR UPPER(REPLACE(org_name, \"'\", '')) = UPPER(REPLACE(:ref_name, \"'\", ''))
+         LIMIT 1"
+    );
+    $stmt->execute([
+        ':ref_code' => $ref,
+        ':ref_name' => $ref,
     ]);
     return $stmt->fetch() ?: null;
 }
@@ -479,6 +515,126 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
             "UPDATE inventory_items SET status = 'rented' WHERE item_id = :id AND org_id = :org"
         );
         $updItem->execute([':id' => $itemId, ':org' => $orgId]);
+
+        $pdo->commit();
+        return $rentalId;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function igpCreateStudentRental(PDO $pdo, int $renterUserId, string $orgRef, string $itemName, float $hours, string $scheduledStart): int
+{
+    $itemName = trim($itemName);
+    if ($renterUserId <= 0 || trim($orgRef) === '' || $itemName === '' || $hours <= 0 || trim($scheduledStart) === '') {
+        throw new IgpValidationException('organization, item_name, hours, and scheduled_start are required.');
+    }
+
+    $renter = igpGetUserById($pdo, $renterUserId);
+    if (!$renter || !(int)$renter['is_active']) {
+        throw new IgpValidationException('Renter not found or inactive.');
+    }
+    if ((int)$renter['has_unpaid_debt'] === 1) {
+        throw new IgpValidationException('Rental blocked: student account has unpaid debt.');
+    }
+
+    $org = igpResolveOrgByCodeOrName($pdo, $orgRef);
+    if (!$org) {
+        throw new IgpValidationException('Selected organization was not found.');
+    }
+    $orgId = (int)$org['org_id'];
+
+    $unpaid = $pdo->prepare(
+        "SELECT 1
+         FROM rentals
+         WHERE renter_user_id = :uid
+           AND org_id = :org
+           AND status = 'returned'
+           AND payment_status = 'unpaid'
+         LIMIT 1"
+    );
+    $unpaid->execute([':uid' => $renterUserId, ':org' => $orgId]);
+    if ($unpaid->fetch()) {
+        throw new IgpValidationException('You have unpaid returned rentals for this organization.');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $itemStmt = $pdo->prepare(
+            "SELECT item_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status
+             FROM inventory_items
+             WHERE org_id = :org
+               AND UPPER(item_name) = UPPER(:name)
+               AND status = 'available'
+             ORDER BY item_id ASC
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $itemStmt->execute([
+            ':org' => $orgId,
+            ':name' => $itemName,
+        ]);
+        $item = $itemStmt->fetch();
+        if (!$item) {
+            throw new IgpValidationException('No available inventory item was found for that service.');
+        }
+
+        $tz = new DateTimeZone('Asia/Manila');
+        $rentTime = new DateTimeImmutable($scheduledStart, $tz);
+        $now = new DateTimeImmutable('now', $tz);
+        if ($rentTime <= $now) {
+            throw new IgpValidationException('Reservation time must be in the future.');
+        }
+        $durationMinutes = (int)round($hours * 60);
+        if ($durationMinutes <= 0) {
+            throw new IgpValidationException('Reservation duration must be greater than zero.');
+        }
+        $expected = $rentTime->modify('+' . $durationMinutes . ' minutes');
+        $unitRate = (float)$item['hourly_rate'];
+        $itemCost = $unitRate * $hours;
+
+        $insRental = $pdo->prepare(
+            "INSERT INTO rentals
+                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, total_cost, payment_status, status, notes)
+             VALUES
+                (:org, :renter, :processor, :rent_time, :expected, :total, 'unpaid', 'reserved', :notes)"
+        );
+        $insRental->execute([
+            ':org' => $orgId,
+            ':renter' => $renterUserId,
+            ':processor' => $renterUserId,
+            ':rent_time' => $rentTime->format('Y-m-d H:i:s'),
+            ':expected' => $expected->format('Y-m-d H:i:s'),
+            ':total' => $itemCost,
+            ':notes' => 'Student reservation via student dashboard',
+        ]);
+        $rentalId = (int)$pdo->lastInsertId();
+
+        $insItem = $pdo->prepare(
+            "INSERT INTO rental_items
+                (rental_id, item_id, quantity, unit_rate, item_cost, overtime_interval_minutes, overtime_rate_per_block)
+             VALUES
+                (:rid, :item, 1, :rate, :cost, :ot_int, :ot_rate)"
+        );
+        $insItem->execute([
+            ':rid' => $rentalId,
+            ':item' => (int)$item['item_id'],
+            ':rate' => $unitRate,
+            ':cost' => $itemCost,
+            ':ot_int' => $item['overtime_interval_minutes'] !== null ? (int)$item['overtime_interval_minutes'] : null,
+            ':ot_rate' => $item['overtime_rate_per_block'] !== null ? (float)$item['overtime_rate_per_block'] : null,
+        ]);
+
+        $updItem = $pdo->prepare(
+            "UPDATE inventory_items
+             SET status = 'reserved'
+             WHERE item_id = :id AND org_id = :org"
+        );
+        $updItem->execute([
+            ':id' => (int)$item['item_id'],
+            ':org' => $orgId,
+        ]);
 
         $pdo->commit();
         return $rentalId;
