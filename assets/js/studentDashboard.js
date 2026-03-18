@@ -355,7 +355,7 @@ function getStudentScopedTransactions() {
 }
 
 function getStudentScopedServices() {
-    return servicesData.filter(service => studentCanAccessOrg(service.org));
+    return servicesData;
 }
 
 function syncStudentIdentity() {
@@ -2116,7 +2116,7 @@ function openServiceModal(serviceName, parentGroup = null) {
     listContainer.innerHTML = '';
 
     // Populate Orgs (Existing Logic)
-    const orgs = (serviceOrgMapping[serviceName] || []).filter(orgName => studentCanAccessOrg(orgName));
+    const orgs = serviceOrgMapping[serviceName] || [];
 
     // Logo Mapping
     const orgLogos = {

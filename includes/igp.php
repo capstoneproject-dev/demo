@@ -311,7 +311,6 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
              r.actual_return_time,
              r.total_cost,
              r.payment_status,
-             r.payment_method,
              r.paid_at,
              r.status,
              r.notes,
@@ -588,26 +587,22 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
     }
 }
 
-function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId, string $method = 'cash'): void
+function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId): void
 {
     if ($rentalId <= 0) {
         throw new IgpValidationException('Invalid rental_id.');
-    }
-    if ($method !== 'cash') {
-        throw new IgpValidationException('Unsupported payment method.');
     }
 
     $upd = $pdo->prepare(
         "UPDATE rentals
          SET payment_status = 'paid',
-             payment_method = :method,
              paid_at = CURRENT_TIMESTAMP
          WHERE rental_id = :rid
            AND org_id = :org
            AND payment_status = 'unpaid'
            AND status IN ('returned', 'overdue')"
     );
-    $upd->execute([':method' => $method, ':rid' => $rentalId, ':org' => $orgId]);
+    $upd->execute([':rid' => $rentalId, ':org' => $orgId]);
     if ($upd->rowCount() === 0) {
         throw new IgpValidationException('Rental is not eligible for mark-paid.');
     }
@@ -755,9 +750,9 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
             $pdo->beginTransaction();
             $insR = $pdo->prepare(
                 "INSERT INTO rentals
-                    (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, payment_method, paid_at, status, notes)
+                    (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, notes)
                  VALUES
-                    (:org, :renter, :proc, :rent_time, :expected, :actual, :total, :pay_status, :pay_method, :paid_at, :status, :notes)"
+                    (:org, :renter, :proc, :rent_time, :expected, :actual, :total, :pay_status, :paid_at, :status, :notes)"
             );
             $totalCost = (float)($row['totalCost'] ?? $row['baseCost'] ?? ($item['hourly_rate'] * max(1, $hours)));
             $insR->execute([
@@ -769,7 +764,6 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
                 ':actual' => !empty($row['returnDate']) ? date('Y-m-d H:i:s', strtotime($row['returnDate'])) : null,
                 ':total' => $totalCost,
                 ':pay_status' => (($row['paymentStatus'] ?? 'unpaid') === 'paid') ? 'paid' : 'unpaid',
-                ':pay_method' => (($row['paymentStatus'] ?? 'unpaid') === 'paid') ? 'cash' : null,
                 ':paid_at' => (($row['paymentStatus'] ?? 'unpaid') === 'paid') ? date('Y-m-d H:i:s') : null,
                 ':status' => in_array(($row['status'] ?? 'returned'), ['active', 'returned', 'overdue', 'cancelled'], true)
                     ? ($row['status'] ?? 'returned')

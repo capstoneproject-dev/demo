@@ -46,10 +46,10 @@
         returnRental(rentalId) {
             return req('/rentals/return.php', { method: 'POST', body: JSON.stringify({ rental_id: rentalId }) });
         },
-        markPaid(rentalId, paymentMethod = 'cash') {
+        markPaid(rentalId) {
             return req('/rentals/mark-paid.php', {
                 method: 'POST',
-                body: JSON.stringify({ rental_id: rentalId, payment_method: paymentMethod }),
+                body: JSON.stringify({ rental_id: rentalId }),
             });
         },
         getFinancialSummary(filters = {}) {
