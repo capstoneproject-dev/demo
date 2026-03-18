@@ -334,7 +334,9 @@ function renderRentals() {
     // Dashboard preview (top 3)
     const dashTable = document.getElementById('dashboard-rentals-table');
     dashTable.innerHTML = getOfficerScopedRentals().slice(0, 3).map(item => {
-        let badgeClass = item.status === 'Rented' ? 'status-borrowed' : (item.status === 'Overdue' ? 'status-overdue' : 'status-borrowed');
+        let badgeClass = item.status === 'Reserved'
+            ? 'status-pending'
+            : (item.status === 'Rented' ? 'status-borrowed' : (item.status === 'Overdue' ? 'status-overdue' : 'status-borrowed'));
         return `
         <tr>
             <td>${item.item}</td>
@@ -343,6 +345,34 @@ function renderRentals() {
             <td><span class="status-badge ${badgeClass}">${item.status}</span></td>
         </tr>`;
     }).join('');
+}
+
+async function loadRentalsFromApi() {
+    if (!window.igpApi || typeof window.igpApi.getRentals !== 'function') return;
+
+    try {
+        const res = await window.igpApi.getRentals({ status: 'open' });
+        const items = res.items || [];
+
+        rentalsData = items.map(item => ({
+            item: String(item.items_label || '-').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || '-',
+            renter: item.renter_name || '-',
+            due: fmtDateShort(item.expected_return_time),
+            status: String(item.status || '').toLowerCase() === 'reserved'
+                ? 'Reserved'
+                : (String(item.status || '').toLowerCase() === 'overdue' ? 'Overdue' : 'Rented'),
+            org: item.org_id
+        }));
+
+        const activeRentalsCard = Array.from(document.querySelectorAll('.stat-card .stat-info p'))
+            .find(p => (p.textContent || '').trim() === 'Active Rentals');
+        const countEl = activeRentalsCard ? activeRentalsCard.parentElement.querySelector('h3') : null;
+        if (countEl) countEl.innerText = String(items.length);
+
+        renderRentals();
+    } catch (e) {
+        console.error('loadRentalsFromApi failed', e);
+    }
 }
 
 // --- MODAL FUNCTIONS ---
@@ -1346,6 +1376,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderRecentDocs();
     renderAnnouncements();
     fetchAnnouncementsFromApi();
+    loadRentalsFromApi();
     loadDocsFromApi();
     loadRepoFromApi();
     // Initialize repository counts

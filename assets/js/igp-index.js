@@ -16,7 +16,7 @@
     }
 
     async function loadCurrentRentals() {
-        const { items } = await window.igpApi.getRentals({ status: 'active' });
+        const { items } = await window.igpApi.getRentals({ status: 'open' });
         const tbody = $('current_rentals');
         tbody.innerHTML = '';
         items.forEach((r) => {
@@ -28,7 +28,9 @@
                 <td>${new Date(r.rent_time).toLocaleString()}</td>
                 <td>${new Date(r.expected_return_time).toLocaleString()}</td>
                 <td>
-                    <button class="btn btn-sm btn-warning js-return" data-rid="${r.rental_id}">Return</button>
+                    ${String(r.status).toLowerCase() === 'reserved'
+                        ? '<span class="badge bg-info text-dark">Reserved</span>'
+                        : `<button class="btn btn-sm btn-warning js-return" data-rid="${r.rental_id}">Return</button>`}
                 </td>
             `;
             tbody.appendChild(tr);
