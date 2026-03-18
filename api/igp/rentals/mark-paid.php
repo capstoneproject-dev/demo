@@ -10,8 +10,7 @@ try {
     $ctx = igpRequireOfficerOrgContext();
     $body = getRequestBody();
     $rentalId = (int)($body['rental_id'] ?? 0);
-    $method = trim((string)($body['payment_method'] ?? 'cash'));
-    igpMarkRentalPaid(getPdo(), $ctx['org_id'], $rentalId, $method);
+    igpMarkRentalPaid(getPdo(), $ctx['org_id'], $rentalId);
     jsonOk();
 } catch (IgpAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
