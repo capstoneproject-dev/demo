@@ -91,7 +91,9 @@ function buildSessionPayload(
     array $user,
     array $memberships,
     string $loginRole,
-    ?int $activeOrgId = null
+    ?int $activeOrgId = null,
+    ?string $mappedOrgName = null,
+    ?int $mappedOrgId = null
 ): array {
     // Find the active-org membership row
     $activeOrg = null;
@@ -122,8 +124,11 @@ function buildSessionPayload(
                                     : ($loginRole === 'osa' ? 'osa_staff' : null),
         'officer_memberships' => array_values($memberships),
         // Extra fields used by buildCurrentStudentProfile() in studentDashboard.js
+        'program_id'          => isset($user['program_id']) ? (int)$user['program_id'] : null,
         'program_code'        => $user['program_code'] ?? null,
         'section'             => $user['year_section'] ?? null,
+        'mapped_org_id'       => $mappedOrgId,
+        'mapped_org_name'     => $mappedOrgName,
     ];
 }
 

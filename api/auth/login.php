@@ -51,6 +51,11 @@ if (!password_verify($password, $user['password_hash'])) {
 // --- Build memberships ---
 $memberships = getOfficerMemberships((int)$user['user_id']);
 
+// --- Resolve mapped student organization from program_id ---
+$mappedOrg = !empty($user['program_id'])
+    ? getMappedOrgByProgram((int)$user['program_id'])
+    : null;
+
 // --- Determine base login role ---
 $loginRole = match($user['account_type']) {
     'osa_staff' => 'osa',
@@ -59,7 +64,14 @@ $loginRole = match($user['account_type']) {
 };
 
 // --- Store base PHP session (org choice happens client-side via the modal) ---
-$sessionPayload = buildSessionPayload($user, $memberships, $loginRole);
+$sessionPayload = buildSessionPayload(
+    $user,
+    $memberships,
+    $loginRole,
+    null,
+    $mappedOrg['org_name'] ?? null,
+    isset($mappedOrg['org_id']) ? (int)$mappedOrg['org_id'] : null
+);
 startUserSession($sessionPayload);
 
 // --- Update last_login_at ---
@@ -67,7 +79,7 @@ touchLastLogin((int)$user['user_id']);
 $user = getUserById((int)$user['user_id']) ?: $user;
 
 // --- Build the legacy profile (needed by studentDashboard.js) ---
-$legacyProfile = buildLegacyProfile($user, null); // org resolved client-side
+$legacyProfile = buildLegacyProfile($user, $mappedOrg['org_name'] ?? null);
 
 jsonOk([
     'user'          => [
@@ -83,6 +95,8 @@ jsonOk([
         'program_id'      => $user['program_id'] ?? null,
         'institute_id'    => $user['institute_id'] ?? null,
         'last_login_at'   => $user['last_login_at'] ?? null,
+        'mapped_org_id'   => isset($mappedOrg['org_id']) ? (int)$mappedOrg['org_id'] : null,
+        'mapped_org_name' => $mappedOrg['org_name'] ?? null,
     ],
     'memberships'   => $memberships,
     'legacyProfile' => $legacyProfile,

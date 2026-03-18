@@ -1014,9 +1014,16 @@ async function handleLogin() {
       authenticated_at: new Date().toISOString(),
       officer_memberships: memberships || [],
       // Extra fields used by studentDashboard.js buildCurrentStudentProfile
+      program_id: user.program_id || null,
       program_code: user.program_code || null,
-      section: user.section || null
+      section: user.section || null,
+      mapped_org_id: user.mapped_org_id || null,
+      mapped_org_name: user.mapped_org_name || null
     };
+
+    if (data.legacyProfile) {
+      localStorage.setItem(LEGACY_STUDENT_PROFILE_KEY, JSON.stringify(data.legacyProfile));
+    }
 
     // OSA staff — go straight to OSA dashboard
     if (user.account_type === 'osa_staff') {
@@ -1038,7 +1045,7 @@ async function handleLogin() {
         ...baseSession,
         login_role: 'student',
         active_org_id: null,
-        active_org_name: null   // resolved by courseOrganizationMap in studentDashboard.js
+        active_org_name: null
       };
       localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
       window.location.href = 'studentDashboard.html';
