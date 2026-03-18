@@ -179,10 +179,30 @@ function normalizeOrgName(name) {
     if (!name) return "";
     const normalized = String(name).trim().toUpperCase();
     const aliases = {
+        "AISERS": "AISERS",
+        "ELITECH": "ELITECH",
+        "ILASSO": "ILASSO",
+        "AERO-ATSO": "AERO-ATSO",
+        "AETSO": "AETSO",
+        "AMTSO": "AMTSO",
+        "RCYC": "RCYC",
+        "CYC": "CYC",
         "SSC": "Supreme Student Council",
         "SUPREME STUDENT COUNCIL": "Supreme Student Council",
+        "SUPREME STUDENT COUNCIL (SSC)": "Supreme Student Council",
+        "ALLIANCE IN INFORMATION SYSTEM EMPOWERED RESPONSIVE STUDENTS": "AISERS",
+        "ALLIANCE IN INFORMATION SYSTEM EMPOWERED RESPONSIVE STUDENTS ORGANIZATION": "AISERS",
+        "ELITE TECHNOLOGIST SOCIETY": "ELITECH",
+        "INSTITUTE OF LIBERAL ARTS AND SCIENCES STUDENT ORGANIZATION": "ILASSO",
+        "AERONAUTICAL ENGINEERING ORGANIZATION": "AERO-ATSO",
+        "AERONAUTICAL ENGINEERING TECHNOLOGY STUDENT ORGANIZATION": "AETSO",
+        "AVIATION MAINTENANCE TECHNOLOGY STUDENT ORGANIZATION": "AMTSO",
+        "RED CROSS YOUTH COUNCIL": "RCYC",
+        "COLLEGE YOUTH CLUB": "CYC",
         "AERONAUTICA": "Aeronautica",
+        "ELITECH ORGANIZATION": "ELITECH",
         "SCHOLAR'S GUILD": "Scholar's Guild",
+        "SCHOLARS GUILD": "Scholar's Guild",
         "SCHOLAR’S GUILD": "Scholar's Guild",
         "SCHOLARA€™S GUILD": "Scholar's Guild",
         "AMT": "AMTSO",
@@ -242,7 +262,7 @@ function buildCurrentStudentProfile() {
         email: authSession.email || "",
         course: authSession.program_code || "",
         section: authSession.section || "",
-        organization: authSession.active_org_name || ""
+        organization: authSession.active_org_name || authSession.mapped_org_name || ""
     };
 
     let authBackedProfile = {};
@@ -256,13 +276,24 @@ function buildCurrentStudentProfile() {
             : null;
 
         if (authUser) {
+            const mappedOrg = studentProfile && Array.isArray(authDb.program_org_mappings) && Array.isArray(authDb.organizations)
+                ? (() => {
+                    const mapping = authDb.program_org_mappings.find(item =>
+                        Number(item.program_id) === Number(studentProfile.program_id) && Number(item.is_active) === 1
+                    );
+                    return mapping
+                        ? authDb.organizations.find(item => Number(item.org_id) === Number(mapping.org_id))
+                        : null;
+                })()
+                : null;
+
             authBackedProfile = {
                 fullName: `${authUser.first_name || ""} ${authUser.last_name || ""}`.trim(),
                 studentNumber: authUser.student_number || "",
                 email: authUser.email || "",
                 course: program ? program.program_code : "",
                 section: studentProfile ? studentProfile.section || "" : "",
-                organization: authSession.active_org_name || ""
+                organization: authSession.active_org_name || authSession.mapped_org_name || (mappedOrg ? mappedOrg.org_name : "")
             };
         }
     }
@@ -274,7 +305,7 @@ function buildCurrentStudentProfile() {
         ...authBackedProfile
     };
     const normalizedCourse = String(mergedProfile.course || "").toUpperCase().trim();
-    const mappedOrg = courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
+    const mappedOrg = authSession.mapped_org_name || mergedProfile.organization || courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
 
     // For org-officer logins the session carries the correct active_org_name;
     // for regular student logins active_org_name is null — always derive from course map.
@@ -358,7 +389,7 @@ function renderMyOrganizationTab(contentDiv) {
                 <i class="fa-solid fa-users-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;"></i>
                 <h3 style="margin-bottom: 10px; color: var(--text);">No Organization Found</h3>
                 <p style="max-width: 500px; margin: 0 auto; line-height: 1.5;">
-                    Your course association is not configured yet. Update the course-to-organization mapping in the dashboard script.
+                    No active organization mapping was found for your program.
                 </p>
             </div>
         `;
