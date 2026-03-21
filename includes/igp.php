@@ -1177,6 +1177,184 @@ function igpCreateStudentRental(PDO $pdo, int $renterUserId, string $orgRef, str
     }
 }
 
+function igpRefreshUserDebtFlag(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+
+    $check = $pdo->prepare(
+        "SELECT 1
+         FROM rentals
+         WHERE renter_user_id = :uid
+           AND payment_status = 'unpaid'
+           AND status IN ('returned', 'overdue', 'cancelled')
+         LIMIT 1"
+    );
+    $check->execute([':uid' => $userId]);
+    $hasDebt = $check->fetch() ? 1 : 0;
+
+    $upd = $pdo->prepare(
+        "UPDATE users
+         SET has_unpaid_debt = :flag
+         WHERE user_id = :uid"
+    );
+    $upd->execute([
+        ':flag' => $hasDebt,
+        ':uid' => $userId,
+    ]);
+}
+
+function igpStartReservedRental(PDO $pdo, int $orgId, int $rentalId): void
+{
+    if ($rentalId <= 0) {
+        throw new IgpValidationException('Invalid rental_id.');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT rental_id, renter_user_id, rent_time, expected_return_time, status
+             FROM rentals
+             WHERE rental_id = :rid AND org_id = :org
+             FOR UPDATE"
+        );
+        $stmt->execute([':rid' => $rentalId, ':org' => $orgId]);
+        $rental = $stmt->fetch();
+        if (!$rental) {
+            throw new IgpValidationException('Rental not found for this organization.');
+        }
+        if ($rental['status'] !== 'reserved') {
+            throw new IgpValidationException('Only reserved rentals can be started.');
+        }
+
+        $itemsStmt = $pdo->prepare(
+            "SELECT ri.item_id
+             FROM rental_items ri
+             WHERE ri.rental_id = :rid
+             FOR UPDATE"
+        );
+        $itemsStmt->execute([':rid' => $rentalId]);
+        $items = $itemsStmt->fetchAll();
+        if (!$items) {
+            throw new IgpValidationException('No rental items found.');
+        }
+
+        $scheduledStart = new DateTimeImmutable((string)$rental['rent_time']);
+        $scheduledEnd = new DateTimeImmutable((string)$rental['expected_return_time']);
+        $durationSeconds = max(0, $scheduledEnd->getTimestamp() - $scheduledStart->getTimestamp());
+        if ($durationSeconds <= 0) {
+            throw new IgpValidationException('Reserved rental duration is invalid.');
+        }
+
+        $tz = new DateTimeZone('Asia/Manila');
+        $actualStart = new DateTimeImmutable('now', $tz);
+        $actualEnd = $actualStart->modify('+' . $durationSeconds . ' seconds');
+
+        $updRental = $pdo->prepare(
+            "UPDATE rentals
+             SET rent_time = :rent_time,
+                 expected_return_time = :expected,
+                 status = 'active'
+             WHERE rental_id = :rid AND org_id = :org"
+        );
+        $updRental->execute([
+            ':rent_time' => $actualStart->format('Y-m-d H:i:s'),
+            ':expected' => $actualEnd->format('Y-m-d H:i:s'),
+            ':rid' => $rentalId,
+            ':org' => $orgId,
+        ]);
+
+        $updItem = $pdo->prepare(
+            "UPDATE inventory_items
+             SET status = 'rented'
+             WHERE item_id = :id AND org_id = :org"
+        );
+        foreach ($items as $item) {
+            $updItem->execute([
+                ':id' => (int)$item['item_id'],
+                ':org' => $orgId,
+            ]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function igpMarkReservationNoShow(PDO $pdo, int $orgId, int $rentalId): void
+{
+    if ($rentalId <= 0) {
+        throw new IgpValidationException('Invalid rental_id.');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT rental_id, renter_user_id, status, payment_status
+             FROM rentals
+             WHERE rental_id = :rid AND org_id = :org
+             FOR UPDATE"
+        );
+        $stmt->execute([':rid' => $rentalId, ':org' => $orgId]);
+        $rental = $stmt->fetch();
+        if (!$rental) {
+            throw new IgpValidationException('Rental not found for this organization.');
+        }
+        if ($rental['status'] !== 'reserved') {
+            throw new IgpValidationException('Only reserved rentals can be marked as no-show.');
+        }
+
+        $itemsStmt = $pdo->prepare(
+            "SELECT ri.item_id, i.status AS item_status
+             FROM rental_items ri
+             JOIN inventory_items i ON i.item_id = ri.item_id
+             WHERE ri.rental_id = :rid
+             FOR UPDATE"
+        );
+        $itemsStmt->execute([':rid' => $rentalId]);
+        $items = $itemsStmt->fetchAll();
+        if (!$items) {
+            throw new IgpValidationException('No rental items found.');
+        }
+
+        $updRental = $pdo->prepare(
+            "UPDATE rentals
+             SET status = 'cancelled',
+                 payment_status = 'unpaid'
+             WHERE rental_id = :rid AND org_id = :org"
+        );
+        $updRental->execute([
+            ':rid' => $rentalId,
+            ':org' => $orgId,
+        ]);
+
+        $updItem = $pdo->prepare(
+            "UPDATE inventory_items
+             SET status = 'available'
+             WHERE item_id = :id AND org_id = :org"
+        );
+        foreach ($items as $item) {
+            $updItem->execute([
+                ':id' => (int)$item['item_id'],
+                ':org' => $orgId,
+            ]);
+        }
+
+        igpRefreshUserDebtFlag($pdo, (int)$rental['renter_user_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
 function igpReturnRental(PDO $pdo, int $orgId, array $data): array
 {
     $rentalId = (int)($data['rental_id'] ?? 0);
@@ -1289,11 +1467,23 @@ function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId): void
          WHERE rental_id = :rid
            AND org_id = :org
            AND payment_status = 'unpaid'
-           AND status IN ('returned', 'overdue')"
+           AND status IN ('returned', 'overdue', 'cancelled')"
     );
     $upd->execute([':rid' => $rentalId, ':org' => $orgId]);
     if ($upd->rowCount() === 0) {
         throw new IgpValidationException('Rental is not eligible for mark-paid.');
+    }
+
+    $userStmt = $pdo->prepare(
+        "SELECT renter_user_id
+         FROM rentals
+         WHERE rental_id = :rid AND org_id = :org
+         LIMIT 1"
+    );
+    $userStmt->execute([':rid' => $rentalId, ':org' => $orgId]);
+    $userId = (int)$userStmt->fetchColumn();
+    if ($userId > 0) {
+        igpRefreshUserDebtFlag($pdo, $userId);
     }
 }
 

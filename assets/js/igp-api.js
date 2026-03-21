@@ -3,7 +3,7 @@
 
     function resolveBase() {
         const path = (window.location && window.location.pathname) || '';
-        if (path.includes('/pages/igp/')) {
+        if (path.includes('/pages/igp/') || path.includes('/pages/shared/')) {
             return '../../api/igp';
         }
         return '../api/igp';
@@ -58,6 +58,12 @@
         },
         getRentals(filters = {}) {
             return req('/rentals/list.php' + buildQuery(filters), { method: 'GET' });
+        },
+        startRental(rentalId) {
+            return req('/rentals/start.php', { method: 'POST', body: JSON.stringify({ rental_id: rentalId }) });
+        },
+        markNoShow(rentalId) {
+            return req('/rentals/no-show.php', { method: 'POST', body: JSON.stringify({ rental_id: rentalId }) });
         },
         rentItem(payload) {
             return req('/rentals/rent.php', { method: 'POST', body: JSON.stringify(payload) });

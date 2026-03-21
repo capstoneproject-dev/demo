@@ -285,6 +285,26 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         </div>
     </div>
 
+    <!-- Reserved Rental Action Modal -->
+    <div class="modal fade" id="reservedActionModal" tabindex="-1" aria-labelledby="reservedActionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reservedActionModalLabel">Reserved Rental Action</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="reservedActionText" class="mb-2"></p>
+                    <div id="reservedActionHint" class="small text-muted"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmReservedActionBtn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Officer Verification Modal -->
     <div class="modal fade" id="officerVerificationModal" tabindex="-1" aria-labelledby="officerVerificationModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -337,5 +357,4 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 </body>
 
 </html>
-
 
