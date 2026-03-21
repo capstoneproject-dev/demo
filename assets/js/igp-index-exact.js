@@ -11,6 +11,7 @@
     let officerInputTimer = null;
     let pendingRent = null;
     let pendingReturn = null;
+    let pendingReservedAction = null;
     let pendingPaymentRentalId = 0;
     const scanCtx = {
         rent: { studentId: '', officerId: '' },
@@ -107,11 +108,15 @@
             const barcodeMatch = String(r.items_label || '').match(/\[([^\]]+)\]/);
             const itemBarcode = barcodeMatch ? barcodeMatch[1] : r.rental_id;
             const itemLabelBase = String(r.items_label || '-').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || '-';
+            const isReserved = String(r.status || '').toLowerCase() === 'reserved';
             
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${String(r.status || '').toLowerCase() === 'reserved'
-                    ? '<span class="badge bg-info text-dark">Reserved</span>'
+                    ? `<div class="d-flex gap-1 flex-wrap">
+                            <button class="btn btn-success btn-sm py-1 px-3 js-start" data-rid="${r.rental_id}">Start Rental</button>
+                            <button class="btn btn-outline-danger btn-sm py-1 px-3 js-no-show" data-rid="${r.rental_id}">No Show</button>
+                       </div>`
                     : `<button class="btn btn-warning btn-sm js-return" data-rid="${r.rental_id}">Return</button>`}</td>
                 <td>${itemLabelBase} [${itemBarcode}]</td>
                 <td>${r.renter_name || '-'} (${r.renter_student_number || '-'})</td>
@@ -120,7 +125,7 @@
                 <td>${fmtDate(r.expected_return_time)}</td>
                 <td>${dueClock(r.expected_return_time)}</td>
                 <td>${Number(accumulatedPrice(r)).toFixed(2)}</td>
-                <td>${r.status}</td>
+                <td>${isReserved ? '<span class="badge bg-info text-dark">Reserved</span>' : r.status}</td>
             `;
             tbody.appendChild(row);
         });
@@ -314,6 +319,36 @@
         }
         
         const modal = getModalInstance('confirmReturnModal');
+        if (modal) modal.show();
+    }
+
+    function openReservedActionModal(rental, actionType) {
+        pendingReservedAction = { rental, actionType };
+        const title = $('reservedActionModalLabel');
+        const text = $('reservedActionText');
+        const hint = $('reservedActionHint');
+        const confirmBtn = $('confirmReservedActionBtn');
+        const itemLabel = String(rental.items_label || '-');
+
+        if (actionType === 'start') {
+            if (title) title.textContent = 'Start Reserved Rental';
+            if (text) text.textContent = `Start rental #${rental.rental_id} for ${itemLabel}?`;
+            if (hint) hint.textContent = 'This will convert the reservation to an active rental and start the rental time now.';
+            if (confirmBtn) {
+                confirmBtn.textContent = 'Start Rental';
+                confirmBtn.className = 'btn btn-success';
+            }
+        } else {
+            if (title) title.textContent = 'Mark Reservation as No Show';
+            if (text) text.textContent = `Mark rental #${rental.rental_id} for ${itemLabel} as no-show?`;
+            if (hint) hint.textContent = 'This will release the item, keep the balance unpaid, and block the student until payment is settled.';
+            if (confirmBtn) {
+                confirmBtn.textContent = 'Mark No Show';
+                confirmBtn.className = 'btn btn-danger';
+            }
+        }
+
+        const modal = getModalInstance('reservedActionModal');
         if (modal) modal.show();
     }
 
@@ -597,6 +632,30 @@
         }
     }
 
+    async function confirmReservedActionFromModal() {
+        if (!pendingReservedAction) return;
+        const { rental, actionType } = pendingReservedAction;
+        const rid = Number(rental && rental.rental_id);
+        if (!rid) return;
+
+        const modal = getModalInstance('reservedActionModal');
+        try {
+            if (actionType === 'start') {
+                await window.igpApi.startRental(rid);
+                setScanResult(`Rental #${rid} started successfully.`, 'success');
+            } else {
+                await window.igpApi.markNoShow(rid);
+                setScanResult(`Reservation #${rid} marked as no-show. Student balance remains unpaid.`, 'success');
+            }
+            if (modal) modal.hide();
+            await refresh();
+            pendingReservedAction = null;
+        } catch (err) {
+            if (modal) modal.hide();
+            setScanResult(err.message, 'error');
+        }
+    }
+
     function bindEvents() {
         if ($('itemFilter')) $('itemFilter').addEventListener('change', renderAvailable);
         if ($('rentMode')) $('rentMode').addEventListener('change', populateManualItems);
@@ -660,6 +719,7 @@
         if ($('confirmReturnBtn')) $('confirmReturnBtn').addEventListener('click', confirmReturnFromModal);
         if ($('verifyOfficerBtn')) $('verifyOfficerBtn').addEventListener('click', verifyOfficerAndProcessReturn);
         if ($('markReturnPaidBtn')) $('markReturnPaidBtn').addEventListener('click', markReturnPaidFromModal);
+        if ($('confirmReservedActionBtn')) $('confirmReservedActionBtn').addEventListener('click', confirmReservedActionFromModal);
         
         // Officer verification input - process on Enter key and auto-process after scan
         if ($('officerVerificationInput')) {
@@ -691,6 +751,32 @@
 
         if ($('rentalRecords')) {
             $('rentalRecords').addEventListener('click', async (e) => {
+                const startBtn = e.target.closest('.js-start');
+                if (startBtn) {
+                    const rid = Number(startBtn.dataset.rid);
+                    if (!rid) return;
+                    const rental = activeRentals.find((r) => Number(r.rental_id) === rid);
+                    if (!rental) {
+                        setScanResult('Rental not found.', 'error');
+                        return;
+                    }
+                    openReservedActionModal(rental, 'start');
+                    return;
+                }
+
+                const noShowBtn = e.target.closest('.js-no-show');
+                if (noShowBtn) {
+                    const rid = Number(noShowBtn.dataset.rid);
+                    if (!rid) return;
+                    const rental = activeRentals.find((r) => Number(r.rental_id) === rid);
+                    if (!rental) {
+                        setScanResult('Rental not found.', 'error');
+                        return;
+                    }
+                    openReservedActionModal(rental, 'no-show');
+                    return;
+                }
+
                 const btn = e.target.closest('.js-return');
                 if (!btn) return;
                 const rid = Number(btn.dataset.rid);
