@@ -1952,7 +1952,7 @@ const serviceOrgMapping = {
     "Business Calculator": ["AISERS"],
     "Scientific Calculator": ["SSC", "AERO-ATSO"],
     "Arnis": ["AISERS"],
-    "Printing": ["SSC", "CYC", "AMTSO", "AET"],
+    "Printing": ["SSC", "CYC", "AMTSO", "AETSO"],
     "Network Crimping Tool": ["ELITECH"],
     "Mini Fan": ["ELITECH"],
     "Network Cable Tester": ["ELITECH"],
@@ -1972,13 +1972,14 @@ const OPERATING_HOURS = {
     CLOSE_STR: "04:00 PM"
 };
 const MAX_ADVANCE_DAYS = 1;  // 1 day ahead only
-const RATE_PER_HOUR = 10.00;  // ₱10 per hour
-const RATE_PER_HALF_HOUR = 5.00;  // ₱5 per 30 minutes
 
 // --- GLOBAL STATE ---
 let currentSelectedService = null;
 let currentSelectedOrg = null;
 let currentParentGroup = null; // Track if we came from a group (e.g. Calculator)
+let currentSelectedHourlyRate = null;
+let currentSelectedInventoryItemName = null;
+let currentQuoteRequestId = 0;
 let rentalData = {
     date: "",
     startTime: "",
@@ -2183,6 +2184,8 @@ function closeServiceModal() {
 
 function selectOrgOption(orgName, cardElement) {
     currentSelectedOrg = orgName;
+    currentSelectedHourlyRate = null;
+    currentSelectedInventoryItemName = null;
     const allCards = document.querySelectorAll('.org-option-card');
     allCards.forEach(c => c.classList.remove('selected'));
     cardElement.classList.add('selected');
@@ -2204,6 +2207,8 @@ function resetModalState() {
     currentSelectedService = null;
     currentSelectedOrg = null;
     currentParentGroup = null;
+    currentSelectedHourlyRate = null;
+    currentSelectedInventoryItemName = null;
     rentalData = { date: "", startTime: "", duration: "", endTime: "", hours: 0, amount: 0 };
 
     // Reset Inputs
@@ -2294,6 +2299,18 @@ function showStep2() {
     dateInput.min = today.toISOString().split('T')[0];
     dateInput.max = maxDate.toISOString().split('T')[0];
 
+    document.getElementById('totalAmountDisplay').innerText = "Loading live rate...";
+
+    loadRentalQuote(0)
+        .then((quote) => {
+            if (quote && !document.getElementById('duration').value) {
+                document.getElementById('totalAmountDisplay').innerText = `₱0.00`;
+            }
+        })
+        .catch((err) => {
+            showError(err.message || 'Could not load rental price.');
+        });
+
     // Trigger initial calculation
     calculateRental();
 }
@@ -2318,7 +2335,36 @@ function minutesToTime(totalMinutes) {
     return `${hours}:${minutes} ${ampm}`;
 }
 
-function calculateRental() {
+async function loadRentalQuote(hours = 0) {
+    if (!currentSelectedService || !currentSelectedOrg) {
+        return null;
+    }
+
+    const requestId = ++currentQuoteRequestId;
+    const params = new URLSearchParams({
+        organization: currentSelectedOrg,
+        item_name: currentSelectedService,
+        hours: String(hours || 0)
+    });
+    const response = await fetch(`../api/student/rentals/quote.php?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'same-origin'
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'Could not load rental price.');
+    }
+
+    if (requestId !== currentQuoteRequestId) {
+        return null;
+    }
+
+    currentSelectedHourlyRate = Number(data.hourly_rate || 0);
+    currentSelectedInventoryItemName = data.item_name || currentSelectedService;
+    return data;
+}
+
+async function calculateRental() {
     const dateInput = document.getElementById('rentalDate');
     const startInput = document.getElementById('startTime');
     const durationInput = document.getElementById('duration');
@@ -2340,6 +2386,7 @@ function calculateRental() {
     // 1. Base Validation (Presence)
     if (!dateVal || !startVal || !durationVal) {
         endDisplay.innerText = "--:-- --";
+        priceDisplay.innerText = currentSelectedHourlyRate === null ? "Loading live rate..." : "₱0.00";
         confirmBtn.disabled = true;
         return;
     }
@@ -2378,10 +2425,17 @@ function calculateRental() {
         return;
     }
 
-    // 4. Calculate Price (₱10 per hour + ₱5 per 30 minutes)
-    const wholeHours = Math.floor(totalHours);
-    const halfHours = (totalHours - wholeHours) > 0 ? 1 : 0;
-    const calculatedAmount = (wholeHours * RATE_PER_HOUR) + (halfHours * RATE_PER_HALF_HOUR);
+    // 4. Calculate Price from the live inventory_items.hourly_rate
+    let calculatedAmount = 0;
+    try {
+        const quote = await loadRentalQuote(totalHours);
+        const liveHourlyRate = quote ? Number(quote.hourly_rate || 0) : Number(currentSelectedHourlyRate || 0);
+        calculatedAmount = liveHourlyRate * totalHours;
+    } catch (err) {
+        showError(err.message || 'Could not load rental price.');
+        confirmBtn.disabled = true;
+        return;
+    }
 
     // 5. Valid State: Update UI
     rentalData.date = dateVal;
