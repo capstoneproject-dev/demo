@@ -1492,11 +1492,16 @@ function moveDashboardSlide(direction) {
 }
 
 // --- INITIALIZATION ---
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     validatePhpSession();   // guard: redirect to login if no valid session
     syncStudentIdentity();
     setDate();
     renderDashboard();
+    try {
+        await loadStudentServiceCatalog();
+    } catch (error) {
+        console.error(error);
+    }
     renderServices();
     renderProfile();
     switchOrgTab('about', document.querySelector('.tab-btn'));
@@ -1694,160 +1699,175 @@ function moveSlide(direction) {
     updateCarousel();
 }
 
-// --- DATA CATEGORIES CONFIGURATION ---
-const serviceCategories = {
-    academic: {
-        title: "Academic & Study Tools",
-        icon: "fa-calculator",
-        items: ["Calculator", "Rulers"] // Replaced specific items with generic ones
-    },
-    laboratory: {
-        title: "Laboratory",
-        icon: "fa-flask",
-        items: ["Shoe Rag", "Network Crimping Tool", "Network Cable Tester"]
-    },
-    equipment: {
-        title: "Equipment & Utilities",
-        icon: "fa-toolbox",
-        items: ["Arnis", "Mini Fan", "Lockers"]
+let studentServiceCatalog = [];
+let studentServiceCatalogPromise = null;
+let studentServiceCatalogLoaded = false;
+let currentSelectedCatalogItem = null;
+const serviceGroups = {};
+
+function resolveStudentCatalogImage(path) {
+    const raw = String(path || '').trim();
+    if (!raw) return '';
+    if (/^(https?:)?\/\//i.test(raw)) return raw;
+    return `../${raw.replace(/^\/+/, '')}`;
+}
+
+function getServiceCategoryIcon(categoryName) {
+    const value = String(categoryName || '').toLowerCase();
+    if (value.includes('labor')) return 'fa-flask';
+    if (value.includes('print')) return 'fa-print';
+    if (value.includes('tool')) return 'fa-toolbox';
+    if (value.includes('utility')) return 'fa-screwdriver-wrench';
+    if (value.includes('study') || value.includes('academic')) return 'fa-book';
+    if (value.includes('calculator')) return 'fa-calculator';
+    return 'fa-box-open';
+}
+
+async function loadStudentServiceCatalog(force = false) {
+    if (studentServiceCatalogPromise && !force) {
+        return studentServiceCatalogPromise;
     }
-};
 
-// Configuration for Parent -> Children mapping
-const serviceGroups = {
-    "Calculator": ["Business Calculator", "Scientific Calculator"],
-    "Rulers": ["Rulers", "T-Square", "Triangle Ruler", "Protractor"]
-};
+    studentServiceCatalogPromise = fetch('../api/student/services/catalog.php', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+        .then((resp) => resp.json().catch(() => ({})).then((data) => ({ resp, data })))
+        .then(({ resp, data }) => {
+            if (!resp.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load services.');
+            }
+            studentServiceCatalog = Array.isArray(data.items) ? data.items : [];
+            studentServiceCatalogLoaded = true;
+            return studentServiceCatalog;
+        })
+        .catch((err) => {
+            studentServiceCatalog = [];
+            studentServiceCatalogLoaded = true;
+            throw err;
+        });
 
-// --- RENDER SERVICES (UPDATED) ---
+    return studentServiceCatalogPromise;
+}
+
+function groupCatalogByCategory(items) {
+    return items.reduce((acc, item) => {
+        const key = String(item.category_name || 'Uncategorized').trim() || 'Uncategorized';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+    }, {});
+}
+
+function formatStudentRate(item) {
+    const min = Number(item.hourly_rate_min || 0);
+    const max = Number(item.hourly_rate_max || 0);
+    if (min === max) {
+        return `₱${min.toFixed(2)}/hr`;
+    }
+    return `₱${min.toFixed(2)} - ₱${max.toFixed(2)}/hr`;
+}
+
+function isStudentServiceAvailable(item) {
+    return Number(item?.available_count || 0) > 0;
+}
+
 function renderServices(filter = "") {
     const grid = document.getElementById('servicesGrid');
     const hero = document.getElementById('printingHero');
-    const filterLower = filter.toLowerCase();
-
-    // 1. Handle Printing Hero Visibility
-    // Show hero if filter is empty, or if it matches "printing" or "photo" (since 1x1 is listed there)
+    const filterLower = String(filter || '').toLowerCase();
     const printingKeywords = ["printing", "photo", "1x1"];
     const showHero = filterLower === "" || printingKeywords.some(keyword => filterLower.includes(keyword));
 
-    if (showHero) {
-        hero.style.display = "block";
-    } else {
-        hero.style.display = "none";
+    if (hero) {
+        hero.style.display = showHero ? "block" : "none";
+    }
+    if (!grid) return;
+
+    if (!studentServiceCatalogLoaded) {
+        grid.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 40px;">Loading services...</div>`;
+        return;
     }
 
-    // 2. Render Categorized Services
-    grid.innerHTML = ""; // Clear current content
+    const filteredItems = studentServiceCatalog.filter((item) => {
+        const searchBlob = [
+            item.display_name,
+            item.category_name,
+            ...(Array.isArray(item.orgs) ? item.orgs.map(org => `${org.org_name} ${org.org_code}`) : [])
+        ].join(' ').toLowerCase();
+        return !filterLower || searchBlob.includes(filterLower);
+    });
 
-    let hasResults = false;
+    const grouped = groupCatalogByCategory(filteredItems);
+    const categories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
-    // Iterate through defined categories
-    for (const [key, category] of Object.entries(serviceCategories)) {
-        // Find matching services in servicesData for this category
-        const matchingServices = getStudentScopedServices().filter(service =>
-            category.items.includes(service.name) &&
-            (service.name.toLowerCase().includes(filterLower) || service.org.toLowerCase().includes(filterLower))
-        );
+    if (!categories.length) {
+        grid.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 40px;">No services found matching "${filter}".</div>`;
+        return;
+    }
 
-        // If we have matches, render the section
-        if (matchingServices.length > 0) {
-            hasResults = true;
+    grid.innerHTML = '';
+    categories.forEach((categoryName) => {
+        const section = document.createElement('div');
+        section.className = 'category-section';
 
-            // Create Section Container
-            const section = document.createElement('div');
-            section.className = 'category-section';
+        const header = document.createElement('div');
+        header.className = 'category-header';
+        header.innerHTML = `
+            <div class="category-icon"><i class="fa-solid ${getServiceCategoryIcon(categoryName)}"></i></div>
+            <div class="category-title">${categoryName}</div>
+        `;
+        section.appendChild(header);
 
-            // Create Header
-            const header = document.createElement('div');
-            header.className = 'category-header';
-            header.innerHTML = `
-                <div class="category-icon"><i class="fa-solid ${category.icon}"></i></div>
-                <div class="category-title">${category.title}</div>
-            `;
-            section.appendChild(header);
+        const cardGrid = document.createElement('div');
+        cardGrid.className = 'category-grid';
 
-            // Create Grid for Cards
-            const cardGrid = document.createElement('div');
-            cardGrid.className = 'category-grid';
-
-            matchingServices.forEach(service => {
+        grouped[categoryName]
+            .sort((a, b) => String(a.display_name || '').localeCompare(String(b.display_name || '')))
+            .forEach((service) => {
                 const card = document.createElement('div');
-                card.className = 'service-card'; // Base class
-
-                // --- UPDATED LOGIC FOR OPTION 1 ---
-                if (service.backgroundImage) {
-                    // Apply Gallery Layout Class
-                    card.classList.add('gallery-card');
-
-                    // New HTML Structure: Image Top, Text Bottom
-                    card.innerHTML = `
-                        <div class="gallery-img-wrapper">
-                            <img src="${service.backgroundImage}" alt="${service.name}" loading="lazy">
-                        </div>
-                        <div class="gallery-content">
-                            <div class="service-name">${service.name}</div>
-                        </div>
-                    `;
-                } else {
-                    // Fallback for Icon-only items (No change needed here)
-                    card.innerHTML = `
-                        <div class="service-icon">
-                            <i class="fa-solid ${service.icon}"></i>
-                        </div>
-                        <div>
-                            <div class="service-name">${service.name}</div>
-                        </div>
-                    `;
+                card.className = 'service-card gallery-card';
+                const orgSummary = Array.isArray(service.orgs) ? service.orgs.map(org => org.org_code).join(', ') : '';
+                const isAvailable = isStudentServiceAvailable(service);
+                const availabilityText = isAvailable
+                    ? `${service.available_count} available - ${formatStudentRate(service)}`
+                    : `Unavailable - ${Number(service.total_count || 0)} in inventory`;
+                if (!isAvailable) {
+                    card.classList.add('service-card-unavailable');
+                    card.style.opacity = '0.72';
                 }
-
-                // INTERACTION LOGIC
-                if (serviceGroups[service.name]) {
-                    // NEW: Check if this item is a Parent Group
-                    card.onclick = () => openItemSelectModal(service.name);
-                    card.style.cursor = "pointer";
-                    card.setAttribute('role', 'button');
-                    card.setAttribute('aria-label', `Select type for ${service.name}`);
-                    card.setAttribute('tabindex', '0');
-                    card.onkeydown = (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            openItemSelectModal(service.name);
-                        }
-                    };
-                } else {
-                    // Existing Logic: Regular Service
-                    card.onclick = () => openServiceModal(service.name);
-                    card.style.cursor = "pointer";
-                    card.setAttribute('role', 'button');
-                    card.setAttribute('aria-label', `Select organization for ${service.name}`);
-                    card.setAttribute('tabindex', '0');
-                    card.onkeydown = (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            openServiceModal(service.name);
-                        }
-                    };
-                }
-
+                card.innerHTML = `
+                    <div class="gallery-img-wrapper">
+                        <img src="${resolveStudentCatalogImage(service.image_path)}" alt="${service.display_name}" loading="lazy">
+                    </div>
+                    <div class="gallery-content">
+                        <div class="service-name">${service.display_name}</div>
+                        <div class="service-org" style="font-size:0.8rem; color:var(--muted); margin-top:4px;">${orgSummary}</div>
+                        <div class="service-org" style="font-size:0.8rem; color:var(--muted);">${availabilityText}</div>
+                    </div>
+                `;
+                card.onclick = () => openServiceModal(service.display_name, null, service);
+                card.style.cursor = "pointer";
+                card.setAttribute('role', 'button');
+                card.setAttribute('aria-label', `Select organization for ${service.display_name}`);
+                card.setAttribute('tabindex', '0');
+                card.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openServiceModal(service.display_name, null, service);
+                    }
+                };
                 cardGrid.appendChild(card);
             });
 
-            section.appendChild(cardGrid);
-            grid.appendChild(section);
-        }
-    }
-
-    // Optional: Show "No results" if everything is empty (and hero is hidden)
-    if (!hasResults && !showHero) {
-        grid.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 40px;">No services found matching "${filter}".</div>`;
-    }
+        section.appendChild(cardGrid);
+        grid.appendChild(section);
+    });
 }
 
-// --- FILTER SERVICES ---
 function filterServices() {
     const searchInput = document.getElementById('serviceSearch');
-    const query = searchInput.value;
-    renderServices(query);
+    renderServices(searchInput ? searchInput.value : '');
 }
 
 // --- UPLOAD ZONE LOGIC ---
@@ -2095,7 +2115,7 @@ function handleBackToItemSelect() {
     }
 }
 
-function openServiceModal(serviceName, parentGroup = null) {
+function openServiceModal(serviceName, parentGroup = null, catalogItem = null) {
     // Reset State
     resetModalState();
 
@@ -2108,6 +2128,7 @@ function openServiceModal(serviceName, parentGroup = null) {
     // Set State
     currentSelectedService = serviceName;
     currentSelectedOrg = null;
+    currentSelectedCatalogItem = catalogItem;
     currentParentGroup = parentGroup; // Store for back navigation
     continueBtn.disabled = true;
 
@@ -2116,8 +2137,20 @@ function openServiceModal(serviceName, parentGroup = null) {
     subtitleEl.innerText = `Choose who will provide: ${serviceName}`;
     listContainer.innerHTML = '';
 
-    // Populate Orgs (Existing Logic)
-    const orgs = serviceOrgMapping[serviceName] || [];
+    // Populate Orgs from the live catalog when available
+    const orgOptions = catalogItem && Array.isArray(catalogItem.orgs)
+        ? catalogItem.orgs.map((org) => ({
+            label: org.org_name,
+            value: org.org_code || org.org_name,
+            meta: Number(org.available_count || 0) > 0
+                ? `${org.available_count} available`
+                : `Unavailable • ${Number(org.total_count || 0)} in inventory`,
+        }))
+        : (serviceOrgMapping[serviceName] || []).map((orgName) => ({
+            label: orgName,
+            value: orgName,
+            meta: '',
+        }));
 
     // Logo Mapping
     const orgLogos = {
@@ -2129,40 +2162,43 @@ function openServiceModal(serviceName, parentGroup = null) {
         "Supreme Student Council": "../assets/photos/studentDashboard/Organization/SSC.png"
     };
 
-    if (orgs.length === 0) {
+    if (orgOptions.length === 0) {
         listContainer.innerHTML = `<div style="text-align:center; color:var(--muted); padding:20px;">No organizations found for this service.</div>`;
     } else {
-        orgs.forEach((orgName, index) => {
+        orgOptions.forEach((orgOption) => {
             const card = document.createElement('div');
             card.className = 'org-option-card';
             card.setAttribute('role', 'button');
             card.setAttribute('tabindex', '0');
-            card.onclick = () => selectOrgOption(orgName, card);
+            card.onclick = () => selectOrgOption(orgOption.value, card);
             card.onkeydown = (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    selectOrgOption(orgName, card);
+                    selectOrgOption(orgOption.value, card);
                 }
             };
 
             // Check if we have a logo, otherwise initials
-            const logoPath = orgLogos[orgName];
-            const initials = orgName.substring(0, 2).toUpperCase();
+            const logoPath = orgLogos[orgOption.value] || orgLogos[orgOption.label];
+            const initials = orgOption.label.substring(0, 2).toUpperCase();
 
             const avatarContent = logoPath
-                ? `<img src="${logoPath}" alt="${orgName} logo">`
+                ? `<img src="${logoPath}" alt="${orgOption.label} logo">`
                 : initials;
 
             card.innerHTML = `
                 <div class="org-info">
                     <div class="org-avatar">${avatarContent}</div>
-                    <div class="org-name-text">${orgName}</div>
+                    <div>
+                        <div class="org-name-text">${orgOption.label}</div>
+                        ${orgOption.meta ? `<small style="color:var(--muted);">${orgOption.meta}</small>` : ''}
+                    </div>
                 </div>
                 <i class="fa-solid fa-circle-check check-icon"></i>
             `;
             listContainer.appendChild(card);
 
-            if (orgs.length === 1) selectOrgOption(orgName, card);
+            if (orgOptions.length === 1) selectOrgOption(orgOption.value, card);
         });
     }
 
@@ -2194,6 +2230,10 @@ function selectOrgOption(orgName, cardElement) {
 
 function handleServiceContinue() {
     if (!currentSelectedService || !currentSelectedOrg) return;
+    if (currentSelectedCatalogItem && !isStudentServiceAvailable(currentSelectedCatalogItem)) {
+        showError('This item is currently unavailable for reservation.');
+        return;
+    }
     // Transition to Step 2
     showStep2();
 }
@@ -2206,6 +2246,7 @@ function handleBackToStep1() {
 function resetModalState() {
     currentSelectedService = null;
     currentSelectedOrg = null;
+    currentSelectedCatalogItem = null;
     currentParentGroup = null;
     currentSelectedHourlyRate = null;
     currentSelectedInventoryItemName = null;
@@ -2496,6 +2537,8 @@ async function confirmRental() {
             throw new Error(data.error || 'Could not create rental.');
         }
 
+        await loadStudentServiceCatalog(true);
+        renderServices((document.getElementById('serviceSearch') || {}).value || '');
         showToast(`Reservation Confirmed: ${currentSelectedService} on ${rentalData.date} at ${rentalData.startTime}`);
         closeServiceModal();
     } catch (err) {

@@ -60,6 +60,111 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         .group-pricing-card .form-control {
             background: transparent;
         }
+
+        .inventory-image-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 16px;
+            display: none;
+            background: #f8f9fa;
+        }
+
+        .inventory-thumb {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            background: #fff;
+        }
+
+        .inventory-media-panel {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #ffffff;
+            padding: 12px;
+            height: 100%;
+        }
+
+        .inventory-media-label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .inventory-image-stage {
+            position: relative;
+            height: 280px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            background: #f9fafb;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .inventory-image-preview.is-visible {
+            display: block;
+        }
+
+        .inventory-image-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: #6b7280;
+            text-align: center;
+            padding: 16px;
+        }
+
+        .inventory-image-placeholder i {
+            font-size: 1.25rem;
+            color: #9ca3af;
+        }
+
+        .inventory-image-placeholder.hidden {
+            display: none;
+        }
+
+        .inventory-image-helper {
+            margin-top: 8px;
+            font-size: 0.76rem;
+            color: #6b7280;
+        }
+
+        .inventory-settings-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: 100%;
+        }
+
+        .inventory-settings-note {
+            flex: 1;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #f9fafb;
+            padding: 14px 16px;
+            color: #6b7280;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        @media (max-width: 767.98px) {
+            .inventory-settings-note {
+                min-height: 0;
+            }
+        }
     </style>
 </head>
 
@@ -160,7 +265,11 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             placeholder="Item Type">
                     </div>
                     <div class="col-md-3">
-                        <input type="text" class="form-control" id="itemName" placeholder="Item Name" required>
+                        <select class="form-select" id="itemName" required>
+                            <option value="">Item Name</option>
+                            <option value="__add_new__">+ Add new item name...</option>
+                        </select>
+                        <input type="text" class="form-control d-none" id="itemNameCustom" placeholder="Item Name">
                     </div>
                     <div class="col-md-3">
                         <input type="text" class="form-control" id="barcode" placeholder="Barcode" required>
@@ -169,17 +278,32 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         <input type="number" class="form-control" id="pricePerHour" placeholder="Price/Hour (PHP)" min="0"
                             step="0.01" required>
                     </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary w-100">Add Item</button>
+                    <div class="col-md-2 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary flex-fill" id="saveItemButton">Add Item</button>
+                        <button type="button" class="btn btn-outline-secondary d-none" id="cancelEditButton">Cancel</button>
                     </div>
-                    <div class="col-md-3">
-                        <input type="number" class="form-control" id="overtimeInterval" placeholder="Overtime every (mins)" min="1" step="1" required>
+                    <div class="col-md-6">
+                        <div class="inventory-media-panel">
+                            <label for="itemImage" class="inventory-media-label">Item Image</label>
+                            <input type="file" class="form-control" id="itemImage" accept="image/png,image/jpeg,image/webp" required>
+                            <div class="inventory-image-stage">
+                                <img id="itemImagePreview" class="inventory-image-preview" alt="Item preview">
+                                <div id="itemImagePlaceholder" class="inventory-image-placeholder">
+                                    <i class="fa-regular fa-image"></i>
+                                    <div>No image selected yet</div>
+                                </div>
+                            </div>
+                            <div class="inventory-image-helper">Upload a clear photo or product shot for the student services catalog.</div>
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        <input type="number" class="form-control" id="overtimeRate" placeholder="Overtime rate (PHP/block)" min="0" step="0.01" required>
-                    </div>
-                    <div class="col-md-6 d-flex align-items-center">
-                        <small class="text-muted">Overtime: charged at the rate every X minutes after the due time.</small>
+                    <div class="col-md-6">
+                        <div class="inventory-settings-stack">
+                            <input type="number" class="form-control" id="overtimeInterval" placeholder="Overtime every (mins)" min="1" step="1" required>
+                            <input type="number" class="form-control" id="overtimeRate" placeholder="Overtime rate (PHP/block)" min="0" step="0.01" required>
+                            <div class="inventory-settings-note">
+                                Overtime is charged every set number of minutes after the due time.
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>
