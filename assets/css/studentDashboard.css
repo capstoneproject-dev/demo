@@ -817,6 +817,7 @@ header {
     .hero-upload {
         max-width: 100%;
     }
+
 }
 
 /* --- ORGANIZATION CARD STYLES (MOVIE UI) --- */
@@ -5002,6 +5003,210 @@ body.dark .calendar-nav-btn {
 /* Retain the original Navy color for the accent bar to ensure visibility on light cards */
 body.dark .card-top-accent {
     background: #002147 !important;
+}
+
+/* === CURRENT RENTALS STYLES === */
+#currentRentalsContainer {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.rental-card {
+    background: var(--panel);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.rental-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.rental-card-status {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.rental-card-status.status-reserved {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+body.dark .rental-card-status.status-reserved {
+    background: #1e3a8a;
+    color: #93c5fd;
+}
+
+.rental-card-status.status-active {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+body.dark .rental-card-status.status-active {
+    background: #14532d;
+    color: #86efac;
+}
+
+.rental-card-org {
+    font-size: 0.85rem;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.rental-card-items {
+    margin: 16px 0;
+    padding: 12px;
+    background: var(--panel-2);
+    border-radius: var(--radius-sm);
+}
+
+.rental-card-items h4 {
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    color: var(--text);
+}
+
+.rental-items-list {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.rental-card-details {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.rental-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+}
+
+.rental-detail-row i {
+    color: var(--primary);
+    width: 18px;
+    text-align: center;
+}
+
+.rental-detail-label {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.rental-detail-value {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.rental-timer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: linear-gradient(135deg, #f59e0b20, #f59e0b10);
+    border: 1px solid #f59e0b40;
+    border-radius: var(--radius-sm);
+    margin-top: 16px;
+}
+
+body.dark .rental-timer {
+    background: linear-gradient(135deg, #f59e0b30, #f59e0b15);
+    border: 1px solid #f59e0b50;
+}
+
+.rental-timer i {
+    color: #f59e0b;
+    font-size: 1.2rem;
+}
+
+.rental-timer-text {
+    flex: 1;
+}
+
+.rental-timer-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.rental-timer-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.rental-card-footer {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.rental-cost {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.rental-payment-status {
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.rental-payment-status.unpaid {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+body.dark .rental-payment-status.unpaid {
+    background: #78350f;
+    color: #fde68a;
+}
+
+.rental-payment-status.paid {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+body.dark .rental-payment-status.paid {
+    background: #14532d;
+    color: #86efac;
+}
+
+/* Empty state for no rentals */
+.no-rentals-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+}
+
+.no-rentals-message i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.no-rentals-message p {
+    font-size: 0.95rem;
 }
 
 /* REMOVED: Replaced by Grid auto-fill auto-fit logic above */
