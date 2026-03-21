@@ -560,6 +560,19 @@ function navigate(viewId, element) {
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'Student Hub';
 
+    // Load current rentals when viewing services
+    if (viewId === 'services') {
+        if (typeof loadCurrentRentals === 'function') {
+            loadCurrentRentals();
+        }
+    } else {
+        // Clear timer when leaving services view
+        if (typeof rentalTimerInterval !== 'undefined' && rentalTimerInterval) {
+            clearInterval(rentalTimerInterval);
+            rentalTimerInterval = null;
+        }
+    }
+
     // Scroll to top
     window.scrollTo(0, 0);
 }
@@ -2539,6 +2552,7 @@ async function confirmRental() {
 
         await loadStudentServiceCatalog(true);
         renderServices((document.getElementById('serviceSearch') || {}).value || '');
+        await loadCurrentRentals();
         showToast(`Reservation Confirmed: ${currentSelectedService} on ${rentalData.date} at ${rentalData.startTime}`);
         closeServiceModal();
     } catch (err) {
@@ -2986,4 +3000,170 @@ function downloadApplicationForm() {
             }
         }, 1000); // 1s delay for visual feedback
     }
+}
+
+// === CURRENT RENTALS FEATURE ===
+let currentRentalsData = [];
+let rentalTimerInterval = null;
+
+async function loadCurrentRentals() {
+    try {
+        const response = await fetch('../api/student/rentals/my-rentals.php?status=open', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load current rentals.');
+        }
+
+        currentRentalsData = Array.isArray(data.items) ? data.items : [];
+        renderCurrentRentals();
+    } catch (err) {
+        console.error('[loadCurrentRentals]', err);
+        currentRentalsData = [];
+        renderCurrentRentals();
+    }
+}
+
+function renderCurrentRentals() {
+    const section = document.getElementById('currentRentalsSection');
+    const container = document.getElementById('currentRentalsContainer');
+
+    if (!section || !container) return;
+
+    // Clear timer if exists
+    if (rentalTimerInterval) {
+        clearInterval(rentalTimerInterval);
+        rentalTimerInterval = null;
+    }
+
+    if (currentRentalsData.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    container.innerHTML = '';
+
+    currentRentalsData.forEach(rental => {
+        const card = createRentalCard(rental);
+        container.appendChild(card);
+    });
+
+    // Start timer for active rentals
+    const hasActiveRentals = currentRentalsData.some(r => r.status === 'active');
+    if (hasActiveRentals) {
+        updateRentalTimers();
+        rentalTimerInterval = setInterval(updateRentalTimers, 1000);
+    }
+}
+
+function createRentalCard(rental) {
+    const card = document.createElement('div');
+    card.className = 'rental-card';
+    card.setAttribute('data-rental-id', rental.rental_id);
+
+    const statusClass = rental.status === 'active' ? 'status-active' : 'status-reserved';
+    const statusText = rental.status === 'active' ? 'Active' : 'Reserved';
+
+    const rentTimeFormatted = formatDateTime(rental.rent_time);
+    const expectedReturnFormatted = formatDateTime(rental.expected_return_time);
+
+    let timerHtml = '';
+    if (rental.status === 'active') {
+        timerHtml = `
+            <div class="rental-timer" data-rental-id="${rental.rental_id}">
+                <i class="fa-solid fa-clock"></i>
+                <div class="rental-timer-text">
+                    <div class="rental-timer-label">Time Remaining</div>
+                    <div class="rental-timer-value">--:--:--</div>
+                </div>
+            </div>
+        `;
+    } else if (rental.status === 'reserved') {
+        timerHtml = `
+            <div class="rental-detail-row">
+                <i class="fa-solid fa-calendar-check"></i>
+                <span class="rental-detail-label">Scheduled:</span>
+                <span class="rental-detail-value">${rentTimeFormatted}</span>
+            </div>
+        `;
+    }
+
+    card.innerHTML = `
+        <div class="rental-card-header">
+            <div class="rental-card-status ${statusClass}">${statusText}</div>
+            <div class="rental-card-org">${rental.org_name || 'Unknown Org'}</div>
+        </div>
+
+        <div class="rental-card-items">
+            <h4><i class="fa-solid fa-box"></i> Rented Items</h4>
+            <div class="rental-items-list">${rental.items_label || 'No items'}</div>
+        </div>
+
+        ${timerHtml}
+
+        <div class="rental-card-details">
+            ${rental.status === 'active' ? `
+            <div class="rental-detail-row">
+                <i class="fa-solid fa-clock"></i>
+                <span class="rental-detail-label">Started:</span>
+                <span class="rental-detail-value">${rentTimeFormatted}</span>
+            </div>
+            ` : ''}
+            <div class="rental-detail-row">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span class="rental-detail-label">Due:</span>
+                <span class="rental-detail-value">${expectedReturnFormatted}</span>
+            </div>
+        </div>
+
+        <div class="rental-card-footer">
+            <div class="rental-cost">₱${parseFloat(rental.total_cost).toFixed(2)}</div>
+            <div class="rental-payment-status ${rental.payment_status}">${rental.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</div>
+        </div>
+    `;
+
+    return card;
+}
+
+function updateRentalTimers() {
+    const now = new Date();
+
+    currentRentalsData.forEach(rental => {
+        if (rental.status !== 'active') return;
+
+        const timer = document.querySelector(`.rental-timer[data-rental-id="${rental.rental_id}"] .rental-timer-value`);
+        if (!timer) return;
+
+        const expectedReturn = new Date(rental.expected_return_time);
+        const diff = expectedReturn - now;
+
+        if (diff <= 0) {
+            timer.textContent = 'OVERDUE';
+            timer.style.color = '#dc2626';
+            return;
+        }
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        timer.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    });
+}
+
+function formatDateTime(dateTimeStr) {
+    if (!dateTimeStr) return 'N/A';
+
+    const date = new Date(dateTimeStr);
+    const dateOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+    const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+
+    const datePart = date.toLocaleDateString('en-US', dateOptions);
+    const timePart = date.toLocaleTimeString('en-US', timeOptions);
+
+    return `${datePart} at ${timePart}`;
 }
