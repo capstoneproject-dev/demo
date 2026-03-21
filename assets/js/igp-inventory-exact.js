@@ -34,6 +34,13 @@
         return Number.isInteger(n) ? String(n) : n.toFixed(2);
     }
 
+    function resolveImagePath(path) {
+        const raw = String(path || '').trim();
+        if (!raw) return '';
+        if (/^(https?:)?\/\//i.test(raw)) return raw;
+        return `../../${raw.replace(/^\/+/, '')}`;
+    }
+
     function groupedItems() {
         return inventory.reduce((acc, item) => {
             const key = categoryKey(item);
@@ -88,7 +95,7 @@
             const headerRow = document.createElement('tr');
             headerRow.className = 'group-header';
             headerRow.innerHTML = `
-                <td colspan="8">
+                <td colspan="9">
                     <div class="d-flex justify-content-between align-items-center">
                         <strong>${groupName}</strong>
                         <button class="btn btn-sm btn-outline-secondary toggle-group" data-group="${safe}">Show Items</button>
@@ -101,11 +108,12 @@
             itemsContainer.className = `group-items group-${safe}`;
             itemsContainer.style.display = 'none';
             const itemsCell = document.createElement('td');
-            itemsCell.colSpan = 8;
+            itemsCell.colSpan = 9;
             itemsCell.innerHTML = `
                 <table class="table table-sm mb-0">
                     <thead>
                         <tr>
+                            <th>Image</th>
                             <th>Item Name</th>
                             <th>Barcode</th>
                             <th>Rate / Overtime</th>
@@ -122,6 +130,7 @@
                             const status = statusOf(item);
                             return `
                                 <tr>
+                                    <td>${item.image_path ? `<img src="${resolveImagePath(item.image_path)}" alt="${item.item_name}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;">` : '-'}</td>
                                     <td>${item.item_name}</td>
                                     <td>${item.barcode}</td>
                                     <td>PHP ${fmtNumber(item.hourly_rate)}/hr${item.overtime_interval_minutes ? `<br><small class="text-muted">+ PHP ${fmtNumber(item.overtime_rate_per_block)} / ${item.overtime_interval_minutes} mins</small>` : ''}</td>

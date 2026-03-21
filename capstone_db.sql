@@ -374,6 +374,7 @@ CREATE TABLE `inventory_items` (
   `org_id` int(11) NOT NULL,
   `item_name` varchar(255) NOT NULL,
   `barcode` varchar(50) NOT NULL,
+  `image_path` varchar(500) DEFAULT NULL,
   `category_id` int(11) NOT NULL,
   `hourly_rate` decimal(10,2) NOT NULL DEFAULT 0.00,
   `overtime_interval_minutes` int(11) DEFAULT NULL COMMENT 'Minutes per overtime block (e.g., 30). NULL = no overtime charging.',
@@ -387,11 +388,11 @@ CREATE TABLE `inventory_items` (
 -- Dumping data for table `inventory_items`
 --
 
-INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `status`, `created_at`, `updated_at`) VALUES
-(1, 2, 'shoe', 'SH001', 1, 10.00, 30, 5.00, 'rented', '2026-02-27 14:03:59', '2026-02-28 20:16:40'),
-(2, 2, 'shoe', 'SH002', 1, 10.00, 30, 5.00, 'rented', '2026-02-27 14:07:03', '2026-02-28 20:19:08'),
-(3, 2, 'Sci Cal', 'CAL001', 2, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-02-28 20:16:22'),
-(4, 2, 'Business Calculator', 'CAL002', 2, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-02-27 14:18:55');
+INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `image_path`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `status`, `created_at`, `updated_at`) VALUES
+(1, 2, 'shoe', 'SH001', 'assets/photos/studentDashboard/Services/shoerag.png', 1, 10.00, 30, 5.00, 'rented', '2026-02-27 14:03:59', '2026-02-28 20:16:40'),
+(2, 2, 'shoe', 'SH002', 'assets/photos/studentDashboard/Services/shoerag.png', 1, 10.00, 30, 5.00, 'rented', '2026-02-27 14:07:03', '2026-02-28 20:19:08'),
+(3, 2, 'Sci Cal', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-02-28 20:16:22'),
+(4, 2, 'Business Calculator', 'CAL002', 'assets/photos/studentDashboard/Services/businesscalculator.png', 2, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-02-27 14:18:55');
 
 --
 -- Triggers `inventory_items`

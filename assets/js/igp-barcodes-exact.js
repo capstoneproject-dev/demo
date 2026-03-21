@@ -3,12 +3,23 @@
 
     const $ = (id) => document.getElementById(id);
     const ADD_NEW_TYPE_VALUE = '__add_new__';
+    const ADD_NEW_ITEM_NAME_VALUE = '__add_new__';
     let inventory = [];
+    let sharedCategories = [];
+    let sharedItemNames = [];
+    let lastSelectedItemName = '';
     let deletingId = 0;
 
     function fmtRate(v) {
         const n = Number(v || 0);
         return Number.isInteger(n) ? String(n) : n.toFixed(2);
+    }
+
+    function resolveImagePath(path) {
+        const raw = String(path || '').trim();
+        if (!raw) return '';
+        if (/^(https?:)?\/\//i.test(raw)) return raw;
+        return `../../${raw.replace(/^\/+/, '')}`;
     }
 
     function esc(s) {
@@ -30,7 +41,10 @@
     }
 
     function getAvailableTypes() {
-        return [...new Set(inventory.map((it) => String(it.category_name || '').trim()).filter(Boolean))]
+        return [...new Set([
+            ...sharedCategories.map((category) => String(category.category_name || '').trim()),
+            ...inventory.map((it) => String(it.category_name || '').trim()),
+        ].filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
     }
 
@@ -73,6 +87,133 @@
         return selectValue;
     }
 
+    function getAvailableItemNames(categoryName = '') {
+        const category = String(categoryName || '').trim().toLowerCase();
+        const seen = new Map();
+        [...sharedItemNames, ...inventory].forEach((item) => {
+            const name = String(item.item_name || '').trim();
+            const itemCategory = String(item.category_name || '').trim().toLowerCase();
+            if (!name) return;
+            if (category && itemCategory && itemCategory !== category) return;
+            const key = name.toLowerCase();
+            if (!seen.has(key)) {
+                seen.set(key, name);
+            }
+        });
+        return [...seen.values()].sort((a, b) => a.localeCompare(b));
+    }
+
+    function findMatchingItemRecord(itemName, categoryName = '') {
+        const targetName = String(itemName || '').trim().toLowerCase();
+        const targetCategory = String(categoryName || '').trim().toLowerCase();
+        if (!targetName) return null;
+
+        return [...inventory, ...sharedItemNames].find((item) => {
+            const name = String(item.item_name || '').trim().toLowerCase();
+            const category = String(item.category_name || '').trim().toLowerCase();
+            if (name !== targetName) return false;
+            if (targetCategory && category && category !== targetCategory) return false;
+            return true;
+        }) || null;
+    }
+
+    function populateItemNameMenu(selectedName = '') {
+        const select = $('itemName');
+        if (!select) return;
+        const selectedType = getSelectedType();
+        const names = getAvailableItemNames(selectedType);
+        const selected = String(selectedName || '').trim();
+        if (selected && !names.some((name) => name.toLowerCase() === selected.toLowerCase())) {
+            names.unshift(selected);
+        }
+        select.innerHTML = `
+            <option value="">Item Name</option>
+            ${names.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
+            <option value="${ADD_NEW_ITEM_NAME_VALUE}">+ Add new item name...</option>
+        `;
+        select.value = selected || '';
+        lastSelectedItemName = selected || '';
+        toggleCustomItemNameInput(select.value === ADD_NEW_ITEM_NAME_VALUE);
+    }
+
+    function toggleCustomItemNameInput(show) {
+        const select = $('itemName');
+        const input = $('itemNameCustom');
+        if (!select || !input) return;
+        select.classList.toggle('d-none', show);
+        input.classList.toggle('d-none', !show);
+        select.required = !show;
+        input.required = show;
+        if (show) {
+            input.focus();
+        } else {
+            input.value = '';
+        }
+    }
+
+    function getSelectedItemName() {
+        const selectValue = String((($('itemName') || {}).value || '')).trim();
+        if (selectValue === ADD_NEW_ITEM_NAME_VALUE) {
+            return String((($('itemNameCustom') || {}).value || '')).trim();
+        }
+        return selectValue;
+    }
+
+    function syncItemImageFromSelection() {
+        const imageInput = $('itemImage');
+        const selectedImage = $('itemImage') && $('itemImage').files ? $('itemImage').files[0] : null;
+        if (selectedImage) {
+            if (imageInput) imageInput.required = false;
+            return;
+        }
+
+        const selectedName = getSelectedItemName();
+        const selectedType = getSelectedType();
+        const match = findMatchingItemRecord(selectedName, selectedType);
+        const hasReusableImage = !!(match && match.image_path);
+        updateImagePreview(resolveImagePath(hasReusableImage ? match.image_path : ''));
+        if (imageInput) imageInput.required = !hasReusableImage;
+    }
+
+    function updateImagePreview(src) {
+        const preview = $('itemImagePreview');
+        const placeholder = $('itemImagePlaceholder');
+        if (!preview) return;
+        if (src) {
+            preview.src = src;
+            preview.classList.add('is-visible');
+            if (placeholder) placeholder.classList.add('hidden');
+            return;
+        }
+        preview.removeAttribute('src');
+        preview.classList.remove('is-visible');
+        if (placeholder) placeholder.classList.remove('hidden');
+    }
+
+    function setEditMode(editing) {
+        const submitBtn = $('saveItemButton');
+        const cancelBtn = $('cancelEditButton');
+        if (submitBtn) {
+            submitBtn.textContent = editing ? 'Save' : 'Add Item';
+        }
+        if (cancelBtn) {
+            cancelBtn.classList.toggle('d-none', !editing);
+        }
+    }
+
+    function resetItemForm() {
+        const form = $('addItemForm');
+        if (form) {
+            form.reset();
+            delete form.dataset.editId;
+        }
+        populateTypeMenu();
+        populateItemNameMenu();
+        setEditMode(false);
+        if ($('itemImage')) $('itemImage').required = true;
+        updateImagePreview('');
+    }
+
     function render() {
         const q = (($('searchInput') || {}).value || '').toLowerCase();
         const filtered = !q ? inventory : inventory.filter((it) =>
@@ -96,10 +237,13 @@
                 card.className = 'item-card';
                 card.innerHTML = `
                     <div class="d-flex justify-content-between align-items-start">
-                      <div>
-                        <strong>${it.item_name}</strong><br>
-                        <small>ID: ${it.item_id} | Barcode: ${it.barcode}</small><br>
-                        <small>Rate: ₱${fmtRate(it.hourly_rate)}/hr</small>
+                      <div class="d-flex gap-3 align-items-start">
+                        ${it.image_path ? `<img src="${resolveImagePath(it.image_path)}" alt="${esc(it.item_name)}" class="inventory-thumb">` : ''}
+                        <div>
+                            <strong>${it.item_name}</strong><br>
+                            <small>ID: ${it.item_id} | Barcode: ${it.barcode}</small><br>
+                            <small>Rate: ₱${fmtRate(it.hourly_rate)}/hr</small>
+                        </div>
                       </div>
                       <div>
                         <button class="btn btn-sm btn-outline-primary js-edit" data-id="${it.item_id}">Edit</button>
@@ -117,38 +261,52 @@
     }
 
     async function refresh() {
-        const { items } = await window.igpApi.getInventory({});
+        const [inventoryRes, categoryRes, itemNameRes] = await Promise.all([
+            window.igpApi.getInventory({}),
+            window.igpApi.getInventoryCategories(),
+            window.igpApi.getInventoryItemNames(),
+        ]);
+        const { items } = inventoryRes;
+        sharedCategories = Array.isArray(categoryRes.categories) ? categoryRes.categories : [];
+        sharedItemNames = Array.isArray(itemNameRes.items) ? itemNameRes.items : [];
         inventory = items || [];
         populateTypeMenu();
+        populateItemNameMenu(getSelectedItemName());
         render();
     }
 
     async function saveItem(existing) {
-        const item_name = (($('itemName') || {}).value || '').trim();
+        const item_name = getSelectedItemName();
         const item_type = getSelectedType();
         const barcode = (($('barcode') || {}).value || '').trim();
         const pricePerHour = Number((($('pricePerHour') || {}).value || '0'));
         const overtimeInterval = (($('overtimeInterval') || {}).value || '').trim();
         const overtimeRate = (($('overtimeRate') || {}).value || '').trim();
+        const imageInput = $('itemImage');
+        const selectedImage = imageInput && imageInput.files ? imageInput.files[0] : null;
+        const matchingItem = findMatchingItemRecord(item_name, item_type);
         if (!item_name || !item_type || !barcode) {
             alert('Item name, item type, and barcode are required.');
             return;
         }
-        await window.igpApi.saveInventory({
-            item_id: existing ? existing.item_id : 0,
-            item_name,
-            barcode,
-            category_name: item_type,
-            hourly_rate: Number.isFinite(pricePerHour) ? pricePerHour : 0,
-            status: existing ? existing.status : 'available',
-            overtime_interval_minutes: overtimeInterval,
-            overtime_rate_per_block: overtimeRate,
-        });
-        if ($('addItemForm')) {
-            $('addItemForm').reset();
-            delete $('addItemForm').dataset.editId;
-            populateTypeMenu();
+        if (!existing && !selectedImage && !(matchingItem && matchingItem.image_path)) {
+            alert('Item image is required.');
+            return;
         }
+        const payload = new FormData();
+        payload.append('item_id', existing ? String(existing.item_id) : '0');
+        payload.append('item_name', item_name);
+        payload.append('barcode', barcode);
+        payload.append('category_name', item_type);
+        payload.append('hourly_rate', String(Number.isFinite(pricePerHour) ? pricePerHour : 0));
+        payload.append('status', existing ? existing.status : 'available');
+        payload.append('overtime_interval_minutes', overtimeInterval);
+        payload.append('overtime_rate_per_block', overtimeRate);
+        if (selectedImage) {
+            payload.append('image', selectedImage);
+        }
+        await window.igpApi.saveInventoryForm(payload);
+        resetItemForm();
         await refresh();
     }
 
@@ -169,17 +327,31 @@
             });
         }
 
+        if ($('cancelEditButton')) {
+            $('cancelEditButton').addEventListener('click', () => {
+                resetItemForm();
+            });
+        }
+
         if ($('itemType')) {
             $('itemType').addEventListener('change', () => {
                 toggleCustomTypeInput($('itemType').value === ADD_NEW_TYPE_VALUE);
+                populateItemNameMenu(getSelectedItemName());
+                syncItemImageFromSelection();
             });
         }
 
         if ($('itemTypeCustom')) {
+            $('itemTypeCustom').addEventListener('input', () => {
+                populateItemNameMenu(getSelectedItemName());
+                syncItemImageFromSelection();
+            });
             $('itemTypeCustom').addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
                     toggleCustomTypeInput(false);
                     if ($('itemType')) $('itemType').value = '';
+                    populateItemNameMenu(getSelectedItemName());
+                    syncItemImageFromSelection();
                 }
             });
             $('itemTypeCustom').addEventListener('blur', () => {
@@ -187,6 +359,45 @@
                 if (value === '') {
                     toggleCustomTypeInput(false);
                     if ($('itemType')) $('itemType').value = '';
+                    populateItemNameMenu(getSelectedItemName());
+                    syncItemImageFromSelection();
+                }
+            });
+        }
+
+        if ($('itemName')) {
+            $('itemName').addEventListener('change', () => {
+                const select = $('itemName');
+                const input = $('itemNameCustom');
+                if (!select || !input) return;
+                if (select.value === ADD_NEW_ITEM_NAME_VALUE) {
+                    input.value = lastSelectedItemName;
+                    toggleCustomItemNameInput(true);
+                    return;
+                }
+                lastSelectedItemName = String(select.value || '').trim();
+                toggleCustomItemNameInput(false);
+                syncItemImageFromSelection();
+            });
+        }
+
+        if ($('itemNameCustom')) {
+            $('itemNameCustom').addEventListener('input', () => {
+                syncItemImageFromSelection();
+            });
+            $('itemNameCustom').addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    toggleCustomItemNameInput(false);
+                    if ($('itemName')) $('itemName').value = '';
+                    syncItemImageFromSelection();
+                }
+            });
+            $('itemNameCustom').addEventListener('blur', () => {
+                const value = String($('itemNameCustom').value || '').trim();
+                if (value === '') {
+                    toggleCustomItemNameInput(false);
+                    if ($('itemName')) $('itemName').value = '';
+                    syncItemImageFromSelection();
                 }
             });
         }
@@ -196,13 +407,20 @@
             if (edit) {
                 const it = inventory.find((x) => x.item_id === Number(edit.dataset.id));
                 if (!it) return;
-                $('itemName').value = it.item_name || '';
                 populateTypeMenu(it.category_name || '');
+                populateItemNameMenu(it.item_name || '');
+                lastSelectedItemName = it.item_name || '';
+                if ($('itemName')) $('itemName').value = ADD_NEW_ITEM_NAME_VALUE;
+                if ($('itemNameCustom')) $('itemNameCustom').value = it.item_name || '';
+                toggleCustomItemNameInput(true);
                 $('barcode').value = it.barcode || '';
                 $('pricePerHour').value = fmtRate(it.hourly_rate);
                 $('overtimeInterval').value = it.overtime_interval_minutes ?? '';
                 $('overtimeRate').value = it.overtime_rate_per_block ?? '';
+                if ($('itemImage')) $('itemImage').required = false;
+                updateImagePreview(resolveImagePath(it.image_path || ''));
                 $('addItemForm').dataset.editId = String(it.item_id);
+                setEditMode(true);
                 return;
             }
             const del = e.target.closest('.js-delete');
@@ -258,10 +476,19 @@
             XLSX.writeFile(wb, 'inventory.xlsx');
         });
         if ($('downloadAll')) $('downloadAll').addEventListener('click', () => window.print());
+        if ($('itemImage')) {
+            $('itemImage').addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                updateImagePreview(file ? URL.createObjectURL(file) : '');
+                if ($('itemImage')) $('itemImage').required = !file;
+                if (!file) syncItemImageFromSelection();
+            });
+        }
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
         bind();
+        setEditMode(false);
         try {
             await refresh();
         } catch (err) {

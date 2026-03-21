@@ -1,7 +1,15 @@
 (function () {
     'use strict';
 
-    const BASE = '../../api/igp';
+    function resolveBase() {
+        const path = (window.location && window.location.pathname) || '';
+        if (path.includes('/pages/igp/')) {
+            return '../../api/igp';
+        }
+        return '../api/igp';
+    }
+
+    const BASE = resolveBase();
 
     function buildQuery(params) {
         const search = new URLSearchParams();
@@ -15,9 +23,11 @@
     }
 
     async function req(path, opts) {
+        const isFormData = opts && opts.body instanceof FormData;
+        const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
         const res = await fetch(BASE + path, {
             credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             ...opts,
         });
         const data = await res.json().catch(() => ({}));
@@ -31,8 +41,17 @@
         getInventory(filters = {}) {
             return req('/inventory/list.php' + buildQuery(filters), { method: 'GET' });
         },
+        getInventoryCategories() {
+            return req('/inventory/categories.php', { method: 'GET' });
+        },
+        getInventoryItemNames(categoryName = '') {
+            return req('/inventory/item-names.php' + buildQuery({ category_name: categoryName }), { method: 'GET' });
+        },
         saveInventory(payload) {
             return req('/inventory/save.php', { method: 'POST', body: JSON.stringify(payload) });
+        },
+        saveInventoryForm(payload) {
+            return req('/inventory/save.php', { method: 'POST', body: payload });
         },
         deleteInventory(itemId) {
             return req('/inventory/delete.php', { method: 'POST', body: JSON.stringify({ item_id: itemId }) });

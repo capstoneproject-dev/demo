@@ -49,19 +49,28 @@ function igpRequireOfficerOrgContext(): array
 
 function igpResolveCategoryId(PDO $pdo, int $orgId, ?int $categoryId, ?string $categoryName): int
 {
+    $resolvedName = trim((string)$categoryName);
+
     if ($categoryId) {
         $stmt = $pdo->prepare(
-            "SELECT category_id
+            "SELECT category_id, category_name, org_id
              FROM inventory_categories
-             WHERE category_id = :cid AND org_id = :org AND is_active = 1
+             WHERE category_id = :cid AND is_active = 1
              LIMIT 1"
         );
-        $stmt->execute([':cid' => $categoryId, ':org' => $orgId]);
+        $stmt->execute([':cid' => $categoryId]);
         $row = $stmt->fetch();
-        if ($row) return (int)$row['category_id'];
+        if ($row) {
+            if ((int)$row['org_id'] === $orgId) {
+                return (int)$row['category_id'];
+            }
+            if ($resolvedName === '') {
+                $resolvedName = trim((string)$row['category_name']);
+            }
+        }
     }
 
-    $name = trim((string)$categoryName);
+    $name = $resolvedName;
     if ($name === '') {
         $name = 'General';
     }
@@ -69,7 +78,10 @@ function igpResolveCategoryId(PDO $pdo, int $orgId, ?int $categoryId, ?string $c
     $find = $pdo->prepare(
         "SELECT category_id
          FROM inventory_categories
-         WHERE org_id = :org AND category_name = :name
+         WHERE org_id = :org
+           AND is_active = 1
+           AND LOWER(TRIM(category_name)) = LOWER(TRIM(:name))
+         ORDER BY category_id ASC
          LIMIT 1"
     );
     $find->execute([':org' => $orgId, ':name' => $name]);
@@ -86,8 +98,231 @@ function igpResolveCategoryId(PDO $pdo, int $orgId, ?int $categoryId, ?string $c
     return (int)$pdo->lastInsertId();
 }
 
+function igpGetInventoryCategories(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        "SELECT LOWER(TRIM(category_name)) AS category_key,
+                MIN(category_id) AS category_id,
+                MIN(category_name) AS category_name
+         FROM inventory_categories
+         WHERE is_active = 1
+           AND TRIM(category_name) <> ''
+         GROUP BY LOWER(TRIM(category_name))
+         ORDER BY category_name ASC"
+    );
+
+    $rows = $stmt->fetchAll();
+    return array_map(static function (array $row): array {
+        return [
+            'category_id' => (int)$row['category_id'],
+            'category_name' => trim((string)$row['category_name']),
+        ];
+    }, $rows);
+}
+
+function igpResolveSharedItemName(PDO $pdo, string $itemName, ?string $categoryName = null): string
+{
+    $trimmed = trim($itemName);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    $params = [':name' => $trimmed];
+    $where = ["LOWER(TRIM(i.item_name)) = LOWER(TRIM(:name))"];
+
+    $category = trim((string)$categoryName);
+    if ($category !== '') {
+        $where[] = "LOWER(TRIM(c.category_name)) = LOWER(TRIM(:category_name))";
+        $params[':category_name'] = $category;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT i.item_name
+         FROM inventory_items i
+         JOIN inventory_categories c ON c.category_id = i.category_id
+         WHERE " . implode(' AND ', $where) . "
+         ORDER BY i.item_id ASC
+         LIMIT 1"
+    );
+    $stmt->execute($params);
+    $existing = $stmt->fetchColumn();
+    return $existing !== false ? trim((string)$existing) : $trimmed;
+}
+
+function igpResolveSharedItemImagePath(PDO $pdo, string $itemName, ?string $categoryName = null): string
+{
+    if (!igpColumnExists($pdo, 'inventory_items', 'image_path')) {
+        return '';
+    }
+
+    $trimmed = trim($itemName);
+    if ($trimmed === '') {
+        return '';
+    }
+
+    $params = [':name' => $trimmed];
+    $where = [
+        "LOWER(TRIM(i.item_name)) = LOWER(TRIM(:name))",
+        "TRIM(COALESCE(i.image_path, '')) <> ''",
+        "c.is_active = 1",
+        "o.status = 'active'",
+    ];
+
+    $category = trim((string)$categoryName);
+    if ($category !== '') {
+        $where[] = "LOWER(TRIM(c.category_name)) = LOWER(TRIM(:category_name))";
+        $params[':category_name'] = $category;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT i.image_path
+         FROM inventory_items i
+         JOIN inventory_categories c ON c.category_id = i.category_id
+         JOIN organizations o ON o.org_id = i.org_id
+         WHERE " . implode(' AND ', $where) . "
+         ORDER BY i.item_id ASC
+         LIMIT 1"
+    );
+    $stmt->execute($params);
+    $existing = $stmt->fetchColumn();
+    return $existing !== false ? trim((string)$existing) : '';
+}
+
+function igpGetInventoryItemNames(PDO $pdo, ?string $categoryName = null): array
+{
+    $params = [];
+    $where = [
+        "TRIM(i.item_name) <> ''",
+        "c.is_active = 1",
+        "o.status = 'active'",
+        "i.status IN ('available', 'reserved', 'rented', 'maintenance')",
+    ];
+
+    $category = trim((string)$categoryName);
+    if ($category !== '') {
+        $where[] = "LOWER(TRIM(c.category_name)) = LOWER(TRIM(:category_name))";
+        $params[':category_name'] = $category;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT LOWER(TRIM(i.item_name)) AS item_key,
+                MIN(i.item_id) AS item_id,
+                MIN(i.item_name) AS item_name,
+                MIN(c.category_name) AS category_name,
+                MIN(NULLIF(TRIM(COALESCE(i.image_path, '')), '')) AS image_path
+         FROM inventory_items i
+         JOIN inventory_categories c ON c.category_id = i.category_id
+         JOIN organizations o ON o.org_id = i.org_id
+         WHERE " . implode(' AND ', $where) . "
+         GROUP BY LOWER(TRIM(i.item_name)), LOWER(TRIM(c.category_name))
+         ORDER BY category_name ASC, item_name ASC"
+    );
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+
+    return array_map(static function (array $row): array {
+        return [
+            'item_id' => (int)$row['item_id'],
+            'item_name' => trim((string)$row['item_name']),
+            'category_name' => trim((string)$row['category_name']),
+            'image_path' => trim((string)($row['image_path'] ?? '')),
+        ];
+    }, $rows);
+}
+
+function igpDeleteUnusedCategory(PDO $pdo, int $orgId, int $categoryId): void
+{
+    if ($orgId <= 0 || $categoryId <= 0) {
+        return;
+    }
+
+    $check = $pdo->prepare(
+        "SELECT 1
+         FROM inventory_items
+         WHERE org_id = :org AND category_id = :cid
+         LIMIT 1"
+    );
+    $check->execute([
+        ':org' => $orgId,
+        ':cid' => $categoryId,
+    ]);
+    if ($check->fetch()) {
+        return;
+    }
+
+    $delete = $pdo->prepare(
+        "DELETE FROM inventory_categories
+         WHERE org_id = :org AND category_id = :cid
+         LIMIT 1"
+    );
+    $delete->execute([
+        ':org' => $orgId,
+        ':cid' => $categoryId,
+    ]);
+}
+
+function igpNormalizeInventoryDisplayName(string $itemName, string $categoryName = ''): string
+{
+    $trimmed = trim($itemName);
+    if ($trimmed === '') return '';
+
+    $upper = strtoupper($trimmed);
+    if (preg_match('/^LOCKER(\s+UNIT)?(\s+\d+)?$/i', $trimmed)) return 'Lockers';
+
+    $aliases = [
+        'SCIENTIFIC CALCULATOR' => 'Scientific Calculator',
+        'SCI CAL' => 'Scientific Calculator',
+        'BUSINESS CALCULATOR' => 'Business Calculator',
+        'SHOE' => 'Shoe Rag',
+        'SHOE COVER' => 'Shoe Rag',
+        'SHOE COVERS' => 'Shoe Rag',
+        'SHOE RAG' => 'Shoe Rag',
+        'PRINTING' => 'Printing',
+        'PRINTING (PER PAGE)' => 'Printing',
+        'PRINTER (PER PAGE)' => 'Printing',
+        'NETWORK CRIMPING TOOL' => 'Network Crimping Tool',
+        'NETWORK CABLE TESTER' => 'Network Cable Tester',
+        'MINI FAN' => 'Mini Fan',
+        'T-SQUARE' => 'T-Square',
+        'TRIANGLE RULER' => 'Triangle Ruler',
+        'PROTRACTOR' => 'Protractor',
+        'RULER' => 'Rulers',
+        'RULERS' => 'Rulers',
+        'ARNIS' => 'Arnis',
+        '1X1 PHOTO PROCESSING' => '1x1 Photo Processing',
+    ];
+
+    if (isset($aliases[$upper])) {
+        return $aliases[$upper];
+    }
+
+    return $trimmed;
+}
+
+function igpGetDefaultInventoryImagePath(string $displayName): string
+{
+    $map = [
+        'Shoe Rag' => 'assets/photos/studentDashboard/Services/shoerag.png',
+        'Business Calculator' => 'assets/photos/studentDashboard/Services/businesscalculator.png',
+        'Scientific Calculator' => 'assets/photos/studentDashboard/Services/scical.png',
+        'Arnis' => 'assets/photos/studentDashboard/Services/arnis.png',
+        'Network Crimping Tool' => 'assets/photos/studentDashboard/Services/crimpingtool.png',
+        'Mini Fan' => 'assets/photos/studentDashboard/Services/minifan.png',
+        'Network Cable Tester' => 'assets/photos/studentDashboard/Services/tester.png',
+        'T-Square' => 'assets/photos/studentDashboard/Services/tsquare.png',
+        'Triangle Ruler' => 'assets/photos/studentDashboard/Services/triangle.png',
+        'Protractor' => 'assets/photos/studentDashboard/Services/protractor.png',
+        'Rulers' => 'assets/photos/studentDashboard/Services/rulerbackground.png',
+        'Lockers' => 'assets/photos/studentDashboard/Services/locker.png',
+    ];
+
+    return $map[$displayName] ?? '';
+}
+
 function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
 {
+    $hasImagePath = igpColumnExists($pdo, 'inventory_items', 'image_path');
+    $imageSelectExpr = $hasImagePath ? 'i.image_path' : 'NULL AS image_path';
     $where = ["i.org_id = :org"];
     $params = [':org' => $orgId];
 
@@ -111,6 +346,7 @@ function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
                i.org_id,
                i.item_name,
                i.barcode,
+               {$imageSelectExpr},
                i.category_id,
                c.category_name,
                i.hourly_rate,
@@ -140,9 +376,11 @@ function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
 
 function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
 {
+    $hasImagePath = igpColumnExists($pdo, 'inventory_items', 'image_path');
     $itemId = isset($data['item_id']) ? (int)$data['item_id'] : 0;
     $itemName = trim((string)($data['item_name'] ?? ''));
     $barcode = trim((string)($data['barcode'] ?? ''));
+    $imagePath = trim((string)($data['image_path'] ?? ''));
     $hourlyRate = (float)($data['hourly_rate'] ?? 0);
     $status = trim((string)($data['status'] ?? 'available'));
     $categoryId = isset($data['category_id']) ? (int)$data['category_id'] : null;
@@ -152,6 +390,9 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
 
     if ($itemName === '' || $barcode === '') {
         throw new IgpValidationException('Item name and barcode are required.');
+    }
+    if (!$categoryId && trim((string)$categoryName) === '') {
+        throw new IgpValidationException('Item category is required.');
     }
     if ($hourlyRate < 0) {
         throw new IgpValidationException('Hourly rate must be non-negative.');
@@ -177,26 +418,116 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
     }
 
     $resolvedCategoryId = igpResolveCategoryId($pdo, $orgId, $categoryId, $categoryName);
+    $itemName = igpResolveSharedItemName($pdo, $itemName, $categoryName);
+    if ($hasImagePath && $imagePath === '') {
+        $imagePath = igpResolveSharedItemImagePath($pdo, $itemName, $categoryName);
+    }
 
     if ($itemId > 0) {
-        $check = $pdo->prepare("SELECT item_id FROM inventory_items WHERE item_id = :id AND org_id = :org LIMIT 1");
+        $selectCols = $hasImagePath ? 'item_id, image_path, category_id' : 'item_id, category_id';
+        $check = $pdo->prepare("SELECT {$selectCols} FROM inventory_items WHERE item_id = :id AND org_id = :org LIMIT 1");
         $check->execute([':id' => $itemId, ':org' => $orgId]);
-        if (!$check->fetch()) {
+        $existing = $check->fetch();
+        if (!$existing) {
             throw new IgpValidationException('Item not found for this organization.');
         }
+        $previousCategoryId = (int)($existing['category_id'] ?? 0);
+        if ($hasImagePath && $imagePath === '') {
+            $imagePath = trim((string)($existing['image_path'] ?? ''));
+        }
+        if ($hasImagePath && $imagePath === '') {
+            $imagePath = igpGetDefaultInventoryImagePath(igpNormalizeInventoryDisplayName($itemName, trim((string)$categoryName)));
+        }
+        if ($hasImagePath && $imagePath === '') {
+            throw new IgpValidationException('Item image is required.');
+        }
 
-        $upd = $pdo->prepare(
-            "UPDATE inventory_items
-             SET item_name = :name,
-                 barcode = :barcode,
-                 category_id = :cid,
-                 hourly_rate = :rate,
-                 overtime_interval_minutes = :ot_int,
-                 overtime_rate_per_block = :ot_rate,
-                 status = :status
-             WHERE item_id = :id AND org_id = :org"
+        if ($hasImagePath) {
+            $upd = $pdo->prepare(
+                "UPDATE inventory_items
+                 SET item_name = :name,
+                     barcode = :barcode,
+                     image_path = :image_path,
+                     category_id = :cid,
+                     hourly_rate = :rate,
+                     overtime_interval_minutes = :ot_int,
+                     overtime_rate_per_block = :ot_rate,
+                     status = :status
+                 WHERE item_id = :id AND org_id = :org"
+            );
+            $upd->execute([
+                ':name' => $itemName,
+                ':barcode' => $barcode,
+                ':image_path' => $imagePath,
+                ':cid' => $resolvedCategoryId,
+                ':rate' => $hourlyRate,
+                ':ot_int' => $overtimeInterval,
+                ':ot_rate' => $overtimeRate,
+                ':status' => $status,
+                ':id' => $itemId,
+                ':org' => $orgId,
+            ]);
+        } else {
+            $upd = $pdo->prepare(
+                "UPDATE inventory_items
+                 SET item_name = :name,
+                     barcode = :barcode,
+                     category_id = :cid,
+                     hourly_rate = :rate,
+                     overtime_interval_minutes = :ot_int,
+                     overtime_rate_per_block = :ot_rate,
+                     status = :status
+                 WHERE item_id = :id AND org_id = :org"
+            );
+            $upd->execute([
+                ':name' => $itemName,
+                ':barcode' => $barcode,
+                ':cid' => $resolvedCategoryId,
+                ':rate' => $hourlyRate,
+                ':ot_int' => $overtimeInterval,
+                ':ot_rate' => $overtimeRate,
+                ':status' => $status,
+                ':id' => $itemId,
+                ':org' => $orgId,
+            ]);
+        }
+        if ($previousCategoryId > 0 && $previousCategoryId !== $resolvedCategoryId) {
+            igpDeleteUnusedCategory($pdo, $orgId, $previousCategoryId);
+        }
+        return $itemId;
+    }
+
+    if ($hasImagePath && $imagePath === '') {
+        throw new IgpValidationException('Item image is required.');
+    }
+
+    if ($hasImagePath) {
+        $ins = $pdo->prepare(
+            "INSERT INTO inventory_items
+                (org_id, item_name, barcode, image_path, category_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status)
+             VALUES
+                (:org, :name, :barcode, :image_path, :cid, :rate, :ot_int, :ot_rate, :status)"
         );
-        $upd->execute([
+        $ins->execute([
+            ':org' => $orgId,
+            ':name' => $itemName,
+            ':barcode' => $barcode,
+            ':image_path' => $imagePath,
+            ':cid' => $resolvedCategoryId,
+            ':rate' => $hourlyRate,
+            ':ot_int' => $overtimeInterval,
+            ':ot_rate' => $overtimeRate,
+            ':status' => $status,
+        ]);
+    } else {
+        $ins = $pdo->prepare(
+            "INSERT INTO inventory_items
+                (org_id, item_name, barcode, category_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status)
+             VALUES
+                (:org, :name, :barcode, :cid, :rate, :ot_int, :ot_rate, :status)"
+        );
+        $ins->execute([
+            ':org' => $orgId,
             ':name' => $itemName,
             ':barcode' => $barcode,
             ':cid' => $resolvedCategoryId,
@@ -204,28 +535,8 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
             ':ot_int' => $overtimeInterval,
             ':ot_rate' => $overtimeRate,
             ':status' => $status,
-            ':id' => $itemId,
-            ':org' => $orgId,
         ]);
-        return $itemId;
     }
-
-    $ins = $pdo->prepare(
-        "INSERT INTO inventory_items
-            (org_id, item_name, barcode, category_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status)
-         VALUES
-            (:org, :name, :barcode, :cid, :rate, :ot_int, :ot_rate, :status)"
-    );
-    $ins->execute([
-        ':org' => $orgId,
-        ':name' => $itemName,
-        ':barcode' => $barcode,
-        ':cid' => $resolvedCategoryId,
-        ':rate' => $hourlyRate,
-        ':ot_int' => $overtimeInterval,
-        ':ot_rate' => $overtimeRate,
-        ':status' => $status,
-    ]);
     return (int)$pdo->lastInsertId();
 }
 
@@ -247,10 +558,17 @@ function igpDeleteInventoryItem(PDO $pdo, int $orgId, int $itemId): void
         throw new IgpValidationException('Cannot delete item with open rentals.');
     }
 
+    $categoryStmt = $pdo->prepare("SELECT category_id FROM inventory_items WHERE item_id = :id AND org_id = :org LIMIT 1");
+    $categoryStmt->execute([':id' => $itemId, ':org' => $orgId]);
+    $categoryId = (int)$categoryStmt->fetchColumn();
+
     $del = $pdo->prepare("DELETE FROM inventory_items WHERE item_id = :id AND org_id = :org");
     $del->execute([':id' => $itemId, ':org' => $orgId]);
     if ($del->rowCount() === 0) {
         throw new IgpValidationException('Item not found for this organization.');
+    }
+    if ($categoryId > 0) {
+        igpDeleteUnusedCategory($pdo, $orgId, $categoryId);
     }
 }
 
@@ -492,6 +810,117 @@ function igpGetStudentRentalQuote(PDO $pdo, string $orgRef, string $itemName, fl
         'hourly_rate' => $hourlyRate,
         'amount' => $amount,
     ];
+}
+
+function igpGetStudentServicesCatalog(PDO $pdo): array
+{
+    $hasImagePath = igpColumnExists($pdo, 'inventory_items', 'image_path');
+    $imageSelectExpr = $hasImagePath ? 'i.image_path' : 'NULL AS image_path';
+
+    $stmt = $pdo->query(
+        "SELECT i.org_id,
+                o.org_name,
+                o.org_code,
+                i.item_name,
+                c.category_name,
+                i.hourly_rate,
+                i.status,
+                {$imageSelectExpr}
+         FROM inventory_items i
+         JOIN inventory_categories c ON c.category_id = i.category_id
+         JOIN organizations o ON o.org_id = i.org_id
+         WHERE i.status IN ('available', 'reserved', 'rented')
+           AND c.is_active = 1
+           AND o.status = 'active'
+         ORDER BY c.category_name ASC, i.item_name ASC, o.org_name ASC, i.item_id ASC"
+    );
+    $rows = $stmt->fetchAll();
+
+    $catalog = [];
+    foreach ($rows as $row) {
+        $categoryName = trim((string)($row['category_name'] ?? ''));
+        if ($categoryName === '') {
+            continue;
+        }
+
+        $displayName = igpNormalizeInventoryDisplayName((string)($row['item_name'] ?? ''), $categoryName);
+        if ($displayName === '') {
+            continue;
+        }
+
+        $key = strtoupper($categoryName . '|' . $displayName);
+        $resolvedImagePath = trim((string)($row['image_path'] ?? ''));
+        if ($resolvedImagePath === '') {
+            $resolvedImagePath = igpGetDefaultInventoryImagePath($displayName);
+        }
+        if ($resolvedImagePath === '') {
+            continue;
+        }
+
+        if (!isset($catalog[$key])) {
+            $catalog[$key] = [
+                'service_key' => $key,
+                'category_name' => $categoryName,
+                'display_name' => $displayName,
+                'image_path' => $resolvedImagePath,
+                'total_count' => 0,
+                'available_count' => 0,
+                'hourly_rate_min' => null,
+                'hourly_rate_max' => null,
+                'orgs' => [],
+            ];
+        }
+
+        $rate = (float)$row['hourly_rate'];
+        $status = strtolower(trim((string)($row['status'] ?? '')));
+        $isAvailable = $status === 'available';
+        $catalog[$key]['total_count']++;
+        if ($isAvailable) {
+            $catalog[$key]['available_count']++;
+        }
+        $catalog[$key]['hourly_rate_min'] = $catalog[$key]['hourly_rate_min'] === null
+            ? $rate
+            : min($catalog[$key]['hourly_rate_min'], $rate);
+        $catalog[$key]['hourly_rate_max'] = $catalog[$key]['hourly_rate_max'] === null
+            ? $rate
+            : max($catalog[$key]['hourly_rate_max'], $rate);
+
+        $orgCode = (string)$row['org_code'];
+        if (!isset($catalog[$key]['orgs'][$orgCode])) {
+            $catalog[$key]['orgs'][$orgCode] = [
+                'org_id' => (int)$row['org_id'],
+                'org_code' => $orgCode,
+                'org_name' => (string)$row['org_name'],
+                'total_count' => 0,
+                'available_count' => 0,
+                'hourly_rate_min' => $rate,
+                'hourly_rate_max' => $rate,
+            ];
+        }
+
+        $catalog[$key]['orgs'][$orgCode]['total_count']++;
+        if ($isAvailable) {
+            $catalog[$key]['orgs'][$orgCode]['available_count']++;
+        }
+        $catalog[$key]['orgs'][$orgCode]['hourly_rate_min'] = min($catalog[$key]['orgs'][$orgCode]['hourly_rate_min'], $rate);
+        $catalog[$key]['orgs'][$orgCode]['hourly_rate_max'] = max($catalog[$key]['orgs'][$orgCode]['hourly_rate_max'], $rate);
+    }
+
+    $items = array_values($catalog);
+    usort($items, static function (array $a, array $b): int {
+        $categoryCmp = strcasecmp($a['category_name'], $b['category_name']);
+        if ($categoryCmp !== 0) return $categoryCmp;
+        return strcasecmp($a['display_name'], $b['display_name']);
+    });
+
+    foreach ($items as &$item) {
+        $item['orgs'] = array_values($item['orgs']);
+        usort($item['orgs'], static function (array $a, array $b): int {
+            return strcasecmp($a['org_name'], $b['org_name']);
+        });
+    }
+
+    return $items;
 }
 
 function igpEnsureOfficerInOrg(PDO $pdo, int $userId, int $orgId): bool
