@@ -239,12 +239,12 @@ function igpDeleteInventoryItem(PDO $pdo, int $orgId, int $itemId): void
         "SELECT 1
          FROM rental_items ri
          JOIN rentals r ON r.rental_id = ri.rental_id
-         WHERE ri.item_id = :item AND r.org_id = :org AND r.status = 'active'
+         WHERE ri.item_id = :item AND r.org_id = :org AND r.status IN ('reserved', 'active')
          LIMIT 1"
     );
     $check->execute([':item' => $itemId, ':org' => $orgId]);
     if ($check->fetch()) {
-        throw new IgpValidationException('Cannot delete item with active rentals.');
+        throw new IgpValidationException('Cannot delete item with open rentals.');
     }
 
     $del = $pdo->prepare("DELETE FROM inventory_items WHERE item_id = :id AND org_id = :org");
@@ -258,6 +258,7 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
 {
     $hasUsersYearSection = igpColumnExists($pdo, 'users', 'year_section');
     $hasStudentNumbersYearSection = igpColumnExists($pdo, 'student_numbers', 'year_section');
+    $hasRentalNotes = igpColumnExists($pdo, 'rentals', 'notes');
 
     if ($hasUsersYearSection && $hasStudentNumbersYearSection) {
         $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), NULLIF(ru.year_section, ''), '')";
@@ -268,6 +269,8 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
     } else {
         $renterSectionExpr = "''";
     }
+
+    $notesSelectExpr = $hasRentalNotes ? "r.notes" : "NULL AS notes";
 
     $where = ["r.org_id = :org"];
     $params = [':org' => $orgId];
@@ -317,7 +320,7 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
              r.payment_status,
              r.paid_at,
              r.status,
-             r.notes,
+             {$notesSelectExpr},
              SUM(ri.quantity) AS item_count,
              SUM(ri.unit_rate * ri.quantity) AS hourly_total,
              GROUP_CONCAT(CONCAT(i.item_name, ' [', i.barcode, ']') ORDER BY i.item_name SEPARATOR ', ') AS items_label
@@ -381,6 +384,13 @@ function igpResolveOrgByCodeOrName(PDO $pdo, string $orgRef): ?array
     $ref = trim($orgRef);
     if ($ref === '') return null;
 
+    $orgAliases = [
+        'AET' => 'AETSO',
+        'AMT' => 'AMTSO',
+        'SSC' => 'SSC',
+    ];
+    $ref = $orgAliases[strtoupper($ref)] ?? $ref;
+
     $stmt = $pdo->prepare(
         "SELECT org_id, org_name, org_code
          FROM organizations
@@ -393,6 +403,95 @@ function igpResolveOrgByCodeOrName(PDO $pdo, string $orgRef): ?array
         ':ref_name' => $ref,
     ]);
     return $stmt->fetch() ?: null;
+}
+
+function igpGetStudentRentalItemNameCandidates(string $itemName): array
+{
+    $trimmed = trim($itemName);
+    if ($trimmed === '') return [];
+
+    $aliases = [
+        'SCIENTIFIC CALCULATOR' => ['Scientific Calculator', 'Sci Cal'],
+        'BUSINESS CALCULATOR' => ['Business Calculator'],
+        'SHOE RAG' => ['Shoe Rag', 'Shoe Covers', 'shoe'],
+        'LOCKERS' => ['Lockers', 'Locker Unit', 'Locker'],
+        'PRINTING' => ['Printing', 'Printing (per page)', 'Printer (per page)'],
+        '1X1 PHOTO PROCESSING' => ['1x1 Photo Processing'],
+        'NETWORK CRIMPING TOOL' => ['Network Crimping Tool'],
+        'NETWORK CABLE TESTER' => ['Network Cable Tester'],
+        'MINI FAN' => ['Mini Fan'],
+        'T-SQUARE' => ['T-Square'],
+        'TRIANGLE RULER' => ['Triangle Ruler'],
+        'PROTRACTOR' => ['Protractor'],
+        'RULERS' => ['Rulers', 'Ruler'],
+        'ARNIS' => ['Arnis'],
+    ];
+
+    $key = strtoupper($trimmed);
+    $candidates = $aliases[$key] ?? [$trimmed];
+    $candidates[] = $trimmed;
+
+    return array_values(array_unique(array_filter(array_map('trim', $candidates))));
+}
+
+function igpFindStudentRentalInventoryItem(PDO $pdo, int $orgId, string $itemName, bool $forUpdate = false): ?array
+{
+    $candidates = igpGetStudentRentalItemNameCandidates($itemName);
+    if (!$candidates) return null;
+
+    $conditions = [];
+    $params = [':org' => $orgId];
+    foreach ($candidates as $idx => $candidate) {
+        $exactKey = ':exact_' . $idx;
+        $likeKey = ':like_' . $idx;
+        $params[$exactKey] = $candidate;
+        $params[$likeKey] = '%' . $candidate . '%';
+        $conditions[] = "UPPER(item_name) = UPPER({$exactKey})";
+        $conditions[] = "UPPER(item_name) LIKE UPPER({$likeKey})";
+    }
+
+    $sql = "
+        SELECT item_id, item_name, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status
+        FROM inventory_items
+        WHERE org_id = :org
+          AND status = 'available'
+          AND (" . implode(' OR ', $conditions) . ")
+        ORDER BY item_id ASC
+        LIMIT 1";
+
+    if ($forUpdate) {
+        $sql .= " FOR UPDATE";
+    }
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetch() ?: null;
+}
+
+function igpGetStudentRentalQuote(PDO $pdo, string $orgRef, string $itemName, float $hours = 0): array
+{
+    $org = igpResolveOrgByCodeOrName($pdo, $orgRef);
+    if (!$org) {
+        throw new IgpValidationException('Selected organization was not found.');
+    }
+
+    $item = igpFindStudentRentalInventoryItem($pdo, (int)$org['org_id'], $itemName, false);
+    if (!$item) {
+        throw new IgpValidationException('No available inventory item was found for that service.');
+    }
+
+    $hourlyRate = (float)$item['hourly_rate'];
+    $amount = $hours > 0 ? ($hourlyRate * $hours) : 0.0;
+
+    return [
+        'org_id' => (int)$org['org_id'],
+        'org_name' => $org['org_name'],
+        'org_code' => $org['org_code'],
+        'item_id' => (int)$item['item_id'],
+        'item_name' => $item['item_name'],
+        'hourly_rate' => $hourlyRate,
+        'amount' => $amount,
+    ];
 }
 
 function igpEnsureOfficerInOrg(PDO $pdo, int $userId, int $orgId): bool
@@ -561,21 +660,9 @@ function igpCreateStudentRental(PDO $pdo, int $renterUserId, string $orgRef, str
 
     $pdo->beginTransaction();
     try {
-        $itemStmt = $pdo->prepare(
-            "SELECT item_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status
-             FROM inventory_items
-             WHERE org_id = :org
-               AND UPPER(item_name) = UPPER(:name)
-               AND status = 'available'
-             ORDER BY item_id ASC
-             LIMIT 1
-             FOR UPDATE"
-        );
-        $itemStmt->execute([
-            ':org' => $orgId,
-            ':name' => $itemName,
-        ]);
-        $item = $itemStmt->fetch();
+        $hasRentalNotes = igpColumnExists($pdo, 'rentals', 'notes');
+
+        $item = igpFindStudentRentalInventoryItem($pdo, $orgId, $itemName, true);
         if (!$item) {
             throw new IgpValidationException('No available inventory item was found for that service.');
         }
@@ -594,21 +681,38 @@ function igpCreateStudentRental(PDO $pdo, int $renterUserId, string $orgRef, str
         $unitRate = (float)$item['hourly_rate'];
         $itemCost = $unitRate * $hours;
 
-        $insRental = $pdo->prepare(
-            "INSERT INTO rentals
-                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, total_cost, payment_status, status, notes)
-             VALUES
-                (:org, :renter, :processor, :rent_time, :expected, :total, 'unpaid', 'reserved', :notes)"
-        );
-        $insRental->execute([
-            ':org' => $orgId,
-            ':renter' => $renterUserId,
-            ':processor' => $renterUserId,
-            ':rent_time' => $rentTime->format('Y-m-d H:i:s'),
-            ':expected' => $expected->format('Y-m-d H:i:s'),
-            ':total' => $itemCost,
-            ':notes' => 'Student reservation via student dashboard',
-        ]);
+        if ($hasRentalNotes) {
+            $insRental = $pdo->prepare(
+                "INSERT INTO rentals
+                    (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, total_cost, payment_status, status, notes)
+                 VALUES
+                    (:org, :renter, :processor, :rent_time, :expected, :total, 'unpaid', 'reserved', :notes)"
+            );
+            $insRental->execute([
+                ':org' => $orgId,
+                ':renter' => $renterUserId,
+                ':processor' => $renterUserId,
+                ':rent_time' => $rentTime->format('Y-m-d H:i:s'),
+                ':expected' => $expected->format('Y-m-d H:i:s'),
+                ':total' => $itemCost,
+                ':notes' => 'Student reservation via student dashboard',
+            ]);
+        } else {
+            $insRental = $pdo->prepare(
+                "INSERT INTO rentals
+                    (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, total_cost, payment_status, status)
+                 VALUES
+                    (:org, :renter, :processor, :rent_time, :expected, :total, 'unpaid', 'reserved')"
+            );
+            $insRental->execute([
+                ':org' => $orgId,
+                ':renter' => $renterUserId,
+                ':processor' => $renterUserId,
+                ':rent_time' => $rentTime->format('Y-m-d H:i:s'),
+                ':expected' => $expected->format('Y-m-d H:i:s'),
+                ':total' => $itemCost,
+            ]);
+        }
         $rentalId = (int)$pdo->lastInsertId();
 
         $insItem = $pdo->prepare(
@@ -838,6 +942,7 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
 
     foreach ($rentals as $idx => $row) {
         try {
+            $hasRentalNotes = igpColumnExists($pdo, 'rentals', 'notes');
             $itemBarcode = trim((string)($row['itemBarcode'] ?? $row['barcode'] ?? ''));
             $renterId = trim((string)($row['renterId'] ?? ''));
             $rentalDate = trim((string)($row['rentalDate'] ?? ''));
@@ -904,14 +1009,23 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
             }
 
             $pdo->beginTransaction();
-            $insR = $pdo->prepare(
-                "INSERT INTO rentals
-                    (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, notes)
-                 VALUES
-                    (:org, :renter, :proc, :rent_time, :expected, :actual, :total, :pay_status, :paid_at, :status, :notes)"
-            );
+            if ($hasRentalNotes) {
+                $insR = $pdo->prepare(
+                    "INSERT INTO rentals
+                        (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, notes)
+                     VALUES
+                        (:org, :renter, :proc, :rent_time, :expected, :actual, :total, :pay_status, :paid_at, :status, :notes)"
+                );
+            } else {
+                $insR = $pdo->prepare(
+                    "INSERT INTO rentals
+                        (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status)
+                     VALUES
+                        (:org, :renter, :proc, :rent_time, :expected, :actual, :total, :pay_status, :paid_at, :status)"
+                );
+            }
             $totalCost = (float)($row['totalCost'] ?? $row['baseCost'] ?? ($item['hourly_rate'] * max(1, $hours)));
-            $insR->execute([
+            $params = [
                 ':org' => $orgId,
                 ':renter' => (int)$renter['user_id'],
                 ':proc' => $processorId,
@@ -921,11 +1035,14 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
                 ':total' => $totalCost,
                 ':pay_status' => (($row['paymentStatus'] ?? 'unpaid') === 'paid') ? 'paid' : 'unpaid',
                 ':paid_at' => (($row['paymentStatus'] ?? 'unpaid') === 'paid') ? date('Y-m-d H:i:s') : null,
-                ':status' => in_array(($row['status'] ?? 'returned'), ['active', 'returned', 'overdue', 'cancelled'], true)
+                ':status' => in_array(($row['status'] ?? 'returned'), ['reserved', 'active', 'returned', 'overdue', 'cancelled'], true)
                     ? ($row['status'] ?? 'returned')
                     : 'returned',
-                ':notes' => 'Imported from legacy localStorage',
-            ]);
+            ];
+            if ($hasRentalNotes) {
+                $params[':notes'] = 'Imported from legacy localStorage';
+            }
+            $insR->execute($params);
             $rentalId = (int)$pdo->lastInsertId();
 
             $insRi = $pdo->prepare(
