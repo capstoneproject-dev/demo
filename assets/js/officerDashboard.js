@@ -1027,7 +1027,7 @@ function renderOfficerLockerBoard() {
         const lockers = (groups[columnKey] || []).sort((a, b) => String(a.locker_code).localeCompare(String(b.locker_code)));
         return `
             <div class="locker-column">
-                <div class="locker-column-header">Column ${columnKey}</div>
+                <div class="locker-column-header">Locker ${columnKey}</div>
                 <div class="locker-column-grid">
                     ${lockers.map((locker) => `
                         <button
