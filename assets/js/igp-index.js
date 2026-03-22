@@ -3,6 +3,23 @@
 
     const $ = (id) => document.getElementById(id);
 
+    function renderStatusText(status) {
+        const normalized = String(status || '').toLowerCase();
+        if (normalized === 'no show') {
+            return '<span class="text-danger fw-semibold text-uppercase small">No Show</span>';
+        }
+        if (normalized === 'reserved') {
+            return '<span class="text-info fw-semibold text-uppercase small">Reserved</span>';
+        }
+        if (normalized === 'rented' || normalized === 'active') {
+            return '<span class="text-success fw-semibold text-uppercase small">Active</span>';
+        }
+        if (normalized === 'available') {
+            return '<span class="text-success-emphasis fw-semibold text-uppercase small">Available</span>';
+        }
+        return `<span class="fw-semibold text-uppercase small">${String(status || '-')}</span>`;
+    }
+
     async function loadInventorySelect() {
         const { items } = await window.igpApi.getInventory({ status: 'available' });
         const sel = $('rent_item_id');
@@ -22,6 +39,9 @@
         items.forEach((r) => {
             const tr = document.createElement('tr');
             const isReserved = String(r.status).toLowerCase() === 'reserved';
+            const rawExpected = String(r.expected_return_time || '').trim();
+            const expectedMs = new Date(rawExpected.includes('T') ? rawExpected : rawExpected.replace(' ', 'T')).getTime();
+            const isExpiredNoShow = isReserved && !Number.isNaN(expectedMs) && expectedMs < Date.now();
             tr.innerHTML = `
                 <td>${r.rental_id}</td>
                 <td>${r.items_label || '-'}</td>
@@ -31,11 +51,12 @@
                 <td>
                     ${isReserved
                         ? `<div class="d-flex gap-1 flex-wrap">
-                                <button class="btn btn-sm btn-success py-1 px-3 js-start" data-rid="${r.rental_id}">Start Rental</button>
+                                ${isExpiredNoShow ? '' : `<button class="btn btn-sm btn-success py-1 px-3 js-start" data-rid="${r.rental_id}">Start Rental</button>`}
                                 <button class="btn btn-sm btn-outline-danger py-1 px-3 js-no-show" data-rid="${r.rental_id}">No Show</button>
                            </div>`
                         : `<button class="btn btn-sm btn-warning js-return" data-rid="${r.rental_id}">Return</button>`}
                 </td>
+                <td>${renderStatusText(isExpiredNoShow ? 'no show' : (isReserved ? 'reserved' : r.status))}</td>
             `;
             tbody.appendChild(tr);
         });

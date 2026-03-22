@@ -41,13 +41,39 @@
         return (neg ? '-' : '') + `${h}:${m}:${s}`;
     }
 
+    function isExpiredReservedRental(rental) {
+        if (String(rental?.status || '').toLowerCase() !== 'reserved') return false;
+        const raw = String(rental.expected_return_time || '').trim();
+        const due = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
+        return !Number.isNaN(due) && due < Date.now();
+    }
+
     function statusByItem(item) {
         const rental = activeRentals.find((r) => String(r.items_label || '').includes(`[${item.barcode}]`));
         if (rental) {
-            const openStatus = String(rental.status || '').toLowerCase() === 'reserved' ? 'reserved' : 'rented';
+            const openStatus = isExpiredReservedRental(rental)
+                ? 'no show'
+                : (String(rental.status || '').toLowerCase() === 'reserved' ? 'reserved' : 'rented');
             return { status: openStatus, renter: `${rental.renter_name} (${rental.renter_student_number || '-'})`, rentTime: rental.rent_time, due: rental.expected_return_time };
         }
         return { status: item.status, renter: '', rentTime: null, due: null };
+    }
+
+    function renderStatusText(status) {
+        const normalized = String(status || '').toLowerCase();
+        if (normalized === 'no show') {
+            return '<span class="text-danger fw-semibold text-uppercase small">No Show</span>';
+        }
+        if (normalized === 'reserved') {
+            return '<span class="text-info fw-semibold text-uppercase small">Reserved</span>';
+        }
+        if (normalized === 'rented' || normalized === 'active') {
+            return '<span class="text-success fw-semibold text-uppercase small">Active</span>';
+        }
+        if (normalized === 'available') {
+            return '<span class="text-success-emphasis fw-semibold text-uppercase small">Available</span>';
+        }
+        return `<span class="fw-semibold text-uppercase small">${String(status || '-')}</span>`;
     }
 
     function renderAvailable() {
@@ -90,7 +116,7 @@
             tr.innerHTML = `
                 <td>${it.barcode || it.item_id}</td>
                 <td>${it.item_name}</td>
-                <td>${st.status}</td>
+                <td>${renderStatusText(st.status)}</td>
                 <td>${st.renter || '-'}</td>
                 <td>${fmtDate(st.rentTime)}</td>
                 <td>${fmtDate(st.due)}</td>
@@ -109,12 +135,13 @@
             const itemBarcode = barcodeMatch ? barcodeMatch[1] : r.rental_id;
             const itemLabelBase = String(r.items_label || '-').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || '-';
             const isReserved = String(r.status || '').toLowerCase() === 'reserved';
+            const isExpiredNoShow = isExpiredReservedRental(r);
             
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${String(r.status || '').toLowerCase() === 'reserved'
+                <td>${isReserved
                     ? `<div class="d-flex gap-1 flex-wrap">
-                            <button class="btn btn-success btn-sm py-1 px-3 js-start" data-rid="${r.rental_id}">Start Rental</button>
+                            ${isExpiredNoShow ? '' : `<button class="btn btn-success btn-sm py-1 px-3 js-start" data-rid="${r.rental_id}">Start Rental</button>`}
                             <button class="btn btn-outline-danger btn-sm py-1 px-3 js-no-show" data-rid="${r.rental_id}">No Show</button>
                        </div>`
                     : `<button class="btn btn-warning btn-sm js-return" data-rid="${r.rental_id}">Return</button>`}</td>
@@ -123,9 +150,9 @@
                 <td>${r.renter_section || '-'}</td>
                 <td>${fmtDate(r.rent_time)}</td>
                 <td>${fmtDate(r.expected_return_time)}</td>
-                <td>${dueClock(r.expected_return_time)}</td>
+                <td>${isExpiredNoShow ? '<span class="text-danger fw-semibold">Past due</span>' : dueClock(r.expected_return_time)}</td>
                 <td>${Number(accumulatedPrice(r)).toFixed(2)}</td>
-                <td>${isReserved ? '<span class="badge bg-info text-dark">Reserved</span>' : r.status}</td>
+                <td>${renderStatusText(isExpiredNoShow ? 'no show' : (isReserved ? 'reserved' : r.status))}</td>
             `;
             tbody.appendChild(row);
         });

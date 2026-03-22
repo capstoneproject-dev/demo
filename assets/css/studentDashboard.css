@@ -5058,6 +5058,16 @@ body.dark .rental-card-status.status-active {
     color: #86efac;
 }
 
+.rental-card-status.status-no-show {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+body.dark .rental-card-status.status-no-show {
+    background: #7f1d1d;
+    color: #fecaca;
+}
+
 .rental-card-org {
     font-size: 0.85rem;
     color: var(--primary);
