@@ -328,14 +328,16 @@
 
         <!-- SERVICES TRACKER VIEW -->
         <div id="tracker" class="section-view">
-            <div class="tracker-layout">
-                <aside class="tracker-sidebar card">
+            <div id="trackerLayout" class="tracker-layout">
+                <aside id="trackerSidebar" class="tracker-sidebar card">
                     <div class="tracker-sidebar-nav">
                         <button class="sub-nav-btn active" onclick="switchTrackerSubView('rentals', this)">
-                            <i class="fa-solid fa-boxes-stacked"></i> Rentals
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <span class="tracker-btn-label">Rentals</span>
                         </button>
-                        <button class="sub-nav-btn" onclick="switchTrackerSubView('printing', this)">
-                            <i class="fa-solid fa-print"></i> Printing Queue
+                        <button id="trackerPrintingBtn" class="sub-nav-btn" onclick="switchTrackerSubView('printing', this)">
+                            <i class="fa-solid fa-print"></i>
+                            <span class="tracker-btn-label">Printing Queue</span>
                         </button>
                     </div>
                 </aside>
@@ -353,13 +355,21 @@
                             <div class="card-header">
                                 <div>
                                     <div class="card-title">Printing Queue</div>
-                                    <p style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">
+                                    <p id="printingQueueSubtitle" style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">
                                         View PDFs, update print status, and rearrange queued jobs by priority.
                                     </p>
                                 </div>
-                                <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerPrintingQueue(true)">
-                                    <i class="fa-solid fa-rotate-right"></i> Refresh
-                                </button>
+                                <div class="printing-queue-header-actions">
+                                    <button id="btnShowPrintingHistory" class="btn btn-outline btn-sm" type="button" onclick="showOfficerPrintingHistoryView()">
+                                        <i class="fa-solid fa-clock-rotate-left"></i> History
+                                    </button>
+                                    <button id="btnBackToPrintingQueue" class="btn btn-outline btn-sm" type="button" onclick="showOfficerPrintingQueueView()" style="display:none;">
+                                        <i class="fa-solid fa-arrow-left"></i> Back to Queue
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerPrintingQueue(true)">
+                                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                                    </button>
+                                </div>
                             </div>
 
                             <div id="officerPrintingDisabledMessage" class="empty-state" style="display:none; padding:32px; text-align:center;">
@@ -368,27 +378,120 @@
                                 <p style="color:var(--muted);">OSA has not enabled printing services for this organization yet.</p>
                             </div>
 
-                            <div class="table-container" id="officerPrintingQueueTableWrap">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Queue</th>
-                                            <th>Document</th>
-                                            <th>Student</th>
-                                            <th>Submitted</th>
-                                            <th>Status</th>
-                                            <th>Priority</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="officerPrintingQueueTable">
-                                        <tr>
-                                            <td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">Loading print queue...</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <div id="officerPrintingQueueContent">
+                                <div class="table-container" id="officerPrintingQueueTableWrap">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Queue</th>
+                                                <th>Document</th>
+                                                <th>Student</th>
+                                                <th>Submitted</th>
+                                                <th>Status</th>
+                                                <th>Priority</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="officerPrintingQueueTable">
+                                            <tr>
+                                                <td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">Loading print queue...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div id="officerPrintingHistoryContent" style="display:none;">
+                                <div class="printing-history-toolbar">
+                                    <div class="printing-history-filter-row">
+                                        <div class="printing-history-search">
+                                            <i class="fa-solid fa-magnifying-glass"></i>
+                                            <input type="text" id="printingHistorySearchInput" placeholder="Search by file, student, status, or notes" oninput="filterOfficerPrintingHistory()">
+                                        </div>
+                                        <button class="printing-history-filter-btn" type="button" onclick="openOfficerPrintingDateFilterModal()">
+                                            <span id="printingHistoryDateFilterLabel">All Dates</span>
+                                            <i class="fa-solid fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-container">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Queue</th>
+                                                <th>Document</th>
+                                                <th>Student</th>
+                                                <th>Submitted</th>
+                                                <th>Completed</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="officerPrintingHistoryTable">
+                                            <tr>
+                                                <td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">No print history found.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerPrintingDateFilterModal" class="modal-overlay">
+            <div class="modal-content printing-history-date-filter-modal-content">
+                <div class="modal-header">
+                    <h3>Filter by Date Range</h3>
+                    <button class="close-modal" type="button" onclick="closeOfficerPrintingDateFilterModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="date-filter-presets">
+                        <button class="preset-btn" type="button" onclick="applyOfficerPrintingDatePreset('today')">Today</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerPrintingDatePreset('week')">This Week</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerPrintingDatePreset('month')">This Month</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerPrintingDatePreset('all')">All Time</button>
+                    </div>
+
+                    <div class="calendar-picker-container">
+                        <div class="calendar-header">
+                            <button class="calendar-nav-btn" type="button" onclick="navigateOfficerPrintingCalendarMonth(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <span class="calendar-month-year" id="officerPrintingFilterCalendarMonthYear">January 2026</span>
+                            <button class="calendar-nav-btn" type="button" onclick="navigateOfficerPrintingCalendarMonth(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <div class="calendar-weekday">Sun</div>
+                            <div class="calendar-weekday">Mon</div>
+                            <div class="calendar-weekday">Tue</div>
+                            <div class="calendar-weekday">Wed</div>
+                            <div class="calendar-weekday">Thu</div>
+                            <div class="calendar-weekday">Fri</div>
+                            <div class="calendar-weekday">Sat</div>
+                        </div>
+
+                        <div class="calendar-days" id="officerPrintingFilterCalendarDays"></div>
+
+                        <div class="calendar-selected-range">
+                            <div class="selected-date-display">
+                                <strong>From:</strong> <span id="officerPrintingSelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="selected-date-display">
+                                <strong>To:</strong> <span id="officerPrintingSelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeOfficerPrintingDateFilterModal()">Cancel</button>
+                        <button type="button" class="btn-submit" onclick="applyOfficerPrintingDateFilter()">Apply Filter</button>
                     </div>
                 </div>
             </div>

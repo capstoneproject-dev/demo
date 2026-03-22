@@ -5820,11 +5820,96 @@ body.dark .calendar-day.in-range {
     gap: 16px;
 }
 
+.printing-hero-live {
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+}
+
+.printing-hero-live-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.printing-hero-live-header h3 {
+    color: var(--primary);
+    margin-bottom: 6px;
+}
+
+.printing-hero-live-header p {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.printing-jobs-list-hero {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.printing-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.printing-action-btn i {
+    font-size: 0.82rem;
+}
+
+.printing-action-btn:hover {
+    transform: translateY(-1px);
+    text-decoration: none;
+}
+
+.printing-action-btn-primary {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(0, 33, 71, 0.12);
+}
+
+.printing-action-btn-primary:hover {
+    background: var(--primary-2);
+    color: #fff;
+}
+
+.printing-action-btn-secondary {
+    background: #fff;
+    border-color: var(--border);
+    color: var(--primary);
+}
+
+.printing-action-btn-secondary:hover {
+    background: var(--panel-2);
+    border-color: rgba(0, 33, 71, 0.14);
+    color: var(--primary);
+}
+
+.printing-action-btn-refresh {
+    padding-inline: 14px;
+    white-space: nowrap;
+}
+
 .printing-job-card {
     border: 1px solid var(--border);
     border-radius: 18px;
     background: var(--panel);
     padding: 18px;
+    display: flex;
+    flex-direction: column;
+    min-height: 210px;
 }
 
 .printing-job-header {
@@ -5834,14 +5919,25 @@ body.dark .calendar-day.in-range {
     align-items: flex-start;
 }
 
+.printing-job-header > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .printing-job-header h4 {
     margin-bottom: 6px;
     color: var(--primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .printing-job-header p {
     color: var(--muted);
     font-size: 0.88rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .printing-job-status {
@@ -5850,6 +5946,10 @@ body.dark .calendar-day.in-range {
     font-size: 0.78rem;
     font-weight: 700;
     white-space: nowrap;
+    flex: 0 0 108px;
+    width: 108px;
+    text-align: center;
+    align-self: flex-start;
 }
 
 .printing-job-status.status-queued {
@@ -5890,7 +5990,12 @@ body.dark .calendar-day.in-range {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
-    margin-top: 16px;
+    margin-top: auto;
+    padding-top: 16px;
+}
+
+.printing-job-actions .printing-action-btn {
+    flex: 1 1 140px;
 }
 
 .printing-empty-state {
@@ -6103,6 +6208,10 @@ body.dark .calendar-day.in-range {
     .hero-upload {
         flex: none;
         max-width: 100%;
+    }
+
+    .printing-hero-live-header {
+        flex-direction: column;
     }
 }
 

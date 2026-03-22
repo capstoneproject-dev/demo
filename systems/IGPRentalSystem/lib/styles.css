@@ -295,10 +295,11 @@ body {
 /* --- ZEUS UI INSPIRED NAVBAR --- */
 
 .custom-navbar {
-    background-color: var(--primary) !important;
+    background-color: #ffffff !important;
     padding-top: 0.8rem;
     padding-bottom: 0.8rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .tracking-wide {
@@ -307,7 +308,7 @@ body {
 
 /* Navigation Links */
 .nav-pills-custom .nav-link {
-    color: rgba(255, 255, 255, 0.85) !important;
+    color: rgba(15, 23, 42, 0.78) !important;
     font-weight: 600;
     font-size: 0.95rem;
     padding: 0.5rem 1.2rem;

@@ -1984,21 +1984,32 @@ function getPrintingJobStatusLabel(status) {
 }
 
 function renderStudentPrintingJobs() {
-    const list = document.getElementById('studentPrintingJobsList');
-    if (!list) return;
+    const lists = [
+        document.getElementById('studentPrintingJobsList'),
+        document.getElementById('studentPrintingHeroJobs')
+    ].filter(Boolean);
+    if (!lists.length) return;
 
-    if (!studentPrintingJobs.length) {
-        list.innerHTML = `
-            <div class="printing-empty-state">
-                <i class="fa-solid fa-print"></i>
-                <h3>No Print Jobs Yet</h3>
-                <p>Your submitted print jobs will appear here once you upload a PDF.</p>
-            </div>
-        `;
+    const activePrintJobs = studentPrintingJobs.filter((job) => {
+        const status = String(job.status || '').toLowerCase();
+        return status !== 'claimed';
+    });
+
+    if (!activePrintJobs.length) {
+        const emptyMarkup = `
+              <div class="printing-empty-state">
+                  <i class="fa-solid fa-print"></i>
+                  <h3>No Active Print Jobs</h3>
+                  <p>Your open print requests will appear here until they are completed and claimed.</p>
+              </div>
+          `;
+        lists.forEach((list) => {
+            list.innerHTML = emptyMarkup;
+        });
         return;
     }
 
-    list.innerHTML = studentPrintingJobs.map((job) => {
+    const markup = activePrintJobs.map((job) => {
         const status = String(job.status || '').toLowerCase();
         const queueText = status === 'queued' && Number(job.queue_position || 0) > 0
             ? `Queue #${job.queue_position}`
@@ -2020,12 +2031,15 @@ function renderStudentPrintingJobs() {
                     ${job.notes ? `<span><i class="fa-solid fa-note-sticky"></i> ${escapeStudentHtml(job.notes)}</span>` : ''}
                 </div>
                 <div class="printing-job-actions">
-                    ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> View PDF</a>` : ''}
-                    ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" download><i class="fa-solid fa-download"></i> Download</a>` : ''}
+                    ${jobUrl ? `<a class="printing-action-btn printing-action-btn-secondary" href="${jobUrl}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> View PDF</a>` : ''}
+                    ${jobUrl ? `<a class="printing-action-btn printing-action-btn-primary" href="${jobUrl}" download><i class="fa-solid fa-download"></i> Download</a>` : ''}
                 </div>
             </div>
         `;
     }).join('');
+    lists.forEach((list) => {
+        list.innerHTML = markup;
+    });
 }
 
 async function loadStudentPrintJobs(force = false) {
@@ -2038,8 +2052,15 @@ async function loadStudentPrintJobs(force = false) {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not load print jobs.');
         }
-        studentPrintingJobs = Array.isArray(data.items) ? data.items : [];
+        studentPrintingJobs = (Array.isArray(data.items) ? data.items : []).sort((a, b) => {
+            const aDate = new Date(a.submitted_at || a.updated_at || 0).getTime();
+            const bDate = new Date(b.submitted_at || b.updated_at || 0).getTime();
+            return bDate - aDate;
+        });
         renderStudentPrintingJobs();
+        buildFilterOptions();
+        renderRentalHistory();
+        updateMyRentalsEmptyState();
         return studentPrintingJobs;
     } catch (error) {
         if (force) {
@@ -2047,6 +2068,9 @@ async function loadStudentPrintJobs(force = false) {
         }
         studentPrintingJobs = [];
         renderStudentPrintingJobs();
+        buildFilterOptions();
+        renderRentalHistory();
+        updateMyRentalsEmptyState();
         throw error;
     }
 }
@@ -3547,7 +3571,11 @@ async function loadCurrentRentals() {
             throw new Error(data.error || 'Could not load current rentals.');
         }
 
-        currentRentalsData = Array.isArray(data.items) ? data.items : [];
+        currentRentalsData = (Array.isArray(data.items) ? data.items : []).sort((a, b) => {
+            const aDate = new Date(a.rent_time || a.created_at || 0).getTime();
+            const bDate = new Date(b.rent_time || b.created_at || 0).getTime();
+            return bDate - aDate;
+        });
         renderCurrentRentals();
     } catch (err) {
         console.error('[loadCurrentRentals]', err);
@@ -3727,7 +3755,7 @@ function updateMyRentalsEmptyState() {
     if (!emptyMessage) return;
 
     const hasCurrentRentals = currentRentalsData.length > 0;
-    const hasHistory = rentalHistoryData.length > 0;
+    const hasHistory = rentalHistoryData.length > 0 || studentPrintingJobs.length > 0;
 
     if (!hasCurrentRentals && !hasHistory) {
         emptyMessage.style.display = 'block';
@@ -3762,6 +3790,10 @@ async function loadRentalHistory() {
             if (status === 'reserved' && isStudentRentalNoShow(rental)) return true;
 
             return false;
+        }).sort((a, b) => {
+            const aDate = new Date(a.rent_time || a.actual_return_time || a.expected_return_time || 0).getTime();
+            const bDate = new Date(b.rent_time || b.actual_return_time || b.expected_return_time || 0).getTime();
+            return bDate - aDate;
         });
 
         renderRentalHistory();
@@ -3778,7 +3810,15 @@ function renderRentalHistory() {
 
     if (!section || !tableBody) return;
 
-    if (rentalHistoryData.length === 0) {
+    const printHistoryData = studentPrintingJobs.map(createPrintActivityEntry);
+    const activityRows = [...rentalHistoryData, ...printHistoryData]
+        .sort((a, b) => {
+            const aDate = new Date(a._activityDate || a.submitted_at || a.rent_time || 0).getTime();
+            const bDate = new Date(b._activityDate || b.submitted_at || b.rent_time || 0).getTime();
+            return bDate - aDate;
+        });
+
+    if (activityRows.length === 0) {
         section.style.display = 'none';
         // Update empty state
         if (typeof updateMyRentalsEmptyState === 'function') {
@@ -3790,7 +3830,7 @@ function renderRentalHistory() {
     section.style.display = 'block';
     tableBody.innerHTML = '';
 
-    rentalHistoryData.forEach(rental => {
+    activityRows.forEach(rental => {
         const row = createRentalHistoryRow(rental);
         tableBody.appendChild(row);
     });
@@ -3801,8 +3841,41 @@ function renderRentalHistory() {
     }
 }
 
+function createPrintActivityEntry(job) {
+    return {
+        ...job,
+        _activityType: 'printing',
+        _activityDate: job.submitted_at || job.updated_at || ''
+    };
+}
+
 function createRentalHistoryRow(rental) {
     const row = document.createElement('tr');
+
+    if (rental && rental._activityType === 'printing') {
+        const submittedDate = formatDate(rental.submitted_at || rental.updated_at);
+        const fileName = String(rental.file_name || 'Untitled PDF').trim();
+        const orgName = rental.org_name || 'Unknown';
+        const queueLabel = Number(rental.queue_position || 0) > 0
+            ? `Queue #${rental.queue_position}`
+            : 'Completed';
+        const details = String(rental.notes || '').trim() || 'Print request submitted';
+        const status = String(rental.status || 'queued').toLowerCase();
+        const statusClass = getStatusClass(status);
+        const statusText = getStatusText(status);
+
+        row.innerHTML = `
+            <td>${submittedDate}</td>
+            <td>Printing</td>
+            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(fileName)}">${escapeStudentHtml(fileName)}</td>
+            <td>${escapeStudentHtml(orgName)}</td>
+            <td style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(details)}">${escapeStudentHtml(details)}</td>
+            <td>${escapeStudentHtml(queueLabel)}</td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        `;
+
+        return row;
+    }
 
     // Format dates
     const rentDate = formatDate(rental.rent_time);
@@ -3827,6 +3900,7 @@ function createRentalHistoryRow(rental) {
 
     row.innerHTML = `
         <td>${rentDate}</td>
+        <td>Rental</td>
         <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${items}">${items}</td>
         <td>${orgName}</td>
         <td>${duration}</td>
@@ -3866,6 +3940,10 @@ function getStatusClass(status, paymentStatus) {
     if (status === 'no-show') return 'status-no-show';
     if (status === 'cancelled') return 'status-unknown';
     if (status === 'completed') return 'status-completed';
+    if (status === 'queued') return 'status-reserved';
+    if (status === 'processing') return 'status-active';
+    if (status === 'ready_to_claim') return 'status-completed';
+    if (status === 'claimed') return 'status-returned';
     return 'status-unknown';
 }
 
@@ -3874,6 +3952,10 @@ function getStatusText(status) {
     if (status === 'no-show') return 'No Show';
     if (status === 'cancelled') return 'Cancelled';
     if (status === 'completed') return 'Completed';
+    if (status === 'queued') return 'Queued';
+    if (status === 'processing') return 'Processing';
+    if (status === 'ready_to_claim') return 'Ready to Claim';
+    if (status === 'claimed') return 'Claimed';
     return 'Unknown';
 }
 
@@ -3892,24 +3974,32 @@ let rentalFilters = {
 let allRentalsData = []; // Combined current + history for filtering
 
 function loadMyRentalsTab() {
-    // Load both current rentals and history
+    // Load current rentals, rental history, and printing activity
     Promise.all([
         loadCurrentRentals(),
-        loadRentalHistory()
+        loadRentalHistory(),
+        loadStudentPrintJobs().catch(() => [])
     ]).then(() => {
         updateMyRentalsEmptyState();
         buildFilterOptions();
         updateFilterVisibility();
+        applyAllFilters();
     });
 }
 
 function buildFilterOptions() {
-    // Combine all rentals
-    allRentalsData = [...currentRentalsData, ...rentalHistoryData];
+    // Combine all activity labels
+    allRentalsData = [...currentRentalsData, ...rentalHistoryData, ...studentPrintingJobs];
 
     // Extract unique item names
     const itemsSet = new Set();
     allRentalsData.forEach(rental => {
+        if (Object.prototype.hasOwnProperty.call(rental, 'file_name')) {
+            const fileName = String(rental.file_name || '').trim();
+            if (fileName) itemsSet.add(fileName);
+            return;
+        }
+
         const items = (rental.items_label || '').split(', ');
         items.forEach(item => {
             const itemName = item.replace(/\s*\(\d+x\)/, '').trim();
@@ -4234,17 +4324,21 @@ function applyAllFilters() {
     // Filter current rentals
     let filteredCurrent = [...currentRentalsData];
     let filteredHistory = [...rentalHistoryData];
+    let filteredPrintJobs = [...studentPrintingJobs];
 
     // Apply filters
     filteredCurrent = filterRentals(filteredCurrent);
     filteredHistory = filterRentals(filteredHistory);
+    filteredPrintJobs = filterRentals(filteredPrintJobs);
 
     // Temporarily replace data
     const originalCurrent = [...currentRentalsData];
     const originalHistory = [...rentalHistoryData];
+    const originalPrintJobs = [...studentPrintingJobs];
 
     currentRentalsData = filteredCurrent;
     rentalHistoryData = filteredHistory;
+    studentPrintingJobs = filteredPrintJobs;
 
     // Re-render
     renderCurrentRentals();
@@ -4253,6 +4347,7 @@ function applyAllFilters() {
     // Restore original data
     currentRentalsData = originalCurrent;
     rentalHistoryData = originalHistory;
+    studentPrintingJobs = originalPrintJobs;
 }
 
 function applyRentalSearch() {
@@ -4263,9 +4358,13 @@ function applyRentalSearch() {
 
 function filterRentals(rentals) {
     return rentals.filter(rental => {
+        const isPrintActivity = Object.prototype.hasOwnProperty.call(rental, 'file_name');
+        const activityDateValue = isPrintActivity ? (rental.submitted_at || rental.updated_at) : rental.rent_time;
+
         // Date filter
         if (rentalFilters.startDate || rentalFilters.endDate) {
-            const rentalDate = new Date(rental.rent_time);
+            const rentalDate = activityDateValue ? new Date(activityDateValue) : null;
+            if (!rentalDate || Number.isNaN(rentalDate.getTime())) return false;
             const start = rentalFilters.startDate ? new Date(rentalFilters.startDate) : null;
             const end = rentalFilters.endDate ? new Date(rentalFilters.endDate) : null;
 
@@ -4278,12 +4377,12 @@ function filterRentals(rentals) {
 
         // Item filter
         if (rentalFilters.items.length > 0) {
-            const rentalItems = (rental.items_label || '').split(', ').map(item =>
-                item.replace(/\s*\(\d+x\)/, '').trim()
-            );
-            const hasMatch = rentalFilters.items.some(filterItem =>
-                rentalItems.includes(filterItem)
-            );
+            const rentalItems = isPrintActivity
+                ? [String(rental.file_name || '').trim()].filter(Boolean)
+                : (rental.items_label || '').split(', ').map(item =>
+                    item.replace(/\s*\(\d+x\)/, '').trim()
+                );
+            const hasMatch = rentalFilters.items.some(filterItem => rentalItems.includes(filterItem));
             if (!hasMatch) return false;
         }
 
@@ -4292,9 +4391,9 @@ function filterRentals(rentals) {
             let status = String(rental.status).toLowerCase();
 
             // Treat cancelled unpaid reservations as no-show too.
-            if (status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+            if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
                 status = 'no-show';
-            } else if (isStudentRentalNoShow(rental)) {
+            } else if (!isPrintActivity && isStudentRentalNoShow(rental)) {
                 status = 'no-show';
             }
 
@@ -4304,18 +4403,22 @@ function filterRentals(rentals) {
         // Search filter
         if (rentalFilters.search) {
             let status = String(rental.status || '').toLowerCase();
-            if (status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+            if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
                 status = 'no-show';
-            } else if (isStudentRentalNoShow(rental)) {
+            } else if (!isPrintActivity && isStudentRentalNoShow(rental)) {
                 status = 'no-show';
             }
 
-            const rentDate = rental.rent_time ? formatDate(rental.rent_time) : '';
-            const items = String(rental.items_label || '').replace(/\s*\(\d+x\)/g, '').trim();
+            const rentDate = activityDateValue ? formatDate(activityDateValue) : '';
+            const items = isPrintActivity
+                ? String(rental.file_name || '').trim()
+                : String(rental.items_label || '').replace(/\s*\(\d+x\)/g, '').trim();
             const organization = String(rental.org_name || '');
             const organizationCode = String(rental.org_code || '');
             const statusText = getStatusText(status);
-            const searchBlob = [rentDate, items, organization, organizationCode, statusText, status]
+            const activityType = isPrintActivity ? 'printing' : 'rental';
+            const details = isPrintActivity ? String(rental.notes || '') : '';
+            const searchBlob = [rentDate, items, organization, organizationCode, statusText, status, activityType, details]
                 .join(' ')
                 .toLowerCase();
 
