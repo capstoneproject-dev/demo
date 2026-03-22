@@ -1996,20 +1996,31 @@ function getPrintingJobStatusLabel(status) {
     return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown';
 }
 
-function getLockerActivityStatusLabel(status) {
+function getNormalizedLockerActivityStatus(status, rental = null) {
     const normalized = String(status || '').toLowerCase();
+    const periodType = String(rental?.locker_period_type || '').toLowerCase();
+    if (normalized === 'locker_released' && periodType === 'pending') {
+        return 'locker_rejected';
+    }
+    return normalized;
+}
+
+function getLockerActivityStatusLabel(status, rental = null) {
+    const normalized = getNormalizedLockerActivityStatus(status, rental);
     if (normalized === 'locker_pending') return 'Pending Approval';
     if (normalized === 'locker_active') return 'Active';
     if (normalized === 'locker_overdue') return 'Overdue';
+    if (normalized === 'locker_rejected') return 'Rejected';
     if (normalized === 'locker_released') return 'Released';
     return normalized ? normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : 'Unknown';
 }
 
-function getLockerActivityStatusClass(status) {
-    const normalized = String(status || '').toLowerCase();
+function getLockerActivityStatusClass(status, rental = null) {
+    const normalized = getNormalizedLockerActivityStatus(status, rental);
     if (normalized === 'locker_pending') return 'status-reserved';
     if (normalized === 'locker_active') return 'status-active';
     if (normalized === 'locker_overdue') return 'status-no-show';
+    if (normalized === 'locker_rejected') return 'status-unknown';
     if (normalized === 'locker_released') return 'status-returned';
     return 'status-unknown';
 }
@@ -3882,8 +3893,8 @@ function createRentalCard(rental) {
         const card = document.createElement('div');
         card.className = 'rental-card locker-rental-card';
         const lockerCode = String(rental.items_label || rental.barcodes || 'Locker').replace(/\s*\(\d+x\)/g, '').trim();
-        const statusClass = getLockerActivityStatusClass(rental.status);
-        const statusText = getLockerActivityStatusLabel(rental.status);
+        const statusClass = getLockerActivityStatusClass(rental.status, rental);
+        const statusText = getLockerActivityStatusLabel(rental.status, rental);
         card.innerHTML = `
             <div class="rental-card-header">
                 <div class="rental-card-status ${statusClass}">${statusText}</div>
@@ -4077,7 +4088,7 @@ async function loadRentalHistory() {
         rentalHistoryData = allRentals.filter(rental => {
             const status = String(rental.status).toLowerCase();
             if (String(rental.service_kind || '').toLowerCase() === 'locker') {
-                return ['locker_pending', 'locker_active', 'locker_overdue', 'locker_released'].includes(status);
+                return ['locker_pending', 'locker_active', 'locker_overdue', 'locker_released', 'locker_rejected'].includes(status);
             }
             if (status === 'returned' || status === 'completed' || status === 'cancelled') return true;
 
@@ -4178,8 +4189,8 @@ function createRentalHistoryRow(rental) {
         const details = rental.locker_notice_message
             ? rental.locker_notice_message
             : (rental.locker_period_type ? rental.locker_period_type.replace(/_/g, ' ') : 'Locker assignment');
-        const statusClass = getLockerActivityStatusClass(rental.status);
-        const statusText = getLockerActivityStatusLabel(rental.status);
+        const statusClass = getLockerActivityStatusClass(rental.status, rental);
+        const statusText = getLockerActivityStatusLabel(rental.status, rental);
         row.innerHTML = `
             <td>${activityDate}</td>
             <td>Locker</td>
@@ -4710,9 +4721,11 @@ function filterRentals(rentals) {
             let status = String(rental.status).toLowerCase();
 
             if (isLockerActivity) {
+                status = getNormalizedLockerActivityStatus(status, rental);
                 if (status === 'locker_pending') status = 'reserved';
                 else if (status === 'locker_active') status = 'active';
                 else if (status === 'locker_overdue') status = 'locker_overdue';
+                else if (status === 'locker_rejected') status = 'cancelled';
                 else if (status === 'locker_released') status = 'returned';
             } else if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
                 status = 'no-show';
@@ -4728,9 +4741,11 @@ function filterRentals(rentals) {
             let status = String(rental.status || '').toLowerCase();
             let statusText = '';
             if (isLockerActivity) {
-                statusText = getLockerActivityStatusLabel(status);
+                status = getNormalizedLockerActivityStatus(status, rental);
+                statusText = getLockerActivityStatusLabel(status, rental);
                 if (status === 'locker_pending') status = 'reserved';
                 else if (status === 'locker_active') status = 'active';
+                else if (status === 'locker_rejected') status = 'cancelled';
                 else if (status === 'locker_released') status = 'returned';
             } else if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
                 status = 'no-show';

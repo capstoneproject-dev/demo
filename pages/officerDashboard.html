@@ -514,6 +514,7 @@
                         <label class="locker-field">
                             <span>Rental Period</span>
                             <select id="lockerDetailPeriodType" onchange="syncLockerAssignmentPreview()">
+                                <option value="">Select rental period</option>
                                 <option value="monthly">Monthly</option>
                                 <option value="semester">Per Semester</option>
                                 <option value="school_year">Whole School Year</option>
@@ -563,7 +564,10 @@
                 <div class="modal-footer locker-detail-footer">
                     <div class="locker-detail-secondary-actions">
                         <button id="lockerSavePricingBtn" class="btn btn-outline" type="button" onclick="saveLockerPricing()">
-                            <i class="fa-solid fa-tags"></i> Save Rates
+                            <i class="fa-solid fa-tags"></i> Save Shared Rates
+                        </button>
+                        <button id="lockerRejectBtn" class="btn btn-outline" type="button" onclick="rejectLockerRequest()" style="display:none;">
+                            <i class="fa-solid fa-circle-xmark"></i> Reject Request
                         </button>
                         <button id="lockerNoticeBtn" class="btn btn-outline" type="button" onclick="sendLockerPulloutNotice()" style="display:none;">
                             <i class="fa-solid fa-bell"></i> Send Notice

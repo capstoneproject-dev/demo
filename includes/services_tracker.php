@@ -29,6 +29,7 @@ const ST_LOCKER_PENDING = 'locker_pending';
 const ST_LOCKER_ACTIVE = 'locker_active';
 const ST_LOCKER_OVERDUE = 'locker_overdue';
 const ST_LOCKER_RELEASED = 'locker_released';
+const ST_LOCKER_REJECTED = 'locker_rejected';
 
 function stNormalizeServiceKey(string $serviceKey): string
 {
@@ -1385,7 +1386,64 @@ function stReleaseLocker(PDO $pdo, int $orgId, int $officerUserId, int $rentalId
          WHERE r.rental_id = :rental_id
            AND r.org_id = :org_id
            AND r.service_kind = :service_kind
-           AND r.status IN (:pending_status, :active_status, :overdue_status)
+           AND r.status IN (:active_status, :overdue_status)
+         LIMIT 1"
+    );
+    $stmt->execute([
+        ':rental_id' => $rentalId,
+        ':org_id' => $orgId,
+        ':service_kind' => ST_LOCKER_SERVICE_KIND,
+        ':active_status' => ST_LOCKER_ACTIVE,
+        ':overdue_status' => ST_LOCKER_OVERDUE,
+    ]);
+    $locker = $stmt->fetch();
+    if (!$locker) {
+        throw new ServiceTrackerValidationException('Active locker assignment not found.');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $updateRental = $pdo->prepare(
+            "UPDATE rentals
+             SET processed_by_user_id = :processed_by_user_id,
+                 actual_return_time = NOW(),
+                 status = :status
+             WHERE rental_id = :rental_id"
+        );
+        $updateRental->execute([
+            ':processed_by_user_id' => $officerUserId,
+            ':status' => ST_LOCKER_REJECTED,
+            ':rental_id' => $rentalId,
+        ]);
+
+        $updateItem = $pdo->prepare(
+            "UPDATE inventory_items
+             SET status = 'available'
+             WHERE item_id = :item_id"
+        );
+        $updateItem->execute([':item_id' => (int)$locker['item_id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    return stListLockerBoard($pdo, $orgId);
+}
+
+function stRejectLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $rentalId): array
+{
+    stRequireLockerOfficerContext($pdo);
+    $stmt = $pdo->prepare(
+        "SELECT r.rental_id, ri.item_id
+         FROM rentals r
+         JOIN rental_items ri ON ri.rental_id = r.rental_id
+         WHERE r.rental_id = :rental_id
+           AND r.org_id = :org_id
+           AND r.service_kind = :service_kind
+           AND r.status = :pending_status
          LIMIT 1"
     );
     $stmt->execute([
@@ -1393,12 +1451,10 @@ function stReleaseLocker(PDO $pdo, int $orgId, int $officerUserId, int $rentalId
         ':org_id' => $orgId,
         ':service_kind' => ST_LOCKER_SERVICE_KIND,
         ':pending_status' => ST_LOCKER_PENDING,
-        ':active_status' => ST_LOCKER_ACTIVE,
-        ':overdue_status' => ST_LOCKER_OVERDUE,
     ]);
     $locker = $stmt->fetch();
     if (!$locker) {
-        throw new ServiceTrackerValidationException('Active locker assignment not found.');
+        throw new ServiceTrackerValidationException('Pending locker request not found.');
     }
 
     $pdo->beginTransaction();
@@ -1482,20 +1538,21 @@ function stSendLockerNotice(PDO $pdo, int $orgId, int $officerUserId, int $renta
 function stSaveLockerPricing(PDO $pdo, int $orgId, int $itemId, array $data): array
 {
     stRequireLockerOfficerContext($pdo);
+    $categoryId = stGetOrCreateLockerCategoryId($pdo, $orgId);
     $stmt = $pdo->prepare(
         "UPDATE inventory_items
          SET locker_monthly_rate = :monthly,
              locker_semester_rate = :semester,
              locker_school_year_rate = :school_year
-         WHERE item_id = :item_id
-           AND org_id = :org_id"
+         WHERE org_id = :org_id
+           AND category_id = :category_id"
     );
     $stmt->execute([
         ':monthly' => max(0, (float)($data['locker_monthly_rate'] ?? 0)),
         ':semester' => max(0, (float)($data['locker_semester_rate'] ?? 0)),
         ':school_year' => max(0, (float)($data['locker_school_year_rate'] ?? 0)),
-        ':item_id' => $itemId,
         ':org_id' => $orgId,
+        ':category_id' => $categoryId,
     ]);
 
     return stListLockerBoard($pdo, $orgId);
@@ -1527,6 +1584,29 @@ function stAddLockerItem(PDO $pdo, int $orgId, array $data): array
         throw new ServiceTrackerValidationException('That locker code already exists.');
     }
 
+    $defaultRatesStmt = $pdo->prepare(
+        "SELECT locker_monthly_rate, locker_semester_rate, locker_school_year_rate
+         FROM inventory_items
+         WHERE org_id = :org_id
+           AND category_id = :category_id
+         ORDER BY item_id ASC
+         LIMIT 1"
+    );
+    $defaultRatesStmt->execute([
+        ':org_id' => $orgId,
+        ':category_id' => $categoryId,
+    ]);
+    $defaultRates = $defaultRatesStmt->fetch() ?: null;
+    $monthlyRate = $defaultRates !== null
+        ? max(0, (float)($defaultRates['locker_monthly_rate'] ?? 0))
+        : max(0, (float)($data['locker_monthly_rate'] ?? 0));
+    $semesterRate = $defaultRates !== null
+        ? max(0, (float)($defaultRates['locker_semester_rate'] ?? 0))
+        : max(0, (float)($data['locker_semester_rate'] ?? 0));
+    $schoolYearRate = $defaultRates !== null
+        ? max(0, (float)($defaultRates['locker_school_year_rate'] ?? 0))
+        : max(0, (float)($data['locker_school_year_rate'] ?? 0));
+
     $insert = $pdo->prepare(
         "INSERT INTO inventory_items
             (org_id, item_name, barcode, image_path, category_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status, locker_monthly_rate, locker_semester_rate, locker_school_year_rate)
@@ -1538,9 +1618,9 @@ function stAddLockerItem(PDO $pdo, int $orgId, array $data): array
         ':item_name' => $lockerCode,
         ':barcode' => $lockerCode,
         ':category_id' => $categoryId,
-        ':monthly' => max(0, (float)($data['locker_monthly_rate'] ?? 0)),
-        ':semester' => max(0, (float)($data['locker_semester_rate'] ?? 0)),
-        ':school_year' => max(0, (float)($data['locker_school_year_rate'] ?? 0)),
+        ':monthly' => $monthlyRate,
+        ':semester' => $semesterRate,
+        ':school_year' => $schoolYearRate,
     ]);
 
     return stListLockerBoard($pdo, $orgId);
