@@ -1113,17 +1113,19 @@ function openLockerDetail(lockerCode) {
     setValue('lockerMonthlyRate', Number(locker.locker_monthly_rate || 0).toFixed(2));
     setValue('lockerSemesterRate', Number(locker.locker_semester_rate || 0).toFixed(2));
     setValue('lockerSchoolYearRate', Number(locker.locker_school_year_rate || 0).toFixed(2));
-    setValue('lockerDetailPeriodType', currentRequest?.locker_period_type || 'monthly');
+    setValue('lockerDetailPeriodType', currentRequest?.locker_period_type || '');
     setValue('lockerDetailStartDate', currentRequest?.rent_time ? String(currentRequest.rent_time).slice(0, 10) : '');
     setValue('lockerDetailEndDate', currentRequest?.expected_return_time ? String(currentRequest.expected_return_time).slice(0, 10) : '');
-    setValue('lockerDetailPrice', currentRequest ? Number(currentRequest.total_cost || 0).toFixed(2) : Number(locker.locker_monthly_rate || 0).toFixed(2));
+    setValue('lockerDetailPrice', currentRequest ? Number(currentRequest.total_cost || 0).toFixed(2) : '');
     setValue('lockerDetailNoticeMessage', currentRequest?.locker_notice_message || 'Your locker rental is already past due and may be pulled out by SSC if it remains unresolved.');
 
     const approveBtn = document.getElementById('lockerApproveBtn');
+    const rejectBtn = document.getElementById('lockerRejectBtn');
     const releaseBtn = document.getElementById('lockerReleaseBtn');
     const noticeBtn = document.getElementById('lockerNoticeBtn');
     if (approveBtn) approveBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
-    if (releaseBtn) releaseBtn.style.display = (locker.state === 'occupied' || locker.state === 'overdue' || locker.state === 'pending') ? 'inline-flex' : 'none';
+    if (rejectBtn) rejectBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
+    if (releaseBtn) releaseBtn.style.display = (locker.state === 'occupied' || locker.state === 'overdue') ? 'inline-flex' : 'none';
     if (noticeBtn) noticeBtn.style.display = locker.state === 'overdue' ? 'inline-flex' : 'none';
 
     const noticePreview = document.getElementById('lockerNoticePreview');
@@ -1201,16 +1203,30 @@ async function submitAddLocker() {
 function syncLockerAssignmentPreview() {
     if (!selectedLockerTile) return;
 
-    const periodType = document.getElementById('lockerDetailPeriodType')?.value || 'monthly';
+    const periodType = document.getElementById('lockerDetailPeriodType')?.value || '';
     const startInput = document.getElementById('lockerDetailStartDate');
     const endInput = document.getElementById('lockerDetailEndDate');
     const priceInput = document.getElementById('lockerDetailPrice');
     if (!startInput || !endInput || !priceInput) return;
 
+    if (!periodType) {
+        priceInput.value = '';
+        return;
+    }
+
     const startValue = String(startInput.value || '').trim();
     if (!startValue) {
         if (periodType !== 'custom') {
             endInput.value = '';
+        }
+        if (periodType === 'monthly') {
+            priceInput.value = Number(selectedLockerTile.locker_monthly_rate || 0).toFixed(2);
+        } else if (periodType === 'semester') {
+            priceInput.value = Number(selectedLockerTile.locker_semester_rate || 0).toFixed(2);
+        } else if (periodType === 'school_year') {
+            priceInput.value = Number(selectedLockerTile.locker_school_year_rate || 0).toFixed(2);
+        } else {
+            priceInput.value = '';
         }
         return;
     }
@@ -1272,7 +1288,7 @@ async function approveLockerAssignment() {
             credentials: 'same-origin',
             body: JSON.stringify({
                 rental_id: selectedLockerTile.current_request.rental_id,
-                period_type: document.getElementById('lockerDetailPeriodType')?.value || 'monthly',
+                period_type: document.getElementById('lockerDetailPeriodType')?.value || '',
                 start_date: document.getElementById('lockerDetailStartDate')?.value || '',
                 end_date: document.getElementById('lockerDetailEndDate')?.value || '',
                 price: document.getElementById('lockerDetailPrice')?.value || ''
@@ -1310,6 +1326,29 @@ async function releaseLockerAssignment() {
         closeLockerDetailModal();
     } catch (error) {
         alert(error.message || 'Could not release locker assignment.');
+    }
+}
+
+async function rejectLockerRequest() {
+    if (!selectedLockerTile?.current_request?.rental_id) return;
+    try {
+        const response = await fetch('../api/lockers/officer/reject.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                rental_id: selectedLockerTile.current_request.rental_id
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not reject locker request.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        renderOfficerLockerBoard();
+        closeLockerDetailModal();
+    } catch (error) {
+        alert(error.message || 'Could not reject locker request.');
     }
 }
 

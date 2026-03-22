@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 22, 2026 at 03:36 PM
+-- Generation Time: Mar 22, 2026 at 06:01 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -353,7 +353,8 @@ INSERT INTO `inventory_categories` (`category_id`, `org_id`, `category_name`, `i
 (2, 2, 'Calculator', 1, '2026-02-27 14:18:25', '2026-02-27 14:18:25'),
 (3, 3, 'Laboratory', 1, '2026-03-22 01:58:25', '2026-03-22 01:58:25'),
 (4, 2, 'Laboratory', 1, '2026-03-22 02:02:57', '2026-03-22 02:02:57'),
-(5, 3, 'Calculator', 1, '2026-03-22 02:13:52', '2026-03-22 02:13:52');
+(5, 3, 'Calculator', 1, '2026-03-22 02:13:52', '2026-03-22 02:13:52'),
+(6, 1, 'Locker', 1, '2026-03-22 23:41:45', '2026-03-22 23:41:45');
 
 --
 -- Triggers `inventory_categories`
@@ -381,25 +382,85 @@ CREATE TABLE `inventory_items` (
   `hourly_rate` decimal(10,2) NOT NULL DEFAULT 0.00,
   `overtime_interval_minutes` int(11) DEFAULT NULL COMMENT 'Minutes per overtime block (e.g., 30). NULL = no overtime charging.',
   `overtime_rate_per_block` decimal(10,2) DEFAULT NULL COMMENT 'Fee per overtime block (e.g., 5.00). NULL = no overtime charging.',
-  `locker_monthly_rate` decimal(10,2) DEFAULT NULL,
-  `locker_semester_rate` decimal(10,2) DEFAULT NULL,
-  `locker_school_year_rate` decimal(10,2) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'available',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `locker_monthly_rate` decimal(10,2) DEFAULT NULL,
+  `locker_semester_rate` decimal(10,2) DEFAULT NULL,
+  `locker_school_year_rate` decimal(10,2) DEFAULT NULL
 ) ;
 
 --
 -- Dumping data for table `inventory_items`
 --
 
-INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `image_path`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `locker_monthly_rate`, `locker_semester_rate`, `locker_school_year_rate`, `status`, `created_at`, `updated_at`) VALUES
-(1, 2, 'Shoe Cover', 'SH001', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-02-27 14:03:59', '2026-03-22 02:02:57'),
-(2, 2, 'Shoe Cover', 'SH002', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-02-27 14:07:03', '2026-03-22 02:03:03'),
-(3, 2, 'Scientific Calculator', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-02-27 14:18:25', '2026-03-22 02:07:38'),
-(4, 2, 'Business Calculator', 'CAL002', 'assets/photos/studentDashboard/Services/businesscalculator.png', 2, 10.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-02-27 14:18:55', '2026-03-22 00:54:56'),
-(5, 3, 'Crimping Tool', 'CT001', 'uploads/inventory-items/inventory_20260321_185825_888421cd5fe8.webp', 3, 20.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-03-22 01:58:25', '2026-03-22 01:58:25'),
-(7, 3, 'Scientific Calculator', 'ITCALC001', 'assets/photos/studentDashboard/Services/scical.png', 5, 20.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-03-22 02:13:52', '2026-03-22 14:29:48');
+INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `image_path`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `status`, `created_at`, `updated_at`, `locker_monthly_rate`, `locker_semester_rate`, `locker_school_year_rate`) VALUES
+(1, 2, 'Shoe Cover', 'SH001', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, 'available', '2026-02-27 14:03:59', '2026-03-22 02:02:57', NULL, NULL, NULL),
+(2, 2, 'Shoe Cover', 'SH002', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, 'available', '2026-02-27 14:07:03', '2026-03-22 02:03:03', NULL, NULL, NULL),
+(3, 2, 'Scientific Calculator', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-03-22 02:07:38', NULL, NULL, NULL),
+(4, 2, 'Business Calculator', 'CAL002', 'assets/photos/studentDashboard/Services/businesscalculator.png', 2, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-03-22 00:54:56', NULL, NULL, NULL),
+(5, 3, 'Crimping Tool', 'CT001', 'uploads/inventory-items/inventory_20260321_185825_888421cd5fe8.webp', 3, 20.00, 30, 5.00, 'available', '2026-03-22 01:58:25', '2026-03-22 01:58:25', NULL, NULL, NULL),
+(7, 3, 'Scientific Calculator', 'ITCALC001', 'assets/photos/studentDashboard/Services/scical.png', 5, 20.00, 30, 5.00, 'available', '2026-03-22 02:13:52', '2026-03-22 14:29:48', NULL, NULL, NULL),
+(8, 1, 'A01', 'A01', NULL, 6, 0.00, NULL, NULL, 'locker_occupied', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(9, 1, 'A02', 'A02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(10, 1, 'A03', 'A03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(11, 1, 'A04', 'A04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(12, 1, 'A05', 'A05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(13, 1, 'A06', 'A06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(14, 1, 'A07', 'A07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(15, 1, 'A08', 'A08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(16, 1, 'A09', 'A09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(17, 1, 'A10', 'A10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(18, 1, 'A11', 'A11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(19, 1, 'A12', 'A12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(20, 1, 'B01', 'B01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(21, 1, 'B02', 'B02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(22, 1, 'B03', 'B03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(23, 1, 'B04', 'B04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(24, 1, 'B05', 'B05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(25, 1, 'B06', 'B06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(26, 1, 'B07', 'B07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(27, 1, 'B08', 'B08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(28, 1, 'B09', 'B09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(29, 1, 'B10', 'B10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(30, 1, 'B11', 'B11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(31, 1, 'B12', 'B12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(32, 1, 'C01', 'C01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(33, 1, 'C02', 'C02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(34, 1, 'C03', 'C03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(35, 1, 'C04', 'C04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(36, 1, 'C05', 'C05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(37, 1, 'C06', 'C06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(38, 1, 'C07', 'C07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(39, 1, 'C08', 'C08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(40, 1, 'C09', 'C09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(41, 1, 'C10', 'C10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(42, 1, 'C11', 'C11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(43, 1, 'C12', 'C12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(44, 1, 'D01', 'D01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(45, 1, 'D02', 'D02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(46, 1, 'D03', 'D03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(47, 1, 'D04', 'D04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(48, 1, 'D05', 'D05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(49, 1, 'D06', 'D06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(50, 1, 'D07', 'D07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(51, 1, 'D08', 'D08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(52, 1, 'D09', 'D09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(53, 1, 'D10', 'D10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(54, 1, 'D11', 'D11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(55, 1, 'D12', 'D12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(56, 1, 'E01', 'E01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(57, 1, 'E02', 'E02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(58, 1, 'E03', 'E03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(59, 1, 'E04', 'E04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(60, 1, 'E05', 'E05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(61, 1, 'E06', 'E06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(62, 1, 'E07', 'E07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(63, 1, 'E08', 'E08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(64, 1, 'E09', 'E09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(65, 1, 'E10', 'E10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(66, 1, 'E11', 'E11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00),
+(67, 1, 'E12', 'E12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-23 01:01:44', 150.00, 0.00, 0.00);
 
 --
 -- Triggers `inventory_items`
@@ -669,32 +730,35 @@ CREATE TABLE `rentals` (
   `payment_status` varchar(20) NOT NULL DEFAULT 'unpaid',
   `paid_at` datetime DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'active',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp(),
   `service_kind` varchar(20) NOT NULL DEFAULT 'rental',
   `locker_period_type` varchar(32) DEFAULT NULL,
   `locker_notice_sent_at` datetime DEFAULT NULL,
   `locker_notice_message` text DEFAULT NULL,
-  `locker_notice_sent_by_user_id` int(11) DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
+  `locker_notice_sent_by_user_id` int(11) DEFAULT NULL
 ) ;
 
 --
 -- Dumping data for table `rentals`
 --
 
-INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_user_id`, `rent_time`, `expected_return_time`, `actual_return_time`, `total_cost`, `payment_status`, `paid_at`, `status`, `service_kind`, `locker_period_type`, `locker_notice_sent_at`, `locker_notice_message`, `locker_notice_sent_by_user_id`, `created_at`, `updated_at`) VALUES
-(1, 2, 6, 6, '2026-02-27 08:16:32', '2026-02-27 09:16:32', '2026-02-27 08:20:52', 15.00, 'paid', '2026-02-27 15:21:09', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:16:32', '2026-02-27 15:21:09'),
-(2, 2, 6, 6, '2026-02-27 08:21:17', '2026-02-27 09:21:17', '2026-02-27 08:21:44', 15.00, 'paid', '2026-02-27 15:21:54', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:21:17', '2026-02-27 15:21:54'),
-(3, 2, 6, 6, '2026-02-27 08:22:03', '2026-02-27 10:22:03', '2026-02-27 08:26:45', 30.00, 'paid', '2026-02-27 15:26:48', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:22:03', '2026-02-27 15:26:48'),
-(4, 2, 6, 6, '2026-02-27 08:26:58', '2026-02-27 09:26:58', '2026-02-27 08:27:24', 15.00, 'paid', '2026-02-27 15:27:26', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:26:58', '2026-02-27 15:27:26'),
-(5, 2, 6, 6, '2026-02-27 08:30:48', '2026-02-27 09:30:48', '2026-02-27 08:31:02', 15.00, 'paid', '2026-02-27 15:31:04', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:30:48', '2026-02-27 15:31:04'),
-(6, 2, 6, 6, '2026-02-27 08:32:30', '2026-02-27 09:32:30', '2026-02-27 08:33:56', 15.00, 'paid', '2026-02-27 15:33:58', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:32:30', '2026-02-27 15:33:58'),
-(7, 2, 6, 6, '2026-02-27 08:34:02', '2026-02-27 09:34:02', '2026-02-27 08:49:17', 15.00, 'paid', '2026-02-27 15:49:19', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:34:02', '2026-02-27 15:49:19'),
-(8, 2, 6, 6, '2026-02-27 08:49:45', '2026-02-27 10:49:45', '2026-02-27 08:52:29', 30.00, 'paid', '2026-02-27 15:52:31', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:49:45', '2026-02-27 15:52:31'),
-(9, 2, 6, 6, '2026-02-27 09:00:12', '2026-02-27 12:00:12', '2026-02-28 13:16:22', 300.00, 'paid', '2026-02-28 20:16:28', 'overdue', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 16:00:12', '2026-02-28 20:16:28'),
-(10, 2, 6, 6, '2026-02-28 13:16:40', '2026-02-28 14:16:40', '2026-03-22 01:31:11', 5095.00, 'paid', '2026-03-22 01:31:13', 'overdue', 'rental', NULL, NULL, NULL, NULL, '2026-02-28 20:16:40', '2026-03-22 01:31:13'),
-(11, 2, 6, 6, '2026-02-28 20:19:08', '2026-02-28 21:19:08', '2026-03-22 01:31:05', 5025.00, 'paid', '2026-03-22 01:31:07', 'overdue', 'rental', NULL, NULL, NULL, NULL, '2026-02-28 20:19:08', '2026-03-22 01:31:07'),
-(12, 3, 11, 11, '2026-03-22 08:00:00', '2026-03-22 10:00:00', NULL, 40.00, 'unpaid', NULL, 'cancelled', 'rental', NULL, NULL, NULL, NULL, '2026-03-22 02:18:55', '2026-03-22 14:29:48');
+INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_user_id`, `rent_time`, `expected_return_time`, `actual_return_time`, `total_cost`, `payment_status`, `paid_at`, `status`, `created_at`, `updated_at`, `service_kind`, `locker_period_type`, `locker_notice_sent_at`, `locker_notice_message`, `locker_notice_sent_by_user_id`) VALUES
+(1, 2, 6, 6, '2026-02-27 08:16:32', '2026-02-27 09:16:32', '2026-02-27 08:20:52', 15.00, 'paid', '2026-02-27 15:21:09', 'returned', '2026-02-27 15:16:32', '2026-02-27 15:21:09', 'rental', NULL, NULL, NULL, NULL),
+(2, 2, 6, 6, '2026-02-27 08:21:17', '2026-02-27 09:21:17', '2026-02-27 08:21:44', 15.00, 'paid', '2026-02-27 15:21:54', 'returned', '2026-02-27 15:21:17', '2026-02-27 15:21:54', 'rental', NULL, NULL, NULL, NULL),
+(3, 2, 6, 6, '2026-02-27 08:22:03', '2026-02-27 10:22:03', '2026-02-27 08:26:45', 30.00, 'paid', '2026-02-27 15:26:48', 'returned', '2026-02-27 15:22:03', '2026-02-27 15:26:48', 'rental', NULL, NULL, NULL, NULL),
+(4, 2, 6, 6, '2026-02-27 08:26:58', '2026-02-27 09:26:58', '2026-02-27 08:27:24', 15.00, 'paid', '2026-02-27 15:27:26', 'returned', '2026-02-27 15:26:58', '2026-02-27 15:27:26', 'rental', NULL, NULL, NULL, NULL),
+(5, 2, 6, 6, '2026-02-27 08:30:48', '2026-02-27 09:30:48', '2026-02-27 08:31:02', 15.00, 'paid', '2026-02-27 15:31:04', 'returned', '2026-02-27 15:30:48', '2026-02-27 15:31:04', 'rental', NULL, NULL, NULL, NULL),
+(6, 2, 6, 6, '2026-02-27 08:32:30', '2026-02-27 09:32:30', '2026-02-27 08:33:56', 15.00, 'paid', '2026-02-27 15:33:58', 'returned', '2026-02-27 15:32:30', '2026-02-27 15:33:58', 'rental', NULL, NULL, NULL, NULL),
+(7, 2, 6, 6, '2026-02-27 08:34:02', '2026-02-27 09:34:02', '2026-02-27 08:49:17', 15.00, 'paid', '2026-02-27 15:49:19', 'returned', '2026-02-27 15:34:02', '2026-02-27 15:49:19', 'rental', NULL, NULL, NULL, NULL),
+(8, 2, 6, 6, '2026-02-27 08:49:45', '2026-02-27 10:49:45', '2026-02-27 08:52:29', 30.00, 'paid', '2026-02-27 15:52:31', 'returned', '2026-02-27 15:49:45', '2026-02-27 15:52:31', 'rental', NULL, NULL, NULL, NULL),
+(9, 2, 6, 6, '2026-02-27 09:00:12', '2026-02-27 12:00:12', '2026-02-28 13:16:22', 300.00, 'paid', '2026-02-28 20:16:28', 'overdue', '2026-02-27 16:00:12', '2026-02-28 20:16:28', 'rental', NULL, NULL, NULL, NULL),
+(10, 2, 6, 6, '2026-02-28 13:16:40', '2026-02-28 14:16:40', '2026-03-22 01:31:11', 5095.00, 'paid', '2026-03-22 01:31:13', 'overdue', '2026-02-28 20:16:40', '2026-03-22 01:31:13', 'rental', NULL, NULL, NULL, NULL),
+(11, 2, 6, 6, '2026-02-28 20:19:08', '2026-02-28 21:19:08', '2026-03-22 01:31:05', 5025.00, 'paid', '2026-03-22 01:31:07', 'overdue', '2026-02-28 20:19:08', '2026-03-22 01:31:07', 'rental', NULL, NULL, NULL, NULL),
+(12, 3, 11, 11, '2026-03-22 08:00:00', '2026-03-22 10:00:00', NULL, 40.00, 'unpaid', NULL, 'cancelled', '2026-03-22 02:18:55', '2026-03-22 14:29:48', 'rental', NULL, NULL, NULL, NULL),
+(13, 1, 7, 7, '2026-03-22 00:00:00', '2026-04-22 23:59:59', NULL, 150.00, 'unpaid', NULL, 'locker_active', '2026-03-23 00:16:41', '2026-03-23 00:40:09', 'locker', 'monthly', NULL, NULL, NULL),
+(14, 1, 8, 7, '2026-03-22 17:42:27', '2026-03-22 17:42:27', '2026-03-23 00:56:04', 0.00, 'unpaid', NULL, 'locker_released', '2026-03-23 00:42:27', '2026-03-23 00:56:04', 'locker', 'pending', NULL, NULL, NULL),
+(15, 1, 8, 7, '2026-03-22 17:58:41', '2026-03-22 17:58:41', '2026-03-23 00:58:58', 0.00, 'unpaid', NULL, 'locker_released', '2026-03-23 00:58:41', '2026-03-23 00:58:58', 'locker', 'pending', NULL, NULL, NULL);
 
 --
 -- Triggers `rentals`
@@ -758,7 +822,10 @@ INSERT INTO `rental_items` (`rental_item_id`, `rental_id`, `item_id`, `quantity`
 (9, 9, 3, 1, 15.00, 45.00, 30, 5.00, '2026-02-27 16:00:12', '2026-02-27 16:00:12'),
 (10, 10, 1, 1, 10.00, 10.00, 30, 5.00, '2026-02-28 20:16:40', '2026-02-28 20:16:40'),
 (11, 11, 2, 1, 10.00, 10.00, 30, 5.00, '2026-02-28 20:19:08', '2026-02-28 20:19:08'),
-(12, 12, 7, 1, 20.00, 40.00, 30, 5.00, '2026-03-22 02:18:55', '2026-03-22 02:18:55');
+(12, 12, 7, 1, 20.00, 40.00, 30, 5.00, '2026-03-22 02:18:55', '2026-03-22 02:18:55'),
+(13, 13, 8, 1, 150.00, 150.00, NULL, NULL, '2026-03-23 00:16:41', '2026-03-23 00:40:09'),
+(14, 14, 20, 1, 0.00, 0.00, NULL, NULL, '2026-03-23 00:42:27', '2026-03-23 00:42:27'),
+(15, 15, 21, 1, 0.00, 0.00, NULL, NULL, '2026-03-23 00:58:41', '2026-03-23 00:58:41');
 
 --
 -- Triggers `rental_items`
@@ -873,10 +940,10 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`user_id`, `student_number`, `program_id`, `institute_id`, `first_name`, `last_name`, `employee_number`, `email`, `phone`, `password_hash`, `account_type`, `has_unpaid_debt`, `is_active`, `last_login_at`, `created_at`, `updated_at`) VALUES
 (1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-03-22 22:36:03', '2026-02-25 18:19:21', '2026-03-22 22:36:03'),
-(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-22 22:31:43', '2026-02-27 11:44:45', '2026-03-22 22:31:43'),
+(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-22 22:51:08', '2026-02-27 11:44:45', '2026-03-22 22:51:08'),
 (6, '12324MN-000094', 2, 1, 'Charles Gabriel A.', 'Martinez', NULL, 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'student', 0, 1, '2026-02-27 17:32:33', '2026-02-27 13:48:26', '2026-02-27 17:32:33'),
-(7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-03-22 22:35:01', '2026-02-28 19:45:28', '2026-03-22 22:35:01'),
-(8, 'ISstudent', 2, 1, 'ISstudent', 'ISstudent', NULL, 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'student', 0, 1, '2026-03-22 21:58:02', '2026-03-18 21:01:34', '2026-03-22 21:58:02'),
+(7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-03-23 00:58:50', '2026-02-28 19:45:28', '2026-03-23 00:58:50'),
+(8, 'ISstudent', 2, 1, 'ISstudent', 'ISstudent', NULL, 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'student', 0, 1, '2026-03-23 00:59:16', '2026-03-18 21:01:34', '2026-03-23 00:59:16'),
 (9, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'student', 0, 1, '2026-03-22 22:33:10', '2026-03-18 21:05:46', '2026-03-22 22:33:10'),
 (10, 'AETstudent', 3, 2, 'AETstudent', 'AETstudent', NULL, 'AETstudent@gmail.com', '+63 1234567890', '$2y$10$Pf0QzbAfnqQBMTUy1nn/4.xkxO7AeVIhxB.OsBQWR45lV4CXrLjI6', 'student', 0, 1, '2026-03-22 01:30:17', '2026-03-18 21:20:54', '2026-03-22 01:30:17'),
 (11, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$IYHhWOTf2dIs6FfOiVX99.iDQ8sRYvRi4HGtEuOWg/tuS0vPC0cw2', 'student', 1, 1, '2026-03-22 13:21:47', '2026-03-18 21:26:31', '2026-03-22 14:29:48');
@@ -1164,7 +1231,7 @@ ALTER TABLE `institutes`
 -- AUTO_INCREMENT for table `inventory_categories`
 --
 ALTER TABLE `inventory_categories`
-  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `inventory_items`
