@@ -39,10 +39,11 @@ function syncActiveOrgToPhpSession() {
         .then((data) => {
             if (!data || !data.ok || !data.session) return;
             localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
-            const trackerFrame = document.querySelector('#tracker iframe');
-            if (trackerFrame && trackerFrame.src) {
-                trackerFrame.src = trackerFrame.src;
-            }
+            document.querySelectorAll('#tracker iframe').forEach((trackerFrame) => {
+                if (trackerFrame && trackerFrame.src) {
+                    trackerFrame.src = trackerFrame.src;
+                }
+            });
         })
         .catch(() => { /* keep dashboard usable even if sync fails */ });
 }
@@ -330,8 +331,48 @@ function navigate(viewId, element) {
 
 let currentTrackerSubView = 'rentals';
 let officerPrintingQueue = [];
+let officerPrintingHistoryFilters = { startDate: null, endDate: null, search: '' };
+let currentPrintingPanelView = 'queue';
+let officerPrintingCalendarCurrentDate = new Date();
+let officerPrintingCalendarSelectedStart = null;
+let officerPrintingCalendarSelectedEnd = null;
+let officerPrintingEnabled = true;
+
+function setOfficerTrackerPrintingAccess(printingEnabled) {
+    officerPrintingEnabled = !!printingEnabled;
+
+    const trackerLayout = document.getElementById('trackerLayout');
+    const trackerSidebar = document.getElementById('trackerSidebar');
+    const printingBtn = document.getElementById('trackerPrintingBtn');
+    const printingView = document.getElementById('tracker-printing-view');
+    const rentalsView = document.getElementById('tracker-rentals-view');
+
+    if (trackerLayout) {
+        trackerLayout.classList.toggle('rentals-only', !officerPrintingEnabled);
+    }
+    if (trackerSidebar) {
+        trackerSidebar.hidden = !officerPrintingEnabled;
+    }
+    if (printingBtn) {
+        printingBtn.hidden = !officerPrintingEnabled;
+    }
+    if (printingView) {
+        printingView.style.display = officerPrintingEnabled ? '' : 'none';
+    }
+
+    if (!officerPrintingEnabled && currentTrackerSubView === 'printing') {
+        currentTrackerSubView = 'rentals';
+    }
+
+    if (!officerPrintingEnabled && rentalsView) {
+        rentalsView.classList.add('active');
+    }
+}
 
 function switchTrackerSubView(viewId, button = null) {
+    if (viewId === 'printing' && !officerPrintingEnabled) {
+        return;
+    }
     currentTrackerSubView = viewId;
     document.querySelectorAll('#tracker .sub-nav-btn').forEach((btn) => {
         btn.classList.toggle('active', btn === button || btn.getAttribute('onclick')?.includes(`'${viewId}'`));
@@ -344,8 +385,40 @@ function switchTrackerSubView(viewId, button = null) {
         target.classList.add('active');
     }
     if (viewId === 'printing') {
+        showOfficerPrintingQueueView();
         loadOfficerPrintingQueue().catch((error) => console.error(error));
     }
+}
+
+function showOfficerPrintingQueueView() {
+    currentPrintingPanelView = 'queue';
+    const queueContent = document.getElementById('officerPrintingQueueContent');
+    const historyContent = document.getElementById('officerPrintingHistoryContent');
+    const subtitle = document.getElementById('printingQueueSubtitle');
+    const btnHistory = document.getElementById('btnShowPrintingHistory');
+    const btnBack = document.getElementById('btnBackToPrintingQueue');
+
+    if (queueContent) queueContent.style.display = 'block';
+    if (historyContent) historyContent.style.display = 'none';
+    if (subtitle) subtitle.textContent = 'View PDFs, update print status, and rearrange queued jobs by priority.';
+    if (btnHistory) btnHistory.style.display = 'inline-flex';
+    if (btnBack) btnBack.style.display = 'none';
+}
+
+function showOfficerPrintingHistoryView() {
+    currentPrintingPanelView = 'history';
+    const queueContent = document.getElementById('officerPrintingQueueContent');
+    const historyContent = document.getElementById('officerPrintingHistoryContent');
+    const subtitle = document.getElementById('printingQueueSubtitle');
+    const btnHistory = document.getElementById('btnShowPrintingHistory');
+    const btnBack = document.getElementById('btnBackToPrintingQueue');
+
+    if (queueContent) queueContent.style.display = 'none';
+    if (historyContent) historyContent.style.display = 'block';
+    if (subtitle) subtitle.textContent = 'Review completed and cancelled print requests using the same date filters as the history page.';
+    if (btnHistory) btnHistory.style.display = 'none';
+    if (btnBack) btnBack.style.display = 'inline-flex';
+    renderOfficerPrintingHistory(true);
 }
 
 function getOfficerPrintStatusLabel(status) {
@@ -369,7 +442,10 @@ function getOfficerPrintStatusClass(status) {
 }
 
 function renderOfficerPrintingQueue(printingEnabled = true) {
+    setOfficerTrackerPrintingAccess(printingEnabled);
+
     const tableBody = document.getElementById('officerPrintingQueueTable');
+    const historyBody = document.getElementById('officerPrintingHistoryTable');
     const disabledMessage = document.getElementById('officerPrintingDisabledMessage');
     const tableWrap = document.getElementById('officerPrintingQueueTableWrap');
     if (!tableBody || !disabledMessage || !tableWrap) return;
@@ -378,15 +454,20 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
     tableWrap.style.display = printingEnabled ? 'block' : 'none';
 
     if (!printingEnabled) {
+        showOfficerPrintingQueueView();
+        renderOfficerPrintingHistory(false);
         return;
     }
 
-    if (!officerPrintingQueue.length) {
+    const activeJobs = officerPrintingQueue.filter((job) => {
+        const status = String(job.status || '').toLowerCase();
+        return status === 'queued' || status === 'processing' || status === 'ready_to_claim';
+    });
+
+    if (!activeJobs.length) {
         tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">No print jobs found for this organization.</td></tr>`;
-        return;
-    }
-
-    tableBody.innerHTML = officerPrintingQueue.map((job) => {
+    } else {
+        tableBody.innerHTML = activeJobs.map((job) => {
         const jobUrl = resolvePdfUrl(job.file_url);
         const queueLabel = String(job.status || '').toLowerCase() === 'queued'
             ? `#${Number(job.queue_position || job.queue_order || 0) || '-'}`
@@ -446,8 +527,300 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
                 </td>
             </tr>
         `;
+        }).join('');
+    }
+
+    renderOfficerPrintingHistory(true);
+
+    if (currentPrintingPanelView === 'history') {
+        showOfficerPrintingHistoryView();
+    } else {
+        showOfficerPrintingQueueView();
+    }
+}
+
+function filterOfficerPrintingHistory() {
+    officerPrintingHistoryFilters.search = String(document.getElementById('printingHistorySearchInput')?.value || '').trim().toLowerCase();
+    renderOfficerPrintingHistory(true);
+}
+
+function showAllOfficerPrintingHistoryDates() {
+    officerPrintingHistoryFilters = { startDate: null, endDate: null, search: '' };
+    officerPrintingCalendarSelectedStart = null;
+    officerPrintingCalendarSelectedEnd = null;
+    const label = document.getElementById('printingHistoryDateFilterLabel');
+    if (label) label.textContent = 'All Dates';
+    const searchInput = document.getElementById('printingHistorySearchInput');
+    if (searchInput) searchInput.value = '';
+    renderOfficerPrintingHistory(true);
+}
+
+function renderOfficerPrintingHistory(printingEnabled = true) {
+    const tableBody = document.getElementById('officerPrintingHistoryTable');
+    if (!tableBody) return;
+
+    if (!printingEnabled) {
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">Printing is not enabled for this organization.</td></tr>`;
+        return;
+    }
+
+    let historyItems = officerPrintingQueue.filter((job) => {
+        const status = String(job.status || '').toLowerCase();
+        return status === 'claimed' || status === 'cancelled';
+    });
+
+    if (officerPrintingHistoryFilters.startDate || officerPrintingHistoryFilters.endDate) {
+        historyItems = historyItems.filter((job) => {
+            const submittedDate = job.submitted_at ? new Date(job.submitted_at) : null;
+            if (!submittedDate || Number.isNaN(submittedDate.getTime())) return false;
+            const start = officerPrintingHistoryFilters.startDate ? new Date(officerPrintingHistoryFilters.startDate) : null;
+            const end = officerPrintingHistoryFilters.endDate ? new Date(officerPrintingHistoryFilters.endDate) : null;
+            if (start && submittedDate < start) return false;
+            if (end) {
+                end.setHours(23, 59, 59, 999);
+                if (submittedDate > end) return false;
+            }
+            return true;
+        });
+    }
+
+    if (officerPrintingHistoryFilters.search) {
+        historyItems = historyItems.filter((job) => {
+            const status = getOfficerPrintStatusLabel(job.status);
+            const searchBlob = [
+                job.file_name || '',
+                job.student_name || '',
+                job.student_number || '',
+                job.section || '',
+                job.notes || '',
+                status
+            ].join(' ').toLowerCase();
+            return searchBlob.includes(officerPrintingHistoryFilters.search);
+        });
+    }
+
+    historyItems.sort((a, b) => {
+        const aDate = new Date(a.claimed_at || a.updated_at || a.submitted_at || 0).getTime();
+        const bDate = new Date(b.claimed_at || b.updated_at || b.submitted_at || 0).getTime();
+        return bDate - aDate;
+    });
+
+    if (!historyItems.length) {
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">No print history found for the selected filters.</td></tr>`;
+        return;
+    }
+
+    tableBody.innerHTML = historyItems.map((job) => {
+        const jobUrl = resolvePdfUrl(job.file_url);
+        const completedAt = job.claimed_at || job.updated_at || '';
+        return `
+            <tr>
+                <td>${Number(job.queue_order || job.queue_position || 0) || '-'}</td>
+                <td>
+                    <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
+                    ${job.notes ? `<div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.notes)}</div>` : ''}
+                </td>
+                <td>
+                    <strong>${escapeHtml(job.student_name || 'Unknown Student')}</strong>
+                    <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.student_number || '-')} ${job.section ? `â€¢ ${escapeHtml(job.section)}` : ''}</div>
+                </td>
+                <td>${fmtDateShort(job.submitted_at)}<div style="color:var(--muted); font-size:0.8rem;">${new Date(job.submitted_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</div></td>
+                <td>${completedAt ? `${fmtDateShort(completedAt)}<div style="color:var(--muted); font-size:0.8rem;">${new Date(completedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</div>` : '-'}</td>
+                <td><span class="status-badge ${getOfficerPrintStatusClass(job.status)}">${getOfficerPrintStatusLabel(job.status)}</span></td>
+                <td>
+                    <div class="printing-job-action-stack">
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" target="_blank" rel="noopener">View</a>` : ''}
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" download>Download</a>` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
     }).join('');
 }
+
+function openOfficerPrintingDateFilterModal() {
+    const modal = document.getElementById('officerPrintingDateFilterModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    officerPrintingCalendarCurrentDate = new Date();
+    renderOfficerPrintingDateCalendar();
+    document.body.style.overflow = 'hidden';
+}
+
+function closeOfficerPrintingDateFilterModal() {
+    const modal = document.getElementById('officerPrintingDateFilterModal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function navigateOfficerPrintingCalendarMonth(offset) {
+    officerPrintingCalendarCurrentDate.setMonth(officerPrintingCalendarCurrentDate.getMonth() + offset);
+    renderOfficerPrintingDateCalendar();
+}
+
+function renderOfficerPrintingDateCalendar() {
+    const year = officerPrintingCalendarCurrentDate.getFullYear();
+    const month = officerPrintingCalendarCurrentDate.getMonth();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+
+    const monthYear = document.getElementById('officerPrintingFilterCalendarMonthYear');
+    if (monthYear) monthYear.textContent = `${monthNames[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const calendarDays = document.getElementById('officerPrintingFilterCalendarDays');
+    if (!calendarDays) return;
+    calendarDays.innerHTML = '';
+
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarDays.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, month, day);
+        dateObj.setHours(0, 0, 0, 0);
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.textContent = day;
+
+        if (dateObj.getTime() === today.getTime()) dayCell.classList.add('today');
+        if (officerPrintingCalendarSelectedStart && dateObj.getTime() === officerPrintingCalendarSelectedStart.getTime()) dayCell.classList.add('selected');
+        if (officerPrintingCalendarSelectedEnd && dateObj.getTime() === officerPrintingCalendarSelectedEnd.getTime()) dayCell.classList.add('selected');
+        if (officerPrintingCalendarSelectedStart && officerPrintingCalendarSelectedEnd) {
+            if (dateObj >= officerPrintingCalendarSelectedStart && dateObj <= officerPrintingCalendarSelectedEnd) {
+                dayCell.classList.add('in-range');
+            }
+        }
+
+        dayCell.addEventListener('click', () => selectOfficerPrintingCalendarDate(dateObj));
+        calendarDays.appendChild(dayCell);
+    }
+
+    updateOfficerPrintingSelectedRangeDisplay();
+}
+
+function selectOfficerPrintingCalendarDate(date) {
+    if (!officerPrintingCalendarSelectedStart || (officerPrintingCalendarSelectedStart && officerPrintingCalendarSelectedEnd)) {
+        officerPrintingCalendarSelectedStart = date;
+        officerPrintingCalendarSelectedEnd = null;
+    } else if (date < officerPrintingCalendarSelectedStart) {
+        officerPrintingCalendarSelectedEnd = officerPrintingCalendarSelectedStart;
+        officerPrintingCalendarSelectedStart = date;
+    } else {
+        officerPrintingCalendarSelectedEnd = date;
+    }
+
+    renderOfficerPrintingDateCalendar();
+}
+
+function updateOfficerPrintingSelectedRangeDisplay() {
+    const startDisplay = document.getElementById('officerPrintingSelectedStartDate');
+    const endDisplay = document.getElementById('officerPrintingSelectedEndDate');
+
+    if (startDisplay) {
+        startDisplay.textContent = officerPrintingCalendarSelectedStart
+            ? officerPrintingCalendarSelectedStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Not selected';
+    }
+
+    if (endDisplay) {
+        endDisplay.textContent = officerPrintingCalendarSelectedEnd
+            ? officerPrintingCalendarSelectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Not selected';
+    }
+}
+
+function applyOfficerPrintingDatePreset(preset) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    officerPrintingCalendarCurrentDate = new Date(today);
+
+    let startDate;
+    let endDate;
+
+    switch (preset) {
+        case 'today':
+            startDate = new Date(today);
+            endDate = null;
+            break;
+        case 'week':
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - 7);
+            endDate = new Date(today);
+            break;
+        case 'month':
+            startDate = new Date(today);
+            startDate.setMonth(today.getMonth() - 1);
+            endDate = new Date(today);
+            break;
+        case 'all':
+        default:
+            startDate = null;
+            endDate = null;
+            break;
+    }
+
+    officerPrintingCalendarSelectedStart = startDate;
+    officerPrintingCalendarSelectedEnd = endDate;
+    updateOfficerPrintingSelectedRangeDisplay();
+    renderOfficerPrintingDateCalendar();
+}
+
+function applyOfficerPrintingDateFilter() {
+    officerPrintingHistoryFilters.startDate = officerPrintingCalendarSelectedStart
+        ? officerPrintingCalendarSelectedStart.toISOString().split('T')[0]
+        : null;
+    officerPrintingHistoryFilters.endDate = officerPrintingCalendarSelectedEnd
+        ? officerPrintingCalendarSelectedEnd.toISOString().split('T')[0]
+        : null;
+
+    const label = document.getElementById('printingHistoryDateFilterLabel');
+    if (label) {
+        if (officerPrintingHistoryFilters.startDate && !officerPrintingHistoryFilters.endDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayKey = today.toISOString().split('T')[0];
+            label.textContent = officerPrintingHistoryFilters.startDate === todayKey
+                ? 'Today'
+                : new Date(officerPrintingHistoryFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else if (officerPrintingHistoryFilters.startDate || officerPrintingHistoryFilters.endDate) {
+            const start = officerPrintingHistoryFilters.startDate
+                ? new Date(officerPrintingHistoryFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '...';
+            const end = officerPrintingHistoryFilters.endDate
+                ? new Date(officerPrintingHistoryFilters.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '...';
+            label.textContent = `${start} - ${end}`;
+        } else {
+            label.textContent = 'All Dates';
+        }
+    }
+
+    closeOfficerPrintingDateFilterModal();
+    renderOfficerPrintingHistory(true);
+}
+
+document.addEventListener('click', (e) => {
+    const printingDateModal = document.getElementById('officerPrintingDateFilterModal');
+    if (printingDateModal && e.target === printingDateModal) {
+        closeOfficerPrintingDateFilterModal();
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const printingDateModal = document.getElementById('officerPrintingDateFilterModal');
+        if (printingDateModal && printingDateModal.classList.contains('show')) {
+            closeOfficerPrintingDateFilterModal();
+        }
+    }
+});
 
 async function loadOfficerPrintingQueue(force = false) {
     try {
@@ -467,6 +840,7 @@ async function loadOfficerPrintingQueue(force = false) {
             console.error('[loadOfficerPrintingQueue]', error);
         }
         officerPrintingQueue = [];
+        setOfficerTrackerPrintingAccess(true);
         renderOfficerPrintingQueue(true);
         throw error;
     }
@@ -1582,6 +1956,7 @@ window.addEventListener('DOMContentLoaded', () => {
     loadRentalsFromApi();
     loadDocsFromApi();
     loadRepoFromApi();
+    loadOfficerPrintingQueue().catch(() => {});
     // Initialize repository counts
     if (typeof updateFolderCounts === 'function') {
         updateFolderCounts();

@@ -71,13 +71,21 @@ body {
 }
 
 .nav-link {
-    color: rgba(255, 255, 255, 0.8) !important;
+    color: rgba(15, 23, 42, 0.8) !important;
     font-weight: 500;
     font-size: 0.95rem;
 }
 
 .nav-link.active {
-    color: #ffffff !important;
+    color: var(--primary) !important;
+}
+
+.custom-navbar {
+    background-color: #ffffff !important;
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 /* --- CARD STYLING (MATCHING DASHBOARD) --- */
@@ -420,7 +428,7 @@ h1.mb-4 {
 
 /* Navigation Links (Zeus UI Standard) */
 .nav-pills-custom .nav-link {
-    color: rgba(255, 255, 255, 0.85) !important;
+    color: rgba(15, 23, 42, 0.78) !important;
     font-weight: 600;
     font-size: 0.95rem;
     padding: 0.5rem 1.2rem;
