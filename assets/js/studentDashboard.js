@@ -1984,6 +1984,7 @@ function getPrintingJobStatusLabel(status) {
 }
 
 function renderStudentPrintingJobs() {
+    const heroLiveContainer = document.getElementById('printingHeroLive');
     const lists = [
         document.getElementById('studentPrintingJobsList'),
         document.getElementById('studentPrintingHeroJobs')
@@ -1996,17 +1997,24 @@ function renderStudentPrintingJobs() {
     });
 
     if (!activePrintJobs.length) {
+        if (heroLiveContainer) {
+            heroLiveContainer.style.display = 'none';
+        }
         const emptyMarkup = `
-              <div class="printing-empty-state">
-                  <i class="fa-solid fa-print"></i>
-                  <h3>No Active Print Jobs</h3>
-                  <p>Your open print requests will appear here until they are completed and claimed.</p>
+            <div class="printing-empty-state">
+                <i class="fa-solid fa-print"></i>
+                <h3>No Active Print Jobs</h3>
+                <p>Your open print requests will appear here until they are completed and claimed.</p>
               </div>
           `;
         lists.forEach((list) => {
             list.innerHTML = emptyMarkup;
         });
         return;
+    }
+
+    if (heroLiveContainer) {
+        heroLiveContainer.style.display = '';
     }
 
     const markup = activePrintJobs.map((job) => {
