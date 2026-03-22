@@ -40,6 +40,7 @@ try {
       SELECT r.rental_id,
              r.org_id,
              o.org_name,
+             o.org_code,
              r.renter_user_id,
              r.processed_by_user_id,
              CONCAT(pu.first_name, ' ', pu.last_name) AS processor_name,
