@@ -20,17 +20,25 @@ try {
     // Determine column existence for compatibility
     $hasRentalNotes = igpColumnExists($pdo, 'rentals', 'notes');
     $notesSelectExpr = $hasRentalNotes ? "r.notes" : "NULL AS notes";
+    $hasServiceKind = igpColumnExists($pdo, 'rentals', 'service_kind');
+    $serviceKindSelectExpr = $hasServiceKind ? "r.service_kind" : "'rental' AS service_kind";
+    $hasLockerPeriodType = igpColumnExists($pdo, 'rentals', 'locker_period_type');
+    $lockerPeriodTypeSelectExpr = $hasLockerPeriodType ? "r.locker_period_type" : "NULL AS locker_period_type";
+    $hasLockerNoticeSentAt = igpColumnExists($pdo, 'rentals', 'locker_notice_sent_at');
+    $lockerNoticeSentAtSelectExpr = $hasLockerNoticeSentAt ? "r.locker_notice_sent_at" : "NULL AS locker_notice_sent_at";
+    $hasLockerNoticeMessage = igpColumnExists($pdo, 'rentals', 'locker_notice_message');
+    $lockerNoticeMessageSelectExpr = $hasLockerNoticeMessage ? "r.locker_notice_message" : "NULL AS locker_notice_message";
 
     // Build WHERE clause
     $where = ["r.renter_user_id = :user_id"];
     $params = [':user_id' => $userId];
 
     if ($status === 'open') {
-        $where[] = "r.status IN ('reserved', 'active')";
+        $where[] = "r.status IN ('reserved', 'active', 'locker_pending', 'locker_active', 'locker_overdue')";
     } elseif ($status === 'active') {
-        $where[] = "r.status = 'active'";
+        $where[] = "r.status IN ('active', 'locker_active', 'locker_overdue')";
     } elseif ($status === 'reserved') {
-        $where[] = "r.status = 'reserved'";
+        $where[] = "r.status IN ('reserved', 'locker_pending')";
     } elseif (!empty($status)) {
         $where[] = "r.status = :status";
         $params[':status'] = $status;
@@ -51,6 +59,10 @@ try {
              r.payment_status,
              r.paid_at,
              r.status,
+             {$serviceKindSelectExpr},
+             {$lockerPeriodTypeSelectExpr},
+             {$lockerNoticeSentAtSelectExpr},
+             {$lockerNoticeMessageSelectExpr},
              {$notesSelectExpr},
              SUM(ri.quantity) AS item_count,
              SUM(ri.unit_rate * ri.quantity) AS hourly_rate,
@@ -58,7 +70,7 @@ try {
              GROUP_CONCAT(i.barcode ORDER BY i.item_name SEPARATOR ', ') AS barcodes
       FROM rentals r
       JOIN organizations o ON o.org_id = r.org_id
-      JOIN users pu ON pu.user_id = r.processed_by_user_id
+      LEFT JOIN users pu ON pu.user_id = r.processed_by_user_id
       JOIN rental_items ri ON ri.rental_id = r.rental_id
       JOIN inventory_items i ON i.item_id = ri.item_id
       WHERE " . implode(' AND ', $where) . "
@@ -78,6 +90,7 @@ try {
         $r['item_count'] = (int)$r['item_count'];
         $r['total_cost'] = (float)$r['total_cost'];
         $r['hourly_rate'] = (float)$r['hourly_rate'];
+        $r['service_kind'] = (string)($r['service_kind'] ?? 'rental');
     }
 
     jsonOk(['items' => $rows]);

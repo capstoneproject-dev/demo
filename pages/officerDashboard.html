@@ -339,6 +339,10 @@
                             <i class="fa-solid fa-print"></i>
                             <span class="tracker-btn-label">Printing Queue</span>
                         </button>
+                        <button id="trackerLockerBtn" class="sub-nav-btn" onclick="switchTrackerSubView('lockers', this)" hidden>
+                            <i class="fa-solid fa-door-closed"></i>
+                            <span class="tracker-btn-label">Locker Services</span>
+                        </button>
                     </div>
                 </aside>
 
@@ -435,6 +439,186 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div id="tracker-lockers-view" class="tracker-sub-view">
+                        <div class="card locker-services-panel">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">Locker Services</div>
+                                    <p style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">
+                                        Assign, monitor, and manage SSC locker rentals from an interactive locker board.
+                                    </p>
+                                </div>
+                                <div class="printing-queue-header-actions locker-panel-actions">
+                                    <button class="btn btn-primary btn-sm" type="button" onclick="openAddLockerModal()">
+                                        <i class="fa-solid fa-plus"></i> Add Locker
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerLockerBoard(true)">
+                                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="officerLockerDisabledMessage" class="empty-state" style="display:none; padding:32px; text-align:center;">
+                                <i class="fa-solid fa-door-closed" style="font-size:40px; color:var(--muted); margin-bottom:10px;"></i>
+                                <h3 style="margin-bottom:8px;">Locker Services Unavailable</h3>
+                                <p style="color:var(--muted);">Locker services are only available for SSC officers.</p>
+                            </div>
+
+                            <div id="officerLockerContent" class="locker-services-content">
+                                <div class="locker-overview-strip" id="lockerOverviewStrip">
+                                    <div class="locker-overview-chip available"><span id="lockerAvailableCount">0</span><small>Available</small></div>
+                                    <div class="locker-overview-chip pending"><span id="lockerPendingCount">0</span><small>Pending</small></div>
+                                    <div class="locker-overview-chip occupied"><span id="lockerOccupiedCount">0</span><small>Occupied</small></div>
+                                    <div class="locker-overview-chip overdue"><span id="lockerOverdueCount">0</span><small>Overdue</small></div>
+                                </div>
+                                <div id="officerLockerBoard" class="locker-board">
+                                    <div class="empty-state" style="padding:32px; text-align:center;">
+                                        <i class="fa-solid fa-door-closed" style="font-size:40px; color:var(--muted); margin-bottom:10px;"></i>
+                                        <h3 style="margin-bottom:8px;">Loading lockers...</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lockerDetailModal" class="modal-overlay">
+            <div class="modal-content locker-detail-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="lockerDetailTitle">Locker Details</h3>
+                        <p id="lockerDetailSubtitle" class="locker-detail-subtitle">View locker assignment details and pricing.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeLockerDetailModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <div class="locker-detail-top">
+                        <div id="lockerDetailStateBadge" class="locker-state-pill available">Available</div>
+                        <div id="lockerDetailStudentBlock" class="locker-detail-student">
+                            <strong id="lockerDetailStudentName">No student assigned</strong>
+                            <span id="lockerDetailStudentMeta">Select a locker tile to view its details.</span>
+                        </div>
+                    </div>
+
+                    <div class="locker-detail-grid">
+                        <label class="locker-field">
+                            <span>Locker Code</span>
+                            <input id="lockerDetailCode" type="text" readonly>
+                        </label>
+                        <label class="locker-field">
+                            <span>Rental Period</span>
+                            <select id="lockerDetailPeriodType" onchange="syncLockerAssignmentPreview()">
+                                <option value="monthly">Monthly</option>
+                                <option value="semester">Per Semester</option>
+                                <option value="school_year">Whole School Year</option>
+                                <option value="custom">Custom Period</option>
+                            </select>
+                        </label>
+                        <label class="locker-field">
+                            <span>Start Date</span>
+                            <input id="lockerDetailStartDate" type="date" onchange="syncLockerAssignmentPreview()">
+                        </label>
+                        <label class="locker-field">
+                            <span>End Date</span>
+                            <input id="lockerDetailEndDate" type="date" onchange="syncLockerAssignmentPreview()">
+                        </label>
+                        <label class="locker-field">
+                            <span>Monthly Rate</span>
+                            <input id="lockerMonthlyRate" type="number" min="0" step="0.01">
+                        </label>
+                        <label class="locker-field">
+                            <span>Semester Rate</span>
+                            <input id="lockerSemesterRate" type="number" min="0" step="0.01">
+                        </label>
+                        <label class="locker-field">
+                            <span>School Year Rate</span>
+                            <input id="lockerSchoolYearRate" type="number" min="0" step="0.01">
+                        </label>
+                        <label class="locker-field locker-field-highlight">
+                            <span>Final Price</span>
+                            <input id="lockerDetailPrice" type="number" min="0" step="0.01">
+                        </label>
+                    </div>
+
+                    <div id="lockerNoticePreview" class="locker-notice-preview" style="display:none;">
+                        <div class="locker-notice-preview-header">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>Pull-out Notice Sent</span>
+                        </div>
+                        <p id="lockerNoticePreviewText"></p>
+                        <small id="lockerNoticePreviewMeta"></small>
+                    </div>
+
+                    <label class="locker-field locker-field-full">
+                        <span>Pull-out Notice Message</span>
+                        <textarea id="lockerDetailNoticeMessage" rows="3" placeholder="Your locker rental is already past due and may be pulled out by SSC if it remains unresolved."></textarea>
+                    </label>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-secondary-actions">
+                        <button id="lockerSavePricingBtn" class="btn btn-outline" type="button" onclick="saveLockerPricing()">
+                            <i class="fa-solid fa-tags"></i> Save Rates
+                        </button>
+                        <button id="lockerNoticeBtn" class="btn btn-outline" type="button" onclick="sendLockerPulloutNotice()" style="display:none;">
+                            <i class="fa-solid fa-bell"></i> Send Notice
+                        </button>
+                        <button id="lockerReleaseBtn" class="btn btn-outline" type="button" onclick="releaseLockerAssignment()" style="display:none;">
+                            <i class="fa-solid fa-box-open"></i> Release Locker
+                        </button>
+                    </div>
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeLockerDetailModal()">Close</button>
+                        <button id="lockerApproveBtn" class="btn btn-primary" type="button" onclick="approveLockerAssignment()" style="display:none;">
+                            <i class="fa-solid fa-circle-check"></i> Approve & Assign
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="addLockerModal" class="modal-overlay">
+            <div class="modal-content add-locker-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>Add Locker</h3>
+                        <p class="locker-detail-subtitle">Default lockers A01-E12 are seeded automatically. Use this to add more locker codes.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeAddLockerModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <div class="locker-detail-grid add-locker-grid">
+                        <label class="locker-field">
+                            <span>Locker Code</span>
+                            <input id="newLockerCode" type="text" maxlength="3" placeholder="F01">
+                        </label>
+                        <label class="locker-field">
+                            <span>Monthly Rate</span>
+                            <input id="newLockerMonthlyRate" type="number" min="0" step="0.01" value="0">
+                        </label>
+                        <label class="locker-field">
+                            <span>Semester Rate</span>
+                            <input id="newLockerSemesterRate" type="number" min="0" step="0.01" value="0">
+                        </label>
+                        <label class="locker-field">
+                            <span>School Year Rate</span>
+                            <input id="newLockerSchoolYearRate" type="number" min="0" step="0.01" value="0">
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeAddLockerModal()">Cancel</button>
+                        <button class="btn btn-primary" type="button" onclick="submitAddLocker()">
+                            <i class="fa-solid fa-plus"></i> Add Locker
+                        </button>
                     </div>
                 </div>
             </div>

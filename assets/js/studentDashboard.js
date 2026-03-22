@@ -1363,6 +1363,7 @@ function renderProfile() {
             </tr>
         `;
     }).join('');
+    renderStudentLockerProfile();
 }
 
 function filterServices() {
@@ -1553,6 +1554,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     renderServicesModuleNav();
     renderPrintingProviderOptions();
     loadStudentPrintJobs().catch((error) => console.error(error));
+    loadStudentLockers().catch((error) => console.error(error));
     renderProfile();
     switchOrgTab('about', document.querySelector('.tab-btn'));
 
@@ -1640,6 +1642,10 @@ window.addEventListener('click', (e) => {
     const modal = document.getElementById('eventRegistrationModal');
     if (e.target === modal) {
         closeRegistrationModal();
+    }
+    const lockerModal = document.getElementById('studentLockerModal');
+    if (e.target === lockerModal) {
+        closeStudentLockerModal();
     }
 });
 
@@ -1761,6 +1767,13 @@ let studentServicesTracker = {
 };
 let studentPrintingJobs = [];
 let studentServicesTrackerPromise = null;
+let studentLockerState = {
+    enabled: false,
+    org_name: '',
+    org_code: '',
+    lockers: [],
+    current_locker: null
+};
 
 function resolveStudentCatalogImage(path) {
     const raw = String(path || '').trim();
@@ -1981,6 +1994,231 @@ function getPrintingJobStatusLabel(status) {
     if (normalized === 'claimed') return 'Claimed';
     if (normalized === 'cancelled') return 'Cancelled';
     return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown';
+}
+
+function getLockerActivityStatusLabel(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'locker_pending') return 'Pending Approval';
+    if (normalized === 'locker_active') return 'Active';
+    if (normalized === 'locker_overdue') return 'Overdue';
+    if (normalized === 'locker_released') return 'Released';
+    return normalized ? normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : 'Unknown';
+}
+
+function getLockerActivityStatusClass(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'locker_pending') return 'status-reserved';
+    if (normalized === 'locker_active') return 'status-active';
+    if (normalized === 'locker_overdue') return 'status-no-show';
+    if (normalized === 'locker_released') return 'status-returned';
+    return 'status-unknown';
+}
+
+function renderStudentLockerBoard() {
+    const section = document.getElementById('studentLockerSection');
+    const board = document.getElementById('studentLockerBoard');
+    const badge = document.getElementById('studentLockerCurrentBadge');
+    const currentCard = document.getElementById('studentLockerCurrentCard');
+    if (!section || !board || !currentCard) return;
+
+    if (!studentLockerState.enabled) {
+        section.style.display = 'none';
+        renderStudentLockerProfile();
+        return;
+    }
+
+    section.style.display = 'block';
+    const lockers = Array.isArray(studentLockerState.lockers) ? studentLockerState.lockers : [];
+    const currentLocker = studentLockerState.current_locker || null;
+
+    if (badge) {
+        if (currentLocker?.locker_code) {
+            badge.style.display = 'inline-flex';
+            badge.textContent = `Current Locker: ${currentLocker.locker_code}`;
+        } else {
+            badge.style.display = 'none';
+            badge.textContent = '';
+        }
+    }
+
+    const groups = lockers.reduce((acc, locker) => {
+        const columnKey = locker.column_key || 'A';
+        if (!acc[columnKey]) acc[columnKey] = [];
+        acc[columnKey].push(locker);
+        return acc;
+    }, {});
+
+    board.innerHTML = ['A', 'B', 'C', 'D', 'E'].map((columnKey) => {
+        const columnLockers = (groups[columnKey] || []).sort((a, b) => String(a.locker_code).localeCompare(String(b.locker_code)));
+        return `
+            <div class="student-locker-column">
+                <div class="student-locker-column-header">${columnKey}</div>
+                <div class="student-locker-column-grid">
+                    ${columnLockers.map((locker) => {
+                        const state = String(locker.state || 'available').toLowerCase();
+                        const stateLabel = state === 'pending' ? 'Pending' : (state === 'occupied' ? 'Occupied' : (state === 'overdue' ? 'Overdue' : 'Available'));
+                        const canRequest = !!locker.request_allowed;
+                        return `
+                            <button
+                                type="button"
+                                class="student-locker-tile state-${state}"
+                                onclick="${canRequest ? `requestStudentLocker(${Number(locker.item_id)})` : 'void(0)'}"
+                                ${canRequest ? '' : 'disabled'}>
+                                <span class="student-locker-code">${escapeStudentHtml(locker.locker_code || '')}</span>
+                                <span class="student-locker-state">${stateLabel}</span>
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (currentLocker) {
+        currentCard.innerHTML = `
+            <div class="student-locker-current-top">
+                <div class="student-locker-current-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
+                <span class="status-badge ${getLockerActivityStatusClass(currentLocker.status)}">${escapeStudentHtml(getLockerActivityStatusLabel(currentLocker.status))}</span>
+            </div>
+            <div class="student-locker-current-meta">
+                <span><i class="fa-solid fa-calendar-check"></i> Start: ${formatDate(currentLocker.rent_time)}</span>
+                <span><i class="fa-solid fa-calendar-xmark"></i> Due: ${formatDate(currentLocker.expected_return_time)}</span>
+                <span><i class="fa-solid fa-money-bill-wave"></i> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+            </div>
+            ${currentLocker.locker_notice_message ? `
+                <div class="student-locker-notice-banner">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <div>
+                        <strong>Pull-out Notice</strong>
+                        <p>${escapeStudentHtml(currentLocker.locker_notice_message)}</p>
+                    </div>
+                </div>
+            ` : ''}
+        `;
+    } else {
+        currentCard.innerHTML = `
+            <div class="student-locker-empty">
+                <i class="fa-solid fa-door-closed"></i>
+                <p>You do not have an active locker request yet.</p>
+            </div>
+        `;
+    }
+
+    renderStudentLockerProfile();
+}
+
+function openStudentLockerModal() {
+    const modal = document.getElementById('studentLockerModal');
+    if (!modal || !studentLockerState.enabled) return;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+}
+
+function closeStudentLockerModal() {
+    const modal = document.getElementById('studentLockerModal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+}
+
+function renderStudentLockerProfile() {
+    const section = document.getElementById('profileLockerSection');
+    const content = document.getElementById('profileLockerContent');
+    if (!section || !content) return;
+
+    const currentLocker = studentLockerState.current_locker || null;
+    if (!studentLockerState.enabled || !currentLocker) {
+        section.style.display = 'none';
+        content.innerHTML = '';
+        return;
+    }
+
+    section.style.display = 'block';
+    content.innerHTML = `
+        <div class="profile-locker-card">
+            <div class="profile-locker-main">
+                <div class="profile-locker-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
+                <div class="profile-locker-details">
+                    <span><strong>Status:</strong> ${escapeStudentHtml(getLockerActivityStatusLabel(currentLocker.status))}</span>
+                    <span><strong>Start:</strong> ${formatDate(currentLocker.rent_time)}</span>
+                    <span><strong>Due:</strong> ${formatDate(currentLocker.expected_return_time)}</span>
+                    <span><strong>Price:</strong> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                </div>
+            </div>
+            ${currentLocker.locker_notice_message ? `
+                <div class="profile-locker-notice">
+                    <i class="fa-solid fa-bell"></i>
+                    <div>
+                        <strong>SSC Notice</strong>
+                        <p>${escapeStudentHtml(currentLocker.locker_notice_message)}</p>
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+async function loadStudentLockers(force = false) {
+    try {
+        const response = await fetch('../api/lockers/student/list.php', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load locker services.');
+        }
+        studentLockerState = {
+            enabled: !!data.enabled,
+            org_name: data.org_name || '',
+            org_code: data.org_code || '',
+            lockers: Array.isArray(data.lockers) ? data.lockers : [],
+            current_locker: data.current_locker || null
+        };
+        renderStudentLockerBoard();
+        return studentLockerState;
+    } catch (error) {
+        if (force) {
+            console.error('[loadStudentLockers]', error);
+        }
+        studentLockerState = { enabled: false, org_name: '', org_code: '', lockers: [], current_locker: null };
+        renderStudentLockerBoard();
+        throw error;
+    }
+}
+
+async function requestStudentLocker(itemId) {
+    try {
+        const response = await fetch('../api/lockers/student/request.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ item_id: itemId })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not submit the locker request.');
+        }
+        studentLockerState = {
+            enabled: !!data.enabled,
+            org_name: data.org_name || '',
+            org_code: data.org_code || '',
+            lockers: Array.isArray(data.lockers) ? data.lockers : [],
+            current_locker: data.current_locker || null
+        };
+        renderStudentLockerBoard();
+        await Promise.all([
+            loadCurrentRentals(),
+            loadRentalHistory()
+        ]);
+        buildFilterOptions();
+        updateMyRentalsEmptyState();
+        closeStudentLockerModal();
+    } catch (error) {
+        alert(error.message || 'Could not submit the locker request.');
+    }
 }
 
 function renderStudentPrintingJobs() {
@@ -2673,6 +2911,7 @@ function closeItemSelectModal() {
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
         closeServiceModal();
+        closeStudentLockerModal();
     }
 });
 
@@ -3172,6 +3411,10 @@ document.addEventListener('keydown', function (e) {
         if (modal.classList.contains('open')) {
             closeServiceModal();
         }
+        const lockerModal = document.getElementById('studentLockerModal');
+        if (lockerModal && lockerModal.classList.contains('open')) {
+            closeStudentLockerModal();
+        }
     }
 });
 
@@ -3635,6 +3878,47 @@ function renderCurrentRentals() {
 }
 
 function createRentalCard(rental) {
+    if (String(rental.service_kind || '').toLowerCase() === 'locker') {
+        const card = document.createElement('div');
+        card.className = 'rental-card locker-rental-card';
+        const lockerCode = String(rental.items_label || rental.barcodes || 'Locker').replace(/\s*\(\d+x\)/g, '').trim();
+        const statusClass = getLockerActivityStatusClass(rental.status);
+        const statusText = getLockerActivityStatusLabel(rental.status);
+        card.innerHTML = `
+            <div class="rental-card-header">
+                <div class="rental-card-status ${statusClass}">${statusText}</div>
+                <div class="rental-card-org">${rental.org_name || 'Supreme Student Council'}</div>
+            </div>
+            <div class="rental-card-items">
+                <h4><i class="fa-solid fa-door-closed"></i> Locker Assignment</h4>
+                <div class="rental-items-list">${escapeStudentHtml(lockerCode)}</div>
+            </div>
+            <div class="rental-card-details">
+                <div class="rental-detail-row">
+                    <i class="fa-solid fa-calendar-check"></i>
+                    <span class="rental-detail-label">Start:</span>
+                    <span class="rental-detail-value">${formatDateTime(rental.rent_time)}</span>
+                </div>
+                <div class="rental-detail-row">
+                    <i class="fa-solid fa-calendar-xmark"></i>
+                    <span class="rental-detail-label">Due:</span>
+                    <span class="rental-detail-value">${formatDateTime(rental.expected_return_time)}</span>
+                </div>
+                ${rental.locker_notice_message ? `
+                    <div class="rental-detail-row locker-rental-notice">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span class="rental-detail-value">${escapeStudentHtml(rental.locker_notice_message)}</span>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="rental-card-footer">
+                <div class="rental-cost">${parseFloat(rental.total_cost || 0).toFixed(2)}</div>
+                <div class="rental-payment-status ${rental.payment_status}">${rental.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</div>
+            </div>
+        `;
+        return card;
+    }
+
     const card = document.createElement('div');
     card.className = 'rental-card';
     card.setAttribute('data-rental-id', rental.rental_id);
@@ -3792,6 +4076,9 @@ async function loadRentalHistory() {
         // Also include no-show rows that may already be stored as cancelled.
         rentalHistoryData = allRentals.filter(rental => {
             const status = String(rental.status).toLowerCase();
+            if (String(rental.service_kind || '').toLowerCase() === 'locker') {
+                return ['locker_pending', 'locker_active', 'locker_overdue', 'locker_released'].includes(status);
+            }
             if (status === 'returned' || status === 'completed' || status === 'cancelled') return true;
 
             // Check if it's a no-show (reserved but past expected return time)
@@ -3885,6 +4172,26 @@ function createRentalHistoryRow(rental) {
         return row;
     }
 
+    if (String(rental.service_kind || '').toLowerCase() === 'locker') {
+        const activityDate = formatDate(rental.rent_time || rental.updated_at);
+        const lockerCode = String(rental.items_label || rental.barcodes || 'Locker').replace(/\s*\(\d+x\)/g, '').trim();
+        const details = rental.locker_notice_message
+            ? rental.locker_notice_message
+            : (rental.locker_period_type ? rental.locker_period_type.replace(/_/g, ' ') : 'Locker assignment');
+        const statusClass = getLockerActivityStatusClass(rental.status);
+        const statusText = getLockerActivityStatusLabel(rental.status);
+        row.innerHTML = `
+            <td>${activityDate}</td>
+            <td>Locker</td>
+            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(lockerCode)}">${escapeStudentHtml(lockerCode)}</td>
+            <td>${escapeStudentHtml(rental.org_name || 'Supreme Student Council')}</td>
+            <td style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(details)}">${escapeStudentHtml(details)}</td>
+            <td>${Number(rental.total_cost || 0).toFixed(2)}</td>
+            <td><span class="status-badge ${statusClass}">${escapeStudentHtml(statusText)}</span></td>
+        `;
+        return row;
+    }
+
     // Format dates
     const rentDate = formatDate(rental.rent_time);
     const items = String(rental.items_label || 'No items').replace(/\s*\(\d+x\)/g, '').trim();
@@ -3946,6 +4253,7 @@ function calculateDuration(startTime, endTime) {
 function getStatusClass(status, paymentStatus) {
     if (status === 'returned') return 'status-returned';
     if (status === 'no-show') return 'status-no-show';
+    if (status === 'locker_overdue') return 'status-no-show';
     if (status === 'cancelled') return 'status-unknown';
     if (status === 'completed') return 'status-completed';
     if (status === 'queued') return 'status-reserved';
@@ -3958,6 +4266,7 @@ function getStatusClass(status, paymentStatus) {
 function getStatusText(status) {
     if (status === 'returned') return 'Returned';
     if (status === 'no-show') return 'No Show';
+    if (status === 'locker_overdue') return 'Locker Overdue';
     if (status === 'cancelled') return 'Cancelled';
     if (status === 'completed') return 'Completed';
     if (status === 'queued') return 'Queued';
@@ -3986,7 +4295,8 @@ function loadMyRentalsTab() {
     Promise.all([
         loadCurrentRentals(),
         loadRentalHistory(),
-        loadStudentPrintJobs().catch(() => [])
+        loadStudentPrintJobs().catch(() => []),
+        loadStudentLockers().catch(() => null)
     ]).then(() => {
         updateMyRentalsEmptyState();
         buildFilterOptions();
@@ -4367,6 +4677,7 @@ function applyRentalSearch() {
 function filterRentals(rentals) {
     return rentals.filter(rental => {
         const isPrintActivity = Object.prototype.hasOwnProperty.call(rental, 'file_name');
+        const isLockerActivity = !isPrintActivity && String(rental.service_kind || '').toLowerCase() === 'locker';
         const activityDateValue = isPrintActivity ? (rental.submitted_at || rental.updated_at) : rental.rent_time;
 
         // Date filter
@@ -4398,8 +4709,12 @@ function filterRentals(rentals) {
         if (rentalFilters.statuses.length > 0) {
             let status = String(rental.status).toLowerCase();
 
-            // Treat cancelled unpaid reservations as no-show too.
-            if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+            if (isLockerActivity) {
+                if (status === 'locker_pending') status = 'reserved';
+                else if (status === 'locker_active') status = 'active';
+                else if (status === 'locker_overdue') status = 'locker_overdue';
+                else if (status === 'locker_released') status = 'returned';
+            } else if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
                 status = 'no-show';
             } else if (!isPrintActivity && isStudentRentalNoShow(rental)) {
                 status = 'no-show';
@@ -4411,7 +4726,13 @@ function filterRentals(rentals) {
         // Search filter
         if (rentalFilters.search) {
             let status = String(rental.status || '').toLowerCase();
-            if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+            let statusText = '';
+            if (isLockerActivity) {
+                statusText = getLockerActivityStatusLabel(status);
+                if (status === 'locker_pending') status = 'reserved';
+                else if (status === 'locker_active') status = 'active';
+                else if (status === 'locker_released') status = 'returned';
+            } else if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
                 status = 'no-show';
             } else if (!isPrintActivity && isStudentRentalNoShow(rental)) {
                 status = 'no-show';
@@ -4423,9 +4744,11 @@ function filterRentals(rentals) {
                 : String(rental.items_label || '').replace(/\s*\(\d+x\)/g, '').trim();
             const organization = String(rental.org_name || '');
             const organizationCode = String(rental.org_code || '');
-            const statusText = getStatusText(status);
-            const activityType = isPrintActivity ? 'printing' : 'rental';
-            const details = isPrintActivity ? String(rental.notes || '') : '';
+            if (!statusText) {
+                statusText = isPrintActivity ? getStatusText(status) : getStatusText(status);
+            }
+            const activityType = isPrintActivity ? 'printing' : (isLockerActivity ? 'locker' : 'rental');
+            const details = isPrintActivity ? String(rental.notes || '') : (isLockerActivity ? String(rental.locker_notice_message || rental.locker_period_type || '') : '');
             const searchBlob = [rentDate, items, organization, organizationCode, statusText, status, activityType, details]
                 .join(' ')
                 .toLowerCase();
