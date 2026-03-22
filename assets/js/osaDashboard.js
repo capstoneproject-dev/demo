@@ -384,6 +384,105 @@ function renderOrgs() {
     `).join('');
 }
 
+let serviceAuthorizationMatrix = { service_catalog: [], organizations: [] };
+let serviceAuthorizationPromise = null;
+
+async function loadServiceAuthorizations(force = false) {
+    if (serviceAuthorizationPromise && !force) {
+        return serviceAuthorizationPromise;
+    }
+
+    serviceAuthorizationPromise = fetch('../api/services/osa/list.php', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+        .then((resp) => resp.json().catch(() => ({})).then((data) => ({ resp, data })))
+        .then(({ resp, data }) => {
+            if (!resp.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load service authorizations.');
+            }
+            serviceAuthorizationMatrix = {
+                service_catalog: Array.isArray(data.service_catalog) ? data.service_catalog : [],
+                organizations: Array.isArray(data.organizations) ? data.organizations : [],
+            };
+            return serviceAuthorizationMatrix;
+        })
+        .catch((error) => {
+            serviceAuthorizationMatrix = { service_catalog: [], organizations: [] };
+            throw error;
+        });
+
+    return serviceAuthorizationPromise;
+}
+
+function getServiceAuthorizationOrg(orgId) {
+    return (serviceAuthorizationMatrix.organizations || []).find(org => Number(org.org_id) === Number(orgId)) || null;
+}
+
+function renderMonitoringServiceAuthorizations(orgId) {
+    const container = document.getElementById('monitoring-service-toggles');
+    if (!container) return;
+
+    const org = getServiceAuthorizationOrg(orgId);
+    const services = Array.isArray(serviceAuthorizationMatrix.service_catalog)
+        ? serviceAuthorizationMatrix.service_catalog
+        : [];
+
+    if (!org || !services.length) {
+        container.innerHTML = `<div style="color: var(--muted); font-size: 0.9rem;">Service authorizations are not available right now.</div>`;
+        return;
+    }
+
+    container.innerHTML = services.map((service) => {
+        const checked = !!(org.services || {})[service.service_key];
+        return `
+            <label class="service-toggle-item">
+                <div>
+                    <strong>${service.service_name}</strong>
+                    <div style="color: var(--muted); font-size: 0.82rem; margin-top: 4px;">${service.description || ''}</div>
+                </div>
+                <input type="checkbox"
+                       class="service-toggle-checkbox"
+                       data-service-key="${service.service_key}"
+                       ${checked ? 'checked' : ''}>
+            </label>
+        `;
+    }).join('');
+}
+
+async function saveMonitoringServiceAuthorizations() {
+    if (!currentOrgId) {
+        return;
+    }
+
+    const inputs = document.querySelectorAll('#monitoring-service-toggles .service-toggle-checkbox');
+    const services = {};
+    inputs.forEach((input) => {
+        services[input.dataset.serviceKey] = !!input.checked;
+    });
+
+    try {
+        const response = await fetch('../api/services/osa/save.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                org_id: currentOrgId,
+                services,
+            }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not save organization service access.');
+        }
+        await loadServiceAuthorizations(true);
+        renderMonitoringServiceAuthorizations(currentOrgId);
+        showToast('Organization service access updated.', 'success');
+    } catch (error) {
+        showToast(error.message || 'Could not save organization service access.', 'error');
+    }
+}
+
 // --- REQUESTS & APPROVALS STATE ---
 let currentReqStatus = 'all';
 let pendingRequestAction = null; // Stores {id, action} for modal confirmation
@@ -847,6 +946,13 @@ function openMonitoring(orgId) {
             </tr>
         `;
     }
+    renderMonitoringServiceAuthorizations(orgId);
+    loadServiceAuthorizations().then(() => {
+        renderMonitoringServiceAuthorizations(orgId);
+    }).catch((error) => {
+        console.error(error);
+        renderMonitoringServiceAuthorizations(orgId);
+    });
     navigate('monitoring');
 }
 
@@ -1241,6 +1347,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initReqOrgFilter();
     renderRequests();
     renderOrgs();
+    loadServiceAuthorizations().catch((error) => console.error(error));
 
     // Initialize Date Picker defaults
     const today = new Date();

@@ -230,18 +230,37 @@
 
         <!-- SERVICES VIEW -->
         <div id="services" class="section-view">
-            <!-- SERVICES TABS -->
-            <div class="tabs">
-                <button class="tab-btn active" onclick="switchServiceTab('catalog', this)">Services</button>
-                <button class="tab-btn" onclick="switchServiceTab('my-rentals', this)">My Rentals</button>
-            </div>
+            <div class="services-tracker-layout">
+                <aside class="services-tracker-sidebar card">
+                    <div class="services-tracker-sidebar-header">
+                        <h3>Services Tracker</h3>
+                        <p>Switch between student services as more modules go live.</p>
+                    </div>
+                    <div id="servicesModuleNav" class="services-module-nav">
+                        <button class="services-module-btn active" data-module="rentals" onclick="switchServiceModule('rentals', this)">
+                            <i class="fa-solid fa-box-open"></i>
+                            <span>Rentals</span>
+                        </button>
+                        <button class="services-module-btn" data-module="printing" onclick="switchServiceModule('printing', this)">
+                            <i class="fa-solid fa-print"></i>
+                            <span>Printing</span>
+                        </button>
+                    </div>
+                </aside>
+
+                <div class="services-tracker-content">
+                    <div id="services-module-rentals" class="services-module-pane active">
+                        <div class="tabs rentals-module-tabs">
+                            <button class="tab-btn active" onclick="switchServiceTab('catalog', this)">Services</button>
+                            <button class="tab-btn" onclick="switchServiceTab('my-rentals', this)">My Rentals</button>
+                        </div>
 
             <!-- SERVICES CATALOG TAB -->
             <div id="services-catalog-tab" class="service-tab-content active">
                 <div class="services-search">
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="text" id="serviceSearch"
-                        placeholder="Search for a service (e.g., Printing, Calculator, Locker)..."
+                        placeholder="Search for a rentable item (e.g., Calculator, Locker, Tool)..."
                         onkeyup="filterServices()">
                 </div>
 
@@ -283,6 +302,12 @@
                                 <div class="selected-file-info">
                                     <p class="filename-text" id="filenameText">document.pdf</p>
                                     <p class="file-size-text">Ready to print</p>
+                                </div>
+                                <div class="printing-hero-fields">
+                                    <select id="uploadPrintProvider" class="printing-hero-select">
+                                        <option value="">Select printing provider</option>
+                                    </select>
+                                    <textarea id="uploadPrintNotes" class="printing-hero-notes" rows="3" placeholder="Optional instructions for the printing officer"></textarea>
                                 </div>
                                 <button class="btn-upload-submit" id="btnUploadSubmit" disabled>Upload to Print</button>
                             </div>
@@ -419,10 +444,76 @@
             <div id="noRentalsMessage" class="card" style="text-align: center; padding: 48px 24px;">
                 <i class="fa-solid fa-box-open" style="font-size: 64px; color: var(--muted); margin-bottom: 16px;"></i>
                 <h3 style="margin-bottom: 8px;">No Rentals Yet</h3>
-                <p style="color: var(--muted);">You haven't rented any items yet. Browse the Services Catalog to get started!</p>
+                <p style="color: var(--muted);">You haven't rented any items yet. Browse the Services tab to get started!</p>
+            </div>
+                    </div>
+
+                    <div id="services-module-printing" class="services-module-pane" style="display: none;">
+                        <div class="printing-module-grid">
+                            <div class="card printing-request-card">
+                                <div class="printing-panel-header">
+                                    <div>
+                                        <h2>Submit a Print Job</h2>
+                                        <p>Upload a PDF, choose an OSA-approved provider, and track the queue from this module.</p>
+                                    </div>
+                                    <span class="printing-status-chip">Queue-based</span>
+                                </div>
+
+                                <div class="printing-form-grid">
+                                    <div class="printing-field">
+                                        <label for="printingProviderSelect">Printing Provider</label>
+                                        <select id="printingProviderSelect">
+                                            <option value="">Select organization</option>
+                                        </select>
+                                    </div>
+                                    <div class="printing-field">
+                                        <label for="printingFileInput">PDF File</label>
+                                        <input type="file" id="printingFileInput" accept=".pdf,application/pdf">
+                                        <small id="printingSelectedFileName">No file selected.</small>
+                                    </div>
+                                    <div class="printing-field printing-field-full">
+                                        <label for="printingNotes">Notes</label>
+                                        <textarea id="printingNotes" rows="4" placeholder="Optional instructions for the printing officer"></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="printing-form-actions">
+                                    <button class="btn btn-primary" id="btnPrintingSubmit" type="button">
+                                        <i class="fa-solid fa-paper-plane"></i> Submit Print Job
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="card printing-summary-card">
+                                <h3>Printing Availability</h3>
+                                <p id="printingAvailabilityText">Loading approved providers...</p>
+                                <div id="printingProvidersSummary" class="printing-providers-summary"></div>
+                            </div>
+                        </div>
+
+                        <div class="card printing-jobs-card">
+                            <div class="printing-panel-header">
+                                <div>
+                                    <h2>My Print Jobs</h2>
+                                    <p>Monitor your queue position, processing progress, and ready-to-claim jobs.</p>
+                                </div>
+                                <button class="btn btn-outline btn-sm" type="button" onclick="loadStudentPrintJobs(true)">
+                                    <i class="fa-solid fa-rotate-right"></i> Refresh
+                                </button>
+                            </div>
+
+                            <div id="studentPrintingJobsList" class="printing-jobs-list">
+                                <div class="printing-empty-state">
+                                    <i class="fa-solid fa-print"></i>
+                                    <h3>No Print Jobs Yet</h3>
+                                    <p>Your submitted print jobs will appear here once you upload a PDF.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
         <!-- PROFILE VIEW -->
         <div id="profile" class="section-view">

@@ -317,14 +317,217 @@ function navigate(viewId, element) {
         setDate();
     }
 
-    // Fullscreen embed mode for tracker/events: hide top header and fill content region
-    if ((viewId === 'tracker' || viewId === 'events') && mainContent) {
+    // Fullscreen layout for full-page service views.
+    if ((viewId === 'events' || viewId === 'tracker') && mainContent) {
         mainContent.classList.add('tracker-fullscreen');
     }
 
     // 4. Resize charts if Analytics tab is opened
     if (viewId === 'analytics') {
         window.dispatchEvent(new Event('resize'));
+    }
+}
+
+let currentTrackerSubView = 'rentals';
+let officerPrintingQueue = [];
+
+function switchTrackerSubView(viewId, button = null) {
+    currentTrackerSubView = viewId;
+    document.querySelectorAll('#tracker .sub-nav-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn === button || btn.getAttribute('onclick')?.includes(`'${viewId}'`));
+    });
+    document.querySelectorAll('#tracker .tracker-sub-view').forEach((view) => {
+        view.classList.remove('active');
+    });
+    const target = document.getElementById(`tracker-${viewId}-view`);
+    if (target) {
+        target.classList.add('active');
+    }
+    if (viewId === 'printing') {
+        loadOfficerPrintingQueue().catch((error) => console.error(error));
+    }
+}
+
+function getOfficerPrintStatusLabel(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'ready_to_claim') return 'Ready to Claim';
+    if (normalized === 'processing') return 'Processing';
+    if (normalized === 'queued') return 'Queued';
+    if (normalized === 'claimed') return 'Claimed';
+    if (normalized === 'cancelled') return 'Cancelled';
+    return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown';
+}
+
+function getOfficerPrintStatusClass(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'ready_to_claim') return 'status-approved';
+    if (normalized === 'processing') return 'status-pending';
+    if (normalized === 'queued') return 'status-borrowed';
+    if (normalized === 'claimed') return 'status-completed';
+    if (normalized === 'cancelled') return 'status-overdue';
+    return 'status-pending';
+}
+
+function renderOfficerPrintingQueue(printingEnabled = true) {
+    const tableBody = document.getElementById('officerPrintingQueueTable');
+    const disabledMessage = document.getElementById('officerPrintingDisabledMessage');
+    const tableWrap = document.getElementById('officerPrintingQueueTableWrap');
+    if (!tableBody || !disabledMessage || !tableWrap) return;
+
+    disabledMessage.style.display = printingEnabled ? 'none' : 'block';
+    tableWrap.style.display = printingEnabled ? 'block' : 'none';
+
+    if (!printingEnabled) {
+        return;
+    }
+
+    if (!officerPrintingQueue.length) {
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">No print jobs found for this organization.</td></tr>`;
+        return;
+    }
+
+    tableBody.innerHTML = officerPrintingQueue.map((job) => {
+        const jobUrl = resolvePdfUrl(job.file_url);
+        const queueLabel = String(job.status || '').toLowerCase() === 'queued'
+            ? `#${Number(job.queue_position || job.queue_order || 0) || '-'}`
+            : '-';
+        const isQueued = String(job.status || '').toLowerCase() === 'queued';
+        const priorityControls = isQueued
+            ? `
+                <div class="printing-priority-controls">
+                    <button class="btn btn-outline btn-sm" type="button" onclick="moveOfficerPrintJob(${job.print_job_id}, -1)">
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                    <button class="btn btn-outline btn-sm" type="button" onclick="moveOfficerPrintJob(${job.print_job_id}, 1)">
+                        <i class="fa-solid fa-arrow-down"></i>
+                    </button>
+                    <div class="printing-priority-input">
+                        <input type="number" min="1" value="${Number(job.queue_position || job.queue_order || 1)}" id="printingQueuePosition_${job.print_job_id}">
+                        <button class="btn btn-outline btn-sm" type="button" onclick="setOfficerPrintJobPosition(${job.print_job_id})">Move</button>
+                    </div>
+                </div>
+            `
+            : `<span style="color:var(--muted);">Locked</span>`;
+
+        const statusActions = [];
+        if (isQueued) {
+            statusActions.push(`<button class="btn btn-primary btn-sm" type="button" onclick="updateOfficerPrintJobStatus(${job.print_job_id}, 'processing')">Start</button>`);
+        }
+        if (String(job.status || '').toLowerCase() === 'processing') {
+            statusActions.push(`<button class="btn btn-primary btn-sm" type="button" onclick="updateOfficerPrintJobStatus(${job.print_job_id}, 'ready_to_claim')">Ready</button>`);
+        }
+        if (String(job.status || '').toLowerCase() === 'ready_to_claim') {
+            statusActions.push(`<button class="btn btn-primary btn-sm" type="button" onclick="updateOfficerPrintJobStatus(${job.print_job_id}, 'claimed')">Claimed</button>`);
+        }
+        if (String(job.status || '').toLowerCase() !== 'claimed' && String(job.status || '').toLowerCase() !== 'cancelled') {
+            statusActions.push(`<button class="btn btn-outline btn-sm" type="button" onclick="updateOfficerPrintJobStatus(${job.print_job_id}, 'cancelled')">Cancel</button>`);
+        }
+
+        return `
+            <tr>
+                <td>${queueLabel}</td>
+                <td>
+                    <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
+                    ${job.notes ? `<div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.notes)}</div>` : ''}
+                </td>
+                <td>
+                    <strong>${escapeHtml(job.student_name || 'Unknown Student')}</strong>
+                    <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.student_number || '-')} ${job.section ? `• ${escapeHtml(job.section)}` : ''}</div>
+                </td>
+                <td>${fmtDateShort(job.submitted_at)}<div style="color:var(--muted); font-size:0.8rem;">${new Date(job.submitted_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</div></td>
+                <td><span class="status-badge ${getOfficerPrintStatusClass(job.status)}">${getOfficerPrintStatusLabel(job.status)}</span></td>
+                <td>${priorityControls}</td>
+                <td>
+                    <div class="printing-job-action-stack">
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" target="_blank" rel="noopener">View</a>` : ''}
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" download>Download</a>` : ''}
+                        ${statusActions.join('')}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function loadOfficerPrintingQueue(force = false) {
+    try {
+        const response = await fetch('../api/printing/officer/list.php?status=all', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load the printing queue.');
+        }
+        officerPrintingQueue = Array.isArray(data.items) ? data.items : [];
+        renderOfficerPrintingQueue(!!data.printing_enabled);
+        return officerPrintingQueue;
+    } catch (error) {
+        if (force) {
+            console.error('[loadOfficerPrintingQueue]', error);
+        }
+        officerPrintingQueue = [];
+        renderOfficerPrintingQueue(true);
+        throw error;
+    }
+}
+
+async function updateOfficerPrintJobStatus(printJobId, status) {
+    try {
+        const response = await fetch('../api/printing/officer/update-status.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                print_job_id: printJobId,
+                status,
+            }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not update print job status.');
+        }
+        await loadOfficerPrintingQueue(true);
+    } catch (error) {
+        alert(error.message || 'Could not update print job status.');
+    }
+}
+
+function moveOfficerPrintJob(printJobId, delta) {
+    const job = officerPrintingQueue.find((item) => Number(item.print_job_id) === Number(printJobId));
+    if (!job) return;
+    const currentPosition = Number(job.queue_position || job.queue_order || 1);
+    const newPosition = Math.max(1, currentPosition + Number(delta || 0));
+    reorderOfficerPrintJob(printJobId, newPosition);
+}
+
+function setOfficerPrintJobPosition(printJobId) {
+    const input = document.getElementById(`printingQueuePosition_${printJobId}`);
+    const newPosition = Number(input?.value || 0);
+    if (!newPosition) {
+        return;
+    }
+    reorderOfficerPrintJob(printJobId, newPosition);
+}
+
+async function reorderOfficerPrintJob(printJobId, newQueueOrder) {
+    try {
+        const response = await fetch('../api/printing/officer/reorder.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                print_job_id: printJobId,
+                new_queue_order: newQueueOrder,
+            }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not reorder print jobs.');
+        }
+        await loadOfficerPrintingQueue(true);
+    } catch (error) {
+        alert(error.message || 'Could not reorder print jobs.');
     }
 }
 

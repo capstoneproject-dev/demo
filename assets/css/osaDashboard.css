@@ -3253,3 +3253,26 @@ body.dark .compliance-item {
     }
 }
 
+.service-toggle-list {
+    display: grid;
+    gap: 12px;
+}
+
+.service-toggle-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel-2);
+    padding: 14px 16px;
+}
+
+.service-toggle-checkbox {
+    margin-top: 4px;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+}
+
