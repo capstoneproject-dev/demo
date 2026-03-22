@@ -435,16 +435,22 @@ function renderMonitoringServiceAuthorizations(orgId) {
 
     container.innerHTML = services.map((service) => {
         const checked = !!(org.services || {})[service.service_key];
+        const isPrinting = service.service_key === 'printing';
         return `
             <label class="service-toggle-item">
                 <div>
                     <strong>${service.service_name}</strong>
-                    <div style="color: var(--muted); font-size: 0.82rem; margin-top: 4px;">${service.description || ''}</div>
+                    <div style="color: var(--muted); font-size: 0.82rem; margin-top: 4px;">
+                        ${isPrinting
+                            ? (service.description || '')
+                            : 'Available for active organizations by default.'}
+                    </div>
                 </div>
                 <input type="checkbox"
                        class="service-toggle-checkbox"
                        data-service-key="${service.service_key}"
-                       ${checked ? 'checked' : ''}>
+                       ${checked ? 'checked' : ''}
+                       ${isPrinting ? '' : 'disabled'}>
             </label>
         `;
     }).join('');

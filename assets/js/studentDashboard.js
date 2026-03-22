@@ -2,6 +2,15 @@
 // servicesData, announcementsData, and extendedEvents are built from ORG_DATA (data/orgData.js).
 // To add or change org-specific content, edit data/orgData.js — NOT this file.
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // Flat services list: shared/general items first, then org-specific items tagged with their org key.
 const servicesData = [
     ...SHARED_SERVICES,
@@ -2223,17 +2232,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('fileInput');
     const uploadContent = uploadZone?.querySelector('.upload-content');
     const fileSelectedState = document.getElementById('fileSelectedState');
+    const printingHeroPreviewArea = document.getElementById('printingHeroPreviewArea');
     const filenameText = document.getElementById('filenameText');
+    const fileSelectionSummary = document.getElementById('fileSelectionSummary');
+    const printingFilesList = document.getElementById('printingFilesList');
     const btnUploadSubmit = document.getElementById('btnUploadSubmit');
+    const btnAddAnotherFile = document.getElementById('btnAddAnotherFile');
+    let selectedPrintFiles = [];
+    let printPreviewRenderToken = 0;
 
     if (!uploadZone) return;
 
     // Click to browse
     uploadZone.addEventListener('click', (e) => {
-        // Prevent triggering click if user clicked the submit button
-        if (e.target !== btnUploadSubmit) {
-            fileInput.click();
+        const interactiveTarget = e.target.closest('button, select, option, textarea, input, label');
+        const clickedSelectedState = fileSelectedState && fileSelectedState.contains(e.target);
+        if (interactiveTarget || clickedSelectedState) {
+            return;
         }
+        fileInput.click();
     });
 
     // Drag & Drop Events
@@ -2265,49 +2282,144 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle Input Change
     fileInput.addEventListener('change', function () {
-        handleFiles(this.files);
+        handleFiles(this.files, selectedPrintFiles.length > 0);
+        fileInput.value = '';
     });
 
-    function handleFiles(files) {
-        if (files.length > 0) {
-            const file = files[0];
-
-            // Validate format
-            const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/jpg'];
-            // Simple extension check as backup
-            const validExtensions = ['pdf', 'docx', 'png', 'jpg', 'jpeg'];
-            const fileExtension = file.name.split('.').pop().toLowerCase();
-
-            if (validTypes.includes(file.type) || validExtensions.includes(fileExtension)) {
-                showFileSelected(file);
-            } else {
-                alert('Invalid file format. Please upload PDF, DOCX, PNG, or JPG.');
+    function handleFiles(files, append = false) {
+        const fileList = Array.from(files || []);
+        if (!fileList.length) {
+            if (!append) {
                 resetUploadUI();
+            }
+            return;
+        }
+
+        const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/jpg'];
+        const validExtensions = ['pdf', 'docx', 'png', 'jpg', 'jpeg'];
+        const invalidFile = fileList.find((file) => {
+            const fileExtension = String(file.name || '').split('.').pop().toLowerCase();
+            return !(validTypes.includes(file.type) || validExtensions.includes(fileExtension));
+        });
+
+        if (invalidFile) {
+            alert('Invalid file format. Please upload PDF, DOCX, PNG, or JPG.');
+            resetUploadUI();
+            return;
+        }
+
+        const newEntries = fileList.map((file) => ({ file, note: '' }));
+        selectedPrintFiles = append ? [...selectedPrintFiles, ...newEntries] : newEntries;
+        showFileSelected(selectedPrintFiles);
+    }
+
+    function renderSelectedPrintFiles(files) {
+        if (!printingFilesList) return;
+        printingFilesList.innerHTML = files.map((entry, index) => {
+            const file = entry.file;
+            const objectUrl = URL.createObjectURL(file);
+            const isImage = String(file.type || '').startsWith('image/');
+            const isPdf = String(file.type || '').includes('pdf') || /\.pdf$/i.test(file.name || '');
+            const preview = isImage
+                ? `<img class="printing-file-preview-image" src="${objectUrl}" alt="${escapeHtml(file.name || `File ${index + 1}`)}">`
+                : isPdf
+                    ? `<canvas class="printing-file-preview-canvas" data-print-preview-index="${index}" aria-label="${escapeHtml(file.name || `File ${index + 1}`)} preview"></canvas>`
+                    : `<div class="printing-file-preview-fallback">
+                        <i class="fa-solid ${isPdf ? 'fa-file-pdf' : 'fa-file-lines'}"></i>
+                        <span>${isPdf ? 'PDF' : 'Document'}</span>
+                    </div>`;
+
+            return `
+                <div class="printing-file-card">
+                    <div class="printing-file-preview">
+                        ${preview}
+                    </div>
+                    <div class="printing-file-row-header">
+                        <span class="printing-file-name" title="${escapeHtml(file.name || `File ${index + 1}`)}">${escapeHtml(file.name || `File ${index + 1}`)}</span>
+                        <button type="button" class="printing-file-remove" data-remove-print-index="${index}" aria-label="Remove file">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <span class="printing-file-meta">${formatFileSize(file.size || 0)}</span>
+                    <textarea
+                        class="printing-file-note"
+                        data-print-note-index="${index}"
+                        rows="2"
+                        placeholder="Add notes for this file here">${escapeHtml(entry.note || '')}</textarea>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function renderPdfFilePreviews(files) {
+        if (typeof pdfjsLib === 'undefined' || !printingFilesList) return;
+        const currentToken = ++printPreviewRenderToken;
+        const pdfEntries = files
+            .map((entry, index) => ({ entry, index }))
+            .filter(({ entry }) => String(entry.file?.type || '').includes('pdf') || /\.pdf$/i.test(entry.file?.name || ''));
+
+        for (const { entry, index } of pdfEntries) {
+            const canvas = printingFilesList.querySelector(`[data-print-preview-index="${index}"]`);
+            if (!canvas) continue;
+            try {
+                const buffer = await entry.file.arrayBuffer();
+                if (currentToken !== printPreviewRenderToken) return;
+                const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+                const page = await pdf.getPage(1);
+                if (currentToken !== printPreviewRenderToken) return;
+                const unscaledViewport = page.getViewport({ scale: 1 });
+                const scale = Math.min(150 / unscaledViewport.width, 180 / unscaledViewport.height);
+                const viewport = page.getViewport({ scale: Math.max(scale, 0.1) });
+                const context = canvas.getContext('2d');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({ canvasContext: context, viewport }).promise;
+            } catch (_error) {
+                canvas.replaceWith(Object.assign(document.createElement('div'), {
+                    className: 'printing-file-preview-fallback',
+                    innerHTML: '<i class="fa-solid fa-file-pdf"></i><span>PDF</span>'
+                }));
             }
         }
     }
 
-    function showFileSelected(file) {
+    function showFileSelected(files) {
         uploadContent.style.display = 'none';
         fileSelectedState.style.display = 'flex';
-        filenameText.textContent = file.name;
+        if (printingHeroPreviewArea) printingHeroPreviewArea.style.display = 'flex';
+        filenameText.textContent = `${files.length} file${files.length > 1 ? 's' : ''} selected`;
+        if (fileSelectionSummary) {
+            fileSelectionSummary.textContent = files.length === 1
+                ? 'Preview the file and add notes below before submitting'
+                : 'Preview each file and add notes below before submitting';
+        }
+        renderSelectedPrintFiles(files);
+        renderPdfFilePreviews(files);
         btnUploadSubmit.disabled = false;
     }
 
     function resetUploadUI() {
         uploadContent.style.display = 'block';
         fileSelectedState.style.display = 'none';
+        if (printingHeroPreviewArea) printingHeroPreviewArea.style.display = 'none';
+        if (printingFilesList) printingFilesList.innerHTML = '';
+        if (fileSelectionSummary) fileSelectionSummary.textContent = 'Add notes for each file before submitting';
+        selectedPrintFiles = [];
         fileInput.value = ''; // Reset input
         btnUploadSubmit.disabled = true;
     }
 
-    // Handle Submit (Mock)
+    function formatFileSize(size) {
+        const bytes = Number(size || 0);
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
     btnUploadSubmit.addEventListener('click', async (e) => {
         e.stopPropagation(); // Stop bubbling to uploadZone click
-        const file = fileInput.files[0];
-        if (file) {
+        if (selectedPrintFiles.length) {
             const provider = document.getElementById('uploadPrintProvider');
-            const notes = document.getElementById('uploadPrintNotes');
             const orgId = String(provider?.value || '').trim();
             if (!orgId) {
                 alert('Select a printing provider first.');
@@ -2316,8 +2428,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const payload = new FormData();
             payload.append('org_id', orgId);
-            payload.append('notes', String(notes?.value || '').trim());
-            payload.append('file', file);
+            selectedPrintFiles.forEach((entry) => {
+                payload.append('files[]', entry.file);
+                payload.append('notes[]', String(entry.note || '').trim());
+            });
 
             btnUploadSubmit.disabled = true;
             try {
@@ -2330,7 +2444,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!response.ok || !data.ok) {
                     throw new Error(data.error || 'Could not submit print job.');
                 }
-                if (notes) notes.value = '';
                 resetUploadUI();
                 await loadStudentPrintJobs(true);
             } catch (error) {
@@ -2339,6 +2452,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    if (btnAddAnotherFile) {
+        btnAddAnotherFile.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+    }
+
+    if (printingFilesList) {
+        printingFilesList.addEventListener('click', (e) => {
+            const removeButton = e.target.closest('[data-remove-print-index]');
+            if (!removeButton) return;
+            const index = Number(removeButton.getAttribute('data-remove-print-index'));
+            if (Number.isNaN(index)) return;
+            selectedPrintFiles.splice(index, 1);
+            if (!selectedPrintFiles.length) {
+                resetUploadUI();
+                return;
+            }
+            showFileSelected(selectedPrintFiles);
+        });
+
+        printingFilesList.addEventListener('input', (e) => {
+            const noteInput = e.target.closest('[data-print-note-index]');
+            if (!noteInput) return;
+            const index = Number(noteInput.getAttribute('data-print-note-index'));
+            if (Number.isNaN(index) || !selectedPrintFiles[index]) return;
+            selectedPrintFiles[index].note = noteInput.value;
+        });
+    }
 });
 
 document.addEventListener('DOMContentLoaded', () => {
