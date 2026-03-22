@@ -381,6 +381,9 @@ CREATE TABLE `inventory_items` (
   `hourly_rate` decimal(10,2) NOT NULL DEFAULT 0.00,
   `overtime_interval_minutes` int(11) DEFAULT NULL COMMENT 'Minutes per overtime block (e.g., 30). NULL = no overtime charging.',
   `overtime_rate_per_block` decimal(10,2) DEFAULT NULL COMMENT 'Fee per overtime block (e.g., 5.00). NULL = no overtime charging.',
+  `locker_monthly_rate` decimal(10,2) DEFAULT NULL,
+  `locker_semester_rate` decimal(10,2) DEFAULT NULL,
+  `locker_school_year_rate` decimal(10,2) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'available',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
@@ -390,13 +393,13 @@ CREATE TABLE `inventory_items` (
 -- Dumping data for table `inventory_items`
 --
 
-INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `image_path`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `status`, `created_at`, `updated_at`) VALUES
-(1, 2, 'Shoe Cover', 'SH001', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, 'available', '2026-02-27 14:03:59', '2026-03-22 02:02:57'),
-(2, 2, 'Shoe Cover', 'SH002', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, 'available', '2026-02-27 14:07:03', '2026-03-22 02:03:03'),
-(3, 2, 'Scientific Calculator', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-03-22 02:07:38'),
-(4, 2, 'Business Calculator', 'CAL002', 'assets/photos/studentDashboard/Services/businesscalculator.png', 2, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-03-22 00:54:56'),
-(5, 3, 'Crimping Tool', 'CT001', 'uploads/inventory-items/inventory_20260321_185825_888421cd5fe8.webp', 3, 20.00, 30, 5.00, 'available', '2026-03-22 01:58:25', '2026-03-22 01:58:25'),
-(7, 3, 'Scientific Calculator', 'ITCALC001', 'assets/photos/studentDashboard/Services/scical.png', 5, 20.00, 30, 5.00, 'available', '2026-03-22 02:13:52', '2026-03-22 14:29:48');
+INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `image_path`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `locker_monthly_rate`, `locker_semester_rate`, `locker_school_year_rate`, `status`, `created_at`, `updated_at`) VALUES
+(1, 2, 'Shoe Cover', 'SH001', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-02-27 14:03:59', '2026-03-22 02:02:57'),
+(2, 2, 'Shoe Cover', 'SH002', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-02-27 14:07:03', '2026-03-22 02:03:03'),
+(3, 2, 'Scientific Calculator', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-02-27 14:18:25', '2026-03-22 02:07:38'),
+(4, 2, 'Business Calculator', 'CAL002', 'assets/photos/studentDashboard/Services/businesscalculator.png', 2, 10.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-02-27 14:18:55', '2026-03-22 00:54:56'),
+(5, 3, 'Crimping Tool', 'CT001', 'uploads/inventory-items/inventory_20260321_185825_888421cd5fe8.webp', 3, 20.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-03-22 01:58:25', '2026-03-22 01:58:25'),
+(7, 3, 'Scientific Calculator', 'ITCALC001', 'assets/photos/studentDashboard/Services/scical.png', 5, 20.00, 30, 5.00, NULL, NULL, NULL, 'available', '2026-03-22 02:13:52', '2026-03-22 14:29:48');
 
 --
 -- Triggers `inventory_items`
@@ -666,6 +669,11 @@ CREATE TABLE `rentals` (
   `payment_status` varchar(20) NOT NULL DEFAULT 'unpaid',
   `paid_at` datetime DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'active',
+  `service_kind` varchar(20) NOT NULL DEFAULT 'rental',
+  `locker_period_type` varchar(32) DEFAULT NULL,
+  `locker_notice_sent_at` datetime DEFAULT NULL,
+  `locker_notice_message` text DEFAULT NULL,
+  `locker_notice_sent_by_user_id` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ;
@@ -674,19 +682,19 @@ CREATE TABLE `rentals` (
 -- Dumping data for table `rentals`
 --
 
-INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_user_id`, `rent_time`, `expected_return_time`, `actual_return_time`, `total_cost`, `payment_status`, `paid_at`, `status`, `created_at`, `updated_at`) VALUES
-(1, 2, 6, 6, '2026-02-27 08:16:32', '2026-02-27 09:16:32', '2026-02-27 08:20:52', 15.00, 'paid', '2026-02-27 15:21:09', 'returned', '2026-02-27 15:16:32', '2026-02-27 15:21:09'),
-(2, 2, 6, 6, '2026-02-27 08:21:17', '2026-02-27 09:21:17', '2026-02-27 08:21:44', 15.00, 'paid', '2026-02-27 15:21:54', 'returned', '2026-02-27 15:21:17', '2026-02-27 15:21:54'),
-(3, 2, 6, 6, '2026-02-27 08:22:03', '2026-02-27 10:22:03', '2026-02-27 08:26:45', 30.00, 'paid', '2026-02-27 15:26:48', 'returned', '2026-02-27 15:22:03', '2026-02-27 15:26:48'),
-(4, 2, 6, 6, '2026-02-27 08:26:58', '2026-02-27 09:26:58', '2026-02-27 08:27:24', 15.00, 'paid', '2026-02-27 15:27:26', 'returned', '2026-02-27 15:26:58', '2026-02-27 15:27:26'),
-(5, 2, 6, 6, '2026-02-27 08:30:48', '2026-02-27 09:30:48', '2026-02-27 08:31:02', 15.00, 'paid', '2026-02-27 15:31:04', 'returned', '2026-02-27 15:30:48', '2026-02-27 15:31:04'),
-(6, 2, 6, 6, '2026-02-27 08:32:30', '2026-02-27 09:32:30', '2026-02-27 08:33:56', 15.00, 'paid', '2026-02-27 15:33:58', 'returned', '2026-02-27 15:32:30', '2026-02-27 15:33:58'),
-(7, 2, 6, 6, '2026-02-27 08:34:02', '2026-02-27 09:34:02', '2026-02-27 08:49:17', 15.00, 'paid', '2026-02-27 15:49:19', 'returned', '2026-02-27 15:34:02', '2026-02-27 15:49:19'),
-(8, 2, 6, 6, '2026-02-27 08:49:45', '2026-02-27 10:49:45', '2026-02-27 08:52:29', 30.00, 'paid', '2026-02-27 15:52:31', 'returned', '2026-02-27 15:49:45', '2026-02-27 15:52:31'),
-(9, 2, 6, 6, '2026-02-27 09:00:12', '2026-02-27 12:00:12', '2026-02-28 13:16:22', 300.00, 'paid', '2026-02-28 20:16:28', 'overdue', '2026-02-27 16:00:12', '2026-02-28 20:16:28'),
-(10, 2, 6, 6, '2026-02-28 13:16:40', '2026-02-28 14:16:40', '2026-03-22 01:31:11', 5095.00, 'paid', '2026-03-22 01:31:13', 'overdue', '2026-02-28 20:16:40', '2026-03-22 01:31:13'),
-(11, 2, 6, 6, '2026-02-28 20:19:08', '2026-02-28 21:19:08', '2026-03-22 01:31:05', 5025.00, 'paid', '2026-03-22 01:31:07', 'overdue', '2026-02-28 20:19:08', '2026-03-22 01:31:07'),
-(12, 3, 11, 11, '2026-03-22 08:00:00', '2026-03-22 10:00:00', NULL, 40.00, 'unpaid', NULL, 'cancelled', '2026-03-22 02:18:55', '2026-03-22 14:29:48');
+INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_user_id`, `rent_time`, `expected_return_time`, `actual_return_time`, `total_cost`, `payment_status`, `paid_at`, `status`, `service_kind`, `locker_period_type`, `locker_notice_sent_at`, `locker_notice_message`, `locker_notice_sent_by_user_id`, `created_at`, `updated_at`) VALUES
+(1, 2, 6, 6, '2026-02-27 08:16:32', '2026-02-27 09:16:32', '2026-02-27 08:20:52', 15.00, 'paid', '2026-02-27 15:21:09', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:16:32', '2026-02-27 15:21:09'),
+(2, 2, 6, 6, '2026-02-27 08:21:17', '2026-02-27 09:21:17', '2026-02-27 08:21:44', 15.00, 'paid', '2026-02-27 15:21:54', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:21:17', '2026-02-27 15:21:54'),
+(3, 2, 6, 6, '2026-02-27 08:22:03', '2026-02-27 10:22:03', '2026-02-27 08:26:45', 30.00, 'paid', '2026-02-27 15:26:48', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:22:03', '2026-02-27 15:26:48'),
+(4, 2, 6, 6, '2026-02-27 08:26:58', '2026-02-27 09:26:58', '2026-02-27 08:27:24', 15.00, 'paid', '2026-02-27 15:27:26', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:26:58', '2026-02-27 15:27:26'),
+(5, 2, 6, 6, '2026-02-27 08:30:48', '2026-02-27 09:30:48', '2026-02-27 08:31:02', 15.00, 'paid', '2026-02-27 15:31:04', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:30:48', '2026-02-27 15:31:04'),
+(6, 2, 6, 6, '2026-02-27 08:32:30', '2026-02-27 09:32:30', '2026-02-27 08:33:56', 15.00, 'paid', '2026-02-27 15:33:58', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:32:30', '2026-02-27 15:33:58'),
+(7, 2, 6, 6, '2026-02-27 08:34:02', '2026-02-27 09:34:02', '2026-02-27 08:49:17', 15.00, 'paid', '2026-02-27 15:49:19', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:34:02', '2026-02-27 15:49:19'),
+(8, 2, 6, 6, '2026-02-27 08:49:45', '2026-02-27 10:49:45', '2026-02-27 08:52:29', 30.00, 'paid', '2026-02-27 15:52:31', 'returned', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 15:49:45', '2026-02-27 15:52:31'),
+(9, 2, 6, 6, '2026-02-27 09:00:12', '2026-02-27 12:00:12', '2026-02-28 13:16:22', 300.00, 'paid', '2026-02-28 20:16:28', 'overdue', 'rental', NULL, NULL, NULL, NULL, '2026-02-27 16:00:12', '2026-02-28 20:16:28'),
+(10, 2, 6, 6, '2026-02-28 13:16:40', '2026-02-28 14:16:40', '2026-03-22 01:31:11', 5095.00, 'paid', '2026-03-22 01:31:13', 'overdue', 'rental', NULL, NULL, NULL, NULL, '2026-02-28 20:16:40', '2026-03-22 01:31:13'),
+(11, 2, 6, 6, '2026-02-28 20:19:08', '2026-02-28 21:19:08', '2026-03-22 01:31:05', 5025.00, 'paid', '2026-03-22 01:31:07', 'overdue', 'rental', NULL, NULL, NULL, NULL, '2026-02-28 20:19:08', '2026-03-22 01:31:07'),
+(12, 3, 11, 11, '2026-03-22 08:00:00', '2026-03-22 10:00:00', NULL, 40.00, 'unpaid', NULL, 'cancelled', 'rental', NULL, NULL, NULL, NULL, '2026-03-22 02:18:55', '2026-03-22 14:29:48');
 
 --
 -- Triggers `rentals`

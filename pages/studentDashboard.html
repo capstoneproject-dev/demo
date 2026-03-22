@@ -340,6 +340,33 @@
                 </div>
             </div>
 
+            <div id="studentLockerSection" class="student-locker-section" style="display:none;">
+                <div class="student-locker-header">
+                    <div>
+                        <h2>Locker Services</h2>
+                        <p>Request an available SSC locker and monitor any overdue pull-out notices here.</p>
+                    </div>
+                    <div class="student-locker-header-actions">
+                        <div id="studentLockerCurrentBadge" class="student-locker-current-badge" style="display:none;"></div>
+                        <button type="button" class="btn-upload-secondary student-locker-open-btn" onclick="openStudentLockerModal()">
+                            <i class="fa-solid fa-door-open"></i>
+                            Browse Lockers
+                        </button>
+                    </div>
+                </div>
+                <div class="student-locker-layout compact">
+                    <div class="student-locker-panel-card">
+                        <h3>Current Locker</h3>
+                        <div id="studentLockerCurrentCard" class="student-locker-current-card">
+                            <div class="student-locker-empty">
+                                <i class="fa-solid fa-door-closed"></i>
+                                <p>You do not have an active locker request yet.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- CATEGORIZED SERVICES LIST (Previously servicesGrid) -->
             <h2 class="section-title">Rent an Item</h2>
             <div id="servicesGrid">
@@ -432,6 +459,10 @@
                                 <label class="filter-option">
                                     <input type="checkbox" value="ready_to_claim" onchange="applyStatusFilter()">
                                     <span>Ready to Claim</span>
+                                </label>
+                                <label class="filter-option">
+                                    <input type="checkbox" value="locker_overdue" onchange="applyStatusFilter()">
+                                    <span>Locker Overdue</span>
                                 </label>
                                 <label class="filter-option">
                                     <input type="checkbox" value="claimed" onchange="applyStatusFilter()">
@@ -581,6 +612,13 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div id="profileLockerSection" class="card profile-locker-section" style="display:none; margin-bottom:24px;">
+                <div class="card-header">
+                    <div class="card-title">Current Locker</div>
+                </div>
+                <div id="profileLockerContent" class="profile-locker-content"></div>
             </div>
 
             <div class="card">
@@ -796,6 +834,23 @@
                         disabled>Confirm
                         Rental</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="studentLockerModal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="modal-content student-locker-modal">
+            <div class="modal-header">
+                <div class="header-text-group">
+                    <h3>Locker Availability</h3>
+                    <p>Browse available SSC lockers and request one when ready.</p>
+                </div>
+                <button class="close-modal" aria-label="Close locker modal" onclick="closeStudentLockerModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body student-locker-modal-body">
+                <div id="studentLockerBoard" class="student-locker-board"></div>
             </div>
         </div>
     </div>

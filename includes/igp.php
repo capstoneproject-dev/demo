@@ -324,7 +324,10 @@ function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
 {
     $hasImagePath = igpColumnExists($pdo, 'inventory_items', 'image_path');
     $imageSelectExpr = $hasImagePath ? 'i.image_path' : 'NULL AS image_path';
-    $where = ["i.org_id = :org"];
+    $where = [
+        "i.org_id = :org",
+        "LOWER(TRIM(c.category_name)) <> 'locker'",
+    ];
     $params = [':org' => $orgId];
 
     $q = trim((string)($filters['q'] ?? ''));
@@ -774,6 +777,13 @@ function igpFindStudentRentalInventoryItem(PDO $pdo, int $orgId, string $itemNam
         FROM inventory_items
         WHERE org_id = :org
           AND status = 'available'
+          AND category_id IN (
+              SELECT category_id
+              FROM inventory_categories
+              WHERE org_id = :org
+                AND is_active = 1
+                AND LOWER(TRIM(category_name)) <> 'locker'
+          )
           AND (" . implode(' OR ', $conditions) . ")
         ORDER BY item_id ASC
         LIMIT 1";
@@ -839,12 +849,13 @@ function igpGetStudentServicesCatalog(PDO $pdo): array
          FROM inventory_items i
          JOIN inventory_categories c ON c.category_id = i.category_id
          JOIN organizations o ON o.org_id = i.org_id
-         WHERE i.org_id IN ($placeholders)
-           AND i.status IN ('available', 'reserved', 'rented')
-           AND c.is_active = 1
-           AND o.status = 'active'
-         ORDER BY c.category_name ASC, i.item_name ASC, o.org_name ASC, i.item_id ASC"
-    );
+           WHERE i.org_id IN ($placeholders)
+             AND i.status IN ('available', 'reserved', 'rented')
+             AND c.is_active = 1
+             AND LOWER(TRIM(c.category_name)) <> 'locker'
+             AND o.status = 'active'
+           ORDER BY c.category_name ASC, i.item_name ASC, o.org_name ASC, i.item_id ASC"
+      );
     $stmt->execute($authorizedOrgIds);
     $rows = $stmt->fetchAll();
 

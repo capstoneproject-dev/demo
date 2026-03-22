@@ -337,40 +337,66 @@ let officerPrintingCalendarCurrentDate = new Date();
 let officerPrintingCalendarSelectedStart = null;
 let officerPrintingCalendarSelectedEnd = null;
 let officerPrintingEnabled = true;
+let officerLockerEnabled = false;
+let officerLockerBoard = [];
+let selectedLockerTile = null;
+
+function isOfficerLockerEnabled() {
+    const session = readAuthSession();
+    const orgName = normalizeOfficerOrgName(session.active_org_name || '');
+    const orgCode = String(session.active_org_code || '').trim().toUpperCase();
+    return orgName === 'SUPREME STUDENT COUNCIL' || orgCode === 'SSC';
+}
 
 function setOfficerTrackerPrintingAccess(printingEnabled) {
     officerPrintingEnabled = !!printingEnabled;
+    officerLockerEnabled = isOfficerLockerEnabled();
 
     const trackerLayout = document.getElementById('trackerLayout');
     const trackerSidebar = document.getElementById('trackerSidebar');
     const printingBtn = document.getElementById('trackerPrintingBtn');
+    const lockerBtn = document.getElementById('trackerLockerBtn');
     const printingView = document.getElementById('tracker-printing-view');
+    const lockerView = document.getElementById('tracker-lockers-view');
     const rentalsView = document.getElementById('tracker-rentals-view');
+    const hasExtraTrackerViews = officerPrintingEnabled || officerLockerEnabled;
 
     if (trackerLayout) {
-        trackerLayout.classList.toggle('rentals-only', !officerPrintingEnabled);
+        trackerLayout.classList.toggle('rentals-only', !hasExtraTrackerViews);
     }
     if (trackerSidebar) {
-        trackerSidebar.hidden = !officerPrintingEnabled;
+        trackerSidebar.hidden = !hasExtraTrackerViews;
     }
     if (printingBtn) {
         printingBtn.hidden = !officerPrintingEnabled;
     }
+    if (lockerBtn) {
+        lockerBtn.hidden = !officerLockerEnabled;
+    }
     if (printingView) {
         printingView.style.display = officerPrintingEnabled ? '' : 'none';
+    }
+    if (lockerView) {
+        lockerView.style.display = officerLockerEnabled ? '' : 'none';
     }
 
     if (!officerPrintingEnabled && currentTrackerSubView === 'printing') {
         currentTrackerSubView = 'rentals';
     }
+    if (!officerLockerEnabled && currentTrackerSubView === 'lockers') {
+        currentTrackerSubView = 'rentals';
+    }
 
-    if (!officerPrintingEnabled && rentalsView) {
+    if (!hasExtraTrackerViews && rentalsView) {
         rentalsView.classList.add('active');
     }
 }
 
 function switchTrackerSubView(viewId, button = null) {
     if (viewId === 'printing' && !officerPrintingEnabled) {
+        return;
+    }
+    if (viewId === 'lockers' && !officerLockerEnabled) {
         return;
     }
     currentTrackerSubView = viewId;
@@ -387,6 +413,8 @@ function switchTrackerSubView(viewId, button = null) {
     if (viewId === 'printing') {
         showOfficerPrintingQueueView();
         loadOfficerPrintingQueue().catch((error) => console.error(error));
+    } else if (viewId === 'lockers') {
+        loadOfficerLockerBoard().catch((error) => console.error(error));
     }
 }
 
@@ -811,6 +839,14 @@ document.addEventListener('click', (e) => {
     if (printingDateModal && e.target === printingDateModal) {
         closeOfficerPrintingDateFilterModal();
     }
+    const lockerModal = document.getElementById('lockerDetailModal');
+    if (lockerModal && e.target === lockerModal) {
+        closeLockerDetailModal();
+    }
+    const addLockerModal = document.getElementById('addLockerModal');
+    if (addLockerModal && e.target === addLockerModal) {
+        closeAddLockerModal();
+    }
 });
 
 document.addEventListener('keydown', (e) => {
@@ -818,6 +854,14 @@ document.addEventListener('keydown', (e) => {
         const printingDateModal = document.getElementById('officerPrintingDateFilterModal');
         if (printingDateModal && printingDateModal.classList.contains('show')) {
             closeOfficerPrintingDateFilterModal();
+        }
+        const lockerModal = document.getElementById('lockerDetailModal');
+        if (lockerModal && lockerModal.classList.contains('show')) {
+            closeLockerDetailModal();
+        }
+        const addLockerModal = document.getElementById('addLockerModal');
+        if (addLockerModal && addLockerModal.classList.contains('show')) {
+            closeAddLockerModal();
         }
     }
 });
@@ -902,6 +946,394 @@ async function reorderOfficerPrintJob(printJobId, newQueueOrder) {
         await loadOfficerPrintingQueue(true);
     } catch (error) {
         alert(error.message || 'Could not reorder print jobs.');
+    }
+}
+
+function getLockerStateLabel(state) {
+    const normalized = String(state || '').toLowerCase();
+    if (normalized === 'pending') return 'Pending';
+    if (normalized === 'occupied') return 'Occupied';
+    if (normalized === 'overdue') return 'Overdue';
+    return 'Available';
+}
+
+function getLockerStateClass(state) {
+    const normalized = String(state || '').toLowerCase();
+    if (normalized === 'pending') return 'pending';
+    if (normalized === 'occupied') return 'occupied';
+    if (normalized === 'overdue') return 'overdue';
+    return 'available';
+}
+
+function formatLockerDateOnly(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function updateLockerOverviewCounts(lockers) {
+    const counts = { available: 0, pending: 0, occupied: 0, overdue: 0 };
+    lockers.forEach((locker) => {
+        const state = String(locker.state || 'available').toLowerCase();
+        if (counts[state] !== undefined) counts[state] += 1;
+    });
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(value);
+    };
+    set('lockerAvailableCount', counts.available);
+    set('lockerPendingCount', counts.pending);
+    set('lockerOccupiedCount', counts.occupied);
+    set('lockerOverdueCount', counts.overdue);
+}
+
+function renderOfficerLockerBoard() {
+    const disabledMessage = document.getElementById('officerLockerDisabledMessage');
+    const content = document.getElementById('officerLockerContent');
+    const board = document.getElementById('officerLockerBoard');
+    if (!board || !disabledMessage || !content) return;
+
+    disabledMessage.style.display = officerLockerEnabled ? 'none' : 'block';
+    content.style.display = officerLockerEnabled ? '' : 'none';
+
+    if (!officerLockerEnabled) {
+        board.innerHTML = '';
+        return;
+    }
+
+    if (!officerLockerBoard.length) {
+        board.innerHTML = `
+            <div class="empty-state" style="padding:32px; text-align:center;">
+                <i class="fa-solid fa-door-closed" style="font-size:40px; color:var(--muted); margin-bottom:10px;"></i>
+                <h3 style="margin-bottom:8px;">No lockers found</h3>
+                <p style="color:var(--muted);">Locker inventory will appear here after SSC locker setup finishes.</p>
+            </div>
+        `;
+        updateLockerOverviewCounts([]);
+        return;
+    }
+
+    updateLockerOverviewCounts(officerLockerBoard);
+    const groups = officerLockerBoard.reduce((acc, locker) => {
+        const key = locker.column_key || 'A';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(locker);
+        return acc;
+    }, {});
+
+    const orderedColumns = Object.keys(groups).sort((a, b) => String(a).localeCompare(String(b)));
+    board.innerHTML = orderedColumns.map((columnKey) => {
+        const lockers = (groups[columnKey] || []).sort((a, b) => String(a.locker_code).localeCompare(String(b.locker_code)));
+        return `
+            <div class="locker-column">
+                <div class="locker-column-header">Column ${columnKey}</div>
+                <div class="locker-column-grid">
+                    ${lockers.map((locker) => `
+                        <button
+                            type="button"
+                            class="locker-tile state-${getLockerStateClass(locker.state)}"
+                            onclick="openLockerDetail('${escapeHtml(String(locker.locker_code || ''))}')">
+                            <span class="locker-tile-door-line"></span>
+                            <span class="locker-tile-door-line locker-tile-door-line-bottom"></span>
+                            <span class="locker-tile-code">${escapeHtml(locker.locker_code || '')}</span>
+                            <span class="locker-tile-state">${escapeHtml(getLockerStateLabel(locker.state))}</span>
+                            <span class="locker-tile-handle"></span>
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function loadOfficerLockerBoard(force = false) {
+    try {
+        officerLockerEnabled = isOfficerLockerEnabled();
+        if (!officerLockerEnabled) {
+            officerLockerBoard = [];
+            renderOfficerLockerBoard();
+            return [];
+        }
+
+        const response = await fetch('../api/lockers/officer/list.php', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load locker services.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        renderOfficerLockerBoard();
+        return officerLockerBoard;
+    } catch (error) {
+        if (force) {
+            console.error('[loadOfficerLockerBoard]', error);
+        }
+        officerLockerBoard = [];
+        renderOfficerLockerBoard();
+        throw error;
+    }
+}
+
+function openLockerDetail(lockerCode) {
+    const locker = officerLockerBoard.find((item) => String(item.locker_code) === String(lockerCode));
+    if (!locker) return;
+    selectedLockerTile = locker;
+
+    const modal = document.getElementById('lockerDetailModal');
+    const currentRequest = locker.current_request || null;
+    const stateClass = getLockerStateClass(locker.state);
+    const stateLabel = getLockerStateLabel(locker.state);
+
+    const setValue = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value ?? '';
+    };
+    const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value ?? '';
+    };
+
+    setText('lockerDetailTitle', `Locker ${locker.locker_code}`);
+    setText('lockerDetailSubtitle', currentRequest ? 'Review the current locker request or assignment details.' : 'This locker is currently available for assignment.');
+    const badge = document.getElementById('lockerDetailStateBadge');
+    if (badge) {
+        badge.className = `locker-state-pill ${stateClass}`;
+        badge.textContent = stateLabel;
+    }
+
+    setText('lockerDetailStudentName', currentRequest ? (currentRequest.student_name || 'Unnamed Student') : 'No student assigned');
+    setText('lockerDetailStudentMeta', currentRequest
+        ? `${currentRequest.student_number || '-'}${currentRequest.section ? ` • ${currentRequest.section}` : ''}`
+        : 'Select a pending or occupied locker to manage its assignment.');
+
+    setValue('lockerDetailCode', locker.locker_code || '');
+    setValue('lockerMonthlyRate', Number(locker.locker_monthly_rate || 0).toFixed(2));
+    setValue('lockerSemesterRate', Number(locker.locker_semester_rate || 0).toFixed(2));
+    setValue('lockerSchoolYearRate', Number(locker.locker_school_year_rate || 0).toFixed(2));
+    setValue('lockerDetailPeriodType', currentRequest?.locker_period_type || 'monthly');
+    setValue('lockerDetailStartDate', currentRequest?.rent_time ? String(currentRequest.rent_time).slice(0, 10) : '');
+    setValue('lockerDetailEndDate', currentRequest?.expected_return_time ? String(currentRequest.expected_return_time).slice(0, 10) : '');
+    setValue('lockerDetailPrice', currentRequest ? Number(currentRequest.total_cost || 0).toFixed(2) : Number(locker.locker_monthly_rate || 0).toFixed(2));
+    setValue('lockerDetailNoticeMessage', currentRequest?.locker_notice_message || 'Your locker rental is already past due and may be pulled out by SSC if it remains unresolved.');
+
+    const approveBtn = document.getElementById('lockerApproveBtn');
+    const releaseBtn = document.getElementById('lockerReleaseBtn');
+    const noticeBtn = document.getElementById('lockerNoticeBtn');
+    if (approveBtn) approveBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
+    if (releaseBtn) releaseBtn.style.display = (locker.state === 'occupied' || locker.state === 'overdue' || locker.state === 'pending') ? 'inline-flex' : 'none';
+    if (noticeBtn) noticeBtn.style.display = locker.state === 'overdue' ? 'inline-flex' : 'none';
+
+    const noticePreview = document.getElementById('lockerNoticePreview');
+    if (noticePreview) {
+        if (currentRequest?.locker_notice_sent_at) {
+            noticePreview.style.display = '';
+            setText('lockerNoticePreviewText', currentRequest.locker_notice_message || 'A pull-out notice has already been sent for this locker.');
+            setText('lockerNoticePreviewMeta', `Sent on ${formatLockerDateOnly(currentRequest.locker_notice_sent_at)}`);
+        } else {
+            noticePreview.style.display = 'none';
+            setText('lockerNoticePreviewText', '');
+            setText('lockerNoticePreviewMeta', '');
+        }
+    }
+
+    if (modal) {
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+    syncLockerAssignmentPreview();
+}
+
+function closeLockerDetailModal() {
+    const modal = document.getElementById('lockerDetailModal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function openAddLockerModal() {
+    const modal = document.getElementById('addLockerModal');
+    if (!modal) return;
+    const codeInput = document.getElementById('newLockerCode');
+    const monthlyInput = document.getElementById('newLockerMonthlyRate');
+    const semesterInput = document.getElementById('newLockerSemesterRate');
+    const schoolYearInput = document.getElementById('newLockerSchoolYearRate');
+    if (codeInput) codeInput.value = '';
+    if (monthlyInput) monthlyInput.value = '0';
+    if (semesterInput) semesterInput.value = '0';
+    if (schoolYearInput) schoolYearInput.value = '0';
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAddLockerModal() {
+    const modal = document.getElementById('addLockerModal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+async function submitAddLocker() {
+    try {
+        const response = await fetch('../api/lockers/officer/add.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                locker_code: document.getElementById('newLockerCode')?.value || '',
+                locker_monthly_rate: document.getElementById('newLockerMonthlyRate')?.value || 0,
+                locker_semester_rate: document.getElementById('newLockerSemesterRate')?.value || 0,
+                locker_school_year_rate: document.getElementById('newLockerSchoolYearRate')?.value || 0
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not add the locker.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        renderOfficerLockerBoard();
+        closeAddLockerModal();
+    } catch (error) {
+        alert(error.message || 'Could not add the locker.');
+    }
+}
+
+function syncLockerAssignmentPreview() {
+    if (!selectedLockerTile) return;
+
+    const periodType = document.getElementById('lockerDetailPeriodType')?.value || 'monthly';
+    const startInput = document.getElementById('lockerDetailStartDate');
+    const endInput = document.getElementById('lockerDetailEndDate');
+    const priceInput = document.getElementById('lockerDetailPrice');
+    if (!startInput || !endInput || !priceInput) return;
+
+    const startValue = String(startInput.value || '').trim();
+    if (!startValue) {
+        if (periodType !== 'custom') {
+            endInput.value = '';
+        }
+        return;
+    }
+
+    if (periodType !== 'custom') {
+        const startDate = new Date(`${startValue}T00:00:00`);
+        if (Number.isNaN(startDate.getTime())) return;
+        if (periodType === 'monthly') {
+            startDate.setMonth(startDate.getMonth() + 1);
+        } else if (periodType === 'semester') {
+            startDate.setMonth(startDate.getMonth() + 5);
+        } else if (periodType === 'school_year') {
+            startDate.setMonth(startDate.getMonth() + 10);
+        }
+        endInput.value = startDate.toISOString().slice(0, 10);
+    }
+
+    if (periodType === 'monthly') {
+        priceInput.value = Number(selectedLockerTile.locker_monthly_rate || 0).toFixed(2);
+    } else if (periodType === 'semester') {
+        priceInput.value = Number(selectedLockerTile.locker_semester_rate || 0).toFixed(2);
+    } else if (periodType === 'school_year') {
+        priceInput.value = Number(selectedLockerTile.locker_school_year_rate || 0).toFixed(2);
+    }
+}
+
+async function saveLockerPricing() {
+    if (!selectedLockerTile) return;
+    try {
+        const response = await fetch('../api/lockers/officer/pricing.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                item_id: selectedLockerTile.item_id,
+                locker_monthly_rate: document.getElementById('lockerMonthlyRate')?.value || 0,
+                locker_semester_rate: document.getElementById('lockerSemesterRate')?.value || 0,
+                locker_school_year_rate: document.getElementById('lockerSchoolYearRate')?.value || 0
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not save locker rates.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : officerLockerBoard;
+        renderOfficerLockerBoard();
+        openLockerDetail(selectedLockerTile.locker_code);
+    } catch (error) {
+        alert(error.message || 'Could not save locker rates.');
+    }
+}
+
+async function approveLockerAssignment() {
+    if (!selectedLockerTile?.current_request?.rental_id) return;
+    try {
+        const response = await fetch('../api/lockers/officer/approve.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                rental_id: selectedLockerTile.current_request.rental_id,
+                period_type: document.getElementById('lockerDetailPeriodType')?.value || 'monthly',
+                start_date: document.getElementById('lockerDetailStartDate')?.value || '',
+                end_date: document.getElementById('lockerDetailEndDate')?.value || '',
+                price: document.getElementById('lockerDetailPrice')?.value || ''
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not approve locker assignment.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        renderOfficerLockerBoard();
+        closeLockerDetailModal();
+    } catch (error) {
+        alert(error.message || 'Could not approve locker assignment.');
+    }
+}
+
+async function releaseLockerAssignment() {
+    if (!selectedLockerTile?.current_request?.rental_id) return;
+    try {
+        const response = await fetch('../api/lockers/officer/release.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                rental_id: selectedLockerTile.current_request.rental_id
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not release locker assignment.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        renderOfficerLockerBoard();
+        closeLockerDetailModal();
+    } catch (error) {
+        alert(error.message || 'Could not release locker assignment.');
+    }
+}
+
+async function sendLockerPulloutNotice() {
+    if (!selectedLockerTile?.current_request?.rental_id) return;
+    try {
+        const response = await fetch('../api/lockers/officer/notice.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                rental_id: selectedLockerTile.current_request.rental_id,
+                message: document.getElementById('lockerDetailNoticeMessage')?.value || ''
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not send the pull-out notice.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        renderOfficerLockerBoard();
+        openLockerDetail(selectedLockerTile.locker_code);
+    } catch (error) {
+        alert(error.message || 'Could not send the pull-out notice.');
     }
 }
 
