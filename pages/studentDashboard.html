@@ -282,10 +282,14 @@
                         </div>
                     </div>
 
+                    <div class="printing-hero-preview-area" id="printingHeroPreviewArea" style="display: none;">
+                        <div class="printing-files-list" id="printingFilesList"></div>
+                    </div>
+
                     <!-- Right Side: Upload UI -->
                     <div class="hero-upload">
                         <div class="upload-zone" id="uploadZone">
-                            <input type="file" id="fileInput" hidden accept=".pdf,.docx,.png,.jpg,.jpeg">
+                            <input type="file" id="fileInput" hidden accept=".pdf,.docx,.png,.jpg,.jpeg" multiple>
                             <div class="upload-content">
                                 <div class="upload-icon">
                                     <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -296,20 +300,22 @@
                             </div>
                             <!-- Success / File Selected State -->
                             <div class="file-selected-state" id="fileSelectedState" style="display: none;">
-                                <div class="selected-file-icon">
-                                    <i class="fa-solid fa-file-lines"></i>
+                                <div class="selected-file-header">
+                                    <div class="selected-file-icon">
+                                        <i class="fa-solid fa-file-lines"></i>
+                                    </div>
+                                    <button type="button" class="btn-upload-secondary" id="btnAddAnotherFile">Add Another File</button>
                                 </div>
                                 <div class="selected-file-info">
-                                    <p class="filename-text" id="filenameText">document.pdf</p>
-                                    <p class="file-size-text">Ready to print</p>
+                                    <p class="filename-text" id="filenameText">0 files selected</p>
+                                    <p class="file-size-text" id="fileSelectionSummary">Add notes for each file before submitting</p>
                                 </div>
                                 <div class="printing-hero-fields">
                                     <select id="uploadPrintProvider" class="printing-hero-select">
                                         <option value="">Select printing provider</option>
                                     </select>
-                                    <textarea id="uploadPrintNotes" class="printing-hero-notes" rows="3" placeholder="Optional instructions for the printing officer"></textarea>
                                 </div>
-                                <button class="btn-upload-submit" id="btnUploadSubmit" disabled>Upload to Print</button>
+                                <button class="btn-upload-submit" id="btnUploadSubmit" disabled>Upload Files to Print</button>
                             </div>
                         </div>
                     </div>

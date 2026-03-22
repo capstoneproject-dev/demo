@@ -525,16 +525,17 @@ header {
 .hero-content {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    gap: 40px;
+    align-items: flex-start;
+    gap: 28px;
 }
 
 /* Left Side */
 .hero-info {
-    flex: 1;
+    flex: 0 1 520px;
     display: flex;
     align-items: flex-start;
     gap: 24px;
+    min-width: 0;
 }
 
 .hero-icon-wrapper {
@@ -585,8 +586,8 @@ header {
 
 /* Right Side - Upload UI */
 .hero-upload {
-    flex: 1;
-    max-width: 450px;
+    flex: 0 0 380px;
+    max-width: 380px;
 }
 
 .upload-zone {
@@ -5912,6 +5913,159 @@ body.dark .calendar-day.in-range {
     margin-top: 12px;
 }
 
+.printing-files-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 14px;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.printing-hero-preview-area {
+    flex: 1 1 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    align-self: center;
+    min-width: 0;
+    padding: 0;
+}
+
+.printing-file-card {
+    width: 180px;
+    max-width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--panel);
+    padding: 14px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.selected-file-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.file-selected-state .printing-files-list {
+    display: none;
+}
+
+.btn-upload-secondary {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 9px 12px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-upload-secondary:hover {
+    background: var(--panel-2);
+}
+
+.printing-file-preview {
+    height: 180px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.printing-file-preview-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.printing-file-preview-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    display: block;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+}
+
+.printing-file-preview-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--primary);
+}
+
+.printing-file-preview-fallback i {
+    font-size: 2rem;
+}
+
+.printing-file-preview-fallback span {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.printing-file-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.printing-file-name {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.92rem;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.printing-file-meta {
+    color: var(--muted);
+    font-size: 0.8rem;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.printing-file-remove {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 0;
+    background: rgba(15, 23, 42, 0.06);
+    color: var(--muted);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.printing-file-remove:hover {
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+}
+
+.printing-file-note {
+    width: 100%;
+    min-height: 72px;
+    resize: vertical;
+    margin: 0;
+}
+
 .printing-hero-select,
 .printing-hero-notes {
     width: 100%;
@@ -5934,6 +6088,21 @@ body.dark .calendar-day.in-range {
 
     .printing-module-grid {
         grid-template-columns: 1fr;
+    }
+
+    .hero-content {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .printing-hero-preview-area {
+        flex: none;
+        width: 100%;
+    }
+
+    .hero-upload {
+        flex: none;
+        max-width: 100%;
     }
 }
 

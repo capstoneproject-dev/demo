@@ -98,34 +98,8 @@ function stEnsureSchema(PDO $pdo): void
     }
 
     $pdo->exec(
-        "CREATE TABLE IF NOT EXISTS service_catalog (
-            service_key VARCHAR(64) NOT NULL PRIMARY KEY,
-            service_name VARCHAR(120) NOT NULL,
-            description VARCHAR(255) NULL,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
-    );
-
-    $pdo->exec(
-        "CREATE TABLE IF NOT EXISTS organization_service_authorizations (
-            authorization_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            org_id INT NOT NULL,
-            service_key VARCHAR(64) NOT NULL,
-            is_enabled TINYINT(1) NOT NULL DEFAULT 0,
-            updated_by_user_id INT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY uq_org_service (org_id, service_key),
-            KEY idx_service_enabled (service_key, is_enabled),
-            CONSTRAINT fk_service_auth_org
-                FOREIGN KEY (org_id) REFERENCES organizations(org_id)
-                ON DELETE CASCADE,
-            CONSTRAINT fk_service_auth_service
-                FOREIGN KEY (service_key) REFERENCES service_catalog(service_key)
-                ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        "ALTER TABLE organizations
+         ADD COLUMN IF NOT EXISTS can_offer_printing TINYINT(1) NOT NULL DEFAULT 0"
     );
 
     $pdo->exec(
@@ -155,87 +129,30 @@ function stEnsureSchema(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
 
-    stSeedDefaultServices($pdo);
-    stSeedDefaultAuthorizations($pdo);
-
     $done = true;
 }
 
 function stSeedDefaultServices(PDO $pdo): void
 {
-    $stmt = $pdo->prepare(
-        "INSERT INTO service_catalog (service_key, service_name, description, is_active)
-         VALUES (:service_key, :service_name, :description, 1)
-         ON DUPLICATE KEY UPDATE
-            service_name = VALUES(service_name),
-            description = VALUES(description),
-            is_active = 1"
-    );
-
-    foreach (ST_DEFAULT_SERVICES as $service) {
-        $stmt->execute([
-            ':service_key' => $service['service_key'],
-            ':service_name' => $service['service_name'],
-            ':description' => $service['description'],
-        ]);
-    }
+    stEnsureSchema($pdo);
 }
 
 function stSeedDefaultAuthorizations(PDO $pdo): void
 {
-    $orgs = $pdo->query(
-        "SELECT org_id, org_name, org_code
-         FROM organizations
-         WHERE status = 'active'
-         ORDER BY org_id ASC"
-    )->fetchAll();
-
-    if (!$orgs) {
-        return;
-    }
-
-    $legacyPrintingCodes = ['SSC', 'CYC', 'AMTSO', 'AETSO'];
-    $insert = $pdo->prepare(
-        "INSERT IGNORE INTO organization_service_authorizations
-            (org_id, service_key, is_enabled, updated_by_user_id)
-         VALUES
-            (:org_id, :service_key, :is_enabled, NULL)"
-    );
-
-    foreach ($orgs as $org) {
-        $code = strtoupper(trim((string)($org['org_code'] ?? '')));
-
-        $insert->execute([
-            ':org_id' => (int)$org['org_id'],
-            ':service_key' => 'rentals',
-            ':is_enabled' => 1,
-        ]);
-
-        $insert->execute([
-            ':org_id' => (int)$org['org_id'],
-            ':service_key' => 'printing',
-            ':is_enabled' => in_array($code, $legacyPrintingCodes, true) ? 1 : 0,
-        ]);
-    }
+    stEnsureSchema($pdo);
 }
 
 function stListServiceCatalog(PDO $pdo): array
 {
     stEnsureSchema($pdo);
-    $stmt = $pdo->query(
-        "SELECT service_key, service_name, description, is_active
-         FROM service_catalog
-         WHERE is_active = 1
-         ORDER BY service_name ASC"
-    );
-    return array_map(static function (array $row): array {
+    return array_map(static function (array $service): array {
         return [
-            'service_key' => (string)$row['service_key'],
-            'service_name' => (string)$row['service_name'],
-            'description' => (string)($row['description'] ?? ''),
-            'is_active' => (bool)$row['is_active'],
+            'service_key' => (string)$service['service_key'],
+            'service_name' => (string)$service['service_name'],
+            'description' => (string)($service['description'] ?? ''),
+            'is_active' => true,
         ];
-    }, $stmt->fetchAll());
+    }, ST_DEFAULT_SERVICES);
 }
 
 function stListAuthorizedOrganizations(PDO $pdo, string $serviceKey): array
@@ -243,18 +160,22 @@ function stListAuthorizedOrganizations(PDO $pdo, string $serviceKey): array
     stEnsureSchema($pdo);
     $serviceKey = stNormalizeServiceKey($serviceKey);
 
-    $stmt = $pdo->prepare(
-        "SELECT o.org_id, o.org_name, o.org_code, o.logo_url
-         FROM organization_service_authorizations osa
-         JOIN organizations o ON o.org_id = osa.org_id
-         JOIN service_catalog sc ON sc.service_key = osa.service_key
-         WHERE osa.service_key = :service_key
-           AND osa.is_enabled = 1
-           AND sc.is_active = 1
-           AND o.status = 'active'
-         ORDER BY o.org_name ASC"
-    );
-    $stmt->execute([':service_key' => $serviceKey]);
+    if ($serviceKey === 'printing') {
+        $stmt = $pdo->query(
+            "SELECT o.org_id, o.org_name, o.org_code, o.logo_url
+             FROM organizations o
+             WHERE o.status = 'active'
+               AND COALESCE(o.can_offer_printing, 0) = 1
+             ORDER BY o.org_name ASC"
+        );
+    } else {
+        $stmt = $pdo->query(
+            "SELECT o.org_id, o.org_name, o.org_code, o.logo_url
+             FROM organizations o
+             WHERE o.status = 'active'
+             ORDER BY o.org_name ASC"
+        );
+    }
 
     return array_map(static function (array $row): array {
         return [
@@ -280,22 +201,27 @@ function stServiceEnabledForOrg(PDO $pdo, int $orgId, string $serviceKey): bool
         return false;
     }
 
+    if ($serviceKey === 'printing') {
+        $stmt = $pdo->prepare(
+            "SELECT 1
+             FROM organizations
+             WHERE org_id = :org_id
+               AND status = 'active'
+               AND COALESCE(can_offer_printing, 0) = 1
+             LIMIT 1"
+        );
+        $stmt->execute([':org_id' => $orgId]);
+        return (bool)$stmt->fetchColumn();
+    }
+
     $stmt = $pdo->prepare(
         "SELECT 1
-         FROM organization_service_authorizations osa
-         JOIN organizations o ON o.org_id = osa.org_id
-         JOIN service_catalog sc ON sc.service_key = osa.service_key
-         WHERE osa.org_id = :org_id
-           AND osa.service_key = :service_key
-           AND osa.is_enabled = 1
-           AND sc.is_active = 1
-           AND o.status = 'active'
+         FROM organizations
+         WHERE org_id = :org_id
+           AND status = 'active'
          LIMIT 1"
     );
-    $stmt->execute([
-        ':org_id' => $orgId,
-        ':service_key' => $serviceKey,
-    ]);
+    $stmt->execute([':org_id' => $orgId]);
     return (bool)$stmt->fetchColumn();
 }
 
@@ -303,10 +229,9 @@ function stListOrganizationsWithServices(PDO $pdo): array
 {
     stEnsureSchema($pdo);
     $services = stListServiceCatalog($pdo);
-    $serviceKeys = array_map(static fn(array $item): string => $item['service_key'], $services);
 
     $orgStmt = $pdo->query(
-        "SELECT org_id, org_name, org_code, status
+        "SELECT org_id, org_name, org_code, status, COALESCE(can_offer_printing, 0) AS can_offer_printing
          FROM organizations
          ORDER BY org_name ASC"
     );
@@ -317,21 +242,11 @@ function stListOrganizationsWithServices(PDO $pdo): array
             'org_name' => (string)$row['org_name'],
             'org_code' => (string)($row['org_code'] ?? ''),
             'status' => (string)($row['status'] ?? ''),
-            'services' => array_fill_keys($serviceKeys, false),
+            'services' => [
+                'rentals' => ((string)($row['status'] ?? '')) === 'active',
+                'printing' => ((int)($row['can_offer_printing'] ?? 0) === 1),
+            ],
         ];
-    }
-
-    $authStmt = $pdo->query(
-        "SELECT org_id, service_key, is_enabled
-         FROM organization_service_authorizations"
-    );
-    foreach ($authStmt->fetchAll() as $row) {
-        $orgId = (int)$row['org_id'];
-        $serviceKey = (string)$row['service_key'];
-        if (!isset($orgs[$orgId])) {
-            continue;
-        }
-        $orgs[$orgId]['services'][$serviceKey] = ((int)$row['is_enabled'] === 1);
     }
 
     return [
@@ -347,29 +262,15 @@ function stSaveOrganizationServiceAuthorizations(PDO $pdo, int $orgId, array $se
         throw new ServiceTrackerValidationException('A valid organization is required.');
     }
 
-    $validServices = array_column(stListServiceCatalog($pdo), 'service_key');
-    $upsert = $pdo->prepare(
-        "INSERT INTO organization_service_authorizations
-            (org_id, service_key, is_enabled, updated_by_user_id)
-         VALUES
-            (:org_id, :service_key, :is_enabled, :updated_by)
-         ON DUPLICATE KEY UPDATE
-            is_enabled = VALUES(is_enabled),
-            updated_by_user_id = VALUES(updated_by_user_id)"
+    $stmt = $pdo->prepare(
+        "UPDATE organizations
+         SET can_offer_printing = :can_offer_printing
+         WHERE org_id = :org_id"
     );
-
-    foreach ($services as $serviceKey => $enabled) {
-        $normalizedKey = stNormalizeServiceKey((string)$serviceKey);
-        if (!in_array($normalizedKey, $validServices, true)) {
-            continue;
-        }
-        $upsert->execute([
-            ':org_id' => $orgId,
-            ':service_key' => $normalizedKey,
-            ':is_enabled' => !empty($enabled) ? 1 : 0,
-            ':updated_by' => $updatedByUserId > 0 ? $updatedByUserId : null,
-        ]);
-    }
+    $stmt->execute([
+        ':can_offer_printing' => !empty($services['printing']) ? 1 : 0,
+        ':org_id' => $orgId,
+    ]);
 
     $all = stListOrganizationsWithServices($pdo);
     foreach ($all['organizations'] as $org) {

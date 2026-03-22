@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 18, 2026 at 02:12 PM
+-- Generation Time: Mar 22, 2026 at 01:01 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -350,8 +350,10 @@ CREATE TABLE `inventory_categories` (
 --
 
 INSERT INTO `inventory_categories` (`category_id`, `org_id`, `category_name`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 2, 'Shoe Cover', 1, '2026-02-27 14:03:59', '2026-02-27 14:03:59'),
-(2, 2, 'Calculator', 1, '2026-02-27 14:18:25', '2026-02-27 14:18:25');
+(2, 2, 'Calculator', 1, '2026-02-27 14:18:25', '2026-02-27 14:18:25'),
+(3, 3, 'Laboratory', 1, '2026-03-22 01:58:25', '2026-03-22 01:58:25'),
+(4, 2, 'Laboratory', 1, '2026-03-22 02:02:57', '2026-03-22 02:02:57'),
+(5, 3, 'Calculator', 1, '2026-03-22 02:13:52', '2026-03-22 02:13:52');
 
 --
 -- Triggers `inventory_categories`
@@ -389,10 +391,12 @@ CREATE TABLE `inventory_items` (
 --
 
 INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `image_path`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `status`, `created_at`, `updated_at`) VALUES
-(1, 2, 'shoe', 'SH001', 'assets/photos/studentDashboard/Services/shoerag.png', 1, 10.00, 30, 5.00, 'rented', '2026-02-27 14:03:59', '2026-02-28 20:16:40'),
-(2, 2, 'shoe', 'SH002', 'assets/photos/studentDashboard/Services/shoerag.png', 1, 10.00, 30, 5.00, 'rented', '2026-02-27 14:07:03', '2026-02-28 20:19:08'),
-(3, 2, 'Sci Cal', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-02-28 20:16:22'),
-(4, 2, 'Business Calculator', 'CAL002', 'assets/photos/studentDashboard/Services/businesscalculator.png', 2, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-02-27 14:18:55');
+(1, 2, 'Shoe Cover', 'SH001', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, 'available', '2026-02-27 14:03:59', '2026-03-22 02:02:57'),
+(2, 2, 'Shoe Cover', 'SH002', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, 'available', '2026-02-27 14:07:03', '2026-03-22 02:03:03'),
+(3, 2, 'Scientific Calculator', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-03-22 02:07:38'),
+(4, 2, 'Business Calculator', 'CAL002', 'assets/photos/studentDashboard/Services/businesscalculator.png', 2, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-03-22 00:54:56'),
+(5, 3, 'Crimping Tool', 'CT001', 'uploads/inventory-items/inventory_20260321_185825_888421cd5fe8.webp', 3, 20.00, 30, 5.00, 'available', '2026-03-22 01:58:25', '2026-03-22 01:58:25'),
+(7, 3, 'Scientific Calculator', 'ITCALC001', 'assets/photos/studentDashboard/Services/scical.png', 5, 20.00, 30, 5.00, 'available', '2026-03-22 02:13:52', '2026-03-22 14:29:48');
 
 --
 -- Triggers `inventory_items`
@@ -417,25 +421,26 @@ CREATE TABLE `organizations` (
   `logo_url` varchar(500) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `can_offer_printing` tinyint(1) NOT NULL DEFAULT 0
 ) ;
 
 --
 -- Dumping data for table `organizations`
 --
 
-INSERT INTO `organizations` (`org_id`, `org_name`, `org_code`, `logo_url`, `status`, `created_at`, `updated_at`) VALUES
-(1, 'Supreme Student Council', 'SSC', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(2, 'Alliance in Information System Empowered Responsive Students', 'AISERS', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(3, 'Elite Technologist Society', 'ELITECH', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(4, 'Institute of Liberal Arts and Sciences Student Organization', 'ILASSO', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(5, 'Aeronautical Engineering Organization', 'AERO-ATSO', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(6, 'Aeronautical Engineering Technology Student Organization', 'AETSO', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(7, 'Aviation Maintenance Technology Student Organization', 'AMTSO', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(8, 'Red Cross Youth Council', 'RCYC', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(9, 'College Youth Club', 'CYC', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(10, 'Scholar\'s Guild', 'SCHOLARS', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43'),
-(11, 'Aeronautica', 'AERONAUTICA', NULL, 'active', '2026-02-25 19:13:37', '2026-02-25 19:26:43');
+INSERT INTO `organizations` (`org_id`, `org_name`, `org_code`, `logo_url`, `status`, `created_at`, `updated_at`, `can_offer_printing`) VALUES
+(1, 'Supreme Student Council', 'SSC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1),
+(2, 'Alliance in Information System Empowered Responsive Students', 'AISERS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
+(3, 'Elite Technologist Society', 'ELITECH', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
+(4, 'Institute of Liberal Arts and Sciences Student Organization', 'ILASSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
+(5, 'Aeronautical Engineering Organization', 'AERO-ATSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
+(6, 'Aeronautical Engineering Technology Student Organization', 'AETSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1),
+(7, 'Aviation Maintenance Technology Student Organization', 'AMTSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1),
+(8, 'Red Cross Youth Council', 'RCYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
+(9, 'College Youth Club', 'CYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1),
+(10, 'Scholar\'s Guild', 'SCHOLARS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
+(11, 'Aeronautica', 'AERONAUTICA', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0);
 
 --
 -- Triggers `organizations`
@@ -471,7 +476,8 @@ CREATE TABLE `organization_members` (
 INSERT INTO `organization_members` (`membership_id`, `user_id`, `org_id`, `role_id`, `joined_at`, `is_active`, `created_at`, `updated_at`) VALUES
 (3, 4, 2, 10, '2026-02-27', 1, '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
 (5, 6, 2, 10, '2026-02-27', 1, '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
-(6, 7, 1, 12, '2026-02-28', 1, '2026-02-28 19:45:28', '2026-02-28 19:45:28');
+(6, 7, 1, 12, '2026-02-28', 1, '2026-02-28 19:45:28', '2026-02-28 19:45:28'),
+(7, 11, 3, 11, '2026-03-18', 1, '2026-03-18 21:26:31', '2026-03-18 21:26:31');
 
 --
 -- Triggers `organization_members`
@@ -553,7 +559,9 @@ INSERT INTO `pending_registrations` (`reg_id`, `student_number`, `student_name`,
 (5, '12324MN-000094', 'Charles Gabriel A. Martinez', 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, '2026-02-27 13:48:15', '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
 (6, 'ssc', 'ssc', 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'BSAIS', '3-2', 'org_officer', 'Supreme Student Council', 'approved', 1, '2026-02-28 19:37:43', '2026-02-28 19:45:28', '2026-02-28 19:45:28'),
 (7, 'ISstudent', 'ISstudent', 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'BSAIS', '3-2', 'student', NULL, 'approved', 1, '2026-03-18 21:01:22', '2026-03-18 21:01:34', '2026-03-18 21:01:34'),
-(8, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'BSAIT', '3-2', 'student', NULL, 'approved', 1, '2026-03-18 21:05:39', '2026-03-18 21:05:46', '2026-03-18 21:05:46');
+(8, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'BSAIT', '3-2', 'student', NULL, 'approved', 1, '2026-03-18 21:05:39', '2026-03-18 21:05:46', '2026-03-18 21:05:46'),
+(9, 'AETstudent', 'AETstudent', 'AETstudent@gmail.com', '+63 1234567890', '$2y$10$Pf0QzbAfnqQBMTUy1nn/4.xkxO7AeVIhxB.OsBQWR45lV4CXrLjI6', 'BSAET', '3-2', 'student', NULL, 'approved', 1, '2026-03-18 21:20:50', '2026-03-18 21:20:54', '2026-03-18 21:20:54'),
+(10, 'elitech', 'elitech', 'elitech@gmail.com', '+63 1234567890', '$2y$10$IYHhWOTf2dIs6FfOiVX99.iDQ8sRYvRi4HGtEuOWg/tuS0vPC0cw2', 'BSAT', '3-2', 'org_officer', 'ELITECH', 'approved', 1, '2026-03-18 21:26:21', '2026-03-18 21:26:31', '2026-03-18 21:26:31');
 
 --
 -- Triggers `pending_registrations`
@@ -564,6 +572,29 @@ CREATE TRIGGER `trg_pending_registrations_updated_at` BEFORE UPDATE ON `pending_
 END
 $$
 DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `print_jobs`
+--
+
+CREATE TABLE `print_jobs` (
+  `print_job_id` int(11) NOT NULL,
+  `org_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `file_name` varchar(255) NOT NULL,
+  `file_url` varchar(500) NOT NULL,
+  `notes` text DEFAULT NULL,
+  `status` varchar(32) NOT NULL DEFAULT 'queued',
+  `queue_order` int(11) NOT NULL DEFAULT 1,
+  `submitted_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `processing_started_at` datetime DEFAULT NULL,
+  `ready_at` datetime DEFAULT NULL,
+  `claimed_at` datetime DEFAULT NULL,
+  `last_updated_by_user_id` int(11) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -623,7 +654,6 @@ CREATE TABLE `rentals` (
   `actual_return_time` datetime DEFAULT NULL,
   `total_cost` decimal(10,2) NOT NULL DEFAULT 0.00,
   `payment_status` varchar(20) NOT NULL DEFAULT 'unpaid',
-  `payment_method` varchar(20) DEFAULT NULL,
   `paid_at` datetime DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
@@ -634,18 +664,19 @@ CREATE TABLE `rentals` (
 -- Dumping data for table `rentals`
 --
 
-INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_user_id`, `rent_time`, `expected_return_time`, `actual_return_time`, `total_cost`, `payment_status`, `payment_method`, `paid_at`, `status`, `created_at`, `updated_at`) VALUES
-(1, 2, 6, 6, '2026-02-27 08:16:32', '2026-02-27 09:16:32', '2026-02-27 08:20:52', 15.00, 'paid', 'cash', '2026-02-27 15:21:09', 'returned', '2026-02-27 15:16:32', '2026-02-27 15:21:09'),
-(2, 2, 6, 6, '2026-02-27 08:21:17', '2026-02-27 09:21:17', '2026-02-27 08:21:44', 15.00, 'paid', 'cash', '2026-02-27 15:21:54', 'returned', '2026-02-27 15:21:17', '2026-02-27 15:21:54'),
-(3, 2, 6, 6, '2026-02-27 08:22:03', '2026-02-27 10:22:03', '2026-02-27 08:26:45', 30.00, 'paid', 'cash', '2026-02-27 15:26:48', 'returned', '2026-02-27 15:22:03', '2026-02-27 15:26:48'),
-(4, 2, 6, 6, '2026-02-27 08:26:58', '2026-02-27 09:26:58', '2026-02-27 08:27:24', 15.00, 'paid', 'cash', '2026-02-27 15:27:26', 'returned', '2026-02-27 15:26:58', '2026-02-27 15:27:26'),
-(5, 2, 6, 6, '2026-02-27 08:30:48', '2026-02-27 09:30:48', '2026-02-27 08:31:02', 15.00, 'paid', 'cash', '2026-02-27 15:31:04', 'returned', '2026-02-27 15:30:48', '2026-02-27 15:31:04'),
-(6, 2, 6, 6, '2026-02-27 08:32:30', '2026-02-27 09:32:30', '2026-02-27 08:33:56', 15.00, 'paid', 'cash', '2026-02-27 15:33:58', 'returned', '2026-02-27 15:32:30', '2026-02-27 15:33:58'),
-(7, 2, 6, 6, '2026-02-27 08:34:02', '2026-02-27 09:34:02', '2026-02-27 08:49:17', 15.00, 'paid', 'cash', '2026-02-27 15:49:19', 'returned', '2026-02-27 15:34:02', '2026-02-27 15:49:19'),
-(8, 2, 6, 6, '2026-02-27 08:49:45', '2026-02-27 10:49:45', '2026-02-27 08:52:29', 30.00, 'paid', 'cash', '2026-02-27 15:52:31', 'returned', '2026-02-27 15:49:45', '2026-02-27 15:52:31'),
-(9, 2, 6, 6, '2026-02-27 09:00:12', '2026-02-27 12:00:12', '2026-02-28 13:16:22', 300.00, 'paid', 'cash', '2026-02-28 20:16:28', 'overdue', '2026-02-27 16:00:12', '2026-02-28 20:16:28'),
-(10, 2, 6, 6, '2026-02-28 13:16:40', '2026-02-28 14:16:40', NULL, 10.00, 'unpaid', NULL, NULL, 'active', '2026-02-28 20:16:40', '2026-02-28 20:16:40'),
-(11, 2, 6, 6, '2026-02-28 20:19:08', '2026-02-28 21:19:08', NULL, 10.00, 'unpaid', NULL, NULL, 'active', '2026-02-28 20:19:08', '2026-02-28 20:19:08');
+INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_user_id`, `rent_time`, `expected_return_time`, `actual_return_time`, `total_cost`, `payment_status`, `paid_at`, `status`, `created_at`, `updated_at`) VALUES
+(1, 2, 6, 6, '2026-02-27 08:16:32', '2026-02-27 09:16:32', '2026-02-27 08:20:52', 15.00, 'paid', '2026-02-27 15:21:09', 'returned', '2026-02-27 15:16:32', '2026-02-27 15:21:09'),
+(2, 2, 6, 6, '2026-02-27 08:21:17', '2026-02-27 09:21:17', '2026-02-27 08:21:44', 15.00, 'paid', '2026-02-27 15:21:54', 'returned', '2026-02-27 15:21:17', '2026-02-27 15:21:54'),
+(3, 2, 6, 6, '2026-02-27 08:22:03', '2026-02-27 10:22:03', '2026-02-27 08:26:45', 30.00, 'paid', '2026-02-27 15:26:48', 'returned', '2026-02-27 15:22:03', '2026-02-27 15:26:48'),
+(4, 2, 6, 6, '2026-02-27 08:26:58', '2026-02-27 09:26:58', '2026-02-27 08:27:24', 15.00, 'paid', '2026-02-27 15:27:26', 'returned', '2026-02-27 15:26:58', '2026-02-27 15:27:26'),
+(5, 2, 6, 6, '2026-02-27 08:30:48', '2026-02-27 09:30:48', '2026-02-27 08:31:02', 15.00, 'paid', '2026-02-27 15:31:04', 'returned', '2026-02-27 15:30:48', '2026-02-27 15:31:04'),
+(6, 2, 6, 6, '2026-02-27 08:32:30', '2026-02-27 09:32:30', '2026-02-27 08:33:56', 15.00, 'paid', '2026-02-27 15:33:58', 'returned', '2026-02-27 15:32:30', '2026-02-27 15:33:58'),
+(7, 2, 6, 6, '2026-02-27 08:34:02', '2026-02-27 09:34:02', '2026-02-27 08:49:17', 15.00, 'paid', '2026-02-27 15:49:19', 'returned', '2026-02-27 15:34:02', '2026-02-27 15:49:19'),
+(8, 2, 6, 6, '2026-02-27 08:49:45', '2026-02-27 10:49:45', '2026-02-27 08:52:29', 30.00, 'paid', '2026-02-27 15:52:31', 'returned', '2026-02-27 15:49:45', '2026-02-27 15:52:31'),
+(9, 2, 6, 6, '2026-02-27 09:00:12', '2026-02-27 12:00:12', '2026-02-28 13:16:22', 300.00, 'paid', '2026-02-28 20:16:28', 'overdue', '2026-02-27 16:00:12', '2026-02-28 20:16:28'),
+(10, 2, 6, 6, '2026-02-28 13:16:40', '2026-02-28 14:16:40', '2026-03-22 01:31:11', 5095.00, 'paid', '2026-03-22 01:31:13', 'overdue', '2026-02-28 20:16:40', '2026-03-22 01:31:13'),
+(11, 2, 6, 6, '2026-02-28 20:19:08', '2026-02-28 21:19:08', '2026-03-22 01:31:05', 5025.00, 'paid', '2026-03-22 01:31:07', 'overdue', '2026-02-28 20:19:08', '2026-03-22 01:31:07'),
+(12, 3, 11, 11, '2026-03-22 08:00:00', '2026-03-22 10:00:00', NULL, 40.00, 'unpaid', NULL, 'cancelled', '2026-03-22 02:18:55', '2026-03-22 14:29:48');
 
 --
 -- Triggers `rentals`
@@ -708,7 +739,8 @@ INSERT INTO `rental_items` (`rental_item_id`, `rental_id`, `item_id`, `quantity`
 (8, 8, 3, 1, 15.00, 30.00, 30, 5.00, '2026-02-27 15:49:45', '2026-02-27 15:49:45'),
 (9, 9, 3, 1, 15.00, 45.00, 30, 5.00, '2026-02-27 16:00:12', '2026-02-27 16:00:12'),
 (10, 10, 1, 1, 10.00, 10.00, 30, 5.00, '2026-02-28 20:16:40', '2026-02-28 20:16:40'),
-(11, 11, 2, 1, 10.00, 10.00, 30, 5.00, '2026-02-28 20:19:08', '2026-02-28 20:19:08');
+(11, 11, 2, 1, 10.00, 10.00, 30, 5.00, '2026-02-28 20:19:08', '2026-02-28 20:19:08'),
+(12, 12, 7, 1, 20.00, 40.00, 30, 5.00, '2026-03-22 02:18:55', '2026-03-22 02:18:55');
 
 --
 -- Triggers `rental_items`
@@ -779,7 +811,8 @@ INSERT INTO `student_numbers` (`sn_id`, `student_number`, `student_name`, `year_
 (3, 'aisers', 'aisers', '3-2', 2, 1, 1, 1, '2026-02-27 11:43:50', '2026-02-27 17:23:07'),
 (4, 'elitech', 'elitech', '3-2', 1, 1, 1, 1, '2026-02-27 13:46:19', '2026-02-27 17:23:07'),
 (5, '12324MN-000094', 'Charles Gabriel A. Martinez', '3-2', 2, 1, 1, 1, '2026-02-27 13:47:48', '2026-02-27 17:23:07'),
-(6, 'ssc', 'ssc', '3-2', 2, 1, 1, 1, '2026-02-28 19:37:41', '2026-02-28 19:37:41');
+(6, 'ssc', 'ssc', '3-2', 2, 1, 1, 1, '2026-02-28 19:37:41', '2026-02-28 19:37:41'),
+(7, 'AETstudent', 'AETstudent', '3-2', 3, 2, 1, 1, '2026-03-18 21:20:48', '2026-03-18 21:20:48');
 
 --
 -- Triggers `student_numbers`
@@ -821,12 +854,14 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `student_number`, `program_id`, `institute_id`, `first_name`, `last_name`, `employee_number`, `email`, `phone`, `password_hash`, `account_type`, `has_unpaid_debt`, `is_active`, `last_login_at`, `created_at`, `updated_at`) VALUES
-(1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-03-18 21:05:43', '2026-02-25 18:19:21', '2026-03-18 21:05:43'),
-(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-18 20:05:46', '2026-02-27 11:44:45', '2026-03-18 20:05:46'),
+(1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-03-22 15:27:30', '2026-02-25 18:19:21', '2026-03-22 15:27:30'),
+(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-22 13:21:03', '2026-02-27 11:44:45', '2026-03-22 13:21:03'),
 (6, '12324MN-000094', 2, 1, 'Charles Gabriel A.', 'Martinez', NULL, 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'student', 0, 1, '2026-02-27 17:32:33', '2026-02-27 13:48:26', '2026-02-27 17:32:33'),
-(7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-02-28 19:45:38', '2026-02-28 19:45:28', '2026-02-28 19:45:38'),
-(8, 'ISstudent', 2, 1, 'ISstudent', 'ISstudent', NULL, 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'student', 0, 1, '2026-03-18 21:04:33', '2026-03-18 21:01:34', '2026-03-18 21:04:33'),
-(9, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'student', 0, 1, '2026-03-18 21:08:52', '2026-03-18 21:05:46', '2026-03-18 21:08:52');
+(7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-03-22 15:55:08', '2026-02-28 19:45:28', '2026-03-22 15:55:08'),
+(8, 'ISstudent', 2, 1, 'ISstudent', 'ISstudent', NULL, 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'student', 0, 1, '2026-03-22 15:55:03', '2026-03-18 21:01:34', '2026-03-22 15:55:03'),
+(9, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'student', 0, 1, '2026-03-22 19:55:37', '2026-03-18 21:05:46', '2026-03-22 19:55:37'),
+(10, 'AETstudent', 3, 2, 'AETstudent', 'AETstudent', NULL, 'AETstudent@gmail.com', '+63 1234567890', '$2y$10$Pf0QzbAfnqQBMTUy1nn/4.xkxO7AeVIhxB.OsBQWR45lV4CXrLjI6', 'student', 0, 1, '2026-03-22 01:30:17', '2026-03-18 21:20:54', '2026-03-22 01:30:17'),
+(11, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$IYHhWOTf2dIs6FfOiVX99.iDQ8sRYvRi4HGtEuOWg/tuS0vPC0cw2', 'student', 1, 1, '2026-03-22 13:21:47', '2026-03-18 21:26:31', '2026-03-22 14:29:48');
 
 --
 -- Triggers `users`
@@ -998,6 +1033,14 @@ ALTER TABLE `pending_registrations`
   ADD KEY `idx_pending_reg_student_num` (`student_number`);
 
 --
+-- Indexes for table `print_jobs`
+--
+ALTER TABLE `print_jobs`
+  ADD PRIMARY KEY (`print_job_id`),
+  ADD KEY `idx_print_jobs_org_status_order` (`org_id`,`status`,`queue_order`,`submitted_at`),
+  ADD KEY `idx_print_jobs_user_status` (`user_id`,`status`,`submitted_at`);
+
+--
 -- Indexes for table `program_org_mappings`
 --
 ALTER TABLE `program_org_mappings`
@@ -1103,7 +1146,7 @@ ALTER TABLE `institutes`
 -- AUTO_INCREMENT for table `inventory_categories`
 --
 ALTER TABLE `inventory_categories`
-  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `inventory_items`
@@ -1121,7 +1164,7 @@ ALTER TABLE `organizations`
 -- AUTO_INCREMENT for table `organization_members`
 --
 ALTER TABLE `organization_members`
-  MODIFY `membership_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `membership_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `org_roles`
@@ -1134,6 +1177,12 @@ ALTER TABLE `org_roles`
 --
 ALTER TABLE `pending_registrations`
   MODIFY `reg_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `print_jobs`
+--
+ALTER TABLE `print_jobs`
+  MODIFY `print_job_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `program_org_mappings`
@@ -1157,7 +1206,7 @@ ALTER TABLE `rental_items`
 -- AUTO_INCREMENT for table `student_numbers`
 --
 ALTER TABLE `student_numbers`
-  MODIFY `sn_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `sn_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -1254,6 +1303,13 @@ ALTER TABLE `org_roles`
 ALTER TABLE `pending_registrations`
   ADD CONSTRAINT `fk_reg_reviewer` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_reg_student_number` FOREIGN KEY (`student_number`) REFERENCES `student_numbers` (`student_number`);
+
+--
+-- Constraints for table `print_jobs`
+--
+ALTER TABLE `print_jobs`
+  ADD CONSTRAINT `fk_print_jobs_org` FOREIGN KEY (`org_id`) REFERENCES `organizations` (`org_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_print_jobs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `program_org_mappings`
