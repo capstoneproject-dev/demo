@@ -506,7 +506,7 @@ function stFetchPrintJob(PDO $pdo, int $printJobId): array
                 o.org_code,
                 CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS student_name,
                 u.student_number,
-                u.section
+                NULL AS section
          FROM print_jobs pj
          JOIN organizations o ON o.org_id = pj.org_id
          JOIN users u ON u.user_id = pj.user_id
@@ -645,7 +645,7 @@ function stListPrintJobs(PDO $pdo, array $filters = [], ?int $userScope = null, 
                    o.org_code,
                    CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS student_name,
                    u.student_number,
-                   u.section
+                   NULL AS section
             FROM print_jobs pj
             JOIN organizations o ON o.org_id = pj.org_id
             JOIN users u ON u.user_id = pj.user_id
