@@ -560,13 +560,8 @@ function navigate(viewId, element) {
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'Student Hub';
 
-    // Load current rentals when viewing services
-    if (viewId === 'services') {
-        if (typeof loadCurrentRentals === 'function') {
-            loadCurrentRentals();
-        }
-    } else {
-        // Clear timer when leaving services view
+    // Clear rental timer when leaving services view
+    if (viewId !== 'services') {
         if (typeof rentalTimerInterval !== 'undefined' && rentalTimerInterval) {
             clearInterval(rentalTimerInterval);
             rentalTimerInterval = null;
@@ -575,6 +570,33 @@ function navigate(viewId, element) {
 
     // Scroll to top
     window.scrollTo(0, 0);
+}
+
+// ========================================
+// SERVICES TAB SWITCHING
+// ========================================
+
+function switchServiceTab(tabName, btn) {
+    // Update Buttons
+    document.querySelectorAll('#services .tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Hide all service tab contents
+    document.querySelectorAll('.service-tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+
+    // Show selected tab
+    if (tabName === 'catalog') {
+        const catalogTab = document.getElementById('services-catalog-tab');
+        if (catalogTab) catalogTab.classList.add('active');
+    } else if (tabName === 'my-rentals') {
+        const rentalsTab = document.getElementById('services-my-rentals-tab');
+        if (rentalsTab) rentalsTab.classList.add('active');
+
+        // Load rental data when switching to My Rentals tab
+        loadMyRentalsTab();
+    }
 }
 
 // --- ORGANIZATION TABS LOGIC ---
@@ -3048,6 +3070,10 @@ function renderCurrentRentals() {
 
     if (currentRentalsData.length === 0) {
         section.style.display = 'none';
+        // Update empty state
+        if (typeof updateMyRentalsEmptyState === 'function') {
+            updateMyRentalsEmptyState();
+        }
         return;
     }
 
@@ -3064,6 +3090,11 @@ function renderCurrentRentals() {
     if (hasActiveRentals) {
         updateRentalTimers();
         rentalTimerInterval = setInterval(updateRentalTimers, 1000);
+    }
+
+    // Update empty state
+    if (typeof updateMyRentalsEmptyState === 'function') {
+        updateMyRentalsEmptyState();
     }
 }
 
@@ -3104,6 +3135,8 @@ function createRentalCard(rental) {
         `;
     }
 
+    const itemsLabel = String(rental.items_label || 'No items').replace(/\s*\(\d+x\)/g, '').trim();
+
     card.innerHTML = `
         <div class="rental-card-header">
             <div class="rental-card-status ${statusClass}">${statusText}</div>
@@ -3112,7 +3145,7 @@ function createRentalCard(rental) {
 
         <div class="rental-card-items">
             <h4><i class="fa-solid fa-box"></i> Rented Items</h4>
-            <div class="rental-items-list">${rental.items_label || 'No items'}</div>
+            <div class="rental-items-list">${itemsLabel || 'No items'}</div>
         </div>
 
         ${timerHtml}
@@ -3179,3 +3212,665 @@ function formatDateTime(dateTimeStr) {
 
     return `${datePart} at ${timePart}`;
 }
+
+// ========================================
+// RENTAL HISTORY
+// ========================================
+
+let rentalHistoryData = [];
+
+function updateMyRentalsEmptyState() {
+    const currentSection = document.getElementById('currentRentalsSection');
+    const historySection = document.getElementById('rentalHistorySection');
+    const emptyMessage = document.getElementById('noRentalsMessage');
+
+    if (!emptyMessage) return;
+
+    const hasCurrentRentals = currentRentalsData.length > 0;
+    const hasHistory = rentalHistoryData.length > 0;
+
+    if (!hasCurrentRentals && !hasHistory) {
+        emptyMessage.style.display = 'block';
+        if (currentSection) currentSection.style.display = 'none';
+        if (historySection) historySection.style.display = 'none';
+    } else {
+        emptyMessage.style.display = 'none';
+    }
+}
+
+async function loadRentalHistory() {
+    try {
+        const response = await fetch('../api/student/rentals/my-rentals.php?status=', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load rental history.');
+        }
+
+        const allRentals = Array.isArray(data.items) ? data.items : [];
+
+        // Filter for completed/history rentals.
+        // Also include no-show rows that may already be stored as cancelled.
+        rentalHistoryData = allRentals.filter(rental => {
+            const status = String(rental.status).toLowerCase();
+            if (status === 'returned' || status === 'completed' || status === 'cancelled') return true;
+
+            // Check if it's a no-show (reserved but past expected return time)
+            if (status === 'reserved' && isStudentRentalNoShow(rental)) return true;
+
+            return false;
+        });
+
+        renderRentalHistory();
+    } catch (err) {
+        console.error('[loadRentalHistory]', err);
+        rentalHistoryData = [];
+        renderRentalHistory();
+    }
+}
+
+function renderRentalHistory() {
+    const section = document.getElementById('rentalHistorySection');
+    const tableBody = document.getElementById('rentalHistoryTable');
+
+    if (!section || !tableBody) return;
+
+    if (rentalHistoryData.length === 0) {
+        section.style.display = 'none';
+        // Update empty state
+        if (typeof updateMyRentalsEmptyState === 'function') {
+            updateMyRentalsEmptyState();
+        }
+        return;
+    }
+
+    section.style.display = 'block';
+    tableBody.innerHTML = '';
+
+    rentalHistoryData.forEach(rental => {
+        const row = createRentalHistoryRow(rental);
+        tableBody.appendChild(row);
+    });
+
+    // Update empty state
+    if (typeof updateMyRentalsEmptyState === 'function') {
+        updateMyRentalsEmptyState();
+    }
+}
+
+function createRentalHistoryRow(rental) {
+    const row = document.createElement('tr');
+
+    // Format dates
+    const rentDate = formatDate(rental.rent_time);
+    const items = String(rental.items_label || 'No items').replace(/\s*\(\d+x\)/g, '').trim();
+    const orgName = rental.org_name || 'Unknown';
+
+    // Calculate duration
+    const duration = calculateDuration(rental.rent_time, rental.actual_return_time || rental.expected_return_time);
+
+    // Format cost
+    const cost = `₱${parseFloat(rental.total_cost || 0).toFixed(2)}`;
+
+    // Status badge - check if no-show
+    let status = String(rental.status || 'unknown').toLowerCase();
+    if (status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+        status = 'no-show';
+    } else if (isStudentRentalNoShow(rental)) {
+        status = 'no-show';
+    }
+    const statusClass = getStatusClass(status, rental.payment_status);
+    const statusText = getStatusText(status);
+
+    row.innerHTML = `
+        <td>${rentDate}</td>
+        <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${items}">${items}</td>
+        <td>${orgName}</td>
+        <td>${duration}</td>
+        <td>${cost}</td>
+        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+    `;
+
+    return row;
+}
+
+function formatDate(dateTimeStr) {
+    if (!dateTimeStr) return 'N/A';
+    const date = new Date(dateTimeStr);
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+}
+
+function calculateDuration(startTime, endTime) {
+    if (!startTime || !endTime) return 'N/A';
+
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffMs = end - start;
+
+    if (diffMs < 0) return 'N/A';
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours === 0) return `${minutes}m`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}m`;
+}
+
+function getStatusClass(status, paymentStatus) {
+    if (status === 'returned') return 'status-returned';
+    if (status === 'no-show') return 'status-no-show';
+    if (status === 'cancelled') return 'status-unknown';
+    if (status === 'completed') return 'status-completed';
+    return 'status-unknown';
+}
+
+function getStatusText(status) {
+    if (status === 'returned') return 'Returned';
+    if (status === 'no-show') return 'No Show';
+    if (status === 'cancelled') return 'Cancelled';
+    if (status === 'completed') return 'Completed';
+    return 'Unknown';
+}
+
+// ========================================
+// RENTAL FILTERS
+// ========================================
+
+let rentalFilters = {
+    startDate: null,
+    endDate: null,
+    items: [],
+    statuses: [],
+    search: ''
+};
+
+let allRentalsData = []; // Combined current + history for filtering
+
+function loadMyRentalsTab() {
+    // Load both current rentals and history
+    Promise.all([
+        loadCurrentRentals(),
+        loadRentalHistory()
+    ]).then(() => {
+        updateMyRentalsEmptyState();
+        buildFilterOptions();
+        updateFilterVisibility();
+    });
+}
+
+function buildFilterOptions() {
+    // Combine all rentals
+    allRentalsData = [...currentRentalsData, ...rentalHistoryData];
+
+    // Extract unique item names
+    const itemsSet = new Set();
+    allRentalsData.forEach(rental => {
+        const items = (rental.items_label || '').split(', ');
+        items.forEach(item => {
+            const itemName = item.replace(/\s*\(\d+x\)/, '').trim();
+            if (itemName) itemsSet.add(itemName);
+        });
+    });
+
+    // Populate item filter dropdown
+    const itemFilterList = document.getElementById('itemFilterList');
+    if (itemFilterList) {
+        itemFilterList.innerHTML = '';
+
+        if (itemsSet.size === 0) {
+            // Show message when no items available
+            const emptyMsg = document.createElement('div');
+            emptyMsg.style.padding = '12px';
+            emptyMsg.style.textAlign = 'center';
+            emptyMsg.style.color = 'var(--muted)';
+            emptyMsg.style.fontSize = '0.85rem';
+            emptyMsg.textContent = 'No items available';
+            itemFilterList.appendChild(emptyMsg);
+        } else {
+            Array.from(itemsSet).sort().forEach(item => {
+                const label = document.createElement('label');
+                label.className = 'filter-option';
+                label.innerHTML = `
+                    <input type="checkbox" value="${item}" onchange="applyItemFilter()">
+                    <span>${item}</span>
+                `;
+                itemFilterList.appendChild(label);
+            });
+        }
+    }
+}
+
+function updateFilterVisibility() {
+    const filtersSection = document.getElementById('rentalFiltersSection');
+    if (filtersSection) {
+        // Always show filters in My Rentals tab
+        filtersSection.style.display = 'block';
+    }
+}
+
+// DATE FILTER MODAL & CALENDAR
+let calendarCurrentDate = new Date();
+let calendarSelectedStart = null;
+let calendarSelectedEnd = null;
+
+function openDateFilterModal() {
+    const modal = document.getElementById('dateFilterModal');
+    if (modal) {
+        modal.classList.add('open');
+        // Initialize calendar with current month
+        calendarCurrentDate = new Date();
+        renderCalendar();
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeDateFilterModal() {
+    const modal = document.getElementById('dateFilterModal');
+    if (modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function navigateCalendarMonth(offset) {
+    calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + offset);
+    renderCalendar();
+}
+
+function renderCalendar() {
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
+
+    // Update month/year display
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthYear = document.getElementById('filterCalendarMonthYear');
+    if (monthYear) {
+        monthYear.textContent = `${monthNames[month]} ${year}`;
+    }
+
+    // Get first day of month and total days
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Generate calendar days
+    const calendarDays = document.getElementById('filterCalendarDays');
+    if (!calendarDays) return;
+    calendarDays.innerHTML = '';
+
+    // Empty cells before first day
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarDays.appendChild(emptyCell);
+    }
+
+    // Day cells
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, month, day);
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.textContent = day;
+
+        // Check if today
+        if (dateObj.getTime() === today.getTime()) {
+            dayCell.classList.add('today');
+        }
+
+        // Check if selected start or end
+        if (calendarSelectedStart && dateObj.getTime() === calendarSelectedStart.getTime()) {
+            dayCell.classList.add('selected');
+        }
+        if (calendarSelectedEnd && dateObj.getTime() === calendarSelectedEnd.getTime()) {
+            dayCell.classList.add('selected');
+        }
+
+        // Check if in range
+        if (calendarSelectedStart && calendarSelectedEnd) {
+            if (dateObj >= calendarSelectedStart && dateObj <= calendarSelectedEnd) {
+                dayCell.classList.add('in-range');
+            }
+        }
+
+        // Click handler
+        dayCell.addEventListener('click', () => selectCalendarDate(dateObj));
+
+        calendarDays.appendChild(dayCell);
+    }
+
+    // Update selected range display
+    updateSelectedRangeDisplay();
+}
+
+function selectCalendarDate(date) {
+    if (!calendarSelectedStart || (calendarSelectedStart && calendarSelectedEnd)) {
+        // First selection or reset
+        calendarSelectedStart = date;
+        calendarSelectedEnd = null;
+    } else {
+        // Second selection
+        if (date < calendarSelectedStart) {
+            calendarSelectedEnd = calendarSelectedStart;
+            calendarSelectedStart = date;
+        } else {
+            calendarSelectedEnd = date;
+        }
+    }
+
+    renderCalendar();
+}
+
+function updateSelectedRangeDisplay() {
+    const startDisplay = document.getElementById('selectedStartDate');
+    const endDisplay = document.getElementById('selectedEndDate');
+
+    if (calendarSelectedStart) {
+        startDisplay.textContent = calendarSelectedStart.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } else {
+        startDisplay.textContent = 'Not selected';
+    }
+
+    if (calendarSelectedEnd) {
+        endDisplay.textContent = calendarSelectedEnd.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } else {
+        endDisplay.textContent = 'Not selected';
+    }
+}
+
+function applyDatePreset(preset) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    calendarCurrentDate = new Date(today);
+
+    let startDate, endDate;
+
+    switch (preset) {
+        case 'today':
+            startDate = new Date(today);
+            endDate = null;
+            break;
+        case 'week':
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - 7);
+            endDate = new Date(today);
+            break;
+        case 'month':
+            startDate = new Date(today);
+            startDate.setMonth(today.getMonth() - 1);
+            endDate = new Date(today);
+            break;
+        case 'all':
+            startDate = null;
+            endDate = null;
+            break;
+    }
+
+    calendarSelectedStart = startDate;
+    calendarSelectedEnd = endDate;
+    updateSelectedRangeDisplay();
+    renderCalendar();
+}
+
+function applyDateFilter() {
+    const label = document.getElementById('dateFilterLabel');
+
+    // Convert selected dates to ISO format for filtering
+    rentalFilters.startDate = calendarSelectedStart ? calendarSelectedStart.toISOString().split('T')[0] : null;
+    rentalFilters.endDate = calendarSelectedEnd ? calendarSelectedEnd.toISOString().split('T')[0] : null;
+
+    // Update label
+    if (rentalFilters.startDate && !rentalFilters.endDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayKey = today.toISOString().split('T')[0];
+        label.textContent = rentalFilters.startDate === todayKey
+            ? 'Today'
+            : new Date(rentalFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else if (rentalFilters.startDate || rentalFilters.endDate) {
+        const start = rentalFilters.startDate ? new Date(rentalFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...';
+        const end = rentalFilters.endDate ? new Date(rentalFilters.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...';
+        label.textContent = `${start} - ${end}`;
+    } else {
+        label.textContent = 'All Dates';
+    }
+
+    closeDateFilterModal();
+    applyAllFilters();
+}
+
+// ITEM FILTER DROPDOWN
+function toggleItemFilterDropdown() {
+    const dropdown = document.getElementById('itemFilterDropdown');
+    const statusDropdown = document.getElementById('statusFilterDropdown');
+
+    if (dropdown) {
+        const isVisible = dropdown.style.display === 'block';
+        dropdown.style.display = isVisible ? 'none' : 'block';
+
+        // Close other dropdown
+        if (statusDropdown) statusDropdown.style.display = 'none';
+    }
+}
+
+function applyItemFilter() {
+    const checkboxes = document.querySelectorAll('#itemFilterList input[type="checkbox"]:checked');
+    rentalFilters.items = Array.from(checkboxes).map(cb => cb.value);
+
+    const label = document.getElementById('itemFilterLabel');
+    if (label) {
+        label.textContent = rentalFilters.items.length > 0
+            ? `${rentalFilters.items.length} Item${rentalFilters.items.length > 1 ? 's' : ''}`
+            : 'All Items';
+    }
+
+    applyAllFilters();
+}
+
+function clearItemFilter() {
+    const checkboxes = document.querySelectorAll('#itemFilterList input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    rentalFilters.items = [];
+
+    const label = document.getElementById('itemFilterLabel');
+    if (label) label.textContent = 'All Items';
+
+    applyAllFilters();
+}
+
+// STATUS FILTER DROPDOWN
+function toggleStatusFilterDropdown() {
+    const dropdown = document.getElementById('statusFilterDropdown');
+    const itemDropdown = document.getElementById('itemFilterDropdown');
+
+    if (dropdown) {
+        const isVisible = dropdown.style.display === 'block';
+        dropdown.style.display = isVisible ? 'none' : 'block';
+
+        // Close other dropdown
+        if (itemDropdown) itemDropdown.style.display = 'none';
+    }
+}
+
+function applyStatusFilter() {
+    const checkboxes = document.querySelectorAll('#statusFilterDropdown input[type="checkbox"]:checked');
+    rentalFilters.statuses = Array.from(checkboxes).map(cb => cb.value);
+
+    const label = document.getElementById('statusFilterLabel');
+    if (label) {
+        label.textContent = rentalFilters.statuses.length > 0
+            ? `${rentalFilters.statuses.length} Status`
+            : 'All Status';
+    }
+
+    applyAllFilters();
+}
+
+function clearStatusFilter() {
+    const checkboxes = document.querySelectorAll('#statusFilterDropdown input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    rentalFilters.statuses = [];
+
+    const label = document.getElementById('statusFilterLabel');
+    if (label) label.textContent = 'All Status';
+
+    applyAllFilters();
+}
+
+// APPLY ALL FILTERS
+function applyAllFilters() {
+    // Filter current rentals
+    let filteredCurrent = [...currentRentalsData];
+    let filteredHistory = [...rentalHistoryData];
+
+    // Apply filters
+    filteredCurrent = filterRentals(filteredCurrent);
+    filteredHistory = filterRentals(filteredHistory);
+
+    // Temporarily replace data
+    const originalCurrent = [...currentRentalsData];
+    const originalHistory = [...rentalHistoryData];
+
+    currentRentalsData = filteredCurrent;
+    rentalHistoryData = filteredHistory;
+
+    // Re-render
+    renderCurrentRentals();
+    renderRentalHistory();
+
+    // Restore original data
+    currentRentalsData = originalCurrent;
+    rentalHistoryData = originalHistory;
+}
+
+function applyRentalSearch() {
+    const input = document.getElementById('rentalSearchInput');
+    rentalFilters.search = String(input?.value || '').trim().toLowerCase();
+    applyAllFilters();
+}
+
+function filterRentals(rentals) {
+    return rentals.filter(rental => {
+        // Date filter
+        if (rentalFilters.startDate || rentalFilters.endDate) {
+            const rentalDate = new Date(rental.rent_time);
+            const start = rentalFilters.startDate ? new Date(rentalFilters.startDate) : null;
+            const end = rentalFilters.endDate ? new Date(rentalFilters.endDate) : null;
+
+            if (start && rentalDate < start) return false;
+            if (end) {
+                end.setHours(23, 59, 59, 999); // End of day
+                if (rentalDate > end) return false;
+            }
+        }
+
+        // Item filter
+        if (rentalFilters.items.length > 0) {
+            const rentalItems = (rental.items_label || '').split(', ').map(item =>
+                item.replace(/\s*\(\d+x\)/, '').trim()
+            );
+            const hasMatch = rentalFilters.items.some(filterItem =>
+                rentalItems.includes(filterItem)
+            );
+            if (!hasMatch) return false;
+        }
+
+        // Status filter
+        if (rentalFilters.statuses.length > 0) {
+            let status = String(rental.status).toLowerCase();
+
+            // Treat cancelled unpaid reservations as no-show too.
+            if (status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+                status = 'no-show';
+            } else if (isStudentRentalNoShow(rental)) {
+                status = 'no-show';
+            }
+
+            if (!rentalFilters.statuses.includes(status)) return false;
+        }
+
+        // Search filter
+        if (rentalFilters.search) {
+            let status = String(rental.status || '').toLowerCase();
+            if (status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+                status = 'no-show';
+            } else if (isStudentRentalNoShow(rental)) {
+                status = 'no-show';
+            }
+
+            const rentDate = rental.rent_time ? formatDate(rental.rent_time) : '';
+            const items = String(rental.items_label || '').replace(/\s*\(\d+x\)/g, '').trim();
+            const organization = String(rental.org_name || '');
+            const organizationCode = String(rental.org_code || '');
+            const statusText = getStatusText(status);
+            const searchBlob = [rentDate, items, organization, organizationCode, statusText, status]
+                .join(' ')
+                .toLowerCase();
+
+            if (!searchBlob.includes(rentalFilters.search)) return false;
+        }
+
+        return true;
+    });
+}
+
+// RESET ALL FILTERS
+function resetAllFilters() {
+    // Reset filter object
+    rentalFilters = {
+        startDate: null,
+        endDate: null,
+        items: [],
+        statuses: [],
+        search: ''
+    };
+
+    // Reset UI
+    document.getElementById('dateFilterLabel').textContent = 'All Dates';
+    document.getElementById('itemFilterLabel').textContent = 'All Items';
+    document.getElementById('statusFilterLabel').textContent = 'All Status';
+    const rentalSearchInput = document.getElementById('rentalSearchInput');
+    if (rentalSearchInput) rentalSearchInput.value = '';
+
+    // Clear date inputs
+    const startInput = document.getElementById('filterStartDate');
+    const endInput = document.getElementById('filterEndDate');
+    if (startInput) startInput.value = '';
+    if (endInput) endInput.value = '';
+
+    // Clear checkboxes
+    document.querySelectorAll('#itemFilterList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('#statusFilterDropdown input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+    // Re-render with no filters
+    renderCurrentRentals();
+    renderRentalHistory();
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    const itemBtn = document.getElementById('itemFilterBtn');
+    const itemDropdown = document.getElementById('itemFilterDropdown');
+    const statusBtn = document.getElementById('statusFilterBtn');
+    const statusDropdown = document.getElementById('statusFilterDropdown');
+
+    if (itemDropdown && !itemBtn?.contains(e.target) && !itemDropdown.contains(e.target)) {
+        itemDropdown.style.display = 'none';
+    }
+
+    if (statusDropdown && !statusBtn?.contains(e.target) && !statusDropdown.contains(e.target)) {
+        statusDropdown.style.display = 'none';
+    }
+});

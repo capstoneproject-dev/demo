@@ -230,20 +230,20 @@
 
         <!-- SERVICES VIEW -->
         <div id="services" class="section-view">
-            <!-- CURRENT RENTALS SECTION -->
-            <div id="currentRentalsSection" style="display: none;">
-                <h2 class="section-title">Current Rentals</h2>
-                <div id="currentRentalsContainer">
-                    <!-- Rental cards will be injected here via JavaScript -->
-                </div>
+            <!-- SERVICES TABS -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchServiceTab('catalog', this)">Services</button>
+                <button class="tab-btn" onclick="switchServiceTab('my-rentals', this)">My Rentals</button>
             </div>
 
-            <div class="services-search">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="serviceSearch"
-                    placeholder="Search for a service (e.g., Printing, Calculator, Locker)..."
-                    onkeyup="filterServices()">
-            </div>
+            <!-- SERVICES CATALOG TAB -->
+            <div id="services-catalog-tab" class="service-tab-content active">
+                <div class="services-search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="serviceSearch"
+                        placeholder="Search for a service (e.g., Printing, Calculator, Locker)..."
+                        onkeyup="filterServices()">
+                </div>
 
             <!-- PRINTING HERO SECTION -->
             <div class="printing-hero" id="printingHero">
@@ -297,6 +297,132 @@
                 <!-- Categories will be injected here via JavaScript -->
             </div>
         </div>
+
+        <!-- MY RENTALS TAB -->
+        <div id="services-my-rentals-tab" class="service-tab-content">
+
+            <!-- RENTAL FILTERS -->
+            <div id="rentalFiltersSection" style="display: none; margin-bottom: 24px;">
+                <div class="rental-filters-bar">
+                    <div class="filter-group rental-search-group">
+                        <div class="rental-search-input-wrap">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input
+                                type="text"
+                                id="rentalSearchInput"
+                                class="rental-search-input"
+                                placeholder="Search by date, item, organization, or status"
+                                oninput="applyRentalSearch()">
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <button class="filter-btn" id="dateFilterBtn" onclick="openDateFilterModal()">
+                            <span id="dateFilterLabel">All Dates</span>
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                    </div>
+
+                    <div class="filter-group">
+                        <button class="filter-btn" id="itemFilterBtn" onclick="toggleItemFilterDropdown()">
+                            <span id="itemFilterLabel">All Items</span>
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                        <!-- Item Filter Dropdown -->
+                        <div class="filter-dropdown" id="itemFilterDropdown" style="display: none;">
+                            <div class="filter-dropdown-header">
+                                <span>Filter by Item</span>
+                                <button class="filter-clear-btn" onclick="clearItemFilter()">Clear</button>
+                            </div>
+                            <div class="filter-dropdown-list" id="itemFilterList">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <button class="filter-btn" id="statusFilterBtn" onclick="toggleStatusFilterDropdown()">
+                            <span id="statusFilterLabel">All Status</span>
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                        <!-- Status Filter Dropdown -->
+                        <div class="filter-dropdown" id="statusFilterDropdown" style="display: none;">
+                            <div class="filter-dropdown-header">
+                                <span>Filter by Status</span>
+                                <button class="filter-clear-btn" onclick="clearStatusFilter()">Clear</button>
+                            </div>
+                            <div class="filter-dropdown-list">
+                                <label class="filter-option">
+                                    <input type="checkbox" value="active" onchange="applyStatusFilter()">
+                                    <span>Active</span>
+                                </label>
+                                <label class="filter-option">
+                                    <input type="checkbox" value="reserved" onchange="applyStatusFilter()">
+                                    <span>Reserved</span>
+                                </label>
+                                <label class="filter-option">
+                                    <input type="checkbox" value="returned" onchange="applyStatusFilter()">
+                                    <span>Returned</span>
+                                </label>
+                                <label class="filter-option">
+                                    <input type="checkbox" value="completed" onchange="applyStatusFilter()">
+                                    <span>Completed</span>
+                                </label>
+                                <label class="filter-option">
+                                    <input type="checkbox" value="no-show" onchange="applyStatusFilter()">
+                                    <span>No Show</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="filter-reset-btn" onclick="resetAllFilters()" title="Reset all filters">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- CURRENT RENTALS SECTION -->
+            <div id="currentRentalsSection" style="display: none;">
+                <h2 class="section-title">Current Rentals</h2>
+                <div id="currentRentalsContainer">
+                    <!-- Rental cards will be injected here via JavaScript -->
+                </div>
+            </div>
+
+            <!-- RENTAL HISTORY SECTION -->
+            <div id="rentalHistorySection" style="display: none; margin-top: 32px;">
+                <h2 class="section-title">Rental History</h2>
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date Rented</th>
+                                    <th>Items</th>
+                                    <th>Organization</th>
+                                    <th>Duration</th>
+                                    <th>Cost</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rentalHistoryTable">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EMPTY STATE -->
+            <div id="noRentalsMessage" class="card" style="text-align: center; padding: 48px 24px;">
+                <i class="fa-solid fa-box-open" style="font-size: 64px; color: var(--muted); margin-bottom: 16px;"></i>
+                <h3 style="margin-bottom: 8px;">No Rentals Yet</h3>
+                <p style="color: var(--muted);">You haven't rented any items yet. Browse the Services Catalog to get started!</p>
+            </div>
+        </div>
+    </div>
 
         <!-- PROFILE VIEW -->
         <div id="profile" class="section-view">
@@ -566,6 +692,67 @@
         </div>
         <div id="popoverEventList" class="popover-content">
             <!-- Events injected via JS -->
+        </div>
+    </div>
+
+    <!-- DATE FILTER MODAL -->
+    <div id="dateFilterModal" class="modal-overlay">
+        <div class="modal-content date-filter-modal-content">
+            <div class="modal-header">
+                <h3>Filter by Date Range</h3>
+                <button class="close-modal" onclick="closeDateFilterModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="date-filter-presets">
+                    <button class="preset-btn" onclick="applyDatePreset('today')">Today</button>
+                    <button class="preset-btn" onclick="applyDatePreset('week')">This Week</button>
+                    <button class="preset-btn" onclick="applyDatePreset('month')">This Month</button>
+                    <button class="preset-btn" onclick="applyDatePreset('all')">All Time</button>
+                </div>
+
+                <!-- Calendar Container -->
+                <div class="calendar-picker-container">
+                    <div class="calendar-header">
+                        <button class="calendar-nav-btn" onclick="navigateCalendarMonth(-1)">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <span class="calendar-month-year" id="filterCalendarMonthYear">January 2026</span>
+                        <button class="calendar-nav-btn" onclick="navigateCalendarMonth(1)">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <div class="calendar-weekdays">
+                        <div class="calendar-weekday">Sun</div>
+                        <div class="calendar-weekday">Mon</div>
+                        <div class="calendar-weekday">Tue</div>
+                        <div class="calendar-weekday">Wed</div>
+                        <div class="calendar-weekday">Thu</div>
+                        <div class="calendar-weekday">Fri</div>
+                        <div class="calendar-weekday">Sat</div>
+                    </div>
+
+                    <div class="calendar-days" id="filterCalendarDays">
+                        <!-- Days will be generated by JavaScript -->
+                    </div>
+
+                    <div class="calendar-selected-range">
+                        <div class="selected-date-display">
+                            <strong>From:</strong> <span id="selectedStartDate">Not selected</span>
+                        </div>
+                        <div class="selected-date-display">
+                            <strong>To:</strong> <span id="selectedEndDate">Not selected</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeDateFilterModal()">Cancel</button>
+                    <button type="button" class="btn-submit" onclick="applyDateFilter()">Apply Filter</button>
+                </div>
+            </div>
         </div>
     </div>
 
