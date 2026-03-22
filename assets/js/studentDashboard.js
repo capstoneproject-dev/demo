@@ -2052,7 +2052,7 @@ function renderStudentLockerBoard() {
         const columnLockers = (groups[columnKey] || []).sort((a, b) => String(a.locker_code).localeCompare(String(b.locker_code)));
         return `
             <div class="student-locker-column">
-                <div class="student-locker-column-header">${columnKey}</div>
+                <div class="student-locker-column-header">Locker ${columnKey}</div>
                 <div class="student-locker-column-grid">
                     ${columnLockers.map((locker) => {
                         const state = String(locker.state || 'available').toLowerCase();
