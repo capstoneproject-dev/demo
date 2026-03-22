@@ -5630,3 +5630,324 @@ body.dark .calendar-day.in-range {
 
 /* REMOVED: Replaced by Grid auto-fill auto-fit logic above */
 
+.services-tracker-layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.services-tracker-sidebar {
+    position: sticky;
+    top: 24px;
+    padding: 24px;
+}
+
+.services-tracker-sidebar-header h3 {
+    color: var(--primary);
+    margin-bottom: 8px;
+}
+
+.services-tracker-sidebar-header p {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.services-module-nav {
+    display: grid;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.services-module-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 14px 16px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.services-module-btn:hover,
+.services-module-btn.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(15, 47, 87, 0.05);
+}
+
+.services-tracker-content {
+    min-width: 0;
+}
+
+.services-module-pane {
+    display: none;
+}
+
+.services-module-pane.active {
+    display: block;
+}
+
+.printing-module-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.printing-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.printing-panel-header h2 {
+    margin-bottom: 6px;
+    color: var(--primary);
+}
+
+.printing-panel-header p {
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.printing-status-chip {
+    border-radius: 999px;
+    background: rgba(15, 47, 87, 0.08);
+    color: var(--primary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 8px 12px;
+    white-space: nowrap;
+}
+
+.printing-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.printing-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.printing-field-full {
+    grid-column: 1 / -1;
+}
+
+.printing-field label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.printing-field select,
+.printing-field input,
+.printing-field textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 14px 16px;
+    font: inherit;
+}
+
+.printing-field small {
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.printing-form-actions {
+    margin-top: 18px;
+}
+
+.printing-form-actions .btn,
+.printing-jobs-card .btn {
+    border: none;
+    border-radius: 14px;
+    padding: 12px 18px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.printing-form-actions .btn-primary {
+    background: var(--primary);
+    color: #fff;
+}
+
+.printing-jobs-card .btn-outline {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+}
+
+.printing-providers-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.printing-provider-chip {
+    border-radius: 999px;
+    background: rgba(15, 47, 87, 0.08);
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 7px 11px;
+}
+
+.printing-jobs-list {
+    display: grid;
+    gap: 16px;
+}
+
+.printing-job-card {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--panel);
+    padding: 18px;
+}
+
+.printing-job-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.printing-job-header h4 {
+    margin-bottom: 6px;
+    color: var(--primary);
+}
+
+.printing-job-header p {
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.printing-job-status {
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.printing-job-status.status-queued {
+    background: rgba(37, 99, 235, 0.12);
+    color: #2563eb;
+}
+
+.printing-job-status.status-processing {
+    background: rgba(217, 119, 6, 0.14);
+    color: #d97706;
+}
+
+.printing-job-status.status-ready_to_claim {
+    background: rgba(5, 150, 105, 0.14);
+    color: #059669;
+}
+
+.printing-job-status.status-claimed {
+    background: rgba(15, 23, 42, 0.08);
+    color: var(--text);
+}
+
+.printing-job-status.status-cancelled {
+    background: rgba(220, 38, 38, 0.12);
+    color: #dc2626;
+}
+
+.printing-job-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    color: var(--muted);
+    font-size: 0.86rem;
+    margin-top: 14px;
+}
+
+.printing-job-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.printing-empty-state {
+    border: 1px dashed var(--border);
+    border-radius: 18px;
+    text-align: center;
+    padding: 42px 24px;
+    color: var(--muted);
+}
+
+.printing-empty-state i {
+    font-size: 42px;
+    margin-bottom: 14px;
+}
+
+.printing-hero-fields {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.printing-hero-select,
+.printing-hero-notes {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 10px 12px;
+    font: inherit;
+}
+
+@media (max-width: 1024px) {
+    .services-tracker-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .services-tracker-sidebar {
+        position: static;
+    }
+
+    .printing-module-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .printing-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+#services .services-tracker-layout {
+    grid-template-columns: 1fr;
+}
+
+#services .services-tracker-sidebar {
+    display: none;
+}
+

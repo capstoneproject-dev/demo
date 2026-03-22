@@ -597,6 +597,8 @@ function switchServiceTab(tabName, btn) {
         // Load rental data when switching to My Rentals tab
         loadMyRentalsTab();
     }
+
+    syncStudentServicesPanels();
 }
 
 // --- ORGANIZATION TABS LOGIC ---
@@ -1533,11 +1535,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     setDate();
     renderDashboard();
     try {
+        await loadStudentServicesTracker();
         await loadStudentServiceCatalog();
     } catch (error) {
         console.error(error);
     }
     renderServices();
+    renderServicesModuleNav();
+    renderPrintingProviderOptions();
+    loadStudentPrintJobs().catch((error) => console.error(error));
     renderProfile();
     switchOrgTab('about', document.querySelector('.tab-btn'));
 
@@ -1739,6 +1745,13 @@ let studentServiceCatalogPromise = null;
 let studentServiceCatalogLoaded = false;
 let currentSelectedCatalogItem = null;
 const serviceGroups = {};
+let currentServiceModule = 'rentals';
+let studentServicesTracker = {
+    modules: [],
+    printingProviders: []
+};
+let studentPrintingJobs = [];
+let studentServicesTrackerPromise = null;
 
 function resolveStudentCatalogImage(path) {
     const raw = String(path || '').trim();
@@ -1785,6 +1798,299 @@ async function loadStudentServiceCatalog(force = false) {
     return studentServiceCatalogPromise;
 }
 
+async function loadStudentServicesTracker(force = false) {
+    if (studentServicesTrackerPromise && !force) {
+        return studentServicesTrackerPromise;
+    }
+
+    studentServicesTrackerPromise = fetch('../api/student/services/tracker.php', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+        .then((resp) => resp.json().catch(() => ({})).then((data) => ({ resp, data })))
+        .then(({ resp, data }) => {
+            if (!resp.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load service modules.');
+            }
+            studentServicesTracker = {
+                modules: Array.isArray(data.modules) ? data.modules : [],
+                printingProviders: Array.isArray(data.printing_providers) ? data.printing_providers : [],
+            };
+            renderServicesModuleNav();
+            renderPrintingProviderOptions();
+            return studentServicesTracker;
+        })
+        .catch((error) => {
+            studentServicesTracker = { modules: [], printingProviders: [] };
+            renderServicesModuleNav();
+            renderPrintingProviderOptions();
+            throw error;
+        });
+
+    return studentServicesTrackerPromise;
+}
+
+function getServiceModuleMeta(serviceKey) {
+    const normalized = String(serviceKey || '').trim().toLowerCase();
+    return (studentServicesTracker.modules || []).find(item => String(item.service_key || '').toLowerCase() === normalized) || null;
+}
+
+function renderServicesModuleNav() {
+    const sidebar = document.querySelector('#services .services-tracker-sidebar');
+    const sidebarHidden = !sidebar || window.getComputedStyle(sidebar).display === 'none';
+    const buttons = document.querySelectorAll('#servicesModuleNav .services-module-btn');
+    if (!buttons.length) return;
+
+    const visibleButtons = [];
+    buttons.forEach((button) => {
+        const moduleKey = button.dataset.module || '';
+        const moduleMeta = getServiceModuleMeta(moduleKey);
+        const enabled = moduleMeta ? !!moduleMeta.enabled : (moduleKey === 'rentals');
+        button.style.display = enabled ? '' : 'none';
+        button.disabled = !enabled;
+        if (enabled) {
+            visibleButtons.push(button);
+        }
+    });
+
+    const currentButtonVisible = visibleButtons.some(button => (button.dataset.module || '') === currentServiceModule);
+    if (!currentButtonVisible && visibleButtons.length > 0) {
+        currentServiceModule = visibleButtons[0].dataset.module || 'rentals';
+    }
+
+    const activeButton = visibleButtons.find(button => (button.dataset.module || '') === currentServiceModule) || visibleButtons[0] || null;
+    if (sidebarHidden) {
+        syncStudentServicesPanels();
+    } else if (activeButton) {
+        switchServiceModule(activeButton.dataset.module, activeButton);
+    }
+}
+
+function syncStudentServicesPanels() {
+    const printingPane = document.getElementById('services-module-printing');
+    if (printingPane) {
+        printingPane.classList.remove('active');
+        printingPane.style.display = 'none';
+    }
+}
+
+function switchServiceModule(moduleKey, btn = null) {
+    currentServiceModule = moduleKey;
+
+    document.querySelectorAll('#servicesModuleNav .services-module-btn').forEach((button) => {
+        button.classList.toggle('active', button === btn || (button.dataset.module || '') === moduleKey);
+    });
+
+    document.querySelectorAll('#services .services-module-pane').forEach((pane) => {
+        pane.classList.remove('active');
+    });
+
+    const targetPane = document.getElementById(`services-module-${moduleKey}`);
+    if (targetPane) {
+        targetPane.classList.add('active');
+    }
+
+    if (moduleKey === 'printing') {
+        loadStudentPrintJobs().catch((error) => console.error(error));
+    } else if (moduleKey === 'rentals') {
+        const rentalsTab = document.getElementById('services-my-rentals-tab');
+        if (rentalsTab && rentalsTab.classList.contains('active')) {
+            loadMyRentalsTab();
+        }
+    }
+
+    syncStudentServicesPanels();
+}
+
+function resolveStudentDocumentUrl(path) {
+    const raw = String(path || '').trim();
+    if (!raw) return '';
+    if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
+    return `../${raw.replace(/^\/+/, '')}`;
+}
+
+function escapeStudentHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function renderPrintingProviderOptions() {
+    const select = document.getElementById('printingProviderSelect');
+    const heroSelect = document.getElementById('uploadPrintProvider');
+    const summary = document.getElementById('printingProvidersSummary');
+    const text = document.getElementById('printingAvailabilityText');
+    if (!summary || !text) return;
+
+    const providers = Array.isArray(studentServicesTracker.printingProviders)
+        ? studentServicesTracker.printingProviders
+        : [];
+
+    if (select) {
+        select.innerHTML = '<option value="">Select organization</option>';
+    }
+    if (heroSelect) {
+        heroSelect.innerHTML = '<option value="">Select printing provider</option>';
+    }
+    summary.innerHTML = '';
+
+    if (!providers.length) {
+        text.textContent = 'No organizations are currently authorized to offer printing services.';
+        return;
+    }
+
+    text.textContent = `${providers.length} authorized printing provider${providers.length > 1 ? 's' : ''} available.`;
+
+    providers.forEach((provider) => {
+        [select, heroSelect].forEach((target) => {
+            if (!target) return;
+            const option = document.createElement('option');
+            option.value = provider.org_id;
+            option.textContent = `${provider.org_name}${provider.org_code ? ` (${provider.org_code})` : ''}`;
+            target.appendChild(option);
+        });
+
+        const badge = document.createElement('span');
+        badge.className = 'printing-provider-chip';
+        badge.textContent = provider.org_code || provider.org_name;
+        summary.appendChild(badge);
+    });
+
+    if (heroSelect && providers.length === 1) {
+        heroSelect.value = String(providers[0].org_id);
+    }
+}
+
+function getPrintingJobStatusLabel(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'ready_to_claim') return 'Ready to Claim';
+    if (normalized === 'processing') return 'Processing';
+    if (normalized === 'queued') return 'Queued';
+    if (normalized === 'claimed') return 'Claimed';
+    if (normalized === 'cancelled') return 'Cancelled';
+    return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown';
+}
+
+function renderStudentPrintingJobs() {
+    const list = document.getElementById('studentPrintingJobsList');
+    if (!list) return;
+
+    if (!studentPrintingJobs.length) {
+        list.innerHTML = `
+            <div class="printing-empty-state">
+                <i class="fa-solid fa-print"></i>
+                <h3>No Print Jobs Yet</h3>
+                <p>Your submitted print jobs will appear here once you upload a PDF.</p>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = studentPrintingJobs.map((job) => {
+        const status = String(job.status || '').toLowerCase();
+        const queueText = status === 'queued' && Number(job.queue_position || 0) > 0
+            ? `Queue #${job.queue_position}`
+            : (status === 'processing' ? 'In progress' : (status === 'ready_to_claim' ? 'Ready now' : 'Completed'));
+        const submittedAt = formatDateTime(job.submitted_at);
+        const jobUrl = resolveStudentDocumentUrl(job.file_url);
+        return `
+            <div class="printing-job-card">
+                <div class="printing-job-header">
+                    <div>
+                        <h4>${escapeStudentHtml(job.file_name || 'Untitled PDF')}</h4>
+                        <p>${escapeStudentHtml(job.org_name || 'Unknown Organization')}${job.org_code ? ` (${escapeStudentHtml(job.org_code)})` : ''}</p>
+                    </div>
+                    <span class="printing-job-status status-${status}">${getPrintingJobStatusLabel(status)}</span>
+                </div>
+                <div class="printing-job-meta">
+                    <span><i class="fa-solid fa-list-ol"></i> ${queueText}</span>
+                    <span><i class="fa-solid fa-calendar-day"></i> ${submittedAt}</span>
+                    ${job.notes ? `<span><i class="fa-solid fa-note-sticky"></i> ${escapeStudentHtml(job.notes)}</span>` : ''}
+                </div>
+                <div class="printing-job-actions">
+                    ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> View PDF</a>` : ''}
+                    ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" download><i class="fa-solid fa-download"></i> Download</a>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function loadStudentPrintJobs(force = false) {
+    try {
+        const response = await fetch('../api/printing/student/list.php?status=all', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load print jobs.');
+        }
+        studentPrintingJobs = Array.isArray(data.items) ? data.items : [];
+        renderStudentPrintingJobs();
+        return studentPrintingJobs;
+    } catch (error) {
+        if (force) {
+            console.error('[loadStudentPrintJobs]', error);
+        }
+        studentPrintingJobs = [];
+        renderStudentPrintingJobs();
+        throw error;
+    }
+}
+
+async function submitStudentPrintJob() {
+    const providerSelect = document.getElementById('printingProviderSelect');
+    const fileInput = document.getElementById('printingFileInput');
+    const notesInput = document.getElementById('printingNotes');
+    const submitBtn = document.getElementById('btnPrintingSubmit');
+
+    const orgId = String(providerSelect?.value || '').trim();
+    const file = fileInput?.files?.[0] || null;
+    const notes = String(notesInput?.value || '').trim();
+
+    if (!orgId) {
+        alert('Select a printing provider first.');
+        return;
+    }
+    if (!file) {
+        alert('Select a PDF file first.');
+        return;
+    }
+
+    const payload = new FormData();
+    payload.append('org_id', orgId);
+    payload.append('notes', notes);
+    payload.append('file', file);
+
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+        const response = await fetch('../api/printing/student/submit.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: payload
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not submit print job.');
+        }
+
+        if (fileInput) fileInput.value = '';
+        if (notesInput) notesInput.value = '';
+        const nameLabel = document.getElementById('printingSelectedFileName');
+        if (nameLabel) nameLabel.textContent = 'No file selected.';
+
+        await loadStudentPrintJobs(true);
+    } catch (error) {
+        alert(error.message || 'Could not submit print job.');
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
 function groupCatalogByCategory(items) {
     return items.reduce((acc, item) => {
         const key = String(item.category_name || 'Uncategorized').trim() || 'Uncategorized';
@@ -1811,13 +2117,14 @@ function renderServices(filter = "") {
     const grid = document.getElementById('servicesGrid');
     const hero = document.getElementById('printingHero');
     const filterLower = String(filter || '').toLowerCase();
+    const printingModule = getServiceModuleMeta('printing');
+    const printingEnabled = printingModule ? !!printingModule.enabled : false;
     const printingKeywords = ["printing", "photo", "1x1"];
-    const showHero = filterLower === "" || printingKeywords.some(keyword => filterLower.includes(keyword));
-
+    const showHero = printingEnabled && (filterLower === "" || printingKeywords.some(keyword => filterLower.includes(keyword)));
+    if (!grid) return;
     if (hero) {
         hero.style.display = showHero ? "block" : "none";
     }
-    if (!grid) return;
 
     if (!studentServiceCatalogLoaded) {
         grid.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 40px;">Loading services...</div>`;
@@ -1825,6 +2132,11 @@ function renderServices(filter = "") {
     }
 
     const filteredItems = studentServiceCatalog.filter((item) => {
+        const isPrintingItem = String(item.display_name || '').toLowerCase() === 'printing'
+            || String(item.category_name || '').toLowerCase().includes('print');
+        if (isPrintingItem) {
+            return false;
+        }
         const searchBlob = [
             item.display_name,
             item.category_name,
@@ -1990,15 +2302,60 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Handle Submit (Mock)
-    btnUploadSubmit.addEventListener('click', (e) => {
+    btnUploadSubmit.addEventListener('click', async (e) => {
         e.stopPropagation(); // Stop bubbling to uploadZone click
         const file = fileInput.files[0];
         if (file) {
-            alert(`Uploading "${file.name}" to print queue... (Demo)`);
-            // Optional: Reset after success
-            setTimeout(resetUploadUI, 1000);
+            const provider = document.getElementById('uploadPrintProvider');
+            const notes = document.getElementById('uploadPrintNotes');
+            const orgId = String(provider?.value || '').trim();
+            if (!orgId) {
+                alert('Select a printing provider first.');
+                return;
+            }
+
+            const payload = new FormData();
+            payload.append('org_id', orgId);
+            payload.append('notes', String(notes?.value || '').trim());
+            payload.append('file', file);
+
+            btnUploadSubmit.disabled = true;
+            try {
+                const response = await fetch('../api/printing/student/submit.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: payload
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Could not submit print job.');
+                }
+                if (notes) notes.value = '';
+                resetUploadUI();
+                await loadStudentPrintJobs(true);
+            } catch (error) {
+                alert(error.message || 'Could not submit print job.');
+                btnUploadSubmit.disabled = false;
+            }
         }
     });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const printingFileInput = document.getElementById('printingFileInput');
+    const printingSelectedFileName = document.getElementById('printingSelectedFileName');
+    const printingSubmitButton = document.getElementById('btnPrintingSubmit');
+
+    if (printingFileInput && printingSelectedFileName) {
+        printingFileInput.addEventListener('change', () => {
+            const file = printingFileInput.files && printingFileInput.files[0];
+            printingSelectedFileName.textContent = file ? file.name : 'No file selected.';
+        });
+    }
+
+    if (printingSubmitButton) {
+        printingSubmitButton.addEventListener('click', submitStudentPrintJob);
+    }
 });
 
 // --- DATA MAPPING (Service -> Organizations) ---

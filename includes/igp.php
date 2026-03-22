@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/services_tracker.php';
 
 class IgpValidationException extends RuntimeException {}
 class IgpAuthorizationException extends RuntimeException {}
@@ -792,6 +793,9 @@ function igpGetStudentRentalQuote(PDO $pdo, string $orgRef, string $itemName, fl
     if (!$org) {
         throw new IgpValidationException('Selected organization was not found.');
     }
+    if (!stServiceEnabledForOrg($pdo, (int)$org['org_id'], 'rentals')) {
+        throw new IgpValidationException('Selected organization is not authorized to offer rentals.');
+    }
 
     $item = igpFindStudentRentalInventoryItem($pdo, (int)$org['org_id'], $itemName, false);
     if (!$item) {
@@ -814,10 +818,16 @@ function igpGetStudentRentalQuote(PDO $pdo, string $orgRef, string $itemName, fl
 
 function igpGetStudentServicesCatalog(PDO $pdo): array
 {
+    $authorizedOrgIds = stGetAuthorizedOrgIds($pdo, 'rentals');
+    if (!$authorizedOrgIds) {
+        return [];
+    }
+
     $hasImagePath = igpColumnExists($pdo, 'inventory_items', 'image_path');
     $imageSelectExpr = $hasImagePath ? 'i.image_path' : 'NULL AS image_path';
+    $placeholders = implode(',', array_fill(0, count($authorizedOrgIds), '?'));
 
-    $stmt = $pdo->query(
+    $stmt = $pdo->prepare(
         "SELECT i.org_id,
                 o.org_name,
                 o.org_code,
@@ -829,11 +839,13 @@ function igpGetStudentServicesCatalog(PDO $pdo): array
          FROM inventory_items i
          JOIN inventory_categories c ON c.category_id = i.category_id
          JOIN organizations o ON o.org_id = i.org_id
-         WHERE i.status IN ('available', 'reserved', 'rented')
+         WHERE i.org_id IN ($placeholders)
+           AND i.status IN ('available', 'reserved', 'rented')
            AND c.is_active = 1
            AND o.status = 'active'
          ORDER BY c.category_name ASC, i.item_name ASC, o.org_name ASC, i.item_id ASC"
     );
+    $stmt->execute($authorizedOrgIds);
     $rows = $stmt->fetchAll();
 
     $catalog = [];
@@ -1072,6 +1084,9 @@ function igpCreateStudentRental(PDO $pdo, int $renterUserId, string $orgRef, str
         throw new IgpValidationException('Selected organization was not found.');
     }
     $orgId = (int)$org['org_id'];
+    if (!stServiceEnabledForOrg($pdo, $orgId, 'rentals')) {
+        throw new IgpValidationException('Selected organization is not authorized to offer rentals.');
+    }
 
     $unpaid = $pdo->prepare(
         "SELECT 1
