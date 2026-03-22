@@ -3006,6 +3006,13 @@ function downloadApplicationForm() {
 let currentRentalsData = [];
 let rentalTimerInterval = null;
 
+function isStudentRentalNoShow(rental) {
+    if (String(rental?.status || '').toLowerCase() !== 'reserved') return false;
+    const raw = String(rental.expected_return_time || '').trim();
+    const due = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
+    return !Number.isNaN(due) && due < Date.now();
+}
+
 async function loadCurrentRentals() {
     try {
         const response = await fetch('../api/student/rentals/my-rentals.php?status=open', {
@@ -3065,8 +3072,13 @@ function createRentalCard(rental) {
     card.className = 'rental-card';
     card.setAttribute('data-rental-id', rental.rental_id);
 
-    const statusClass = rental.status === 'active' ? 'status-active' : 'status-reserved';
-    const statusText = rental.status === 'active' ? 'Active' : 'Reserved';
+    const isNoShow = isStudentRentalNoShow(rental);
+    const statusClass = isNoShow
+        ? 'status-no-show'
+        : (rental.status === 'active' ? 'status-active' : 'status-reserved');
+    const statusText = isNoShow
+        ? 'No Show'
+        : (rental.status === 'active' ? 'Active' : 'Reserved');
 
     const rentTimeFormatted = formatDateTime(rental.rent_time);
     const expectedReturnFormatted = formatDateTime(rental.expected_return_time);
@@ -3086,7 +3098,7 @@ function createRentalCard(rental) {
         timerHtml = `
             <div class="rental-detail-row">
                 <i class="fa-solid fa-calendar-check"></i>
-                <span class="rental-detail-label">Scheduled:</span>
+                <span class="rental-detail-label">${isNoShow ? 'Missed:' : 'Scheduled:'}</span>
                 <span class="rental-detail-value">${rentTimeFormatted}</span>
             </div>
         `;
@@ -3115,7 +3127,7 @@ function createRentalCard(rental) {
             ` : ''}
             <div class="rental-detail-row">
                 <i class="fa-solid fa-clock-rotate-left"></i>
-                <span class="rental-detail-label">Due:</span>
+                <span class="rental-detail-label">${isNoShow ? 'Was Due:' : 'Due:'}</span>
                 <span class="rental-detail-value">${expectedReturnFormatted}</span>
             </div>
         </div>
