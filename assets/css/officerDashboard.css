@@ -3376,6 +3376,67 @@ body.dark .btn-outline:hover {
     padding: 14px 16px;
 }
 
+.locker-notice-stack {
+    display: grid;
+    gap: 14px;
+}
+
+.locker-notice-composer {
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(248, 250, 252, 0.92);
+    padding: 16px;
+    display: grid;
+    gap: 14px;
+}
+
+.locker-notice-composer-header {
+    display: grid;
+    gap: 4px;
+}
+
+.locker-notice-composer-header strong {
+    color: var(--text);
+}
+
+.locker-notice-composer-header span {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.locker-notice-composer-controls {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.locker-notice-type-field {
+    width: min(280px, 100%);
+    flex: 0 0 min(280px, 100%);
+}
+
+.locker-notice-type-field select {
+    min-width: 220px;
+}
+
+.locker-notice-template-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.locker-notice-template-actions .btn {
+    margin-left: 0;
+}
+
+.locker-notice-preview-upcoming {
+    border-color: rgba(245, 158, 11, 0.2);
+    background: rgba(255, 251, 235, 0.94);
+}
+
 .locker-notice-preview-header {
     display: flex;
     align-items: center;
@@ -3389,6 +3450,15 @@ body.dark .btn-outline:hover {
 .locker-notice-preview small {
     color: #7f1d1d;
     margin: 0;
+}
+
+.locker-notice-preview-upcoming .locker-notice-preview-header {
+    color: #b45309;
+}
+
+.locker-notice-preview-upcoming p,
+.locker-notice-preview-upcoming small {
+    color: #92400e;
 }
 
 .locker-detail-footer {

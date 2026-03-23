@@ -2030,31 +2030,50 @@ function getLockerActivityStatusClass(status, rental = null) {
     return 'status-unknown';
 }
 
-function getStudentLockerMetaValue(value, unavailable = false) {
-    return unavailable ? 'Unavailable for now' : formatDate(value);
-}
+function getStudentLockerNoticeEntries(locker) {
+    if (!locker) return [];
 
-function getStudentLockerAlertMessage(locker) {
-    const normalizedStatus = getNormalizedLockerActivityStatus(locker?.status, locker);
-    if (normalizedStatus === 'locker_overdue') {
-        return locker?.locker_notice_message
-            || 'This locker rental has exceeded the due date. Proceed to the SSC office immediately to settle the rental and avoid pull-out action.';
+    const entries = [];
+    const normalizedStatus = getNormalizedLockerActivityStatus(locker.status, locker);
+    const upcomingMessage = String(locker.upcoming_notice_message || '').trim();
+    const upcomingSentAt = String(locker.upcoming_notice_sent_at || '').trim();
+    const overdueMessage = String(locker.overdue_notice_message || '').trim();
+    const overdueSentAt = String(locker.overdue_notice_sent_at || '').trim();
+
+    if (upcomingMessage || upcomingSentAt) {
+        entries.push({
+            type: 'upcoming',
+            message: upcomingMessage || 'Your locker rental is due within 7 days. Please coordinate with SSC before the due date if you need assistance.',
+            sentAt: upcomingSentAt,
+            urgent: false
+        });
     }
-    return locker?.locker_notice_message || '';
-}
 
-function getStudentLockerAlertTitle(locker) {
-    const normalizedStatus = getNormalizedLockerActivityStatus(locker?.status, locker);
-    if (normalizedStatus === 'locker_overdue') {
-        return 'Overdue Alert';
+    if (overdueMessage || overdueSentAt || normalizedStatus === 'locker_overdue') {
+        entries.push({
+            type: 'overdue',
+            message: overdueMessage || 'This locker rental has exceeded the due date. Proceed to the SSC office immediately to settle the rental and avoid pull-out action.',
+            sentAt: overdueSentAt,
+            urgent: normalizedStatus === 'locker_overdue'
+        });
     }
-    return 'Pull-out Notice';
+
+    entries.sort((a, b) => {
+        const aTime = a.sentAt ? new Date(a.sentAt).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.sentAt ? new Date(b.sentAt).getTime() : Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+    });
+
+    return entries;
 }
 
-function getStudentLockerAlertClass(locker) {
-    return getNormalizedLockerActivityStatus(locker?.status, locker) === 'locker_overdue'
-        ? 'student-locker-notice-banner urgent'
-        : 'student-locker-notice-banner';
+function getStudentLockerNoticeTitle(entry) {
+    const preset = entry.type === 'upcoming'
+        ? 'Your locker rental is due within 7 days. Please coordinate with SSC before the due date if you need assistance.'
+        : 'This locker rental has exceeded the due date. Proceed to the SSC office immediately to settle the rental and avoid pull-out action.';
+    return String(entry.message || '').trim() !== preset.trim()
+        ? 'Notice!'
+        : (entry.type === 'upcoming' ? 'Ending Soon Notice' : 'Pull-out Notice');
 }
 
 function renderStudentLockerBoard() {
@@ -2119,7 +2138,8 @@ function renderStudentLockerBoard() {
 
     if (currentLocker) {
         const normalizedStatus = getNormalizedLockerActivityStatus(currentLocker.status, currentLocker);
-        const lockerAlertMessage = getStudentLockerAlertMessage(currentLocker);
+        const noticeEntries = getStudentLockerNoticeEntries(currentLocker);
+        const currentAlert = noticeEntries.find((entry) => entry.type === 'overdue') || noticeEntries[noticeEntries.length - 1] || null;
         currentCard.innerHTML = `
             <div class="student-locker-current-top">
                 <div class="student-locker-current-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
@@ -2136,12 +2156,12 @@ function renderStudentLockerBoard() {
                     <span><i class="fa-solid fa-money-bill-wave"></i> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
                 </div>
             `}
-            ${lockerAlertMessage ? `
-                <div class="${getStudentLockerAlertClass(currentLocker)}">
+            ${currentAlert ? `
+                <div class="student-locker-notice-banner${currentAlert.urgent ? ' urgent' : ''}">
                     <i class="fa-solid fa-triangle-exclamation"></i>
                     <div>
-                        <strong>${escapeStudentHtml(getStudentLockerAlertTitle(currentLocker))}</strong>
-                        <p>${escapeStudentHtml(lockerAlertMessage)}</p>
+                        <strong>${escapeStudentHtml(getStudentLockerNoticeTitle(currentAlert))}</strong>
+                        <p>${escapeStudentHtml(currentAlert.message)}</p>
                     </div>
                 </div>
             ` : ''}
@@ -2239,11 +2259,8 @@ function renderStudentLockerProfile() {
 
     section.style.display = 'block';
     const normalizedStatus = getNormalizedLockerActivityStatus(currentLocker.status, currentLocker);
-    const lockerAlertMessage = getStudentLockerAlertMessage(currentLocker);
-    const lockerAlertTitle = getStudentLockerAlertTitle(currentLocker);
-    const lockerAlertClass = normalizedStatus === 'locker_overdue'
-        ? 'profile-locker-notice urgent'
-        : 'profile-locker-notice';
+    const noticeEntries = getStudentLockerNoticeEntries(currentLocker);
+    const latestNotice = noticeEntries.find((entry) => entry.type === 'overdue') || noticeEntries[noticeEntries.length - 1] || null;
     content.innerHTML = `
         <div class="profile-locker-card">
             <div class="profile-locker-main">
@@ -2261,12 +2278,12 @@ function renderStudentLockerProfile() {
                     </div>
                 `}
             </div>
-            ${lockerAlertMessage ? `
-                <div class="${lockerAlertClass}">
+            ${latestNotice ? `
+                <div class="profile-locker-notice${latestNotice.urgent ? ' urgent' : ''}">
                     <i class="fa-solid fa-bell"></i>
                     <div>
-                        <strong>${escapeStudentHtml(lockerAlertTitle)}</strong>
-                        <p>${escapeStudentHtml(lockerAlertMessage)}</p>
+                        <strong>${escapeStudentHtml(getStudentLockerNoticeTitle(latestNotice))}</strong>
+                        <p>${escapeStudentHtml(latestNotice.message)}</p>
                     </div>
                 </div>
             ` : ''}

@@ -547,19 +547,52 @@
                         </label>
                     </div>
 
-                    <div id="lockerNoticePreview" class="locker-notice-preview" style="display:none;">
-                        <div class="locker-notice-preview-header">
-                            <i class="fa-solid fa-triangle-exclamation"></i>
-                            <span>Pull-out Notice Sent</span>
-                        </div>
-                        <p id="lockerNoticePreviewText"></p>
-                        <small id="lockerNoticePreviewMeta"></small>
-                    </div>
+                    <div class="locker-notice-stack">
+                        <div id="lockerNoticeComposer" class="locker-notice-composer">
+                            <div class="locker-notice-composer-header">
+                                <strong>Send a Notice</strong>
+                                <span>Choose a notice type, then send a pre-made or custom message.</span>
+                            </div>
+                            <div class="locker-notice-composer-controls">
+                                <label class="locker-field locker-notice-type-field">
+                                    <span>Notice Type</span>
+                                    <select id="lockerNoticeTypeSelect" onchange="applyLockerNoticeTemplate('preset')">
+                                        <option value="">Select notice type</option>
+                                        <option value="upcoming">Ending Soon Notice</option>
+                                        <option value="overdue">Pull-out Notice</option>
+                                    </select>
+                                </label>
+                            </div>
 
-                    <label class="locker-field locker-field-full">
-                        <span>Pull-out Notice Message</span>
-                        <textarea id="lockerDetailNoticeMessage" rows="3" placeholder="Your locker rental is already past due and may be pulled out by SSC if it remains unresolved."></textarea>
-                    </label>
+                            <label class="locker-field locker-field-full">
+                                <span>Notice Message</span>
+                                <textarea id="lockerNoticeComposerMessage" rows="4" placeholder="Choose a notice type to load a pre-made message or write your own." oninput="handleLockerNoticeComposerInput()"></textarea>
+                            </label>
+                            <div class="locker-notice-template-actions">
+                                <button id="lockerSendNoticeBtn" class="btn btn-primary btn-sm" type="button" onclick="sendSelectedLockerNotice()">
+                                    <i class="fa-solid fa-paper-plane"></i> Send Notice
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="lockerUpcomingNoticePreview" class="locker-notice-preview locker-notice-preview-upcoming" style="display:none;">
+                            <div class="locker-notice-preview-header">
+                                <i class="fa-solid fa-hourglass-half"></i>
+                                <span>Ending Soon Notice Sent</span>
+                            </div>
+                            <p id="lockerUpcomingNoticePreviewText"></p>
+                            <small id="lockerUpcomingNoticePreviewMeta"></small>
+                        </div>
+
+                        <div id="lockerNoticePreview" class="locker-notice-preview" style="display:none;">
+                            <div class="locker-notice-preview-header">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span>Pull-out Notice Sent</span>
+                            </div>
+                            <p id="lockerNoticePreviewText"></p>
+                            <small id="lockerNoticePreviewMeta"></small>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer locker-detail-footer">
                     <div class="locker-detail-secondary-actions">
@@ -568,9 +601,6 @@
                         </button>
                         <button id="lockerRejectBtn" class="btn btn-outline" type="button" onclick="rejectLockerRequest()" style="display:none;">
                             <i class="fa-solid fa-circle-xmark"></i> Reject Request
-                        </button>
-                        <button id="lockerNoticeBtn" class="btn btn-outline" type="button" onclick="sendLockerPulloutNotice()" style="display:none;">
-                            <i class="fa-solid fa-bell"></i> Send Notice
                         </button>
                         <button id="lockerReleaseBtn" class="btn btn-outline" type="button" onclick="releaseLockerAssignment()" style="display:none;">
                             <i class="fa-solid fa-box-open"></i> Release Locker

@@ -987,6 +987,107 @@ function formatLockerDateOnly(value) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function isLockerDueWithinSevenDays(currentRequest) {
+    if (!currentRequest || String(currentRequest.status || '') !== 'locker_active') {
+        return false;
+    }
+    const expectedReturn = new Date(currentRequest.expected_return_time || '');
+    if (Number.isNaN(expectedReturn.getTime())) {
+        return false;
+    }
+    const now = new Date();
+    const diffMs = expectedReturn.getTime() - now.getTime();
+    return diffMs >= 0 && diffMs <= 7 * 24 * 60 * 60 * 1000;
+}
+
+function getLockerNoticePreset(type) {
+    return type === 'upcoming'
+        ? 'Your locker rental is due within 7 days. Please coordinate with SSC before the due date if you need assistance.'
+        : 'Your locker rental is already past due and may be pulled out by SSC if it remains unresolved.';
+}
+
+function getAvailableLockerNoticeTypes(currentRequest = selectedLockerTile?.current_request || null) {
+    return currentRequest ? ['upcoming', 'overdue'] : [];
+}
+
+function syncLockerNoticeComposer(preferredType = '') {
+    const currentRequest = selectedLockerTile?.current_request || null;
+    const typeSelect = document.getElementById('lockerNoticeTypeSelect');
+    const messageEl = document.getElementById('lockerNoticeComposerMessage');
+    const composer = document.getElementById('lockerNoticeComposer');
+    const sendBtn = document.getElementById('lockerSendNoticeBtn');
+    if (!typeSelect || !messageEl || !composer || !sendBtn) return;
+
+    const allowedTypes = getAvailableLockerNoticeTypes(currentRequest);
+    const options = Array.from(typeSelect.options);
+    options.forEach((option) => {
+        if (!option.value) return;
+        option.hidden = !allowedTypes.includes(option.value);
+    });
+
+    const nextType = preferredType === ''
+        ? ''
+        : (allowedTypes.includes(preferredType)
+            ? preferredType
+            : (allowedTypes.includes(typeSelect.value) ? typeSelect.value : ''));
+    typeSelect.value = nextType;
+
+    const isAvailable = !!currentRequest;
+    composer.style.display = isAvailable ? '' : 'none';
+    sendBtn.disabled = !isAvailable;
+
+    if (!isAvailable) {
+        messageEl.value = '';
+        messageEl.placeholder = 'No manual notices are available for this locker right now.';
+        return;
+    }
+
+    typeSelect.value = '';
+    applyLockerNoticeTemplate('keep');
+}
+
+function applyLockerNoticeTemplate(mode = 'preset') {
+    const typeSelect = document.getElementById('lockerNoticeTypeSelect');
+    const messageEl = document.getElementById('lockerNoticeComposerMessage');
+    if (!typeSelect || !messageEl) return;
+
+    const noticeType = typeSelect.value;
+    if (!noticeType) {
+        messageEl.value = '';
+        messageEl.placeholder = '';
+        return;
+    }
+
+    const preset = getLockerNoticePreset(noticeType);
+    if (mode === 'preset') {
+        messageEl.value = preset;
+    } else if (mode === 'custom') {
+        messageEl.value = '';
+    }
+    messageEl.placeholder = preset;
+}
+
+function handleLockerNoticeComposerInput() {
+    const typeSelect = document.getElementById('lockerNoticeTypeSelect');
+    const messageEl = document.getElementById('lockerNoticeComposerMessage');
+    if (!typeSelect || !messageEl) return;
+
+    const currentValue = String(messageEl.value || '').trim();
+    if (!currentValue) {
+        return;
+    }
+
+    const selectedType = typeSelect.value;
+    if (!selectedType) {
+        return;
+    }
+
+    const preset = getLockerNoticePreset(selectedType);
+    if (currentValue !== preset.trim()) {
+        typeSelect.value = '';
+    }
+}
+
 function updateLockerOverviewCounts(lockers) {
     const counts = { available: 0, pending: 0, occupied: 0, overdue: 0 };
     lockers.forEach((locker) => {
@@ -1132,23 +1233,34 @@ function openLockerDetail(lockerCode) {
     setValue('lockerDetailStartDate', currentRequest?.rent_time ? String(currentRequest.rent_time).slice(0, 10) : '');
     setValue('lockerDetailEndDate', currentRequest?.expected_return_time ? String(currentRequest.expected_return_time).slice(0, 10) : '');
     setValue('lockerDetailPrice', currentRequest ? Number(currentRequest.total_cost || 0).toFixed(2) : '');
-    setValue('lockerDetailNoticeMessage', currentRequest?.locker_notice_message || 'Your locker rental is already past due and may be pulled out by SSC if it remains unresolved.');
+    setValue('lockerNoticeComposerMessage', '');
 
     const approveBtn = document.getElementById('lockerApproveBtn');
     const rejectBtn = document.getElementById('lockerRejectBtn');
     const releaseBtn = document.getElementById('lockerReleaseBtn');
-    const noticeBtn = document.getElementById('lockerNoticeBtn');
     if (approveBtn) approveBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
     if (rejectBtn) rejectBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
     if (releaseBtn) releaseBtn.style.display = (locker.state === 'occupied' || locker.state === 'overdue') ? 'inline-flex' : 'none';
-    if (noticeBtn) noticeBtn.style.display = locker.state === 'overdue' ? 'inline-flex' : 'none';
+
+    const upcomingNoticePreview = document.getElementById('lockerUpcomingNoticePreview');
+    if (upcomingNoticePreview) {
+        if (currentRequest?.upcoming_notice_sent_at) {
+            upcomingNoticePreview.style.display = '';
+            setText('lockerUpcomingNoticePreviewText', currentRequest.upcoming_notice_message || 'An ending soon notice has already been sent for this locker.');
+            setText('lockerUpcomingNoticePreviewMeta', `Sent on ${formatLockerDateOnly(currentRequest.upcoming_notice_sent_at)}`);
+        } else {
+            upcomingNoticePreview.style.display = 'none';
+            setText('lockerUpcomingNoticePreviewText', '');
+            setText('lockerUpcomingNoticePreviewMeta', '');
+        }
+    }
 
     const noticePreview = document.getElementById('lockerNoticePreview');
     if (noticePreview) {
-        if (currentRequest?.locker_notice_sent_at) {
+        if (currentRequest?.overdue_notice_sent_at) {
             noticePreview.style.display = '';
-            setText('lockerNoticePreviewText', currentRequest.locker_notice_message || 'A pull-out notice has already been sent for this locker.');
-            setText('lockerNoticePreviewMeta', `Sent on ${formatLockerDateOnly(currentRequest.locker_notice_sent_at)}`);
+            setText('lockerNoticePreviewText', currentRequest.overdue_notice_message || 'A pull-out notice has already been sent for this locker.');
+            setText('lockerNoticePreviewMeta', `Sent on ${formatLockerDateOnly(currentRequest.overdue_notice_sent_at)}`);
         } else {
             noticePreview.style.display = 'none';
             setText('lockerNoticePreviewText', '');
@@ -1160,6 +1272,7 @@ function openLockerDetail(lockerCode) {
         modal.classList.add('show');
         document.body.style.overflow = 'hidden';
     }
+    syncLockerNoticeComposer();
     syncLockerAssignmentPreview();
 }
 
@@ -1367,8 +1480,10 @@ async function rejectLockerRequest() {
     }
 }
 
-async function sendLockerPulloutNotice() {
+async function sendLockerNotice(noticeType) {
     if (!selectedLockerTile?.current_request?.rental_id) return;
+    const normalizedType = String(noticeType || '').toLowerCase() === 'upcoming' ? 'upcoming' : 'overdue';
+    const messageFieldId = 'lockerNoticeComposerMessage';
     try {
         const response = await fetch('../api/lockers/officer/notice.php', {
             method: 'POST',
@@ -1376,19 +1491,42 @@ async function sendLockerPulloutNotice() {
             credentials: 'same-origin',
             body: JSON.stringify({
                 rental_id: selectedLockerTile.current_request.rental_id,
-                message: document.getElementById('lockerDetailNoticeMessage')?.value || ''
+                notice_type: normalizedType,
+                message: document.getElementById(messageFieldId)?.value || ''
             })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) {
-            throw new Error(data.error || 'Could not send the pull-out notice.');
+            throw new Error(data.error || `Could not send the ${normalizedType === 'upcoming' ? 'upcoming' : 'pull-out'} notice.`);
         }
         officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
         openLockerDetail(selectedLockerTile.locker_code);
     } catch (error) {
-        alert(error.message || 'Could not send the pull-out notice.');
+        alert(error.message || `Could not send the ${normalizedType === 'upcoming' ? 'upcoming' : 'pull-out'} notice.`);
     }
+}
+
+async function sendLockerPulloutNotice() {
+    return sendLockerNotice('overdue');
+}
+
+async function sendSelectedLockerNotice() {
+    const typeSelect = document.getElementById('lockerNoticeTypeSelect');
+    const messageEl = document.getElementById('lockerNoticeComposerMessage');
+    if (!typeSelect || !messageEl) {
+        return;
+    }
+
+    const customMessage = String(messageEl.value || '').trim();
+    if (!customMessage) {
+        alert('Enter a notice message first.');
+        return;
+    }
+
+    const resolvedType = typeSelect.value
+        || (String(selectedLockerTile?.current_request?.status || '') === 'locker_overdue' ? 'overdue' : 'upcoming');
+    return sendLockerNotice(resolvedType);
 }
 
 // --- RENDER FUNCTIONS ---
