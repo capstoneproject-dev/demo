@@ -2635,6 +2635,7 @@ function filterServices() {
 
 // --- UPLOAD ZONE LOGIC ---
 document.addEventListener('DOMContentLoaded', () => {
+    const studentServicesOverview = document.getElementById('studentServicesOverview');
     const uploadZone = document.getElementById('uploadZone');
     const fileInput = document.getElementById('fileInput');
     const uploadContent = uploadZone?.querySelector('.upload-content');
@@ -2790,7 +2791,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function syncStudentServicesLayout(hasSelectedFiles) {
+        if (!studentServicesOverview) return;
+        studentServicesOverview.classList.toggle('is-stacked', Boolean(hasSelectedFiles));
+    }
+
     function showFileSelected(files) {
+        syncStudentServicesLayout(files.length > 0);
         uploadContent.style.display = 'none';
         fileSelectedState.style.display = 'flex';
         if (printingHeroPreviewArea) printingHeroPreviewArea.style.display = 'flex';
@@ -2806,6 +2813,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function resetUploadUI() {
+        syncStudentServicesLayout(false);
         uploadContent.style.display = 'block';
         fileSelectedState.style.display = 'none';
         if (printingHeroPreviewArea) printingHeroPreviewArea.style.display = 'none';

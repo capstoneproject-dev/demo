@@ -509,6 +509,24 @@ header {
 
 
 
+.student-services-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: stretch;
+    margin-bottom: 40px;
+}
+
+.student-services-overview.is-stacked {
+    grid-template-columns: 1fr;
+}
+
+.student-services-overview > .printing-hero,
+.student-services-overview > .student-locker-section {
+    margin-bottom: 0;
+    height: 100%;
+}
+
 /* --- PRINTING HERO SECTION --- */
 .printing-hero {
     background-color: var(--panel-2);
@@ -799,6 +817,10 @@ header {
 
 /* --- RESPONSIVE ADJUSTMENTS FOR HERO --- */
 @media (max-width: 900px) {
+    .student-services-overview {
+        grid-template-columns: 1fr;
+    }
+
     .hero-content {
         flex-direction: column;
         align-items: stretch;
@@ -1598,7 +1620,7 @@ body.dark .tab-btn:hover {
 }
 
 .student-locker-section {
-    margin: 28px 0 32px;
+    margin: 0 0 32px;
     padding: 26px 28px;
     border-radius: 26px;
     border: 1px solid rgba(148, 163, 184, 0.18);
