@@ -855,6 +855,34 @@
         </div>
     </div>
 
+    <div id="studentLockerConfirmModal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="modal-content student-locker-confirm-modal">
+            <div class="modal-header">
+                <div class="header-text-group">
+                    <h3>Confirm Locker Request</h3>
+                    <p>Review your selected locker before sending the request.</p>
+                </div>
+                <button class="close-modal" aria-label="Close locker confirmation modal" onclick="closeStudentLockerConfirmModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body student-locker-confirm-body">
+                <div class="student-locker-confirm-card">
+                    <span class="student-locker-confirm-label">Selected Locker</span>
+                    <strong id="studentLockerConfirmCode" class="student-locker-confirm-code">-</strong>
+                </div>
+                <div class="student-locker-confirm-note">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <p>Proceed to the SSC office to process the rental after submitting this locker request.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeStudentLockerConfirmModal()">Cancel</button>
+                <button type="button" class="btn-submit" id="studentLockerConfirmBtn" onclick="confirmStudentLockerRequest()">Confirm Request</button>
+            </div>
+        </div>
+    </div>
+
     <!-- TOAST NOTIFICATION -->
     <div id="toast" class="toast-notification">
         <div class="toast-content">

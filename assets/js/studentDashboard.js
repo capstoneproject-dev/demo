@@ -1647,6 +1647,10 @@ window.addEventListener('click', (e) => {
     if (e.target === lockerModal) {
         closeStudentLockerModal();
     }
+    const lockerConfirmModal = document.getElementById('studentLockerConfirmModal');
+    if (e.target === lockerConfirmModal) {
+        closeStudentLockerConfirmModal();
+    }
 });
 
 // --- EVENT DETAILS MODAL & CAROUSEL LOGIC ---
@@ -1774,6 +1778,7 @@ let studentLockerState = {
     lockers: [],
     current_locker: null
 };
+let pendingStudentLockerSelection = null;
 
 function resolveStudentCatalogImage(path) {
     const raw = String(path || '').trim();
@@ -2025,6 +2030,33 @@ function getLockerActivityStatusClass(status, rental = null) {
     return 'status-unknown';
 }
 
+function getStudentLockerMetaValue(value, unavailable = false) {
+    return unavailable ? 'Unavailable for now' : formatDate(value);
+}
+
+function getStudentLockerAlertMessage(locker) {
+    const normalizedStatus = getNormalizedLockerActivityStatus(locker?.status, locker);
+    if (normalizedStatus === 'locker_overdue') {
+        return locker?.locker_notice_message
+            || 'This locker rental has exceeded the due date. Proceed to the SSC office immediately to settle the rental and avoid pull-out action.';
+    }
+    return locker?.locker_notice_message || '';
+}
+
+function getStudentLockerAlertTitle(locker) {
+    const normalizedStatus = getNormalizedLockerActivityStatus(locker?.status, locker);
+    if (normalizedStatus === 'locker_overdue') {
+        return 'Overdue Alert';
+    }
+    return 'Pull-out Notice';
+}
+
+function getStudentLockerAlertClass(locker) {
+    return getNormalizedLockerActivityStatus(locker?.status, locker) === 'locker_overdue'
+        ? 'student-locker-notice-banner urgent'
+        : 'student-locker-notice-banner';
+}
+
 function renderStudentLockerBoard() {
     const section = document.getElementById('studentLockerSection');
     const board = document.getElementById('studentLockerBoard');
@@ -2073,7 +2105,7 @@ function renderStudentLockerBoard() {
                             <button
                                 type="button"
                                 class="student-locker-tile state-${state}"
-                                onclick="${canRequest ? `requestStudentLocker(${Number(locker.item_id)})` : 'void(0)'}"
+                                onclick="${canRequest ? `openStudentLockerRequestModal(${Number(locker.item_id)}, '${String(locker.locker_code || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')` : 'void(0)'}"
                                 ${canRequest ? '' : 'disabled'}>
                                 <span class="student-locker-code">${escapeStudentHtml(locker.locker_code || '')}</span>
                                 <span class="student-locker-state">${stateLabel}</span>
@@ -2086,22 +2118,30 @@ function renderStudentLockerBoard() {
     }).join('');
 
     if (currentLocker) {
+        const normalizedStatus = getNormalizedLockerActivityStatus(currentLocker.status, currentLocker);
+        const lockerAlertMessage = getStudentLockerAlertMessage(currentLocker);
         currentCard.innerHTML = `
             <div class="student-locker-current-top">
                 <div class="student-locker-current-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
                 <span class="status-badge ${getLockerActivityStatusClass(currentLocker.status)}">${escapeStudentHtml(getLockerActivityStatusLabel(currentLocker.status))}</span>
             </div>
-            <div class="student-locker-current-meta">
-                <span><i class="fa-solid fa-calendar-check"></i> Start: ${formatDate(currentLocker.rent_time)}</span>
-                <span><i class="fa-solid fa-calendar-xmark"></i> Due: ${formatDate(currentLocker.expected_return_time)}</span>
-                <span><i class="fa-solid fa-money-bill-wave"></i> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
-            </div>
-            ${currentLocker.locker_notice_message ? `
-                <div class="student-locker-notice-banner">
+            ${normalizedStatus === 'locker_pending' ? `
+                <div class="student-locker-current-meta">
+                    <span><strong>For Approval</strong></span>
+                </div>
+            ` : `
+                <div class="student-locker-current-meta">
+                    <span><i class="fa-solid fa-calendar-check"></i> Start: ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
+                    <span><i class="fa-solid fa-calendar-xmark"></i> Due: ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
+                    <span><i class="fa-solid fa-money-bill-wave"></i> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                </div>
+            `}
+            ${lockerAlertMessage ? `
+                <div class="${getStudentLockerAlertClass(currentLocker)}">
                     <i class="fa-solid fa-triangle-exclamation"></i>
                     <div>
-                        <strong>Pull-out Notice</strong>
-                        <p>${escapeStudentHtml(currentLocker.locker_notice_message)}</p>
+                        <strong>${escapeStudentHtml(getStudentLockerAlertTitle(currentLocker))}</strong>
+                        <p>${escapeStudentHtml(lockerAlertMessage)}</p>
                     </div>
                 </div>
             ` : ''}
@@ -2129,9 +2169,60 @@ function openStudentLockerModal() {
 function closeStudentLockerModal() {
     const modal = document.getElementById('studentLockerModal');
     if (!modal) return;
+    closeStudentLockerConfirmModal();
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-open');
+}
+
+function openStudentLockerRequestModal(itemId, lockerCode) {
+    const modal = document.getElementById('studentLockerConfirmModal');
+    const codeEl = document.getElementById('studentLockerConfirmCode');
+    const confirmBtn = document.getElementById('studentLockerConfirmBtn');
+    if (!modal) return;
+
+    pendingStudentLockerSelection = {
+        itemId: Number(itemId),
+        lockerCode: String(lockerCode || '').trim() || '-'
+    };
+
+    if (codeEl) {
+        codeEl.textContent = pendingStudentLockerSelection.lockerCode;
+    }
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+    }
+
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+}
+
+function closeStudentLockerConfirmModal() {
+    const modal = document.getElementById('studentLockerConfirmModal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    pendingStudentLockerSelection = null;
+
+    const lockerModal = document.getElementById('studentLockerModal');
+    if (!lockerModal || !lockerModal.classList.contains('open')) {
+        document.body.classList.remove('modal-open');
+    }
+}
+
+async function confirmStudentLockerRequest() {
+    if (!pendingStudentLockerSelection?.itemId) {
+        closeStudentLockerConfirmModal();
+        return;
+    }
+
+    const confirmBtn = document.getElementById('studentLockerConfirmBtn');
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+    }
+
+    await requestStudentLocker(pendingStudentLockerSelection.itemId);
 }
 
 function renderStudentLockerProfile() {
@@ -2147,23 +2238,35 @@ function renderStudentLockerProfile() {
     }
 
     section.style.display = 'block';
+    const normalizedStatus = getNormalizedLockerActivityStatus(currentLocker.status, currentLocker);
+    const lockerAlertMessage = getStudentLockerAlertMessage(currentLocker);
+    const lockerAlertTitle = getStudentLockerAlertTitle(currentLocker);
+    const lockerAlertClass = normalizedStatus === 'locker_overdue'
+        ? 'profile-locker-notice urgent'
+        : 'profile-locker-notice';
     content.innerHTML = `
         <div class="profile-locker-card">
             <div class="profile-locker-main">
                 <div class="profile-locker-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
-                <div class="profile-locker-details">
-                    <span><strong>Status:</strong> ${escapeStudentHtml(getLockerActivityStatusLabel(currentLocker.status))}</span>
-                    <span><strong>Start:</strong> ${formatDate(currentLocker.rent_time)}</span>
-                    <span><strong>Due:</strong> ${formatDate(currentLocker.expected_return_time)}</span>
-                    <span><strong>Price:</strong> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
-                </div>
+                ${normalizedStatus === 'locker_pending' ? `
+                    <div class="profile-locker-details">
+                        <span><strong>Status:</strong> For Approval</span>
+                    </div>
+                ` : `
+                    <div class="profile-locker-details">
+                        <span><strong>Status:</strong> ${escapeStudentHtml(getLockerActivityStatusLabel(currentLocker.status))}</span>
+                        <span><strong>Start:</strong> ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
+                        <span><strong>Due:</strong> ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
+                        <span><strong>Price:</strong> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                    </div>
+                `}
             </div>
-            ${currentLocker.locker_notice_message ? `
-                <div class="profile-locker-notice">
+            ${lockerAlertMessage ? `
+                <div class="${lockerAlertClass}">
                     <i class="fa-solid fa-bell"></i>
                     <div>
-                        <strong>SSC Notice</strong>
-                        <p>${escapeStudentHtml(currentLocker.locker_notice_message)}</p>
+                        <strong>${escapeStudentHtml(lockerAlertTitle)}</strong>
+                        <p>${escapeStudentHtml(lockerAlertMessage)}</p>
                     </div>
                 </div>
             ` : ''}
@@ -2226,8 +2329,14 @@ async function requestStudentLocker(itemId) {
         ]);
         buildFilterOptions();
         updateMyRentalsEmptyState();
+        closeStudentLockerConfirmModal();
         closeStudentLockerModal();
+        showToast('Locker request submitted. Proceed to the SSC office to process the rental.');
     } catch (error) {
+        const confirmBtn = document.getElementById('studentLockerConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+        }
         alert(error.message || 'Could not submit the locker request.');
     }
 }
@@ -3421,6 +3530,11 @@ document.addEventListener('keydown', function (e) {
         const modal = document.getElementById('serviceSelectModal');
         if (modal.classList.contains('open')) {
             closeServiceModal();
+        }
+        const lockerConfirmModal = document.getElementById('studentLockerConfirmModal');
+        if (lockerConfirmModal && lockerConfirmModal.classList.contains('open')) {
+            closeStudentLockerConfirmModal();
+            return;
         }
         const lockerModal = document.getElementById('studentLockerModal');
         if (lockerModal && lockerModal.classList.contains('open')) {

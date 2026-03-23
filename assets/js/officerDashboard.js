@@ -392,6 +392,21 @@ function setOfficerTrackerPrintingAccess(printingEnabled) {
     }
 }
 
+function initTrackerSidebarBehavior() {
+    const trackerSidebar = document.getElementById('trackerSidebar');
+    if (!trackerSidebar || trackerSidebar.dataset.hoverCollapseBound === 'true') {
+        return;
+    }
+
+    trackerSidebar.dataset.hoverCollapseBound = 'true';
+    trackerSidebar.addEventListener('mouseleave', () => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement && trackerSidebar.contains(activeElement)) {
+            activeElement.blur();
+        }
+    });
+}
+
 function switchTrackerSubView(viewId, button = null) {
     if (viewId === 'printing' && !officerPrintingEnabled) {
         return;
@@ -2419,6 +2434,7 @@ if (themeBtn) {
 // Init
 window.addEventListener('DOMContentLoaded', () => {
     setDate();
+    initTrackerSidebarBehavior();
     renderRentals();
     renderDocs();
     renderRecentDocs();
