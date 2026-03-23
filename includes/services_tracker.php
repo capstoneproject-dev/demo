@@ -1412,7 +1412,7 @@ function stReleaseLocker(PDO $pdo, int $orgId, int $officerUserId, int $rentalId
         );
         $updateRental->execute([
             ':processed_by_user_id' => $officerUserId,
-            ':status' => ST_LOCKER_REJECTED,
+            ':status' => ST_LOCKER_RELEASED,
             ':rental_id' => $rentalId,
         ]);
 
