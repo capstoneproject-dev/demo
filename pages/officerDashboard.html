@@ -599,17 +599,89 @@
                         <button id="lockerSavePricingBtn" class="btn btn-outline" type="button" onclick="saveLockerPricing()">
                             <i class="fa-solid fa-tags"></i> Save Shared Rates
                         </button>
+                        <button id="lockerManualAssignBtn" class="btn btn-outline" type="button" onclick="openLockerAssignStudentModal()" style="display:none;">
+                            <i class="fa-solid fa-user-plus"></i> Assign Student
+                        </button>
                         <button id="lockerRejectBtn" class="btn btn-outline" type="button" onclick="rejectLockerRequest()" style="display:none;">
                             <i class="fa-solid fa-circle-xmark"></i> Reject Request
                         </button>
-                        <button id="lockerReleaseBtn" class="btn btn-outline" type="button" onclick="releaseLockerAssignment()" style="display:none;">
+                        <button id="lockerClearNoticeBtn" class="btn btn-outline" type="button" onclick="clearLockerNotice()" style="display:none;">
+                            <i class="fa-solid fa-eraser"></i> Clear Notice
+                        </button>
+                        <button id="lockerReleaseBtn" class="btn btn-outline" type="button" onclick="openLockerReleaseConfirmModal()" style="display:none;">
                             <i class="fa-solid fa-box-open"></i> Release Locker
                         </button>
                     </div>
                     <div class="locker-detail-primary-actions">
+                        <button id="lockerConfirmRentalBtn" class="btn btn-primary" type="button" onclick="submitManualLockerAssignment()" style="display:none;">
+                            <i class="fa-solid fa-circle-check"></i> Confirm Rental
+                        </button>
                         <button class="btn btn-outline" type="button" onclick="closeLockerDetailModal()">Close</button>
                         <button id="lockerApproveBtn" class="btn btn-primary" type="button" onclick="approveLockerAssignment()" style="display:none;">
                             <i class="fa-solid fa-circle-check"></i> Approve & Assign
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lockerAssignStudentModal" class="modal-overlay">
+            <div class="modal-content locker-assign-student-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>Assign Student to Locker</h3>
+                        <p class="locker-detail-subtitle">Search the student database, select one student, then assign the current locker.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeLockerAssignStudentModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <label class="locker-field locker-field-full">
+                        <span>Search Student</span>
+                        <input id="lockerAssignStudentSearch" type="text" placeholder="Search by student number, name, section, or program..." oninput="renderLockerAssignStudentResults()">
+                    </label>
+
+                    <div id="lockerAssignSelectedStudent" class="locker-assign-selected" style="display:none;"></div>
+                    <div id="lockerAssignStudentResults" class="locker-assign-results"></div>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeLockerAssignStudentModal()">Cancel</button>
+                        <button id="lockerConfirmAssignBtn" class="btn btn-primary" type="button" onclick="applySelectedLockerAssignStudent()" disabled>
+                            <i class="fa-solid fa-arrow-left"></i> Use Selected Student
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lockerReleaseConfirmModal" class="modal-overlay">
+            <div class="modal-content locker-release-confirm-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>Confirm Locker Release</h3>
+                        <p class="locker-detail-subtitle">Make sure you are releasing the correct locker assignment before continuing.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeLockerReleaseConfirmModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <div class="locker-release-confirm-card">
+                        <strong id="lockerReleaseConfirmTitle">Locker -</strong>
+                        <span id="lockerReleaseConfirmMeta">No student selected.</span>
+                    </div>
+                    <div class="locker-release-confirm-note">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <p>Releasing this locker will mark it as available again and send the automatic pull-out notice to the student.</p>
+                    </div>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeLockerReleaseConfirmModal()">Cancel</button>
+                        <button id="lockerReleaseConfirmBtn" class="btn btn-primary" type="button" onclick="releaseLockerAssignment()">
+                            <i class="fa-solid fa-box-open"></i> Confirm Release
                         </button>
                     </div>
                 </div>

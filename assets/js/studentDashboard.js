@@ -2117,8 +2117,17 @@ function renderStudentLockerBoard() {
                 <div class="student-locker-column-header">Locker ${columnKey}</div>
                 <div class="student-locker-column-grid">
                     ${columnLockers.map((locker) => {
-                        const state = String(locker.state || 'available').toLowerCase();
-                        const stateLabel = state === 'pending' ? 'Pending' : (state === 'occupied' ? 'Occupied' : (state === 'overdue' ? 'Overdue' : 'Available'));
+                        const isCurrentStudentLocker = !!currentLocker?.locker_code
+                            && String(locker.locker_code || '').trim().toUpperCase() === String(currentLocker.locker_code || '').trim().toUpperCase();
+                        const rawState = String(locker.state || 'available').toLowerCase();
+                        const state = isCurrentStudentLocker ? 'your-locker' : rawState;
+                        const stateLabel = state === 'your-locker'
+                            ? 'Your Locker'
+                            : (state === 'pending'
+                                ? 'Pending'
+                                : (state === 'occupied'
+                                    ? 'Occupied'
+                                    : (state === 'overdue' ? 'Overdue' : 'Available')));
                         const canRequest = !!locker.request_allowed;
                         return `
                             <button
