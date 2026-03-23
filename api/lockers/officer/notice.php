@@ -18,6 +18,7 @@ try {
         (int)$context['org_id'],
         (int)$context['user_id'],
         $rentalId,
+        (string)($payload['notice_type'] ?? 'overdue'),
         (string)($payload['message'] ?? '')
     );
     jsonOk($result);

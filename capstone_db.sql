@@ -736,7 +736,10 @@ CREATE TABLE `rentals` (
   `locker_period_type` varchar(32) DEFAULT NULL,
   `locker_notice_sent_at` datetime DEFAULT NULL,
   `locker_notice_message` text DEFAULT NULL,
-  `locker_notice_sent_by_user_id` int(11) DEFAULT NULL
+  `locker_notice_sent_by_user_id` int(11) DEFAULT NULL,
+  `locker_upcoming_notice_sent_at` datetime DEFAULT NULL,
+  `locker_upcoming_notice_message` text DEFAULT NULL,
+  `locker_upcoming_notice_sent_by_user_id` int(11) DEFAULT NULL
 ) ;
 
 --

@@ -30,6 +30,8 @@ const ST_LOCKER_ACTIVE = 'locker_active';
 const ST_LOCKER_OVERDUE = 'locker_overdue';
 const ST_LOCKER_RELEASED = 'locker_released';
 const ST_LOCKER_REJECTED = 'locker_rejected';
+const ST_LOCKER_NOTICE_MAX_LENGTH = 1000;
+const ST_LOCKER_UPCOMING_NOTICE_WINDOW_DAYS = 7;
 
 function stNormalizeServiceKey(string $serviceKey): string
 {
@@ -124,7 +126,10 @@ function stEnsureSchema(PDO $pdo): void
          ADD COLUMN IF NOT EXISTS locker_period_type VARCHAR(32) NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS locker_notice_sent_at DATETIME NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS locker_notice_message TEXT NULL DEFAULT NULL,
-         ADD COLUMN IF NOT EXISTS locker_notice_sent_by_user_id INT NULL DEFAULT NULL"
+         ADD COLUMN IF NOT EXISTS locker_notice_sent_by_user_id INT NULL DEFAULT NULL,
+         ADD COLUMN IF NOT EXISTS locker_upcoming_notice_sent_at DATETIME NULL DEFAULT NULL,
+         ADD COLUMN IF NOT EXISTS locker_upcoming_notice_message TEXT NULL DEFAULT NULL,
+         ADD COLUMN IF NOT EXISTS locker_upcoming_notice_sent_by_user_id INT NULL DEFAULT NULL"
     );
 
     $pdo->exec(
@@ -1037,6 +1042,35 @@ function stGetActiveLockerRentalByStudent(PDO $pdo, int $userId): ?array
     return $row ?: null;
 }
 
+function stMapLockerNoticePayload(array $rental): array
+{
+    return [
+        'upcoming_notice_sent_at' => (string)($rental['locker_upcoming_notice_sent_at'] ?? ''),
+        'upcoming_notice_message' => (string)($rental['locker_upcoming_notice_message'] ?? ''),
+        'overdue_notice_sent_at' => (string)($rental['locker_notice_sent_at'] ?? ''),
+        'overdue_notice_message' => (string)($rental['locker_notice_message'] ?? ''),
+        // Compatibility fields while the UI transitions to the explicit names.
+        'locker_notice_sent_at' => (string)($rental['locker_notice_sent_at'] ?? ''),
+        'locker_notice_message' => (string)($rental['locker_notice_message'] ?? ''),
+    ];
+}
+
+function stIsLockerUpcomingNoticeAllowed(array $rental): bool
+{
+    if ((string)($rental['status'] ?? '') !== ST_LOCKER_ACTIVE) {
+        return false;
+    }
+
+    $expectedReturn = strtotime((string)($rental['expected_return_time'] ?? ''));
+    if (!$expectedReturn) {
+        return false;
+    }
+
+    $now = time();
+    $windowEnd = strtotime('+' . ST_LOCKER_UPCOMING_NOTICE_WINDOW_DAYS . ' days', $now);
+    return $expectedReturn >= $now && $expectedReturn <= $windowEnd;
+}
+
 function stFormatLockerStateFromRental(?array $rental): string
 {
     if (!$rental) {
@@ -1098,9 +1132,8 @@ function stListLockerBoard(PDO $pdo, int $orgId): array
                 'expected_return_time' => (string)($currentRental['expected_return_time'] ?? ''),
                 'total_cost' => (float)($currentRental['total_cost'] ?? 0),
                 'locker_period_type' => (string)($currentRental['locker_period_type'] ?? ''),
-                'locker_notice_sent_at' => (string)($currentRental['locker_notice_sent_at'] ?? ''),
-                'locker_notice_message' => (string)($currentRental['locker_notice_message'] ?? ''),
-            ] : null,
+                'can_send_upcoming_notice' => stIsLockerUpcomingNoticeAllowed($currentRental),
+            ] + stMapLockerNoticePayload($currentRental) : null,
         ];
     }
 
@@ -1147,11 +1180,9 @@ function stListStudentLockers(PDO $pdo, int $userId): array
             'expected_return_time' => (string)$currentLocker['expected_return_time'],
             'total_cost' => (float)($currentLocker['total_cost'] ?? 0),
             'locker_period_type' => (string)($currentLocker['locker_period_type'] ?? ''),
-            'locker_notice_sent_at' => (string)($currentLocker['locker_notice_sent_at'] ?? ''),
-            'locker_notice_message' => (string)($currentLocker['locker_notice_message'] ?? ''),
             'org_name' => (string)($currentLocker['org_name'] ?? ''),
             'org_code' => (string)($currentLocker['org_code'] ?? ''),
-        ] : null,
+        ] + stMapLockerNoticePayload($currentLocker) : null,
     ];
 }
 
@@ -1333,7 +1364,10 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
                  locker_period_type = :locker_period_type,
                  locker_notice_sent_at = NULL,
                  locker_notice_message = NULL,
-                 locker_notice_sent_by_user_id = NULL
+                 locker_notice_sent_by_user_id = NULL,
+                 locker_upcoming_notice_sent_at = NULL,
+                 locker_upcoming_notice_message = NULL,
+                 locker_upcoming_notice_sent_by_user_id = NULL
              WHERE rental_id = :rental_id"
         );
         $updateRental->execute([
@@ -1489,13 +1523,13 @@ function stRejectLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $re
     return stListLockerBoard($pdo, $orgId);
 }
 
-function stSendLockerNotice(PDO $pdo, int $orgId, int $officerUserId, int $rentalId, string $message = ''): array
+function stSendLockerNotice(PDO $pdo, int $orgId, int $officerUserId, int $rentalId, string $noticeType = 'overdue', string $message = ''): array
 {
     stRequireLockerOfficerContext($pdo);
     stSyncLockerStatuses($pdo, $orgId);
 
     $stmt = $pdo->prepare(
-        "SELECT rental_id, renter_user_id, status
+        "SELECT rental_id, renter_user_id, status, expected_return_time
          FROM rentals
          WHERE rental_id = :rental_id
            AND org_id = :org_id
@@ -1511,21 +1545,41 @@ function stSendLockerNotice(PDO $pdo, int $orgId, int $officerUserId, int $renta
     if (!$locker) {
         throw new ServiceTrackerValidationException('Locker rental not found.');
     }
-    if ((string)$locker['status'] !== ST_LOCKER_OVERDUE) {
-        throw new ServiceTrackerValidationException('Notices can only be sent for overdue locker rentals.');
+
+    $normalizedType = strtolower(trim($noticeType));
+    $noticeMessage = trim($message);
+    if ($noticeMessage === '') {
+        throw new ServiceTrackerValidationException('A custom notice message is required.');
+    }
+    $noticeLength = function_exists('mb_strlen') ? mb_strlen($noticeMessage) : strlen($noticeMessage);
+    if ($noticeLength > ST_LOCKER_NOTICE_MAX_LENGTH) {
+        throw new ServiceTrackerValidationException('Notice message is too long.');
     }
 
-    $noticeMessage = trim($message) !== ''
-        ? trim($message)
-        : 'Your locker rental is already past due and may be pulled out by SSC if it remains unresolved.';
+    $updateSql = '';
+    if ($normalizedType === 'upcoming') {
+        if ((string)$locker['status'] !== ST_LOCKER_ACTIVE) {
+            throw new ServiceTrackerValidationException('Ending soon notices can only be sent for active locker rentals.');
+        }
+        $updateSql = "UPDATE rentals
+                      SET locker_upcoming_notice_sent_at = NOW(),
+                          locker_upcoming_notice_message = :message,
+                          locker_upcoming_notice_sent_by_user_id = :sent_by
+                      WHERE rental_id = :rental_id";
+    } elseif ($normalizedType === 'overdue') {
+        if ((string)$locker['status'] !== ST_LOCKER_OVERDUE) {
+            throw new ServiceTrackerValidationException('Pull-out notices can only be sent for overdue locker rentals.');
+        }
+        $updateSql = "UPDATE rentals
+                      SET locker_notice_sent_at = NOW(),
+                          locker_notice_message = :message,
+                          locker_notice_sent_by_user_id = :sent_by
+                      WHERE rental_id = :rental_id";
+    } else {
+        throw new ServiceTrackerValidationException('Invalid locker notice type.');
+    }
 
-    $update = $pdo->prepare(
-        "UPDATE rentals
-         SET locker_notice_sent_at = NOW(),
-             locker_notice_message = :message,
-             locker_notice_sent_by_user_id = :sent_by
-         WHERE rental_id = :rental_id"
-    );
+    $update = $pdo->prepare($updateSql);
     $update->execute([
         ':message' => $noticeMessage,
         ':sent_by' => $officerUserId,
