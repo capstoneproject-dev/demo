@@ -1840,6 +1840,11 @@ body.dark .tab-btn:hover {
 }
 
 .student-locker-tile.state-occupied {
+    border-color: rgba(220, 38, 38, 0.34);
+    background: linear-gradient(180deg, #fff5f5 0%, #ffd6d6 100%);
+}
+
+.student-locker-tile.state-your-locker {
     border-color: rgba(37, 99, 235, 0.28);
     background: linear-gradient(180deg, #f6f9ff 0%, #dbe8ff 100%);
 }
@@ -1899,6 +1904,23 @@ body.dark .tab-btn:hover {
     background: rgba(15, 23, 42, 0.46);
     box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
     transform: translateY(-50%);
+}
+
+.student-locker-tile.state-available span.student-locker-state::after {
+    background: #15803d;
+}
+
+.student-locker-tile.state-pending span.student-locker-state::after {
+    background: #b45309;
+}
+
+.student-locker-tile.state-occupied span.student-locker-state::after,
+.student-locker-tile.state-overdue span.student-locker-state::after {
+    background: #b91c1c;
+}
+
+.student-locker-tile.state-your-locker span.student-locker-state::after {
+    background: #1d4ed8;
 }
 
 .student-locker-panel-card h3 {

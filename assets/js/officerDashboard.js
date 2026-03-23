@@ -340,6 +340,8 @@ let officerPrintingEnabled = true;
 let officerLockerEnabled = false;
 let officerLockerBoard = [];
 let selectedLockerTile = null;
+let lockerAssignableStudents = [];
+let selectedLockerAssignStudent = null;
 
 function isOfficerLockerEnabled() {
     const session = readAuthSession();
@@ -858,6 +860,14 @@ document.addEventListener('click', (e) => {
     if (lockerModal && e.target === lockerModal) {
         closeLockerDetailModal();
     }
+    const lockerAssignModal = document.getElementById('lockerAssignStudentModal');
+    if (lockerAssignModal && e.target === lockerAssignModal) {
+        closeLockerAssignStudentModal();
+    }
+    const lockerReleaseConfirmModal = document.getElementById('lockerReleaseConfirmModal');
+    if (lockerReleaseConfirmModal && e.target === lockerReleaseConfirmModal) {
+        closeLockerReleaseConfirmModal();
+    }
     const addLockerModal = document.getElementById('addLockerModal');
     if (addLockerModal && e.target === addLockerModal) {
         closeAddLockerModal();
@@ -869,6 +879,16 @@ document.addEventListener('keydown', (e) => {
         const printingDateModal = document.getElementById('officerPrintingDateFilterModal');
         if (printingDateModal && printingDateModal.classList.contains('show')) {
             closeOfficerPrintingDateFilterModal();
+        }
+        const lockerAssignModal = document.getElementById('lockerAssignStudentModal');
+        if (lockerAssignModal && lockerAssignModal.classList.contains('show')) {
+            closeLockerAssignStudentModal();
+            return;
+        }
+        const lockerReleaseConfirmModal = document.getElementById('lockerReleaseConfirmModal');
+        if (lockerReleaseConfirmModal && lockerReleaseConfirmModal.classList.contains('show')) {
+            closeLockerReleaseConfirmModal();
+            return;
         }
         const lockerModal = document.getElementById('lockerDetailModal');
         if (lockerModal && lockerModal.classList.contains('show')) {
@@ -1197,6 +1217,7 @@ function openLockerDetail(lockerCode) {
     const locker = officerLockerBoard.find((item) => String(item.locker_code) === String(lockerCode));
     if (!locker) return;
     selectedLockerTile = locker;
+    selectedLockerAssignStudent = null;
 
     const modal = document.getElementById('lockerDetailModal');
     const currentRequest = locker.current_request || null;
@@ -1236,10 +1257,17 @@ function openLockerDetail(lockerCode) {
     setValue('lockerNoticeComposerMessage', '');
 
     const approveBtn = document.getElementById('lockerApproveBtn');
+    const manualAssignBtn = document.getElementById('lockerManualAssignBtn');
+    const confirmRentalBtn = document.getElementById('lockerConfirmRentalBtn');
     const rejectBtn = document.getElementById('lockerRejectBtn');
+    const clearNoticeBtn = document.getElementById('lockerClearNoticeBtn');
     const releaseBtn = document.getElementById('lockerReleaseBtn');
+    const hasActiveNotice = !!(currentRequest?.upcoming_notice_sent_at || currentRequest?.overdue_notice_sent_at || currentRequest?.upcoming_notice_message || currentRequest?.overdue_notice_message);
     if (approveBtn) approveBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
+    if (manualAssignBtn) manualAssignBtn.style.display = locker.state === 'available' ? 'inline-flex' : 'none';
+    if (confirmRentalBtn) confirmRentalBtn.style.display = 'none';
     if (rejectBtn) rejectBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
+    if (clearNoticeBtn) clearNoticeBtn.style.display = hasActiveNotice ? 'inline-flex' : 'none';
     if (releaseBtn) releaseBtn.style.display = (locker.state === 'occupied' || locker.state === 'overdue') ? 'inline-flex' : 'none';
 
     const upcomingNoticePreview = document.getElementById('lockerUpcomingNoticePreview');
@@ -1274,12 +1302,264 @@ function openLockerDetail(lockerCode) {
     }
     syncLockerNoticeComposer();
     syncLockerAssignmentPreview();
+    syncLockerManualAssignUI();
 }
 
 function closeLockerDetailModal() {
     const modal = document.getElementById('lockerDetailModal');
+    const assignModal = document.getElementById('lockerAssignStudentModal');
+    const releaseConfirmModal = document.getElementById('lockerReleaseConfirmModal');
+    if (assignModal) {
+        assignModal.classList.remove('show');
+    }
+    if (releaseConfirmModal) {
+        releaseConfirmModal.classList.remove('show');
+    }
     if (modal) modal.classList.remove('show');
-    document.body.style.overflow = '';
+    selectedLockerTile = null;
+    selectedLockerAssignStudent = null;
+    if ((!assignModal || !assignModal.classList.contains('show')) && (!releaseConfirmModal || !releaseConfirmModal.classList.contains('show'))) {
+        document.body.style.overflow = '';
+    }
+}
+
+function syncLockerManualAssignUI() {
+    const studentNameEl = document.getElementById('lockerDetailStudentName');
+    const studentMetaEl = document.getElementById('lockerDetailStudentMeta');
+    const confirmRentalBtn = document.getElementById('lockerConfirmRentalBtn');
+    const canManualAssign = !!selectedLockerTile && String(selectedLockerTile.state || '').toLowerCase() === 'available';
+
+    if (studentNameEl && studentMetaEl && canManualAssign && selectedLockerAssignStudent) {
+        studentNameEl.textContent = selectedLockerAssignStudent.studentName || 'Unnamed Student';
+        studentMetaEl.textContent = `${selectedLockerAssignStudent.studentId || '-'}${selectedLockerAssignStudent.section ? ` • ${selectedLockerAssignStudent.section}` : ''}${selectedLockerAssignStudent.programCode ? ` • ${selectedLockerAssignStudent.programCode}` : ''}`;
+    } else if (studentNameEl && studentMetaEl && canManualAssign) {
+        studentNameEl.textContent = 'No student assigned';
+        studentMetaEl.textContent = 'Choose a student from the database to prepare this locker rental.';
+    }
+
+    if (confirmRentalBtn) {
+        confirmRentalBtn.style.display = canManualAssign && selectedLockerAssignStudent ? 'inline-flex' : 'none';
+    }
+}
+
+async function loadLockerAssignableStudents(force = false) {
+    if (!force && lockerAssignableStudents.length) {
+        return lockerAssignableStudents;
+    }
+    const response = await fetch('../api/igp/students/list.php', {
+        method: 'GET',
+        credentials: 'same-origin'
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'Could not load the student database.');
+    }
+    const dedupedStudents = new Map();
+    if (Array.isArray(data.items)) {
+        data.items
+            .filter((item) => item && item.isActive !== false)
+            .map((item) => ({
+                user_id: Number(item.user_id || 0),
+                studentId: String(item.studentId || '').trim(),
+                studentName: String(item.studentName || '').trim(),
+                section: String(item.section || '').trim(),
+                programCode: String(item.programCode || '').trim(),
+                isOrgProgram: item.isOrgProgram === true,
+            }))
+            .filter((item) => item.user_id > 0)
+            .forEach((item) => {
+                const key = `${item.user_id}|${item.studentId}`;
+                if (!dedupedStudents.has(key)) {
+                    dedupedStudents.set(key, item);
+                    return;
+                }
+
+                const existing = dedupedStudents.get(key);
+                dedupedStudents.set(key, {
+                    ...existing,
+                    section: existing.section || item.section,
+                    programCode: existing.programCode || item.programCode,
+                    isOrgProgram: existing.isOrgProgram || item.isOrgProgram,
+                });
+            });
+    }
+    lockerAssignableStudents = Array.from(dedupedStudents.values());
+    lockerAssignableStudents.sort((a, b) => {
+        if (a.isOrgProgram !== b.isOrgProgram) return a.isOrgProgram ? -1 : 1;
+        return a.studentName.localeCompare(b.studentName) || a.studentId.localeCompare(b.studentId);
+    });
+    return lockerAssignableStudents;
+}
+
+function updateLockerAssignSelectedPreview() {
+    const selectedBox = document.getElementById('lockerAssignSelectedStudent');
+    const confirmBtn = document.getElementById('lockerConfirmAssignBtn');
+    if (confirmBtn) confirmBtn.disabled = !selectedLockerAssignStudent;
+    if (!selectedBox) return;
+
+    if (!selectedLockerAssignStudent) {
+        selectedBox.style.display = 'none';
+        selectedBox.innerHTML = '';
+        return;
+    }
+
+    selectedBox.style.display = '';
+    selectedBox.innerHTML = `
+        <strong>${escapeHtml(selectedLockerAssignStudent.studentName || 'Unnamed Student')}</strong>
+        <span>${escapeHtml(selectedLockerAssignStudent.studentId || '-')} | ${escapeHtml(selectedLockerAssignStudent.programCode || 'No Program')}${selectedLockerAssignStudent.section ? ` | ${escapeHtml(selectedLockerAssignStudent.section)}` : ''}</span>
+    `;
+}
+
+function renderLockerAssignStudentResults() {
+    const results = document.getElementById('lockerAssignStudentResults');
+    const searchInput = document.getElementById('lockerAssignStudentSearch');
+    if (!results) return;
+
+    const term = String(searchInput?.value || '').trim().toLowerCase();
+    const items = lockerAssignableStudents.filter((student) => {
+        if (!term) return true;
+        return [
+            student.studentId,
+            student.studentName,
+            student.section,
+            student.programCode,
+        ].join(' ').toLowerCase().includes(term);
+    });
+
+    if (!items.length) {
+        results.innerHTML = '<div class="locker-assign-empty">No students matched your search.</div>';
+        updateLockerAssignSelectedPreview();
+        return;
+    }
+
+    results.innerHTML = items.map((student) => `
+        <button
+            type="button"
+            class="locker-assign-student-card${selectedLockerAssignStudent?.user_id === student.user_id ? ' selected' : ''}"
+            onclick="selectLockerAssignStudent(${student.user_id})">
+            <div class="locker-assign-student-main">
+                <strong>${escapeHtml(student.studentName || 'Unnamed Student')}</strong>
+                <div class="locker-assign-student-meta">
+                    <span>${escapeHtml(student.studentId || '-')}</span>
+                    <span>${escapeHtml(student.programCode || 'No Program')}</span>
+                    <span>${escapeHtml(student.section || 'No Section')}</span>
+                    ${student.isOrgProgram ? '<span class="locker-assign-chip org-program">Org Program</span>' : '<span class="locker-assign-chip">Student</span>'}
+                </div>
+            </div>
+            <span class="locker-assign-chip">${selectedLockerAssignStudent?.user_id === student.user_id ? 'Selected' : 'Choose'}</span>
+        </button>
+    `).join('');
+    updateLockerAssignSelectedPreview();
+}
+
+function selectLockerAssignStudent(userId) {
+    selectedLockerAssignStudent = lockerAssignableStudents.find((student) => Number(student.user_id) === Number(userId)) || null;
+    renderLockerAssignStudentResults();
+}
+
+function applySelectedLockerAssignStudent() {
+    if (!selectedLockerAssignStudent) return;
+    closeLockerAssignStudentModal();
+    syncLockerManualAssignUI();
+}
+
+async function openLockerAssignStudentModal() {
+    if (!selectedLockerTile || String(selectedLockerTile.state || '').toLowerCase() !== 'available') {
+        return;
+    }
+
+    const modal = document.getElementById('lockerAssignStudentModal');
+    const searchInput = document.getElementById('lockerAssignStudentSearch');
+    if (!modal) return;
+
+    if (searchInput) searchInput.value = '';
+    updateLockerAssignSelectedPreview();
+    const results = document.getElementById('lockerAssignStudentResults');
+    if (results) {
+        results.innerHTML = '<div class="locker-assign-empty">Loading students...</div>';
+    }
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    try {
+        await loadLockerAssignableStudents();
+        renderLockerAssignStudentResults();
+        if (searchInput) searchInput.focus();
+    } catch (error) {
+        if (results) {
+            results.innerHTML = `<div class="locker-assign-empty">${escapeHtml(error.message || 'Could not load students.')}</div>`;
+        }
+    }
+}
+
+function closeLockerAssignStudentModal() {
+    const modal = document.getElementById('lockerAssignStudentModal');
+    if (modal) modal.classList.remove('show');
+    updateLockerAssignSelectedPreview();
+    const lockerModal = document.getElementById('lockerDetailModal');
+    if (!lockerModal || !lockerModal.classList.contains('show')) {
+        document.body.style.overflow = '';
+    }
+}
+
+function openLockerReleaseConfirmModal() {
+    if (!selectedLockerTile?.current_request?.rental_id) return;
+    const modal = document.getElementById('lockerReleaseConfirmModal');
+    const title = document.getElementById('lockerReleaseConfirmTitle');
+    const meta = document.getElementById('lockerReleaseConfirmMeta');
+    if (!modal) return;
+
+    if (title) {
+        title.textContent = `Release Locker ${selectedLockerTile.locker_code || '-'}`;
+    }
+    if (meta) {
+        const request = selectedLockerTile.current_request || {};
+        meta.textContent = `${request.student_name || 'Unnamed Student'} | ${request.student_number || '-'}${request.section ? ` | ${request.section}` : ''}`;
+    }
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeLockerReleaseConfirmModal() {
+    const modal = document.getElementById('lockerReleaseConfirmModal');
+    if (modal) modal.classList.remove('show');
+    const lockerModal = document.getElementById('lockerDetailModal');
+    if (!lockerModal || !lockerModal.classList.contains('show')) {
+        document.body.style.overflow = '';
+    }
+}
+
+async function submitManualLockerAssignment() {
+    if (!selectedLockerTile?.item_id || !selectedLockerAssignStudent?.user_id) return;
+
+    const lockerCode = String(selectedLockerTile.locker_code || '');
+    try {
+        const response = await fetch('../api/lockers/officer/manual-assign.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                item_id: selectedLockerTile.item_id,
+                student_user_id: selectedLockerAssignStudent.user_id,
+                period_type: document.getElementById('lockerDetailPeriodType')?.value || '',
+                start_date: document.getElementById('lockerDetailStartDate')?.value || '',
+                end_date: document.getElementById('lockerDetailEndDate')?.value || '',
+                price: document.getElementById('lockerDetailPrice')?.value || ''
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not assign the locker.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        renderOfficerLockerBoard();
+        closeLockerAssignStudentModal();
+        openLockerDetail(lockerCode);
+    } catch (error) {
+        alert(error.message || 'Could not assign the locker.');
+    }
 }
 
 function openAddLockerModal() {
@@ -1342,7 +1622,14 @@ function syncLockerAssignmentPreview() {
         return;
     }
 
-    const startValue = String(startInput.value || '').trim();
+    let startValue = String(startInput.value || '').trim();
+    if (!startValue) {
+        const today = new Date();
+        const todayValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        startInput.value = todayValue;
+        startValue = todayValue;
+    }
+
     if (!startValue) {
         if (periodType !== 'custom') {
             endInput.value = '';
@@ -1451,9 +1738,34 @@ async function releaseLockerAssignment() {
         }
         officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
+        closeLockerReleaseConfirmModal();
         closeLockerDetailModal();
     } catch (error) {
         alert(error.message || 'Could not release locker assignment.');
+    }
+}
+
+async function clearLockerNotice() {
+    if (!selectedLockerTile?.current_request?.rental_id) return;
+    const lockerCode = String(selectedLockerTile.locker_code || '');
+    try {
+        const response = await fetch('../api/lockers/officer/clear-notice.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                rental_id: selectedLockerTile.current_request.rental_id
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not clear the notice.');
+        }
+        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        renderOfficerLockerBoard();
+        openLockerDetail(lockerCode);
+    } catch (error) {
+        alert(error.message || 'Could not clear the notice.');
     }
 }
 
