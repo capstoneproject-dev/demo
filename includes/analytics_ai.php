@@ -317,11 +317,11 @@ function analyticsAiBuildRuleBasedInsights(array $snapshot, array $filters): arr
 
     $financial = sprintf(
         'Revenue stands at %s. %s Highest recorded revenue was %s in %s, while the lowest was %s in %s.',
-        analyticsAiFormatPeso($snapshot['totals']['revenue'] ?? 0),
+        analyticsAiFormatPhpAmount($snapshot['totals']['revenue'] ?? 0),
         analyticsAiCleanInsightText($snapshot['summaries']['revenueTrend'] ?? ''),
-        analyticsAiFormatPeso($revenueValues[$highestRevenueIndex] ?? 0),
+        analyticsAiFormatPhpAmount($revenueValues[$highestRevenueIndex] ?? 0),
         $revenueLabels[$highestRevenueIndex] ?? 'the selected period',
-        analyticsAiFormatPeso($revenueValues[$lowestRevenueIndex] ?? 0),
+        analyticsAiFormatPhpAmount($revenueValues[$lowestRevenueIndex] ?? 0),
         $revenueLabels[$lowestRevenueIndex] ?? 'the selected period'
     );
 
@@ -352,8 +352,8 @@ function analyticsAiBuildRuleBasedInsights(array $snapshot, array $filters): arr
         analyticsAiBuildDocumentDominanceSentence($snapshot['counts']['docs'] ?? [])
     );
 
-    $peakRevenue = analyticsAiFormatPeso($revenueValues[$highestRevenueIndex] ?? 0);
-    $lowRevenue = analyticsAiFormatPeso($revenueValues[$lowestRevenueIndex] ?? 0);
+    $peakRevenue = analyticsAiFormatPhpAmount($revenueValues[$highestRevenueIndex] ?? 0);
+    $lowRevenue = analyticsAiFormatPhpAmount($revenueValues[$lowestRevenueIndex] ?? 0);
     $peakRevenueLabel = $revenueLabels[$highestRevenueIndex] ?? 'the strongest period';
     $lowRevenueLabel = $revenueLabels[$lowestRevenueIndex] ?? 'the weakest period';
     $peakAttendance = (int)($eventValues[$highestAttendanceIndex] ?? 0);
@@ -478,6 +478,11 @@ function analyticsAiBuildFilterLead(array $filters): string
     return $academicYear !== ''
         ? 'This summary covers academic year ' . $academicYear . '.'
         : 'This summary covers the current analytics selection.';
+}
+
+function analyticsAiFormatPhpAmount($amount): string
+{
+    return 'PHP ' . number_format((float)$amount, 2);
 }
 
 function analyticsAiFormatPeso($amount): string
