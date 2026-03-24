@@ -1,0 +1,19 @@
+{
+    "chartSummaries": {
+        "financial": "Currently, there is no revenue data available for analysis. This lack of information prevents the organization from tracking financial performance and identifying potential income streams or areas for improvement.",
+        "participation": "Participation is concentrated in two events, 'AISAHAN' and 'EVENT', each with one participant, while 'TRY WITH PHOTO' and 'EVENT TRY' have zero participants. This indicates a potential over-reliance on specific events for engagement and a need to investigate why other events are not attracting attendees.",
+        "inventory": "There is one pending rental, with no active or overdue rentals currently recorded. This suggests a low volume of rental activity, but the pending item requires attention to prevent it from becoming overdue and impacting resource availability.",
+        "documents": "All two documents processed have been approved, with no pending or rejected submissions. This indicates an efficient document processing workflow, but the absence of pending or rejected items might warrant a review to ensure thoroughness and identify any potential bottlenecks if submissions were to increase."
+    },
+    "exportSections": {
+        "revenueSeries": "The revenue trend shows no change compared to the previous week, month, or year, with a total revenue of \u20b10. This indicates a complete absence of financial activity, which is a critical concern for the organization's sustainability and operational capacity.",
+        "eventParticipation": "The participation data reveals that 'AISAHAN' and 'EVENT' are the only events with recorded participants, each having one attendee. 'TRY WITH PHOTO' and 'EVENT TRY' have zero participants, suggesting a significant disparity in event appeal or promotion, which requires strategic intervention to broaden engagement.",
+        "financialTransactions": "With a total revenue of \u20b10, there are no financial transactions to analyze. This lack of monetary activity is a major concern, as it implies no income is being generated, potentially hindering the organization's ability to fund its operations and initiatives.",
+        "rentalRecords": "The rental records show one pending rental and zero active or overdue rentals. While this indicates no immediate risk of overdue items, the single pending rental needs prompt processing to maintain efficient resource management and avoid potential future backlogs.",
+        "documentWorkflow": "The document workflow is characterized by two approved documents and no pending or rejected submissions. This suggests a highly efficient approval process, but the lack of any pending or rejected documents might indicate a need to review the submission criteria or the thoroughness of the review process, especially if the volume of submissions is expected to grow."
+    },
+    "exportSummary": "The organization's current analytics for academic year 2025-2026 highlight a critical lack of financial activity, with zero revenue and no financial transactions recorded. Participation is heavily concentrated in only two of the four listed events, 'AISAHAN' and 'EVENT', while 'TRY WITH PHOTO' and 'EVENT TRY' have no attendees, indicating a significant engagement gap. Rental activity is minimal, with one pending item requiring attention, and the document workflow appears efficient with all processed documents approved. The organization must urgently address the revenue deficit and develop strategies to increase participation across all events to ensure operational sustainability and broader engagement.",
+    "provider": "gemini:gemini-2.5-flash-lite",
+    "fallbackUsed": false,
+    "generatedAt": "2026-03-24T15:00:17+00:00"
+}

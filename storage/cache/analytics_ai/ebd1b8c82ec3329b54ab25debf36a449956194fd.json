@@ -1,0 +1,19 @@
+{
+    "chartSummaries": {
+        "financial": "Revenue is currently flat, showing no growth compared to the previous week, month, or year. This lack of revenue generation indicates a potential stagnation that requires immediate attention to identify and address underlying causes.",
+        "participation": "Participation is concentrated in two events, 'AISAHAN' and 'EVENT', with 'TRY WITH PHOTO' and 'EVENT TRY' having no attendees. This highlights a dependence on specific events for engagement, suggesting a need to revitalize or re-evaluate underperforming activities.",
+        "inventory": "There are no active, pending, or overdue rentals, indicating no current demand or utilization of rentable items. This situation may point to a lack of promotion for available resources or a mismatch between offerings and organizational needs.",
+        "documents": "All document processing is complete, with 2 approved and no pending or rejected submissions. While this signifies efficient workflow, the absence of pending items could also suggest a lull in document submissions, warranting an inquiry into its cause."
+    },
+    "exportSections": {
+        "revenueSeries": "The revenue trend indicates zero growth across all comparative periods (week, month, year), with a current total revenue of \u20b10. This consistent lack of financial inflow suggests a critical need to review revenue-generating strategies and identify opportunities for improvement to ensure financial sustainability.",
+        "eventParticipation": "The participation chart reveals that 'AISAHAN' and 'EVENT' are the only events drawing attendees, each with one participant. The 'TRY WITH PHOTO' and 'EVENT TRY' events have zero participants, indicating a significant disparity in engagement. The organization should investigate why certain events are successful while others fail to attract interest, potentially by analyzing event content, promotion, or scheduling.",
+        "financialTransactions": "The financial transactions data shows a total revenue of \u20b10 for the academic year 2025-2026. This absence of revenue across all periods (week, month, year) is a significant concern, implying that current revenue streams are either non-existent or entirely inactive. The organization must urgently develop and implement effective revenue-generating initiatives.",
+        "rentalRecords": "Rental records show zero active, pending, or overdue items for the academic year 2025-2026. This indicates a complete lack of rental activity, which could mean that no items are being rented out or that the rental system is not being utilized. The organization should assess the status of its rental inventory and explore strategies to encourage its use.",
+        "documentWorkflow": "The document workflow is currently clear, with 2 documents approved and no pending or rejected submissions. This indicates a smooth and efficient processing of documents received. However, the absence of pending documents might suggest a low volume of submissions, which warrants an investigation into potential bottlenecks or reasons for reduced submission rates."
+    },
+    "exportSummary": "For the academic year 2025-2026, the organization faces a critical juncture with zero revenue generation and no active rental activities, signaling a severe lack of financial inflow and resource utilization. While document processing is efficient with 2 approvals, the complete absence of pending items suggests a potential lull in submissions. Event participation is highly concentrated, with only two events attracting any attendees, highlighting a significant imbalance in engagement and a need to revitalize underperforming events and explore new revenue streams.",
+    "provider": "gemini:gemini-2.5-flash-lite",
+    "fallbackUsed": false,
+    "generatedAt": "2026-03-24T15:00:12+00:00"
+}
