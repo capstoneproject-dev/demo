@@ -1277,11 +1277,6 @@ function stListLockerBoard(PDO $pdo, int $orgId): array
 
 function stListStudentLockers(PDO $pdo, int $userId): array
 {
-    $studentOrg = stResolveStudentOrganization($pdo);
-    if (!$studentOrg || !stIsSscOrg($pdo, (int)$studentOrg['org_id'])) {
-        return ['enabled' => false, 'lockers' => [], 'current_locker' => null];
-    }
-
     $sscOrg = stResolveSscOrg($pdo);
     if (!$sscOrg || !stIsSscOrg($pdo, (int)$sscOrg['org_id'])) {
         return ['enabled' => false, 'lockers' => [], 'current_locker' => null];
@@ -1322,6 +1317,7 @@ function stListStudentLockers(PDO $pdo, int $userId): array
             'rental_id' => (int)$currentLocker['rental_id'],
             'locker_code' => (string)$currentLocker['locker_code'],
             'status' => (string)$currentLocker['status'],
+            'payment_status' => strtolower((string)($currentLocker['payment_status'] ?? 'unpaid')) === 'paid' ? 'paid' : 'unpaid',
             'rent_time' => (string)$currentLocker['rent_time'],
             'expected_return_time' => (string)$currentLocker['expected_return_time'],
             'total_cost' => (float)($currentLocker['total_cost'] ?? 0),
@@ -1334,11 +1330,6 @@ function stListStudentLockers(PDO $pdo, int $userId): array
 
 function stRequestLocker(PDO $pdo, int $userId, int $itemId): array
 {
-    $studentOrg = stResolveStudentOrganization($pdo);
-    if (!$studentOrg || !stIsSscOrg($pdo, (int)$studentOrg['org_id'])) {
-        throw new ServiceTrackerAuthorizationException('Locker services are only available to SSC members.');
-    }
-
     $sscOrg = stResolveSscOrg($pdo);
     if (!$sscOrg) {
         throw new ServiceTrackerValidationException('Locker service is not available right now.');
