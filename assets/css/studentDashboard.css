@@ -6359,6 +6359,12 @@ body.dark .calendar-day.in-range {
     text-decoration: none;
 }
 
+.printing-action-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .printing-action-btn-primary {
     background: var(--primary);
     color: #fff;
@@ -6380,6 +6386,18 @@ body.dark .calendar-day.in-range {
     background: var(--panel-2);
     border-color: rgba(0, 33, 71, 0.14);
     color: var(--primary);
+}
+
+.printing-action-btn-danger {
+    background: rgba(220, 38, 38, 0.12);
+    border-color: rgba(220, 38, 38, 0.28);
+    color: #dc2626;
+}
+
+.printing-action-btn-danger:hover {
+    background: rgba(220, 38, 38, 0.18);
+    border-color: rgba(220, 38, 38, 0.4);
+    color: #b91c1c;
 }
 
 .printing-action-btn-refresh {

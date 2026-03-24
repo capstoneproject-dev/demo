@@ -1210,6 +1210,11 @@
                 </div>
             </div>
 
+            <div id="analytics-active-filter"
+                style="margin: 12px 0 0; font-size: 0.9rem; color: var(--muted);">
+                Showing all available organization analytics data.
+            </div>
+
             <div class="analytics-grid">
 
                 <div class="card card-financial">
@@ -1254,7 +1259,7 @@
                         <div class="chart-wrapper" style="height: 200px;">
                             <canvas id="rentalsChart"></canvas>
                         </div>
-                        <div class="legend-wrapper" style="font-size: 0.85rem;">
+                        <div class="legend-wrapper" style="font-size: 0.85rem;" id="analytics-rentals-legend">
                             <div style="margin-bottom: 8px;"><strong>14</strong> Active</div>
                             <div style="margin-bottom: 8px; color: #d97706;"><strong>4</strong> Pending</div>
                             <div style="color: #dc2626;"><strong>2</strong> Overdue</div>
@@ -1273,17 +1278,17 @@
                         <div class="chart-wrapper" style="height: 200px;">
                             <canvas id="docsChart"></canvas>
                         </div>
-                        <div class="legend-wrapper" style="font-size: 0.85rem;">
+                        <div class="legend-wrapper" style="font-size: 0.85rem;" id="analytics-docs-legend">
                             <ul style="list-style: none;">
                                 <li style="margin-bottom: 8px; display: flex; align-items: center;"><span
                                         style="width: 10px; height: 10px; background: #059669; border-radius: 50%; margin-right: 8px;"></span>
-                                    Accepted (15)</li>
+                                    Approved (0)</li>
                                 <li style="margin-bottom: 8px; display: flex; align-items: center;"><span
                                         style="width: 10px; height: 10px; background: #d97706; border-radius: 50%; margin-right: 8px;"></span>
-                                    Pending (2)</li>
+                                    Pending (0)</li>
                                 <li style="display: flex; align-items: center;"><span
                                         style="width: 10px; height: 10px; background: #dc2626; border-radius: 50%; margin-right: 8px;"></span>
-                                    Rejected (1)</li>
+                                    Rejected (0)</li>
                             </ul>
                         </div>
                     </div>
