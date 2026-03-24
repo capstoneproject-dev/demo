@@ -11,6 +11,11 @@ class ServiceTrackerAuthorizationException extends RuntimeException {}
 
 const ST_DEFAULT_SERVICES = [
     [
+        'service_key' => 'services',
+        'service_name' => 'Services',
+        'description' => 'Master switch for enabling an organization to offer services.',
+    ],
+    [
         'service_key' => 'rentals',
         'service_name' => 'Rentals',
         'description' => 'Inventory-backed rentals and reservations.',
@@ -111,7 +116,8 @@ function stEnsureSchema(PDO $pdo): void
 
     $pdo->exec(
         "ALTER TABLE organizations
-         ADD COLUMN IF NOT EXISTS can_offer_printing TINYINT(1) NOT NULL DEFAULT 0"
+         ADD COLUMN IF NOT EXISTS can_offer_printing TINYINT(1) NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS can_offer_services TINYINT(1) NOT NULL DEFAULT 1"
     );
 
     $pdo->exec(
@@ -189,10 +195,7 @@ function stIsSscOrg(PDO $pdo, int $orgId): bool
         "SELECT 1
          FROM organizations
          WHERE org_id = :org_id
-           AND (
-               UPPER(TRIM(org_code)) = 'SSC'
-               OR LOWER(TRIM(org_name)) = 'supreme student council'
-           )
+           AND status = 'active'
          LIMIT 1"
     );
     $stmt->execute([':org_id' => $orgId]);
@@ -217,7 +220,7 @@ function stRequireLockerOfficerContext(PDO $pdo): array
 {
     $context = stRequireOfficerContext();
     if (!stIsSscOrg($pdo, (int)$context['org_id'])) {
-        throw new ServiceTrackerAuthorizationException('Locker services are only available for SSC officers.');
+        throw new ServiceTrackerAuthorizationException('Locker services are only available for active organization officers.');
     }
     return $context;
 }
@@ -330,6 +333,7 @@ function stListAuthorizedOrganizations(PDO $pdo, string $serviceKey): array
             "SELECT o.org_id, o.org_name, o.org_code, o.logo_url
              FROM organizations o
              WHERE o.status = 'active'
+               AND COALESCE(o.can_offer_services, 1) = 1
              ORDER BY o.org_name ASC"
         );
     }
@@ -376,6 +380,7 @@ function stServiceEnabledForOrg(PDO $pdo, int $orgId, string $serviceKey): bool
          FROM organizations
          WHERE org_id = :org_id
            AND status = 'active'
+           AND COALESCE(can_offer_services, 1) = 1
          LIMIT 1"
     );
     $stmt->execute([':org_id' => $orgId]);
@@ -388,7 +393,9 @@ function stListOrganizationsWithServices(PDO $pdo): array
     $services = stListServiceCatalog($pdo);
 
     $orgStmt = $pdo->query(
-        "SELECT org_id, org_name, org_code, status, COALESCE(can_offer_printing, 0) AS can_offer_printing
+        "SELECT org_id, org_name, org_code, status,
+                COALESCE(can_offer_printing, 0) AS can_offer_printing,
+                COALESCE(can_offer_services, 1) AS can_offer_services
          FROM organizations
          ORDER BY org_name ASC"
     );
@@ -400,7 +407,8 @@ function stListOrganizationsWithServices(PDO $pdo): array
             'org_code' => (string)($row['org_code'] ?? ''),
             'status' => (string)($row['status'] ?? ''),
             'services' => [
-                'rentals' => ((string)($row['status'] ?? '')) === 'active',
+                'services' => ((int)($row['can_offer_services'] ?? 1) === 1),
+                'rentals' => ((string)($row['status'] ?? '') === 'active') && ((int)($row['can_offer_services'] ?? 1) === 1),
                 'printing' => ((int)($row['can_offer_printing'] ?? 0) === 1),
             ],
         ];
@@ -421,11 +429,13 @@ function stSaveOrganizationServiceAuthorizations(PDO $pdo, int $orgId, array $se
 
     $stmt = $pdo->prepare(
         "UPDATE organizations
-         SET can_offer_printing = :can_offer_printing
+         SET can_offer_printing = :can_offer_printing,
+             can_offer_services = :can_offer_services
          WHERE org_id = :org_id"
     );
     $stmt->execute([
         ':can_offer_printing' => !empty($services['printing']) ? 1 : 0,
+        ':can_offer_services' => array_key_exists('services', $services) ? (!empty($services['services']) ? 1 : 0) : 1,
         ':org_id' => $orgId,
     ]);
 

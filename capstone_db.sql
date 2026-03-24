@@ -486,25 +486,26 @@ CREATE TABLE `organizations` (
   `status` varchar(20) NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `can_offer_printing` tinyint(1) NOT NULL DEFAULT 0
+  `can_offer_printing` tinyint(1) NOT NULL DEFAULT 0,
+  `can_offer_services` tinyint(1) NOT NULL DEFAULT 1
 ) ;
 
 --
 -- Dumping data for table `organizations`
 --
 
-INSERT INTO `organizations` (`org_id`, `org_name`, `org_code`, `logo_url`, `status`, `created_at`, `updated_at`, `can_offer_printing`) VALUES
-(1, 'Supreme Student Council', 'SSC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1),
-(2, 'Alliance in Information System Empowered Responsive Students', 'AISERS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
-(3, 'Elite Technologist Society', 'ELITECH', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
-(4, 'Institute of Liberal Arts and Sciences Student Organization', 'ILASSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
-(5, 'Aeronautical Engineering Organization', 'AERO-ATSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
-(6, 'Aeronautical Engineering Technology Student Organization', 'AETSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1),
-(7, 'Aviation Maintenance Technology Student Organization', 'AMTSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1),
-(8, 'Red Cross Youth Council', 'RCYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
-(9, 'College Youth Club', 'CYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1),
-(10, 'Scholar\'s Guild', 'SCHOLARS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0),
-(11, 'Aeronautica', 'AERONAUTICA', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0);
+INSERT INTO `organizations` (`org_id`, `org_name`, `org_code`, `logo_url`, `status`, `created_at`, `updated_at`, `can_offer_printing`, `can_offer_services`) VALUES
+(1, 'Supreme Student Council', 'SSC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
+(2, 'Alliance in Information System Empowered Responsive Students', 'AISERS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(3, 'Elite Technologist Society', 'ELITECH', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(4, 'Institute of Liberal Arts and Sciences Student Organization', 'ILASSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(5, 'Aeronautical Engineering Organization', 'AERO-ATSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(6, 'Aeronautical Engineering Technology Student Organization', 'AETSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
+(7, 'Aviation Maintenance Technology Student Organization', 'AMTSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
+(8, 'Red Cross Youth Council', 'RCYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(9, 'College Youth Club', 'CYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
+(10, 'Scholar\'s Guild', 'SCHOLARS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(11, 'Aeronautica', 'AERONAUTICA', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1);
 
 --
 -- Triggers `organizations`
