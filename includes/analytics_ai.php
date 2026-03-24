@@ -40,10 +40,15 @@ function analyticsAiGenerateInsights(array $snapshot, array $filters, int $orgId
     $errors = [];
 
     if (ANALYTICS_AI_ZERO_COST_ONLY && ANALYTICS_AI_GEMINI_ENABLED && ANALYTICS_AI_GEMINI_API_KEY !== '') {
-        try {
-            $result = analyticsAiGenerateWithGemini($snapshot, $filters);
-        } catch (Throwable $error) {
-            $errors[] = 'gemini: ' . $error->getMessage();
+        foreach (analyticsAiGetGeminiModels() as $geminiModel) {
+            try {
+                $result = analyticsAiGenerateWithGeminiModel($snapshot, $filters, $geminiModel);
+                if ($result) {
+                    break;
+                }
+            } catch (Throwable $error) {
+                $errors[] = 'gemini (' . $geminiModel . '): ' . $error->getMessage();
+            }
         }
     }
 
@@ -72,7 +77,7 @@ function analyticsAiGenerateInsights(array $snapshot, array $filters, int $orgId
 function analyticsAiBuildCacheKey(array $snapshot, array $filters, int $orgId): string
 {
     $payload = [
-        'version' => 2,
+        'version' => 3,
         'orgId' => $orgId,
         'filters' => $filters,
         'snapshotHash' => sha1(json_encode($snapshot)),
@@ -113,8 +118,13 @@ function analyticsAiGetCacheFilePath(string $cacheKey): string
 
 function analyticsAiGenerateWithGemini(array $snapshot, array $filters): array
 {
+    return analyticsAiGenerateWithGeminiModel($snapshot, $filters, ANALYTICS_AI_GEMINI_MODEL);
+}
+
+function analyticsAiGenerateWithGeminiModel(array $snapshot, array $filters, string $model): array
+{
     $prompt = analyticsAiBuildPrompt($snapshot, $filters);
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode(ANALYTICS_AI_GEMINI_MODEL)
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model)
         . ':generateContent?key=' . rawurlencode(ANALYTICS_AI_GEMINI_API_KEY);
 
     $response = analyticsAiHttpJsonRequest($url, [
@@ -136,9 +146,28 @@ function analyticsAiGenerateWithGemini(array $snapshot, array $filters): array
     }
 
     $decoded = analyticsAiDecodeStructuredResponse($text);
-    $decoded['provider'] = 'gemini';
+    $decoded['provider'] = 'gemini:' . $model;
     $decoded['fallbackUsed'] = false;
     return analyticsAiNormalizeStructuredInsights($decoded, $snapshot, $filters);
+}
+
+function analyticsAiGetGeminiModels(): array
+{
+    $rawModels = trim((string)(defined('ANALYTICS_AI_GEMINI_MODELS') ? ANALYTICS_AI_GEMINI_MODELS : ''));
+    if ($rawModels === '') {
+        return [ANALYTICS_AI_GEMINI_MODEL];
+    }
+
+    $models = array_values(array_filter(array_map(
+        static fn ($value) => trim((string)$value),
+        explode(',', $rawModels)
+    )));
+
+    if (!$models) {
+        return [ANALYTICS_AI_GEMINI_MODEL];
+    }
+
+    return array_values(array_unique($models));
 }
 
 function analyticsAiGenerateWithLlama(array $snapshot, array $filters): array
