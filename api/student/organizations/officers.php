@@ -12,7 +12,35 @@ try {
         jsonError('Invalid session.', 401);
     }
 
-    $orgId = (int)($session['active_org_id'] ?? 0);
+    $requestedOrgName = trim((string)($_GET['org_name'] ?? ''));
+    $orgId = 0;
+
+    if ($requestedOrgName !== '') {
+        $requestedOrg = getOrgByName($requestedOrgName);
+        if (!$requestedOrg) {
+            $normalizedRef = strtoupper(str_replace("'", '', $requestedOrgName));
+            $stmt = getPdo()->query("SELECT org_id, org_name, org_code, status FROM organizations");
+            $orgRows = $stmt->fetchAll();
+            foreach ($orgRows as $row) {
+                $orgNameNorm = strtoupper(str_replace("'", '', (string)($row['org_name'] ?? '')));
+                $orgCodeNorm = strtoupper(str_replace("'", '', (string)($row['org_code'] ?? '')));
+                if ($orgNameNorm === $normalizedRef || $orgCodeNorm === $normalizedRef) {
+                    $requestedOrg = $row;
+                    break;
+                }
+            }
+        }
+
+        if (!$requestedOrg) {
+            jsonError('Organization not found.', 404);
+        }
+
+        $orgId = (int)($requestedOrg['org_id'] ?? 0);
+    }
+
+    if ($orgId <= 0) {
+        $orgId = (int)($session['active_org_id'] ?? 0);
+    }
     if ($orgId <= 0) {
         $orgId = (int)($session['mapped_org_id'] ?? 0);
     }
@@ -95,6 +123,7 @@ try {
 
     jsonOk([
         'org_id' => $orgId,
+        'org_name' => $requestedOrgName,
         'items' => $items,
     ]);
 } catch (PDOException $e) {
