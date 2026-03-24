@@ -9,6 +9,8 @@ const officerAnalyticsState = {
     },
     snapshot: null,
     liveEvents: [],
+    liveAttendance: [],
+    mockRetentionProfile: null,
     mockData: null, // Temporary mock data for testing
 };
 
@@ -142,25 +144,53 @@ function getOfficerAnalyticsSourceData() {
 
 async function loadOfficerAnalyticsEvents() {
     try {
-        const res = await fetch('../api/qr-attendance/events/list.php', { credentials: 'same-origin' });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.ok) {
-            throw new Error(data.error || `Request failed (${res.status})`);
+        const [eventsRes, attendanceRes] = await Promise.all([
+            fetch('../api/qr-attendance/events/list.php', { credentials: 'same-origin' }),
+            fetch('../api/qr-attendance/attendance/list.php?limit=10000', { credentials: 'same-origin' }),
+        ]);
+        const eventsData = await eventsRes.json().catch(() => ({}));
+        const attendanceData = await attendanceRes.json().catch(() => ({}));
+        if (!eventsRes.ok || !eventsData.ok) {
+            throw new Error(eventsData.error || `Events request failed (${eventsRes.status})`);
+        }
+        if (!attendanceRes.ok || !attendanceData.ok) {
+            throw new Error(attendanceData.error || `Attendance request failed (${attendanceRes.status})`);
         }
 
+        officerAnalyticsState.liveAttendance = Array.isArray(attendanceData.items)
+            ? attendanceData.items.map((item) => ({
+                record_id: item.record_id,
+                event_id: item.event_id,
+                event_name: item.event_name || '',
+                student_number: String(item.student_number || '').trim(),
+                student_name: String(item.student_name || '').trim(),
+                attendance_date: item.attendance_date || item.time_in || '',
+            }))
+            : [];
+
+        const attendeesByEventId = new Map();
+        officerAnalyticsState.liveAttendance.forEach((record) => {
+            const key = Number(record.event_id || 0);
+            if (!key) return;
+            if (!attendeesByEventId.has(key)) attendeesByEventId.set(key, []);
+            attendeesByEventId.get(key).push(record);
+        });
+
         officerAnalyticsState.liveEvents = Array.isArray(data.items)
-            ? data.items.map((item) => ({
+            ? eventsData.items.map((item) => ({
                 id: item.event_id,
                 title: item.event_name || 'Event',
                 date: item.event_datetime || item.event_date || item.created_at || '',
                 venue: item.location || 'TBA',
                 participants: Number(item.attendance_count || 0),
                 status: Number(item.is_published || 0) ? 'published' : 'draft',
+                attendees: attendeesByEventId.get(Number(item.event_id || 0)) || [],
             }))
             : [];
     } catch (error) {
         console.error('loadOfficerAnalyticsEvents failed', error);
         officerAnalyticsState.liveEvents = [];
+        officerAnalyticsState.liveAttendance = [];
     }
 
     if (typeof initializeOfficerAnalyticsYearOptions === 'function') {
@@ -295,53 +325,49 @@ function formatOfficerAnalyticsRevenueTrend(growthBreakdown) {
 function getOfficerAnalyticsRetentionLevel(events) {
     if (!Array.isArray(events) || !events.length) return 'Low';
 
-    const participantCounts = events
-        .map((event) => Number(event.participants || 0))
-        .filter((value) => Number.isFinite(value) && value >= 0);
-    if (!participantCounts.length) return 'Low';
-
-    const average = participantCounts.reduce((sum, value) => sum + value, 0) / participantCounts.length;
-    const variance = participantCounts.reduce((sum, value) => {
-        const diff = value - average;
-        return sum + (diff * diff);
-    }, 0) / participantCounts.length;
-    const standardDeviation = Math.sqrt(variance);
-    const consistencyRatio = average > 0 ? standardDeviation / average : 1;
-
     const chronological = events
         .slice()
         .sort((a, b) => (parseOfficerAnalyticsDate(a.date)?.getTime() || 0) - (parseOfficerAnalyticsDate(b.date)?.getTime() || 0))
-        .map((event) => Number(event.participants || 0))
-        .filter((value) => Number.isFinite(value) && value >= 0);
-    const recentSample = chronological.slice(-3);
-    const baselineSample = chronological.slice(0, Math.min(3, chronological.length));
-    const recentAverage = recentSample.length
-        ? recentSample.reduce((sum, value) => sum + value, 0) / recentSample.length
-        : average;
-    const baselineAverage = baselineSample.length
-        ? baselineSample.reduce((sum, value) => sum + value, 0) / baselineSample.length
-        : average;
-    const momentumRatio = baselineAverage > 0 ? recentAverage / baselineAverage : (recentAverage > 0 ? 1 : 0);
+        .map((event) => {
+            const attendeeKeys = Array.isArray(event.attendees)
+                ? event.attendees
+                    .map((attendee) => String(attendee.student_number || attendee.student_id || attendee.user_id || attendee.student_name || '').trim())
+                    .filter(Boolean)
+                : [];
+            return {
+                ...event,
+                attendeeKeys: Array.from(new Set(attendeeKeys)),
+            };
+        })
+        .filter((event) => event.attendeeKeys.length > 0);
 
-    let score = 0;
-    if (average >= 120) score += 3;
-    else if (average >= 80) score += 2;
-    else if (average >= 45) score += 1;
+    if (chronological.length < 2) return 'Low';
 
-    if (consistencyRatio <= 0.2) score += 3;
-    else if (consistencyRatio <= 0.35) score += 2;
-    else if (consistencyRatio <= 0.5) score += 1;
-    else if (consistencyRatio >= 0.8) score -= 1;
+    let overlapSum = 0;
+    let overlapCount = 0;
+    for (let index = 1; index < chronological.length; index += 1) {
+        const previous = new Set(chronological[index - 1].attendeeKeys);
+        const current = chronological[index].attendeeKeys;
+        if (!previous.size || !current.length) continue;
+        const repeatedCount = current.filter((key) => previous.has(key)).length;
+        overlapSum += repeatedCount / Math.max(previous.size, 1);
+        overlapCount += 1;
+    }
 
-    if (momentumRatio >= 1.15) score += 2;
-    else if (momentumRatio >= 0.95) score += 1;
-    else if (momentumRatio < 0.75) score -= 2;
-    else if (momentumRatio < 0.9) score -= 1;
+    const attendeeFrequency = new Map();
+    chronological.forEach((event) => {
+        event.attendeeKeys.forEach((key) => {
+            attendeeFrequency.set(key, (attendeeFrequency.get(key) || 0) + 1);
+        });
+    });
 
-    if (participantCounts.length < 4) score -= 1;
+    const uniqueAttendees = attendeeFrequency.size;
+    const repeatingAttendees = Array.from(attendeeFrequency.values()).filter((count) => count >= 2).length;
+    const repeatRate = uniqueAttendees > 0 ? repeatingAttendees / uniqueAttendees : 0;
+    const averageOverlap = overlapCount > 0 ? overlapSum / overlapCount : 0;
 
-    if (score >= 6) return 'High';
-    if (score >= 3) return 'Medium';
+    if (repeatRate >= 0.72 && averageOverlap >= 0.58) return 'High';
+    if (repeatRate >= 0.38 && averageOverlap >= 0.3) return 'Medium';
     return 'Low';
 }
 
@@ -542,20 +568,18 @@ function updateOfficerAnalyticsCardText(snapshot) {
         if (statValues[0]) {
             statValues[0].innerHTML = `<i class="fa-solid fa-users"></i> ${snapshot.totals.participationAverage}`;
         }
-        if (statValues[1]) {
-            const retentionBadge = participationFooter.querySelector('.stat-badge');
-            if (retentionBadge) {
-                retentionBadge.textContent = snapshot.summaries.participation;
-                // Update badge class based on retention level
-                const retentionLower = snapshot.summaries.participation.toLowerCase();
-                retentionBadge.className = 'stat-badge';
-                if (retentionLower.includes('high')) {
-                    retentionBadge.classList.add('stat-badge-high');
-                } else if (retentionLower.includes('medium') || retentionLower.includes('moderate')) {
-                    retentionBadge.classList.add('stat-badge-medium');
-                } else if (retentionLower.includes('low')) {
-                    retentionBadge.classList.add('stat-badge-low');
-                }
+        const retentionBadge = participationFooter.querySelector('.stat-badge');
+        if (retentionBadge) {
+            retentionBadge.textContent = snapshot.summaries.participation;
+            // Update badge class based on retention level
+            const retentionLower = snapshot.summaries.participation.toLowerCase();
+            retentionBadge.className = 'stat-badge';
+            if (retentionLower.includes('high')) {
+                retentionBadge.classList.add('stat-badge-high');
+            } else if (retentionLower.includes('medium') || retentionLower.includes('moderate')) {
+                retentionBadge.classList.add('stat-badge-medium');
+            } else if (retentionLower.includes('low')) {
+                retentionBadge.classList.add('stat-badge-low');
             }
         }
     }
@@ -865,6 +889,21 @@ function generateMockAnalyticsData() {
     const randomName = () => `${pick(studentFirstNames)} ${pick(studentLastNames)}`;
     const randomStudentId = (index) => `202${Math.floor(Math.random() * 4) + 2}-${pad((index % 90) + 10)}${pad(Math.floor(Math.random() * 90) + 10)}`;
     const randomPhone = () => `09${Math.floor(100000000 + Math.random() * 900000000)}`;
+    const retentionProfiles = [
+        { label: 'Low', carryMin: 0.04, carryMax: 0.18 },
+        { label: 'Medium', carryMin: 0.22, carryMax: 0.42 },
+        { label: 'High', carryMin: 0.5, carryMax: 0.78 },
+    ];
+    const mockRetentionProfile = pick(retentionProfiles);
+    const mockStudents = Array.from({ length: 180 }, (_, index) => {
+        const name = randomName();
+        return {
+            user_id: 5000 + index,
+            student_number: `202${Math.floor(index / 45) + 2}-${pad((index % 90) + 10)}${pad((index * 3) % 90 + 10)}`,
+            student_name: name,
+            section: `BSIT-${1 + (index % 4)}${String.fromCharCode(65 + (index % 3))}`,
+        };
+    });
 
     // Helper to generate random date in current academic year
     const randomDate = (monthsBack = 6) => {
@@ -915,6 +954,7 @@ function generateMockAnalyticsData() {
     const eventCount = 8 + Math.floor(Math.random() * 5);
     const events = [];
     let eventAttendanceBase = 55 + Math.floor(Math.random() * 45);
+    let previousEventAttendees = [];
     for (let i = 0; i < eventCount; i++) {
         const config = eventConfigs[i % eventConfigs.length];
         const eventDate = randomDateObject(8);
@@ -923,6 +963,21 @@ function generateMockAnalyticsData() {
         const participants = Math.max(18, Math.min(220, participationSeed));
         eventAttendanceBase = Math.round((eventAttendanceBase * 0.55) + (participants * 0.45));
         const title = `${config.title} ${Math.floor(i / eventConfigs.length) + 1}`;
+        const carryOverRatio = mockRetentionProfile.carryMin
+            + Math.random() * (mockRetentionProfile.carryMax - mockRetentionProfile.carryMin);
+        const retainedCount = Math.min(previousEventAttendees.length, Math.round(participants * carryOverRatio));
+        const retainedStudents = previousEventAttendees
+            .slice()
+            .sort(() => Math.random() - 0.5)
+            .slice(0, retainedCount);
+        const retainedKeys = new Set(retainedStudents.map((student) => student.student_number));
+        const freshStudents = mockStudents
+            .filter((student) => !retainedKeys.has(student.student_number))
+            .slice()
+            .sort(() => Math.random() - 0.5)
+            .slice(0, Math.max(0, participants - retainedStudents.length));
+        const eventAttendees = retainedStudents.concat(freshStudents).slice(0, participants);
+        previousEventAttendees = eventAttendees;
         events.push({
             id: `mock-event-${i}`,
             event_id: `mock-event-${i}`,
@@ -937,6 +992,17 @@ function generateMockAnalyticsData() {
             status: 'published',
             is_published: 1,
             description: `${title} mock event for analytics simulation.`,
+            attendees: eventAttendees.map((student, attendeeIndex) => ({
+                record_id: `mock-att-${i}-${attendeeIndex}`,
+                event_id: `mock-event-${i}`,
+                event_name: title,
+                user_id: student.user_id,
+                student_number: student.student_number,
+                student_name: student.student_name,
+                section: student.section,
+                time_in: toIsoDateTime(eventDate, 8 + (attendeeIndex % 4), attendeeIndex % 60),
+                attendance_date: toIsoDate(eventDate),
+            })),
         });
     }
 
@@ -1004,6 +1070,7 @@ function generateMockAnalyticsData() {
 
     // Store mock data and refresh
     officerAnalyticsState.mockData = { financial, events, docs, rentals };
+    officerAnalyticsState.mockRetentionProfile = mockRetentionProfile.label;
 
     // Toggle buttons
     const mockBtn = document.getElementById('mock-data-btn');
@@ -1013,9 +1080,10 @@ function generateMockAnalyticsData() {
 
     // Show notification
     if (typeof showToast === 'function') {
-        showToast('Mock data generated! ' + transactionCount + ' transactions, ' + eventCount + ' events. Click "Clear Mock" to remove.', 'success');
+        showToast(`Mock data generated (${mockRetentionProfile.label} retention profile)! ${transactionCount} transactions, ${eventCount} events. Click "Clear Mock" to remove.`, 'success');
     } else {
         alert('Mock data generated successfully!\n\n' +
+              `Retention profile: ${mockRetentionProfile.label}\n` +
               `${transactionCount} financial transactions\n` +
               `${eventCount} events\n` +
               `${docCount} documents\n` +
@@ -1030,6 +1098,7 @@ function generateMockAnalyticsData() {
 function clearMockAnalyticsData() {
     // Clear mock data
     officerAnalyticsState.mockData = null;
+    officerAnalyticsState.mockRetentionProfile = null;
 
     // Toggle buttons
     const mockBtn = document.getElementById('mock-data-btn');
