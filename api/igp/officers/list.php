@@ -45,6 +45,7 @@ try {
                 CONCAT(u.first_name, ' ', u.last_name) AS officerName,
                 {$departmentExpr} AS department,
                 r.role_name AS roleName,
+                COALESCE(NULLIF(om.position_title, ''), r.role_name) AS positionTitle,
                 om.joined_at AS joinedAt,
                 om.is_active AS isActive
          FROM organization_members om

@@ -110,9 +110,14 @@
             <input type="text" id="org-section-input" placeholder="Section" readonly />
             <input type="email" id="org-email-input" placeholder="Email" readonly />
             <input type="tel" id="org-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " readonly />
-            <input type="text" id="org-input" placeholder="Select Organization"
-              class="org-select-trigger org-full-width" readonly
-              onclick="openOrgModal()" />
+            <div class="org-registration-inline-picks org-full-width">
+              <input type="text" id="org-input" placeholder="Select Organization"
+                class="org-select-trigger" readonly
+                onclick="openOrgModal()" />
+              <input type="text" id="org-position-input" placeholder="Select Position"
+                class="org-select-trigger" readonly
+                onclick="openPositionModal()" />
+            </div>
             <input type="password" id="org-password-input" placeholder="Password" />
             <input type="password" id="org-confirm-password-input" placeholder="Re-enter Password" />
           </div>
@@ -198,6 +203,33 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="positionModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Select Position</h3>
+        <button class="close-modal" onclick="closePositionModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="position-list">
+          <div class="org-item" onclick="selectPosition('President')">President</div>
+          <div class="org-item" onclick="selectPosition('Vice President (Internal)')">Vice President (Internal)</div>
+          <div class="org-item" onclick="selectPosition('Vice President (External)')">Vice President (External)</div>
+          <div class="org-item" onclick="selectPosition('Secretary')">Secretary</div>
+          <div class="org-item" onclick="selectPosition('Treasurer')">Treasurer</div>
+          <div class="org-item" onclick="selectPosition('Auditor')">Auditor</div>
+          <div class="org-item" onclick="selectPosition('Business Manager')">Business Manager</div>
+          <div class="org-item" onclick="selectPosition('Public Information Officer')">Public Information Officer</div>
+          <div class="org-item" onclick="selectPosition('Peace Officer')">Peace Officer</div>
+          <div class="org-item" onclick="selectPosition('4th Year Representative')">4th Year Representative</div>
+          <div class="org-item" onclick="selectPosition('3rd Year Representative')">3rd Year Representative</div>
+          <div class="org-item" onclick="selectPosition('2nd Year Representative')">2nd Year Representative</div>
+          <div class="org-item" onclick="selectPosition('1st Year Representative')">1st Year Representative</div>
+          <div class="org-item" onclick="selectPosition('Faculty Adviser')">Faculty Adviser</div>
+        </div>
       </div>
     </div>
   </div>

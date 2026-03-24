@@ -182,12 +182,18 @@ try {
                 // Upsert organization_members.
                 // If a student already has a member row for this org, upgrade it to officer.
                 $pdo->prepare("
-                    INSERT INTO organization_members (user_id, org_id, role_id, joined_at, is_active)
-                    VALUES (:uid, :oid, :rid, CURDATE(), 1)
+                    INSERT INTO organization_members (user_id, org_id, role_id, position_title, joined_at, is_active)
+                    VALUES (:uid, :oid, :rid, :position, CURDATE(), 1)
                     ON DUPLICATE KEY UPDATE
                         role_id = VALUES(role_id),
+                        position_title = VALUES(position_title),
                         is_active = VALUES(is_active)
-                ")->execute([':uid' => $userId, ':oid' => $orgId, ':rid' => $roleId]);
+                ")->execute([
+                    ':uid' => $userId,
+                    ':oid' => $orgId,
+                    ':rid' => $roleId,
+                    ':position' => !empty($req['requested_position']) ? $req['requested_position'] : null
+                ]);
             }
         }
 
