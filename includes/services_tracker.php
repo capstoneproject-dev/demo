@@ -196,10 +196,50 @@ function stIsSscOrg(PDO $pdo, int $orgId): bool
          FROM organizations
          WHERE org_id = :org_id
            AND status = 'active'
+           AND (
+                UPPER(TRIM(COALESCE(org_code, ''))) = 'SSC'
+                OR LOWER(TRIM(COALESCE(org_name, ''))) = 'supreme student council'
+           )
          LIMIT 1"
     );
     $stmt->execute([':org_id' => $orgId]);
     return (bool)$stmt->fetchColumn();
+}
+
+function stResolveStudentOrganization(PDO $pdo): ?array
+{
+    $session = getPhpSession();
+    $orgId = (int)($session['mapped_org_id'] ?? ($session['active_org_id'] ?? 0));
+    if ($orgId > 0) {
+        $stmt = $pdo->prepare(
+            "SELECT org_id, org_name, org_code, logo_url, status
+             FROM organizations
+             WHERE org_id = :org_id
+             LIMIT 1"
+        );
+        $stmt->execute([':org_id' => $orgId]);
+        $row = $stmt->fetch();
+        if ($row) {
+            return $row;
+        }
+    }
+
+    $orgRef = trim((string)($session['mapped_org_name'] ?? ($session['active_org_name'] ?? '')));
+    if ($orgRef === '') {
+        return null;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT org_id, org_name, org_code, logo_url, status
+         FROM organizations
+         WHERE LOWER(TRIM(org_code)) = LOWER(TRIM(:org_ref))
+            OR LOWER(TRIM(org_name)) = LOWER(TRIM(:org_ref))
+         ORDER BY org_id ASC
+         LIMIT 1"
+    );
+    $stmt->execute([':org_ref' => $orgRef]);
+    $row = $stmt->fetch();
+    return $row ?: null;
 }
 
 function stResolveSscOrg(PDO $pdo): ?array
@@ -854,22 +894,49 @@ function stReorderPrintJob(PDO $pdo, int $orgId, int $printJobId, int $newQueueO
 function stGetStudentServicesOverview(PDO $pdo): array
 {
     stEnsureSchema($pdo);
+    $studentOrg = stResolveStudentOrganization($pdo);
+    $studentOrgId = (int)($studentOrg['org_id'] ?? 0);
     $services = stListServiceCatalog($pdo);
     $modules = [];
     foreach ($services as $service) {
-        $providers = stListAuthorizedOrganizations($pdo, $service['service_key']);
+        $serviceKey = (string)($service['service_key'] ?? '');
+        $providers = [];
+        $enabled = false;
+
+        if ($serviceKey === 'printing') {
+            $enabled = $studentOrgId > 0 && stServiceEnabledForOrg($pdo, $studentOrgId, 'printing');
+            if ($enabled && $studentOrg) {
+                $providers[] = [
+                    'org_id' => (int)$studentOrg['org_id'],
+                    'org_name' => (string)$studentOrg['org_name'],
+                    'org_code' => (string)($studentOrg['org_code'] ?? ''),
+                    'logo_url' => (string)($studentOrg['logo_url'] ?? ''),
+                ];
+            }
+        } else {
+            $providers = stListAuthorizedOrganizations($pdo, $serviceKey);
+            $enabled = count($providers) > 0;
+        }
+
         $modules[] = [
-            'service_key' => $service['service_key'],
+            'service_key' => $serviceKey,
             'service_name' => $service['service_name'],
             'description' => $service['description'],
-            'enabled' => count($providers) > 0,
+            'enabled' => $enabled,
             'provider_count' => count($providers),
         ];
     }
 
     return [
         'modules' => $modules,
-        'printing_providers' => stListAuthorizedOrganizations($pdo, 'printing'),
+        'printing_providers' => $studentOrgId > 0 && stServiceEnabledForOrg($pdo, $studentOrgId, 'printing')
+            ? [[
+                'org_id' => (int)$studentOrg['org_id'],
+                'org_name' => (string)$studentOrg['org_name'],
+                'org_code' => (string)($studentOrg['org_code'] ?? ''),
+                'logo_url' => (string)($studentOrg['logo_url'] ?? ''),
+            ]]
+            : [],
     ];
 }
 
@@ -1209,6 +1276,11 @@ function stListLockerBoard(PDO $pdo, int $orgId): array
 
 function stListStudentLockers(PDO $pdo, int $userId): array
 {
+    $studentOrg = stResolveStudentOrganization($pdo);
+    if (!$studentOrg || !stIsSscOrg($pdo, (int)$studentOrg['org_id'])) {
+        return ['enabled' => false, 'lockers' => [], 'current_locker' => null];
+    }
+
     $sscOrg = stResolveSscOrg($pdo);
     if (!$sscOrg || !stIsSscOrg($pdo, (int)$sscOrg['org_id'])) {
         return ['enabled' => false, 'lockers' => [], 'current_locker' => null];
@@ -1261,6 +1333,11 @@ function stListStudentLockers(PDO $pdo, int $userId): array
 
 function stRequestLocker(PDO $pdo, int $userId, int $itemId): array
 {
+    $studentOrg = stResolveStudentOrganization($pdo);
+    if (!$studentOrg || !stIsSscOrg($pdo, (int)$studentOrg['org_id'])) {
+        throw new ServiceTrackerAuthorizationException('Locker services are only available to SSC members.');
+    }
+
     $sscOrg = stResolveSscOrg($pdo);
     if (!$sscOrg) {
         throw new ServiceTrackerValidationException('Locker service is not available right now.');

@@ -9,6 +9,17 @@ function readAuthSession() {
     }
 }
 
+function formatLocalDateKey(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return '';
+    }
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+}
+
 /**
  * Non-blocking PHP session check.
  * Runs asynchronously after localStorage guard — redirects if server session expired.
@@ -346,13 +357,20 @@ let officerPrintingCalendarSelectedEnd = null;
 let officerPrintingEnabled = false;
 let officerLockerEnabled = false;
 let officerFinancialSummaryData = [];
+let officerFinancialSummaryFilters = { startDate: null, endDate: null };
+let officerFinancialCalendarCurrentDate = new Date();
+let officerFinancialCalendarSelectedStart = null;
+let officerFinancialCalendarSelectedEnd = null;
 let officerLockerBoard = [];
 let selectedLockerTile = null;
 let lockerAssignableStudents = [];
 let selectedLockerAssignStudent = null;
 
 function isOfficerLockerEnabled() {
-    return true;
+    const session = readAuthSession();
+    const activeOrgName = normalizeOfficerOrgName(session.active_org_name || '');
+    const activeOrgCode = normalizeOfficerOrgName(session.active_org_code || '');
+    return activeOrgName === 'SUPREME STUDENT COUNCIL' || activeOrgCode === 'SSC';
 }
 
 function setOfficerTrackerPrintingAccess(printingEnabled) {
@@ -370,9 +388,11 @@ function setOfficerTrackerPrintingAccess(printingEnabled) {
     }
     if (printingBtn) {
         printingBtn.hidden = !officerPrintingEnabled;
+        printingBtn.style.display = officerPrintingEnabled ? '' : 'none';
     }
     if (lockerBtn) {
         lockerBtn.hidden = !officerLockerEnabled;
+        lockerBtn.style.display = officerLockerEnabled ? '' : 'none';
     }
     if (printingView) {
         printingView.style.display = officerPrintingEnabled ? '' : 'none';
@@ -481,8 +501,8 @@ function getOfficerFinancialSummaryFilters() {
     return {
         service: document.getElementById('financialSummaryServiceFilter')?.value || '',
         item: document.getElementById('financialSummaryItemFilter')?.value || '',
-        startDate: document.getElementById('financialSummaryStartDate')?.value || '',
-        endDate: document.getElementById('financialSummaryEndDate')?.value || '',
+        startDate: officerFinancialSummaryFilters.startDate || '',
+        endDate: officerFinancialSummaryFilters.endDate || '',
         payment: document.getElementById('financialSummaryPaymentFilter')?.value || '',
     };
 }
@@ -569,8 +589,6 @@ function renderOfficerFinancialSummary() {
     let totalUnpaid = 0;
     let paidTransactions = 0;
     let unpaidTransactions = 0;
-    let highest = null;
-    let lowest = null;
     const dateValues = [];
     const monthlyMap = new Map();
 
@@ -587,9 +605,6 @@ function renderOfficerFinancialSummary() {
             totalUnpaid += totalCost;
             unpaidTransactions += 1;
         }
-
-        if (!highest || totalCost > Number(highest.total_cost || 0)) highest = item;
-        if (!lowest || totalCost < Number(lowest.total_cost || 0)) lowest = item;
 
         if (parsedDate instanceof Date && !Number.isNaN(parsedDate.getTime())) {
             dateValues.push(parsedDate);
@@ -621,16 +636,6 @@ function renderOfficerFinancialSummary() {
     setOfficerFinancialSummaryText('financialSummaryPaidTransactions', String(paidTransactions));
     setOfficerFinancialSummaryText('financialSummaryUnpaidTransactions', String(unpaidTransactions));
     setOfficerFinancialSummaryText('financialSummaryAverageValue', formatOfficerPeso(paidTransactions ? totalRevenue / paidTransactions : 0));
-    setOfficerFinancialSummaryText('financialSummaryHighestValue', formatOfficerPeso(highest ? highest.total_cost : 0));
-    setOfficerFinancialSummaryText(
-        'financialSummaryHighestMeta',
-        highest ? `${highest.customer_name || '-'} | ${highest.item_label || '-'}` : ''
-    );
-    setOfficerFinancialSummaryText('financialSummaryLowestValue', formatOfficerPeso(lowest ? lowest.total_cost : 0));
-    setOfficerFinancialSummaryText(
-        'financialSummaryLowestMeta',
-        lowest ? `${lowest.customer_name || '-'} | ${lowest.item_label || '-'}` : ''
-    );
 
     if (filters.startDate && !filters.endDate) {
         setOfficerFinancialSummaryText(
@@ -705,33 +710,210 @@ function renderOfficerFinancialSummary() {
 function clearOfficerFinancialSummaryFilters() {
     const serviceFilter = document.getElementById('financialSummaryServiceFilter');
     const itemFilter = document.getElementById('financialSummaryItemFilter');
-    const startDate = document.getElementById('financialSummaryStartDate');
-    const endDate = document.getElementById('financialSummaryEndDate');
     const paymentFilter = document.getElementById('financialSummaryPaymentFilter');
     if (serviceFilter) serviceFilter.value = '';
     if (itemFilter) itemFilter.value = '';
-    if (startDate) startDate.value = '';
-    if (endDate) endDate.value = '';
     if (paymentFilter) paymentFilter.value = '';
+    officerFinancialSummaryFilters = { startDate: null, endDate: null };
+    officerFinancialCalendarSelectedStart = null;
+    officerFinancialCalendarSelectedEnd = null;
+    initializeOfficerFinancialSummaryDefaultDate();
     renderOfficerFinancialSummary();
 }
 
 function initializeOfficerFinancialSummaryDefaultDate() {
-    const startDate = document.getElementById('financialSummaryStartDate');
-    const endDate = document.getElementById('financialSummaryEndDate');
+    if (officerFinancialSummaryFilters.startDate || officerFinancialSummaryFilters.endDate) {
+        return;
+    }
+
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const todayValue = [
         today.getFullYear(),
         String(today.getMonth() + 1).padStart(2, '0'),
         String(today.getDate()).padStart(2, '0'),
     ].join('-');
 
-    if (startDate && !startDate.value) {
-        startDate.value = todayValue;
+    officerFinancialSummaryFilters.startDate = todayValue;
+    officerFinancialSummaryFilters.endDate = null;
+    officerFinancialCalendarCurrentDate = new Date(today);
+    officerFinancialCalendarSelectedStart = new Date(today);
+    officerFinancialCalendarSelectedEnd = null;
+
+    const label = document.getElementById('financialSummaryDateFilterLabel');
+    if (label) {
+        label.textContent = 'Today';
     }
-    if (endDate && endDate.value) {
-        endDate.value = '';
+}
+
+function openOfficerFinancialDateFilterModal() {
+    const modal = document.getElementById('officerFinancialDateFilterModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    officerFinancialCalendarCurrentDate = officerFinancialCalendarSelectedStart
+        ? new Date(officerFinancialCalendarSelectedStart)
+        : new Date();
+    renderOfficerFinancialDateCalendar();
+    document.body.style.overflow = 'hidden';
+}
+
+function closeOfficerFinancialDateFilterModal() {
+    const modal = document.getElementById('officerFinancialDateFilterModal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function navigateOfficerFinancialCalendarMonth(offset) {
+    officerFinancialCalendarCurrentDate.setMonth(officerFinancialCalendarCurrentDate.getMonth() + offset);
+    renderOfficerFinancialDateCalendar();
+}
+
+function renderOfficerFinancialDateCalendar() {
+    const year = officerFinancialCalendarCurrentDate.getFullYear();
+    const month = officerFinancialCalendarCurrentDate.getMonth();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+
+    const monthYear = document.getElementById('officerFinancialFilterCalendarMonthYear');
+    if (monthYear) monthYear.textContent = `${monthNames[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const calendarDays = document.getElementById('officerFinancialFilterCalendarDays');
+    if (!calendarDays) return;
+    calendarDays.innerHTML = '';
+
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarDays.appendChild(emptyCell);
     }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, month, day);
+        dateObj.setHours(0, 0, 0, 0);
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.textContent = day;
+
+        if (dateObj.getTime() === today.getTime()) dayCell.classList.add('today');
+        if (officerFinancialCalendarSelectedStart && dateObj.getTime() === officerFinancialCalendarSelectedStart.getTime()) dayCell.classList.add('selected');
+        if (officerFinancialCalendarSelectedEnd && dateObj.getTime() === officerFinancialCalendarSelectedEnd.getTime()) dayCell.classList.add('selected');
+        if (officerFinancialCalendarSelectedStart && officerFinancialCalendarSelectedEnd) {
+            if (dateObj >= officerFinancialCalendarSelectedStart && dateObj <= officerFinancialCalendarSelectedEnd) {
+                dayCell.classList.add('in-range');
+            }
+        }
+
+        dayCell.addEventListener('click', () => selectOfficerFinancialCalendarDate(dateObj));
+        calendarDays.appendChild(dayCell);
+    }
+
+    updateOfficerFinancialSelectedRangeDisplay();
+}
+
+function selectOfficerFinancialCalendarDate(date) {
+    if (!officerFinancialCalendarSelectedStart || (officerFinancialCalendarSelectedStart && officerFinancialCalendarSelectedEnd)) {
+        officerFinancialCalendarSelectedStart = date;
+        officerFinancialCalendarSelectedEnd = null;
+    } else if (date < officerFinancialCalendarSelectedStart) {
+        officerFinancialCalendarSelectedEnd = officerFinancialCalendarSelectedStart;
+        officerFinancialCalendarSelectedStart = date;
+    } else {
+        officerFinancialCalendarSelectedEnd = date;
+    }
+
+    renderOfficerFinancialDateCalendar();
+}
+
+function updateOfficerFinancialSelectedRangeDisplay() {
+    const startDisplay = document.getElementById('officerFinancialSelectedStartDate');
+    const endDisplay = document.getElementById('officerFinancialSelectedEndDate');
+
+    if (startDisplay) {
+        startDisplay.textContent = officerFinancialCalendarSelectedStart
+            ? officerFinancialCalendarSelectedStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Not selected';
+    }
+
+    if (endDisplay) {
+        endDisplay.textContent = officerFinancialCalendarSelectedEnd
+            ? officerFinancialCalendarSelectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Not selected';
+    }
+}
+
+function applyOfficerFinancialDatePreset(preset) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    officerFinancialCalendarCurrentDate = new Date(today);
+
+    let startDate;
+    let endDate;
+
+    switch (preset) {
+        case 'today':
+            startDate = new Date(today);
+            endDate = null;
+            break;
+        case 'week':
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - 7);
+            endDate = new Date(today);
+            break;
+        case 'month':
+            startDate = new Date(today);
+            startDate.setMonth(today.getMonth() - 1);
+            endDate = new Date(today);
+            break;
+        case 'all':
+        default:
+            startDate = null;
+            endDate = null;
+            break;
+    }
+
+    officerFinancialCalendarSelectedStart = startDate;
+    officerFinancialCalendarSelectedEnd = endDate;
+    updateOfficerFinancialSelectedRangeDisplay();
+    renderOfficerFinancialDateCalendar();
+}
+
+function applyOfficerFinancialDateFilter() {
+    officerFinancialSummaryFilters.startDate = officerFinancialCalendarSelectedStart
+        ? formatLocalDateKey(officerFinancialCalendarSelectedStart)
+        : null;
+    officerFinancialSummaryFilters.endDate = officerFinancialCalendarSelectedEnd
+        ? formatLocalDateKey(officerFinancialCalendarSelectedEnd)
+        : null;
+
+    const label = document.getElementById('financialSummaryDateFilterLabel');
+    if (label) {
+        if (officerFinancialSummaryFilters.startDate && !officerFinancialSummaryFilters.endDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayKey = formatLocalDateKey(today);
+            label.textContent = officerFinancialSummaryFilters.startDate === todayKey
+                ? 'Today'
+                : new Date(officerFinancialSummaryFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else if (officerFinancialSummaryFilters.startDate || officerFinancialSummaryFilters.endDate) {
+            const start = officerFinancialSummaryFilters.startDate
+                ? new Date(officerFinancialSummaryFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '...';
+            const end = officerFinancialSummaryFilters.endDate
+                ? new Date(officerFinancialSummaryFilters.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '...';
+            label.textContent = `${start} - ${end}`;
+        } else {
+            label.textContent = 'All Dates';
+        }
+    }
+
+    closeOfficerFinancialDateFilterModal();
+    renderOfficerFinancialSummary();
 }
 
 async function loadOfficerFinancialSummary(force = false) {
@@ -913,6 +1095,26 @@ function showAllOfficerPrintingHistoryDates() {
     const searchInput = document.getElementById('printingHistorySearchInput');
     if (searchInput) searchInput.value = '';
     renderOfficerPrintingHistory(true);
+}
+
+function initializeOfficerPrintingHistoryDefaultDate() {
+    if (officerPrintingHistoryFilters.startDate || officerPrintingHistoryFilters.endDate) {
+        return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayKey = formatLocalDateKey(today);
+
+    officerPrintingHistoryFilters.startDate = todayKey;
+    officerPrintingHistoryFilters.endDate = null;
+    officerPrintingCalendarSelectedStart = new Date(today);
+    officerPrintingCalendarSelectedEnd = null;
+
+    const label = document.getElementById('printingHistoryDateFilterLabel');
+    if (label) {
+        label.textContent = 'Today';
+    }
 }
 
 function renderOfficerPrintingHistory(printingEnabled = true) {
@@ -1134,10 +1336,10 @@ function applyOfficerPrintingDatePreset(preset) {
 
 function applyOfficerPrintingDateFilter() {
     officerPrintingHistoryFilters.startDate = officerPrintingCalendarSelectedStart
-        ? officerPrintingCalendarSelectedStart.toISOString().split('T')[0]
+        ? formatLocalDateKey(officerPrintingCalendarSelectedStart)
         : null;
     officerPrintingHistoryFilters.endDate = officerPrintingCalendarSelectedEnd
-        ? officerPrintingCalendarSelectedEnd.toISOString().split('T')[0]
+        ? formatLocalDateKey(officerPrintingCalendarSelectedEnd)
         : null;
 
     const label = document.getElementById('printingHistoryDateFilterLabel');
@@ -1145,7 +1347,7 @@ function applyOfficerPrintingDateFilter() {
         if (officerPrintingHistoryFilters.startDate && !officerPrintingHistoryFilters.endDate) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const todayKey = today.toISOString().split('T')[0];
+            const todayKey = formatLocalDateKey(today);
             label.textContent = officerPrintingHistoryFilters.startDate === todayKey
                 ? 'Today'
                 : new Date(officerPrintingHistoryFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -1170,6 +1372,10 @@ document.addEventListener('click', (e) => {
     const printingDateModal = document.getElementById('officerPrintingDateFilterModal');
     if (printingDateModal && e.target === printingDateModal) {
         closeOfficerPrintingDateFilterModal();
+    }
+    const financialDateModal = document.getElementById('officerFinancialDateFilterModal');
+    if (financialDateModal && e.target === financialDateModal) {
+        closeOfficerFinancialDateFilterModal();
     }
     const lockerModal = document.getElementById('lockerDetailModal');
     if (lockerModal && e.target === lockerModal) {
@@ -3202,6 +3408,7 @@ window.addEventListener('DOMContentLoaded', () => {
     setDate();
     initTrackerSidebarBehavior();
     initializeOfficerFinancialSummaryDefaultDate();
+    initializeOfficerPrintingHistoryDefaultDate();
     renderRentals();
     renderDocs();
     renderRecentDocs();
