@@ -14,6 +14,12 @@ const officerAnalyticsState = {
     mockData: null, // Temporary mock data for testing
 };
 
+const officerAnalyticsInsightsState = {
+    cache: new Map(),
+    currentKey: '',
+    latestRequestId: 0,
+};
+
 function parseOfficerAnalyticsDate(value) {
     if (!value) return null;
     if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -175,7 +181,7 @@ async function loadOfficerAnalyticsEvents() {
             attendeesByEventId.get(key).push(record);
         });
 
-        officerAnalyticsState.liveEvents = Array.isArray(data.items)
+        officerAnalyticsState.liveEvents = Array.isArray(eventsData.items)
             ? eventsData.items.map((item) => ({
                 id: item.event_id,
                 title: item.event_name || 'Event',
@@ -680,6 +686,178 @@ function updateOfficerAnalyticsCardText(snapshot) {
     }
 }
 
+function buildOfficerAnalyticsInsightsRequest(snapshot) {
+    const filters = snapshot?.filters || {};
+    const mode = filters.mode || {};
+    return {
+        snapshot: {
+            filters: snapshot?.filters || {},
+            totals: snapshot?.totals || {},
+            counts: snapshot?.counts || {},
+            summaries: snapshot?.summaries || {},
+            charts: snapshot?.charts || {},
+            events: Array.isArray(snapshot?.events)
+                ? snapshot.events.map((event) => ({
+                    id: event.id || event.event_id || null,
+                    title: event.title || event.event_name || 'Event',
+                    date: event.date || event.event_datetime || '',
+                    venue: event.venue || event.location || 'TBA',
+                    participants: Number(event.participants || event.attendance_count || 0),
+                }))
+                : [],
+        },
+        filters: {
+            academicYear: filters.academicYear || '',
+            dateRange: {
+                startDate: mode.startDate || null,
+                endDate: mode.endDate || null,
+            },
+        },
+    };
+}
+
+function buildOfficerAnalyticsInsightsCacheKey(snapshot) {
+    const payload = {
+        filters: snapshot?.filters || {},
+        totals: snapshot?.totals || {},
+        counts: snapshot?.counts || {},
+        summaries: snapshot?.summaries || {},
+        charts: snapshot?.charts || {},
+        eventIds: Array.isArray(snapshot?.events) ? snapshot.events.map((event) => [event.id || event.event_id || event.title, event.participants || 0, event.date || '']) : [],
+    };
+    return JSON.stringify(payload);
+}
+
+function setOfficerAnalyticsInsightsLoading() {
+    const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
+    const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
+    if (providerBadge) {
+        providerBadge.style.display = 'inline-flex';
+        providerBadge.textContent = 'Generating insights...';
+    }
+    if (refreshButton) {
+        refreshButton.disabled = true;
+    }
+
+    ['analyticsInsightFinancial', 'analyticsInsightParticipation', 'analyticsInsightInventory', 'analyticsInsightDocuments'].forEach((id) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = 'Generating insights...';
+        }
+    });
+}
+
+function renderOfficerAnalyticsInsights(insights) {
+    const mappings = {
+        analyticsInsightFinancial: insights?.chartSummaries?.financial || 'No financial insight available.',
+        analyticsInsightParticipation: insights?.chartSummaries?.participation || 'No participation insight available.',
+        analyticsInsightInventory: insights?.chartSummaries?.inventory || 'No inventory insight available.',
+        analyticsInsightDocuments: insights?.chartSummaries?.documents || 'No document insight available.',
+    };
+
+    Object.entries(mappings).forEach(([id, text]) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = text;
+        }
+    });
+
+    const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
+    if (providerBadge) {
+        const providerName = String(insights?.provider || 'rule-based').toLowerCase();
+        const providerLabel = providerName === 'gemini'
+            ? 'Gemini'
+            : (providerName === 'llama-local' ? 'Llama Local' : 'Rule-based');
+        providerBadge.style.display = 'inline-flex';
+        providerBadge.textContent = insights?.fallbackUsed ? `${providerLabel} fallback` : providerLabel;
+    }
+
+    const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
+    if (refreshButton) {
+        refreshButton.disabled = false;
+    }
+}
+
+async function getOfficerAnalyticsInsightsData(options = {}) {
+    const snapshot = options.snapshot || officerAnalyticsState.snapshot || getOfficerAnalyticsSnapshot();
+    const render = options.render !== false;
+    const forceRefresh = !!options.forceRefresh;
+    const cacheKey = buildOfficerAnalyticsInsightsCacheKey(snapshot);
+
+    if (!forceRefresh && officerAnalyticsInsightsState.cache.has(cacheKey)) {
+        const cached = officerAnalyticsInsightsState.cache.get(cacheKey);
+        if (render) {
+            officerAnalyticsInsightsState.currentKey = cacheKey;
+            renderOfficerAnalyticsInsights(cached);
+        }
+        return cached;
+    }
+
+    const requestId = officerAnalyticsInsightsState.latestRequestId + 1;
+    officerAnalyticsInsightsState.latestRequestId = requestId;
+
+    if (render) {
+        officerAnalyticsInsightsState.currentKey = cacheKey;
+        setOfficerAnalyticsInsightsLoading();
+    }
+
+    try {
+        const response = await fetch('../api/analytics/generate-insights.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                ...buildOfficerAnalyticsInsightsRequest(snapshot),
+                forceRefresh,
+            }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || `Request failed (${response.status})`);
+        }
+
+        officerAnalyticsInsightsState.cache.set(cacheKey, payload);
+        if (render && officerAnalyticsInsightsState.currentKey === cacheKey && requestId === officerAnalyticsInsightsState.latestRequestId) {
+            renderOfficerAnalyticsInsights(payload);
+        }
+        return payload;
+    } catch (error) {
+        console.error('getOfficerAnalyticsInsightsData failed', error);
+        const fallback = {
+            chartSummaries: {
+                financial: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+                participation: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+                inventory: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+                documents: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+            },
+            exportSummary: 'AI-generated insights are temporarily unavailable. The export used the rule-based dashboard summary instead.',
+            provider: 'rule-based',
+            fallbackUsed: true,
+        };
+        if (render) {
+            renderOfficerAnalyticsInsights(fallback);
+        }
+        return fallback;
+    }
+}
+
+function regenerateOfficerAnalyticsInsights() {
+    if (!officerAnalyticsState.snapshot) {
+        refreshAnalyticsCharts();
+        return;
+    }
+    const cacheKey = buildOfficerAnalyticsInsightsCacheKey(officerAnalyticsState.snapshot);
+    officerAnalyticsInsightsState.cache.delete(cacheKey);
+    void getOfficerAnalyticsInsightsData({
+        snapshot: officerAnalyticsState.snapshot,
+        render: true,
+        forceRefresh: true,
+    });
+}
+
+window.regenerateOfficerAnalyticsInsights = regenerateOfficerAnalyticsInsights;
+window.getOfficerAnalyticsInsightsData = getOfficerAnalyticsInsightsData;
+
 function upsertOfficerAnalyticsChart(key, elementId, config) {
     const canvas = document.getElementById(elementId);
     if (!canvas || typeof Chart === 'undefined') {
@@ -816,6 +994,7 @@ function refreshAnalyticsCharts() {
     officerAnalyticsState.snapshot = snapshot;
     updateOfficerAnalyticsCardText(snapshot);
     renderOfficerAnalyticsCharts(snapshot);
+    void getOfficerAnalyticsInsightsData({ snapshot, render: true });
 }
 
 function getOfficerAnalyticsReportData(overrides = {}) {

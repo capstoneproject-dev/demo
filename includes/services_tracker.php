@@ -934,29 +934,12 @@ function stReorderPrintJob(PDO $pdo, int $orgId, int $printJobId, int $newQueueO
 function stGetStudentServicesOverview(PDO $pdo): array
 {
     stEnsureSchema($pdo);
-    $studentOrg = stResolveStudentOrganization($pdo);
-    $studentOrgId = (int)($studentOrg['org_id'] ?? 0);
     $services = stListServiceCatalog($pdo);
     $modules = [];
     foreach ($services as $service) {
         $serviceKey = (string)($service['service_key'] ?? '');
-        $providers = [];
-        $enabled = false;
-
-        if ($serviceKey === 'printing') {
-            $enabled = $studentOrgId > 0 && stServiceEnabledForOrg($pdo, $studentOrgId, 'printing');
-            if ($enabled && $studentOrg) {
-                $providers[] = [
-                    'org_id' => (int)$studentOrg['org_id'],
-                    'org_name' => (string)$studentOrg['org_name'],
-                    'org_code' => (string)($studentOrg['org_code'] ?? ''),
-                    'logo_url' => (string)($studentOrg['logo_url'] ?? ''),
-                ];
-            }
-        } else {
-            $providers = stListAuthorizedOrganizations($pdo, $serviceKey);
-            $enabled = count($providers) > 0;
-        }
+        $providers = stListAuthorizedOrganizations($pdo, $serviceKey);
+        $enabled = count($providers) > 0;
 
         $modules[] = [
             'service_key' => $serviceKey,
@@ -969,14 +952,7 @@ function stGetStudentServicesOverview(PDO $pdo): array
 
     return [
         'modules' => $modules,
-        'printing_providers' => $studentOrgId > 0 && stServiceEnabledForOrg($pdo, $studentOrgId, 'printing')
-            ? [[
-                'org_id' => (int)$studentOrg['org_id'],
-                'org_name' => (string)$studentOrg['org_name'],
-                'org_code' => (string)($studentOrg['org_code'] ?? ''),
-                'logo_url' => (string)($studentOrg['logo_url'] ?? ''),
-            ]]
-            : [],
+        'printing_providers' => stListAuthorizedOrganizations($pdo, 'printing'),
     ];
 }
 

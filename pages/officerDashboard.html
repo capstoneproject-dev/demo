@@ -1335,6 +1335,10 @@
                 </div>
 
                 <div class="export-wrapper" style="display: flex; align-items: center; gap: 8px;">
+                    <button id="analyticsInsightsRefreshBtn" class="btn btn-outline btn-sm" onclick="regenerateOfficerAnalyticsInsights()">
+                        <i class="fa-solid fa-sparkles"></i> Regenerate Insights
+                    </button>
+                    <span id="analyticsInsightsProviderBadge" style="display:none; font-size:0.78rem; color:var(--muted); padding:6px 10px; border:1px solid var(--border); border-radius:999px;"></span>
                     <button id="mock-data-btn" class="btn btn-sm" onclick="generateMockAnalyticsData()" style="background: #059669; color: white;">
                         <i class="fa-solid fa-flask"></i> Generate Mock Data
                     </button>
@@ -1385,6 +1389,9 @@
                             </span>
                         </div>
                     </div>
+                    <div id="analyticsInsightFinancial" style="margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:0.88rem; line-height:1.5;">
+                        AI insights will appear here.
+                    </div>
                 </div>
 
                 <!-- Participation Trends Card -->
@@ -1409,6 +1416,9 @@
                             <span class="stat-label">Retention</span>
                             <span class="stat-badge stat-badge-high">High</span>
                         </div>
+                    </div>
+                    <div id="analyticsInsightParticipation" style="margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:0.88rem; line-height:1.5;">
+                        AI insights will appear here.
                     </div>
                 </div>
 
@@ -1453,6 +1463,9 @@
                             </div>
                         </div>
                     </div>
+                    <div id="analyticsInsightInventory" style="margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:0.88rem; line-height:1.5;">
+                        AI insights will appear here.
+                    </div>
                 </div>
 
                 <!-- Document Workflow Card -->
@@ -1495,6 +1508,9 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    <div id="analyticsInsightDocuments" style="margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:0.88rem; line-height:1.5;">
+                        AI insights will appear here.
                     </div>
                 </div>
 

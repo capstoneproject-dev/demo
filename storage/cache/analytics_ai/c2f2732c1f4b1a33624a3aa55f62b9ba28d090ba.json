@@ -1,0 +1,12 @@
+{
+    "chartSummaries": {
+        "financial": "Total revenue is $10,608. Revenue decreased by 92.7% vs last week, but increased by 100.0% vs last month and last year. March 2026 recorded the highest revenue at $3,551, while February 2026 recorded $0.",
+        "participation": "Total participation across events is 1,139, with an average of 95 participants. Overall participation is rated as Medium. Cultural Night 1 had the highest participation with 154 attendees, and Fundraising Booth 1 had the lowest with 45 attendees.",
+        "inventory": "There are 7 active rentals, 5 pending rentals, and 5 overdue rentals.",
+        "documents": "There are 5 approved documents, 9 pending documents, and 6 rejected documents."
+    },
+    "exportSummary": "Showing all available analytics for academic year 2025-2026. Total revenue is $10,608, with 1,139 total participants across events. There are 7 active, 5 pending, and 5 overdue rentals, and 5 approved, 9 pending, and 6 rejected documents.",
+    "provider": "gemini",
+    "fallbackUsed": false,
+    "generatedAt": "2026-03-24T12:46:58+00:00"
+}
