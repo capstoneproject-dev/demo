@@ -1492,8 +1492,7 @@ function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId): void
              paid_at = CURRENT_TIMESTAMP
          WHERE rental_id = :rid
            AND org_id = :org
-           AND payment_status = 'unpaid'
-           AND status IN ('returned', 'overdue', 'cancelled')"
+           AND payment_status = 'unpaid'"
     );
     $upd->execute([':rid' => $rentalId, ':org' => $orgId]);
     if ($upd->rowCount() === 0) {

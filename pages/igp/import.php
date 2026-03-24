@@ -28,7 +28,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 <li class="nav-item"><a class="nav-link" href="index.php">Rental</a></li>
                 <li class="nav-item"><a class="nav-link" href="rental-history.php">History</a></li>
                 <li class="nav-item"><a class="nav-link" href="inventory.php">Inventory</a></li>
-                <li class="nav-item"><a class="nav-link" href="financial-summary.php">Financial Summary</a></li>
                 <li class="nav-item"><a class="nav-link" href="generate-inventory-barcodes.php">Inventory Barcodes</a></li>
                 <li class="nav-item"><a class="nav-link active" href="import.php">Import</a></li>
             </ul>

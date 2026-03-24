@@ -25,6 +25,8 @@
 
 <body>
 
+    <div id="toast-container"></div>
+
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="logo-area">
@@ -771,6 +773,9 @@
                         <button id="lockerClearNoticeBtn" class="btn btn-outline" type="button" onclick="clearLockerNotice()" style="display:none;">
                             <i class="fa-solid fa-eraser"></i> Clear Notice
                         </button>
+                        <button id="lockerMarkPaidBtn" class="btn btn-outline" type="button" onclick="markLockerAssignmentPaid()" style="display:none;">
+                            <i class="fa-solid fa-money-bill-wave"></i> Mark as Paid
+                        </button>
                         <button id="lockerReleaseBtn" class="btn btn-outline" type="button" onclick="openLockerReleaseConfirmModal()" style="display:none;">
                             <i class="fa-solid fa-box-open"></i> Release Locker
                         </button>
@@ -914,7 +919,20 @@
                             <button class="calendar-nav-btn" type="button" onclick="navigateOfficerPrintingCalendarMonth(-1)">
                                 <i class="fa-solid fa-chevron-left"></i>
                             </button>
-                            <span class="calendar-month-year" id="officerPrintingFilterCalendarMonthYear">January 2026</span>
+                            <div class="calendar-header-picker-group">
+                                <select
+                                    id="officerPrintingFilterCalendarMonthSelect"
+                                    class="calendar-header-select"
+                                    aria-label="Select month"
+                                    onchange="setOfficerPrintingCalendarMonth(this.value)">
+                                </select>
+                                <select
+                                    id="officerPrintingFilterCalendarYearSelect"
+                                    class="calendar-header-select calendar-header-year-select"
+                                    aria-label="Select year"
+                                    onchange="setOfficerPrintingCalendarYear(this.value)">
+                                </select>
+                            </div>
                             <button class="calendar-nav-btn" type="button" onclick="navigateOfficerPrintingCalendarMonth(1)">
                                 <i class="fa-solid fa-chevron-right"></i>
                             </button>
@@ -971,7 +989,20 @@
                             <button class="calendar-nav-btn" type="button" onclick="navigateOfficerFinancialCalendarMonth(-1)">
                                 <i class="fa-solid fa-chevron-left"></i>
                             </button>
-                            <span class="calendar-month-year" id="officerFinancialFilterCalendarMonthYear">January 2026</span>
+                            <div class="calendar-header-picker-group">
+                                <select
+                                    id="officerFinancialFilterCalendarMonthSelect"
+                                    class="calendar-header-select"
+                                    aria-label="Select month"
+                                    onchange="setOfficerFinancialCalendarMonth(this.value)">
+                                </select>
+                                <select
+                                    id="officerFinancialFilterCalendarYearSelect"
+                                    class="calendar-header-select calendar-header-year-select"
+                                    aria-label="Select year"
+                                    onchange="setOfficerFinancialCalendarYear(this.value)">
+                                </select>
+                            </div>
                             <button class="calendar-nav-btn" type="button" onclick="navigateOfficerFinancialCalendarMonth(1)">
                                 <i class="fa-solid fa-chevron-right"></i>
                             </button>

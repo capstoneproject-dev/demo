@@ -20,6 +20,36 @@ function formatLocalDateKey(date) {
     ].join('-');
 }
 
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    let icon = 'fa-circle-info';
+    if (type === 'success') icon = 'fa-circle-check';
+    if (type === 'error') icon = 'fa-circle-exclamation';
+
+    toast.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid ${icon} ${type}"></i>
+            <span>${message}</span>
+        </div>
+        <button type="button" style="border:none; background:transparent; color:inherit; opacity:0.6; cursor:pointer;" onclick="this.parentElement.remove()">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        setTimeout(() => toast.remove(), 250);
+    }, 3000);
+}
+
 /**
  * Non-blocking PHP session check.
  * Runs asynchronously after localStorage guard — redirects if server session expired.
@@ -361,6 +391,8 @@ let officerFinancialSummaryFilters = { startDate: null, endDate: null };
 let officerFinancialCalendarCurrentDate = new Date();
 let officerFinancialCalendarSelectedStart = null;
 let officerFinancialCalendarSelectedEnd = null;
+const OFFICER_FINANCIAL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
 let officerLockerBoard = [];
 let selectedLockerTile = null;
 let lockerAssignableStudents = [];
@@ -768,14 +800,65 @@ function navigateOfficerFinancialCalendarMonth(offset) {
     renderOfficerFinancialDateCalendar();
 }
 
+function selectEntireOfficerFinancialMonth(year = officerFinancialCalendarCurrentDate.getFullYear(), month = officerFinancialCalendarCurrentDate.getMonth()) {
+    officerFinancialCalendarSelectedStart = new Date(year, month, 1);
+    officerFinancialCalendarSelectedStart.setHours(0, 0, 0, 0);
+    officerFinancialCalendarSelectedEnd = new Date(year, month + 1, 0);
+    officerFinancialCalendarSelectedEnd.setHours(0, 0, 0, 0);
+}
+
+function syncOfficerFinancialCalendarSelectors() {
+    const monthSelect = document.getElementById('officerFinancialFilterCalendarMonthSelect');
+    const yearSelect = document.getElementById('officerFinancialFilterCalendarYearSelect');
+    const selectedYear = officerFinancialCalendarCurrentDate.getFullYear();
+    const currentYear = new Date().getFullYear();
+
+    if (monthSelect && monthSelect.options.length === 0) {
+        monthSelect.innerHTML = OFFICER_FINANCIAL_MONTH_NAMES.map((monthName, index) => `
+            <option value="${index}">${monthName}</option>
+        `).join('');
+    }
+
+    if (yearSelect) {
+        const startYear = 2000;
+        const endYear = Math.max(currentYear + 10, selectedYear + 1);
+        yearSelect.innerHTML = '';
+        for (let year = endYear; year >= startYear; year--) {
+            const option = document.createElement('option');
+            option.value = String(year);
+            option.textContent = String(year);
+            yearSelect.appendChild(option);
+        }
+        yearSelect.value = String(selectedYear);
+    }
+
+    if (monthSelect) {
+        monthSelect.value = String(officerFinancialCalendarCurrentDate.getMonth());
+    }
+}
+
+function setOfficerFinancialCalendarMonth(month) {
+    const parsedMonth = Number(month);
+    if (Number.isNaN(parsedMonth)) return;
+    officerFinancialCalendarCurrentDate.setMonth(parsedMonth);
+    selectEntireOfficerFinancialMonth(officerFinancialCalendarCurrentDate.getFullYear(), parsedMonth);
+    renderOfficerFinancialDateCalendar();
+}
+
+function setOfficerFinancialCalendarYear(year) {
+    const parsedYear = Number(year);
+    if (Number.isNaN(parsedYear)) return;
+    officerFinancialCalendarCurrentDate.setFullYear(parsedYear);
+    if (officerFinancialCalendarSelectedStart && officerFinancialCalendarSelectedEnd) {
+        selectEntireOfficerFinancialMonth(parsedYear, officerFinancialCalendarCurrentDate.getMonth());
+    }
+    renderOfficerFinancialDateCalendar();
+}
+
 function renderOfficerFinancialDateCalendar() {
     const year = officerFinancialCalendarCurrentDate.getFullYear();
     const month = officerFinancialCalendarCurrentDate.getMonth();
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'];
-
-    const monthYear = document.getElementById('officerFinancialFilterCalendarMonthYear');
-    if (monthYear) monthYear.textContent = `${monthNames[month]} ${year}`;
+    syncOfficerFinancialCalendarSelectors();
 
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1220,14 +1303,65 @@ function navigateOfficerPrintingCalendarMonth(offset) {
     renderOfficerPrintingDateCalendar();
 }
 
+function selectEntireOfficerPrintingMonth(year = officerPrintingCalendarCurrentDate.getFullYear(), month = officerPrintingCalendarCurrentDate.getMonth()) {
+    officerPrintingCalendarSelectedStart = new Date(year, month, 1);
+    officerPrintingCalendarSelectedStart.setHours(0, 0, 0, 0);
+    officerPrintingCalendarSelectedEnd = new Date(year, month + 1, 0);
+    officerPrintingCalendarSelectedEnd.setHours(0, 0, 0, 0);
+}
+
+function syncOfficerPrintingCalendarSelectors() {
+    const monthSelect = document.getElementById('officerPrintingFilterCalendarMonthSelect');
+    const yearSelect = document.getElementById('officerPrintingFilterCalendarYearSelect');
+    const selectedYear = officerPrintingCalendarCurrentDate.getFullYear();
+    const currentYear = new Date().getFullYear();
+
+    if (monthSelect && monthSelect.options.length === 0) {
+        monthSelect.innerHTML = OFFICER_FINANCIAL_MONTH_NAMES.map((monthName, index) => `
+            <option value="${index}">${monthName}</option>
+        `).join('');
+    }
+
+    if (yearSelect) {
+        const startYear = 2000;
+        const endYear = Math.max(currentYear + 10, selectedYear + 1);
+        yearSelect.innerHTML = '';
+        for (let year = endYear; year >= startYear; year--) {
+            const option = document.createElement('option');
+            option.value = String(year);
+            option.textContent = String(year);
+            yearSelect.appendChild(option);
+        }
+        yearSelect.value = String(selectedYear);
+    }
+
+    if (monthSelect) {
+        monthSelect.value = String(officerPrintingCalendarCurrentDate.getMonth());
+    }
+}
+
+function setOfficerPrintingCalendarMonth(month) {
+    const parsedMonth = Number(month);
+    if (Number.isNaN(parsedMonth)) return;
+    officerPrintingCalendarCurrentDate.setMonth(parsedMonth);
+    selectEntireOfficerPrintingMonth(officerPrintingCalendarCurrentDate.getFullYear(), parsedMonth);
+    renderOfficerPrintingDateCalendar();
+}
+
+function setOfficerPrintingCalendarYear(year) {
+    const parsedYear = Number(year);
+    if (Number.isNaN(parsedYear)) return;
+    officerPrintingCalendarCurrentDate.setFullYear(parsedYear);
+    if (officerPrintingCalendarSelectedStart && officerPrintingCalendarSelectedEnd) {
+        selectEntireOfficerPrintingMonth(parsedYear, officerPrintingCalendarCurrentDate.getMonth());
+    }
+    renderOfficerPrintingDateCalendar();
+}
+
 function renderOfficerPrintingDateCalendar() {
     const year = officerPrintingCalendarCurrentDate.getFullYear();
     const month = officerPrintingCalendarCurrentDate.getMonth();
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'];
-
-    const monthYear = document.getElementById('officerPrintingFilterCalendarMonthYear');
-    if (monthYear) monthYear.textContent = `${monthNames[month]} ${year}`;
+    syncOfficerPrintingCalendarSelectors();
 
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1782,13 +1916,25 @@ function openLockerDetail(lockerCode) {
     const confirmRentalBtn = document.getElementById('lockerConfirmRentalBtn');
     const rejectBtn = document.getElementById('lockerRejectBtn');
     const clearNoticeBtn = document.getElementById('lockerClearNoticeBtn');
+    const markPaidBtn = document.getElementById('lockerMarkPaidBtn');
     const releaseBtn = document.getElementById('lockerReleaseBtn');
     const hasActiveNotice = !!(currentRequest?.upcoming_notice_sent_at || currentRequest?.overdue_notice_sent_at || currentRequest?.upcoming_notice_message || currentRequest?.overdue_notice_message);
+    const hasLockerRental = !!currentRequest?.rental_id;
+    const isPaidLockerRental = hasLockerRental && String(currentRequest?.payment_status || 'unpaid').toLowerCase() === 'paid';
     if (approveBtn) approveBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
     if (manualAssignBtn) manualAssignBtn.style.display = locker.state === 'available' ? 'inline-flex' : 'none';
     if (confirmRentalBtn) confirmRentalBtn.style.display = 'none';
     if (rejectBtn) rejectBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
     if (clearNoticeBtn) clearNoticeBtn.style.display = hasActiveNotice ? 'inline-flex' : 'none';
+    if (markPaidBtn) {
+        markPaidBtn.style.display = hasLockerRental ? 'inline-flex' : 'none';
+        markPaidBtn.classList.toggle('btn-success', isPaidLockerRental);
+        markPaidBtn.classList.toggle('btn-outline', !isPaidLockerRental);
+        markPaidBtn.disabled = isPaidLockerRental;
+        markPaidBtn.innerHTML = isPaidLockerRental
+            ? '<i class="fa-solid fa-circle-check"></i> Paid'
+            : '<i class="fa-solid fa-money-bill-wave"></i> Mark as Paid';
+    }
     if (releaseBtn) releaseBtn.style.display = (locker.state === 'occupied' || locker.state === 'overdue') ? 'inline-flex' : 'none';
 
     const upcomingNoticePreview = document.getElementById('lockerUpcomingNoticePreview');
@@ -2287,6 +2433,30 @@ async function clearLockerNotice() {
         openLockerDetail(lockerCode);
     } catch (error) {
         alert(error.message || 'Could not clear the notice.');
+    }
+}
+
+async function markLockerAssignmentPaid() {
+    if (!selectedLockerTile?.current_request?.rental_id) return;
+    const lockerCode = String(selectedLockerTile.locker_code || '');
+    try {
+        const response = await fetch('../api/igp/rentals/mark-paid.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                rental_id: selectedLockerTile.current_request.rental_id
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not mark the locker rental as paid.');
+        }
+        await loadOfficerLockerBoard(true);
+        openLockerDetail(lockerCode);
+        showToast('Locker rental marked as paid.', 'success');
+    } catch (error) {
+        showToast(error.message || 'Could not mark the locker rental as paid.', 'error');
     }
 }
 

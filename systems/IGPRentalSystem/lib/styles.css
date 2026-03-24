@@ -391,3 +391,318 @@ body {
 .main-content-double-nav {
     display: none;
 }
+
+.rental-history-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 220px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: #f7f9ff;
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.rental-history-filter-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: #ffffff;
+}
+
+.igp-filter-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 2000;
+}
+
+.igp-filter-modal-overlay.show {
+    display: flex;
+}
+
+.igp-filter-modal-content {
+    width: min(100%, 540px);
+    background: #ffffff;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.igp-month-filter-modal-content {
+    width: min(100%, 460px);
+}
+
+.igp-filter-modal-header,
+.igp-filter-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 20px 24px;
+}
+
+.igp-filter-modal-header {
+    border-bottom: 1px solid var(--border);
+}
+
+.igp-filter-modal-footer {
+    border-top: 1px solid var(--border);
+    justify-content: flex-end;
+}
+
+.igp-filter-modal-header h5 {
+    margin: 0;
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.igp-filter-modal-body {
+    padding: 24px;
+}
+
+.igp-filter-close-btn {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.igp-filter-close-btn:hover {
+    background: #f7f9ff;
+    color: var(--primary);
+}
+
+.igp-date-filter-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.igp-preset-btn {
+    flex: 1;
+    min-width: 100px;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    color: var(--text);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.igp-preset-btn:hover {
+    background: #f7f9ff;
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.igp-calendar-picker-container {
+    margin-top: 8px;
+}
+
+.igp-calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.igp-calendar-header-picker-group {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    justify-content: center;
+}
+
+.igp-calendar-header-select {
+    width: auto;
+    min-width: 140px;
+    margin-bottom: 0;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background-color: #f7f9ff;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.igp-calendar-header-year-select {
+    min-width: 110px;
+}
+
+.igp-calendar-nav-btn {
+    border: 1px solid var(--border);
+    background: #ffffff;
+    color: var(--text);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.igp-calendar-nav-btn:hover {
+    background: #f7f9ff;
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.igp-calendar-weekdays,
+.igp-calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+}
+
+.igp-calendar-weekdays {
+    margin-bottom: 8px;
+}
+
+.igp-calendar-weekdays div {
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+}
+
+.igp-calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.igp-calendar-day:hover:not(.empty) {
+    background: #f7f9ff;
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.igp-calendar-day.empty {
+    cursor: default;
+    background: transparent;
+}
+
+.igp-calendar-day.today {
+    border-color: var(--primary);
+    font-weight: 700;
+}
+
+.igp-calendar-day.selected {
+    background: rgba(0, 33, 71, 0.14);
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.igp-calendar-day.in-range {
+    background: rgba(0, 33, 71, 0.08);
+}
+
+.igp-calendar-selected-range {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    background: #f7f9ff;
+}
+
+.igp-selected-date-display {
+    font-size: 0.9rem;
+    color: var(--text);
+}
+
+.igp-selected-date-display strong {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.igp-btn-cancel,
+.igp-btn-submit {
+    border-radius: var(--radius-md);
+    padding: 10px 18px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.igp-btn-cancel {
+    border: 1px solid var(--border);
+    background: #ffffff;
+    color: var(--muted);
+}
+
+.igp-btn-submit {
+    border: none;
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.igp-btn-cancel:hover {
+    background: #f7f9ff;
+    color: var(--text);
+}
+
+.igp-btn-submit:hover {
+    background: var(--primary-hover);
+}
+
+@media (max-width: 768px) {
+    .rental-history-filter-btn {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .igp-filter-modal-overlay {
+        padding: 12px;
+    }
+
+    .igp-filter-modal-header,
+    .igp-filter-modal-body,
+    .igp-filter-modal-footer {
+        padding-inline: 16px;
+    }
+
+    .igp-calendar-header {
+        gap: 8px;
+    }
+
+    .igp-calendar-header-picker-group {
+        gap: 8px;
+    }
+
+    .igp-calendar-header-select {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .igp-calendar-selected-range {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        gap: 10px;
+    }
+}

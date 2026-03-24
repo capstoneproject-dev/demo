@@ -1262,6 +1262,7 @@ function stListLockerBoard(PDO $pdo, int $orgId): array
                 'student_number' => (string)($currentRental['student_number'] ?? ''),
                 'section' => (string)($currentRental['section'] ?? ''),
                 'status' => (string)$currentRental['status'],
+                'payment_status' => strtolower((string)($currentRental['payment_status'] ?? 'unpaid')) === 'paid' ? 'paid' : 'unpaid',
                 'rent_time' => (string)($currentRental['rent_time'] ?? ''),
                 'expected_return_time' => (string)($currentRental['expected_return_time'] ?? ''),
                 'total_cost' => (float)($currentRental['total_cost'] ?? 0),
