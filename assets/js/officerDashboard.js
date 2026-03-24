@@ -398,6 +398,10 @@ let officerFinancialSummaryFilters = { startDate: null, endDate: null };
 let officerFinancialCalendarCurrentDate = new Date();
 let officerFinancialCalendarSelectedStart = null;
 let officerFinancialCalendarSelectedEnd = null;
+let analyticsDateFilters = { startDate: null, endDate: null };
+let analyticsCalendarCurrentDate = new Date();
+let analyticsCalendarSelectedStart = null;
+let analyticsCalendarSelectedEnd = null;
 let analyticsExportRequestedFormat = null;
 let analyticsExportFilters = { startDate: null, endDate: null };
 let analyticsExportCalendarCurrentDate = new Date();
@@ -3593,27 +3597,234 @@ function viewEventsList() {
 
 // --- ANALYTICS FILTERING & CHART SYNC ---
 
-function filterAnalyticsByDate() {
-    const dateVal = document.getElementById('analytics-date').value;
-    if (dateVal) {
-        document.getElementById('filter-month').value = '';
-        syncCharts(dateVal, 'day');
+function openAnalyticsDateFilterModal() {
+    const modal = document.getElementById('analyticsDateFilterModal');
+    if (!modal) return;
+    modal.classList.add('show');
+    analyticsCalendarCurrentDate = analyticsCalendarSelectedStart
+        ? new Date(analyticsCalendarSelectedStart)
+        : new Date();
+    renderAnalyticsDateCalendar();
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAnalyticsDateFilterModal() {
+    const modal = document.getElementById('analyticsDateFilterModal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function navigateAnalyticsCalendarMonth(offset) {
+    analyticsCalendarCurrentDate.setMonth(analyticsCalendarCurrentDate.getMonth() + offset);
+    renderAnalyticsDateCalendar();
+}
+
+function selectEntireAnalyticsMonth(year = analyticsCalendarCurrentDate.getFullYear(), month = analyticsCalendarCurrentDate.getMonth()) {
+    analyticsCalendarSelectedStart = new Date(year, month, 1);
+    analyticsCalendarSelectedStart.setHours(0, 0, 0, 0);
+    analyticsCalendarSelectedEnd = new Date(year, month + 1, 0);
+    analyticsCalendarSelectedEnd.setHours(0, 0, 0, 0);
+}
+
+function syncAnalyticsCalendarSelectors() {
+    const monthSelect = document.getElementById('analyticsFilterCalendarMonthSelect');
+    const yearSelect = document.getElementById('analyticsFilterCalendarYearSelect');
+    const selectedYear = analyticsCalendarCurrentDate.getFullYear();
+    const currentYear = new Date().getFullYear();
+
+    if (monthSelect && monthSelect.options.length === 0) {
+        monthSelect.innerHTML = OFFICER_FINANCIAL_MONTH_NAMES.map((monthName, index) => `
+            <option value="${index}">${monthName}</option>
+        `).join('');
+    }
+
+    if (yearSelect) {
+        const startYear = 2000;
+        const endYear = Math.max(currentYear + 10, selectedYear + 1);
+        yearSelect.innerHTML = '';
+        for (let year = endYear; year >= startYear; year--) {
+            const option = document.createElement('option');
+            option.value = String(year);
+            option.textContent = String(year);
+            yearSelect.appendChild(option);
+        }
+        yearSelect.value = String(selectedYear);
+    }
+
+    if (monthSelect) {
+        monthSelect.value = String(analyticsCalendarCurrentDate.getMonth());
     }
 }
 
-function filterAnalyticsByMonth() {
-    const monthVal = document.getElementById('filter-month').value;
-    if (monthVal) {
-        document.getElementById('analytics-date').value = '';
-        syncCharts(monthVal, 'month');
+function setAnalyticsCalendarMonth(monthValue) {
+    const parsedMonth = Number(monthValue);
+    if (Number.isNaN(parsedMonth)) return;
+    analyticsCalendarCurrentDate.setMonth(parsedMonth);
+    selectEntireAnalyticsMonth(analyticsCalendarCurrentDate.getFullYear(), parsedMonth);
+    renderAnalyticsDateCalendar();
+}
+
+function setAnalyticsCalendarYear(yearValue) {
+    const parsedYear = Number(yearValue);
+    if (Number.isNaN(parsedYear)) return;
+    analyticsCalendarCurrentDate.setFullYear(parsedYear);
+    if (analyticsCalendarSelectedStart && analyticsCalendarSelectedEnd) {
+        selectEntireAnalyticsMonth(parsedYear, analyticsCalendarCurrentDate.getMonth());
     }
+    renderAnalyticsDateCalendar();
+}
+
+function renderAnalyticsDateCalendar() {
+    const year = analyticsCalendarCurrentDate.getFullYear();
+    const month = analyticsCalendarCurrentDate.getMonth();
+    syncAnalyticsCalendarSelectors();
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const calendarDays = document.getElementById('analyticsFilterCalendarDays');
+    if (!calendarDays) return;
+    calendarDays.innerHTML = '';
+
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarDays.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, month, day);
+        dateObj.setHours(0, 0, 0, 0);
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.textContent = day;
+
+        if (dateObj.getTime() === today.getTime()) dayCell.classList.add('today');
+        if (analyticsCalendarSelectedStart && dateObj.getTime() === analyticsCalendarSelectedStart.getTime()) dayCell.classList.add('selected');
+        if (analyticsCalendarSelectedEnd && dateObj.getTime() === analyticsCalendarSelectedEnd.getTime()) dayCell.classList.add('selected');
+        if (analyticsCalendarSelectedStart && analyticsCalendarSelectedEnd) {
+            if (dateObj >= analyticsCalendarSelectedStart && dateObj <= analyticsCalendarSelectedEnd) {
+                dayCell.classList.add('in-range');
+            }
+        }
+
+        dayCell.addEventListener('click', () => selectAnalyticsCalendarDate(dateObj));
+        calendarDays.appendChild(dayCell);
+    }
+
+    updateAnalyticsSelectedRangeDisplay();
+}
+
+function selectAnalyticsCalendarDate(date) {
+    if (!analyticsCalendarSelectedStart || (analyticsCalendarSelectedStart && analyticsCalendarSelectedEnd)) {
+        analyticsCalendarSelectedStart = date;
+        analyticsCalendarSelectedEnd = null;
+    } else if (date < analyticsCalendarSelectedStart) {
+        analyticsCalendarSelectedEnd = analyticsCalendarSelectedStart;
+        analyticsCalendarSelectedStart = date;
+    } else {
+        analyticsCalendarSelectedEnd = date;
+    }
+
+    renderAnalyticsDateCalendar();
+}
+
+function updateAnalyticsSelectedRangeDisplay() {
+    const startDisplay = document.getElementById('analyticsSelectedStartDate');
+    const endDisplay = document.getElementById('analyticsSelectedEndDate');
+
+    if (startDisplay) {
+        startDisplay.textContent = analyticsCalendarSelectedStart
+            ? analyticsCalendarSelectedStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Not selected';
+    }
+
+    if (endDisplay) {
+        endDisplay.textContent = analyticsCalendarSelectedEnd
+            ? analyticsCalendarSelectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Not selected';
+    }
+}
+
+function applyAnalyticsDatePreset(preset) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    analyticsCalendarCurrentDate = new Date(today);
+
+    let startDate;
+    let endDate;
+
+    switch (preset) {
+        case 'today':
+            startDate = new Date(today);
+            endDate = null;
+            break;
+        case 'week':
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - 7);
+            endDate = new Date(today);
+            break;
+        case 'month':
+            startDate = new Date(today);
+            startDate.setMonth(today.getMonth() - 1);
+            endDate = new Date(today);
+            break;
+        case 'all':
+        default:
+            startDate = null;
+            endDate = null;
+            break;
+    }
+
+    analyticsCalendarSelectedStart = startDate;
+    analyticsCalendarSelectedEnd = endDate;
+    updateAnalyticsSelectedRangeDisplay();
+    renderAnalyticsDateCalendar();
+}
+
+function applyAnalyticsDateFilter() {
+    analyticsDateFilters.startDate = analyticsCalendarSelectedStart
+        ? formatLocalDateKey(analyticsCalendarSelectedStart)
+        : null;
+    analyticsDateFilters.endDate = analyticsCalendarSelectedEnd
+        ? formatLocalDateKey(analyticsCalendarSelectedEnd)
+        : null;
+
+    const label = document.getElementById('analyticsDateFilterLabel');
+    if (label) {
+        if (analyticsDateFilters.startDate && !analyticsDateFilters.endDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayKey = formatLocalDateKey(today);
+            label.textContent = analyticsDateFilters.startDate === todayKey
+                ? 'Today'
+                : new Date(`${analyticsDateFilters.startDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        } else if (analyticsDateFilters.startDate || analyticsDateFilters.endDate) {
+            const start = analyticsDateFilters.startDate
+                ? new Date(`${analyticsDateFilters.startDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '...';
+            const end = analyticsDateFilters.endDate
+                ? new Date(`${analyticsDateFilters.endDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '...';
+            label.textContent = `${start} - ${end}`;
+        } else {
+            label.textContent = 'All Dates';
+        }
+    }
+
+    closeAnalyticsDateFilterModal();
+    syncCharts(null, 'range');
 }
 
 function resetAnalyticsFilters() {
-    const dateInput = document.getElementById('analytics-date');
-    const monthInput = document.getElementById('filter-month');
-    if (dateInput) dateInput.value = '';
-    if (monthInput) monthInput.value = '';
+    analyticsDateFilters = { startDate: null, endDate: null };
+    analyticsCalendarSelectedStart = null;
+    analyticsCalendarSelectedEnd = null;
+    analyticsCalendarCurrentDate = new Date();
+    const label = document.getElementById('analyticsDateFilterLabel');
+    if (label) label.textContent = 'All Dates';
     syncCharts(null, 'all');
 }
 
@@ -3831,30 +4042,45 @@ function formatAnalyticsExportDateLabel(exportRange, fallbackLabel) {
 
 function getReportMetadata(options = {}) {
     const filterYear = document.getElementById('filter-year');
-    const analyticsDate = document.getElementById('analytics-date');
-    const filterMonth = document.getElementById('filter-month');
     const exportRange = options.exportRange || null;
+    const analyticsRange = exportRange || (typeof analyticsDateFilters !== 'undefined' ? analyticsDateFilters : { startDate: null, endDate: null });
 
     const year = filterYear ? filterYear.value : 'Unknown Year';
-    const dayInput = analyticsDate ? analyticsDate.value : '';
-    const monthInput = filterMonth ? filterMonth.value : '';
+    const startDate = analyticsRange.startDate || '';
+    const endDate = analyticsRange.endDate || '';
 
     let dateLabel = `Academic Year ${year}`;
-    if (dayInput) {
-        dateLabel = new Date(`${dayInput}T00:00:00`).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-        });
-    } else if (monthInput) {
-        const dateObj = new Date(`${monthInput}-01`);
-        dateLabel = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (startDate && !endDate) {
+        const todayKey = formatLocalDateKey(new Date());
+        dateLabel = startDate === todayKey
+            ? 'Today'
+            : new Date(`${startDate}T00:00:00`).toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            });
+    } else if (startDate || endDate) {
+        const start = startDate
+            ? new Date(`${startDate}T00:00:00`).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            })
+            : '...';
+        const end = endDate
+            ? new Date(`${endDate}T00:00:00`).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            })
+            : '...';
+        dateLabel = `${start} - ${end}`;
     }
 
     return {
         year,
-        dayInput,
-        monthInput,
+        startDate,
+        endDate,
         dateLabel: formatAnalyticsExportDateLabel(exportRange, dateLabel),
         exportRange,
         organization: typeof getActiveOfficerOrgName === 'function' ? getActiveOfficerOrgName() : 'Organization'
@@ -3865,7 +4091,10 @@ function getAnalyticsExportFileStem(meta) {
     const rangeScope = meta.exportRange && (meta.exportRange.startDate || meta.exportRange.endDate)
         ? `${meta.exportRange.startDate || 'start'}_${meta.exportRange.endDate || 'end'}`
         : null;
-    const scope = rangeScope || meta.dayInput || meta.monthInput || meta.year || 'summary';
+    const analyticsScope = meta.startDate || meta.endDate
+        ? `${meta.startDate || 'start'}_${meta.endDate || 'end'}`
+        : null;
+    const scope = rangeScope || analyticsScope || meta.year || 'summary';
     const safeOrg = String(meta.organization || 'Organization').replace(/[^a-z0-9]+/gi, '_');
     const safeScope = String(scope).replace(/[^a-z0-9]+/gi, '_');
     return `${safeOrg}_Analytics_${safeScope}`;

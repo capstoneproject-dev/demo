@@ -48,10 +48,14 @@ function getOfficerAnalyticsDefaultAcademicYear() {
 }
 
 function getOfficerAnalyticsDateMode() {
-    const dateInput = document.getElementById('analytics-date')?.value || '';
-    const monthInput = document.getElementById('filter-month')?.value || '';
-    if (dateInput) return { type: 'day', value: dateInput };
-    if (monthInput) return { type: 'month', value: monthInput };
+    const range = typeof analyticsDateFilters !== 'undefined' ? analyticsDateFilters : { startDate: null, endDate: null };
+    if (range.startDate || range.endDate) {
+        return {
+            type: 'range',
+            startDate: range.startDate || null,
+            endDate: range.endDate || null,
+        };
+    }
     return { type: 'all', value: '' };
 }
 
@@ -73,20 +77,15 @@ function isOfficerAnalyticsDateMatch(date, filters) {
         return true;
     }
 
-    if (filters.mode.type === 'day') {
-        const dayKey = typeof formatLocalDateKey === 'function'
-            ? formatLocalDateKey(date)
-            : [
-                date.getFullYear(),
-                String(date.getMonth() + 1).padStart(2, '0'),
-                String(date.getDate()).padStart(2, '0'),
-            ].join('-');
-        return dayKey === filters.mode.value;
-    }
-
-    if (filters.mode.type === 'month') {
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        return monthKey === filters.mode.value;
+    if (filters.mode.type === 'range') {
+        if (filters.mode.startDate) {
+            const start = new Date(`${filters.mode.startDate}T00:00:00`);
+            if (date < start) return false;
+        }
+        if (filters.mode.endDate) {
+            const end = new Date(`${filters.mode.endDate}T23:59:59.999`);
+            if (date > end) return false;
+        }
     }
 
     return true;
@@ -470,19 +469,29 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         }));
 
     const filterSummary = (() => {
-        if (filters.mode.type === 'day') {
-            return `Showing analytics for ${new Date(`${filters.mode.value}T00:00:00`).toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-            })} (${filters.academicYear}).`;
-        }
-        if (filters.mode.type === 'month') {
-            const monthDate = new Date(`${filters.mode.value}-01T00:00:00`);
-            return `Showing analytics for ${monthDate.toLocaleDateString('en-US', {
-                month: 'long',
-                year: 'numeric',
-            })} (${filters.academicYear}).`;
+        if (filters.mode.type === 'range') {
+            if (filters.mode.startDate && !filters.mode.endDate) {
+                return `Showing analytics for ${new Date(`${filters.mode.startDate}T00:00:00`).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                })} (${filters.academicYear}).`;
+            }
+            const start = filters.mode.startDate
+                ? new Date(`${filters.mode.startDate}T00:00:00`).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                })
+                : '...';
+            const end = filters.mode.endDate
+                ? new Date(`${filters.mode.endDate}T00:00:00`).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                })
+                : '...';
+            return `Showing analytics from ${start} to ${end} (${filters.academicYear}).`;
         }
         return `Showing all available analytics for academic year ${filters.academicYear}.`;
     })();

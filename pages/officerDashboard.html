@@ -1038,6 +1038,76 @@
             </div>
         </div>
 
+        <div id="analyticsDateFilterModal" class="modal-overlay">
+            <div class="modal-content printing-history-date-filter-modal-content">
+                <div class="modal-header">
+                    <h3>Filter Analytics by Date</h3>
+                    <button class="close-modal" type="button" onclick="closeAnalyticsDateFilterModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="date-filter-presets">
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsDatePreset('today')">Today</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsDatePreset('week')">This Week</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsDatePreset('month')">This Month</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsDatePreset('all')">All Time</button>
+                    </div>
+
+                    <div class="calendar-picker-container">
+                        <div class="calendar-header">
+                            <button class="calendar-nav-btn" type="button" onclick="navigateAnalyticsCalendarMonth(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="calendar-header-picker-group">
+                                <select
+                                    id="analyticsFilterCalendarMonthSelect"
+                                    class="calendar-header-select"
+                                    aria-label="Select month"
+                                    onchange="setAnalyticsCalendarMonth(this.value)">
+                                </select>
+                                <select
+                                    id="analyticsFilterCalendarYearSelect"
+                                    class="calendar-header-select calendar-header-year-select"
+                                    aria-label="Select year"
+                                    onchange="setAnalyticsCalendarYear(this.value)">
+                                </select>
+                            </div>
+                            <button class="calendar-nav-btn" type="button" onclick="navigateAnalyticsCalendarMonth(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <div class="calendar-weekday">Sun</div>
+                            <div class="calendar-weekday">Mon</div>
+                            <div class="calendar-weekday">Tue</div>
+                            <div class="calendar-weekday">Wed</div>
+                            <div class="calendar-weekday">Thu</div>
+                            <div class="calendar-weekday">Fri</div>
+                            <div class="calendar-weekday">Sat</div>
+                        </div>
+
+                        <div class="calendar-days" id="analyticsFilterCalendarDays"></div>
+
+                        <div class="calendar-selected-range">
+                            <div class="selected-date-display">
+                                <strong>From:</strong> <span id="analyticsSelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="selected-date-display">
+                                <strong>To:</strong> <span id="analyticsSelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeAnalyticsDateFilterModal()">Cancel</button>
+                        <button type="button" class="btn-submit" onclick="applyAnalyticsDateFilter()">Apply Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="analyticsExportDateFilterModal" class="modal-overlay">
             <div class="modal-content printing-history-date-filter-modal-content">
                 <div class="modal-header">
@@ -1250,12 +1320,11 @@
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>Filter by Date</label>
-                        <input type="date" id="analytics-date" onchange="filterAnalyticsByDate()">
-                    </div>
-                    <div class="filter-group">
-                        <label>Select Month</label>
-                        <input type="month" id="filter-month" onchange="filterAnalyticsByMonth()">
+                        <label for="analyticsDateFilterBtn">Date Range</label>
+                        <button id="analyticsDateFilterBtn" class="printing-history-filter-btn" type="button" onclick="openAnalyticsDateFilterModal()">
+                            <span id="analyticsDateFilterLabel">All Dates</span>
+                            <i class="fa-solid fa-calendar-days"></i>
+                        </button>
                     </div>
                     <div class="filter-group">
                         <label style="visibility: hidden;">Reset</label>
