@@ -1513,9 +1513,207 @@ function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId): void
     }
 }
 
+function igpNormalizeFinancialServiceType(string $serviceType): string
+{
+    $normalized = strtolower(trim($serviceType));
+    if ($normalized === 'locker') {
+        return 'locker';
+    }
+    if ($normalized === 'printing') {
+        return 'printing';
+    }
+    return 'rental';
+}
+
+function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
+{
+    $hasUsersYearSection = igpColumnExists($pdo, 'users', 'year_section');
+    $hasStudentNumbersYearSection = igpColumnExists($pdo, 'student_numbers', 'year_section');
+
+    if ($hasUsersYearSection && $hasStudentNumbersYearSection) {
+        $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), NULLIF(ru.year_section, ''), '')";
+    } elseif ($hasStudentNumbersYearSection) {
+        $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), '')";
+    } elseif ($hasUsersYearSection) {
+        $renterSectionExpr = "COALESCE(NULLIF(ru.year_section, ''), '')";
+    } else {
+        $renterSectionExpr = "''";
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT r.rental_id,
+                r.service_kind,
+                r.rent_time,
+                r.expected_return_time,
+                r.actual_return_time,
+                r.total_cost,
+                r.payment_status,
+                r.status,
+                r.locker_period_type,
+                CONCAT(COALESCE(ru.first_name, ''), ' ', COALESCE(ru.last_name, '')) AS renter_name,
+                ru.student_number AS renter_student_number,
+                {$renterSectionExpr} AS renter_section,
+                CONCAT(COALESCE(pu.first_name, ''), ' ', COALESCE(pu.last_name, '')) AS processor_name,
+                COALESCE(SUM(ri.item_cost), 0) AS base_cost,
+                GROUP_CONCAT(CONCAT(i.item_name, ' [', i.barcode, ']') ORDER BY i.item_name SEPARATOR ', ') AS items_label
+         FROM rentals r
+         JOIN users ru ON ru.user_id = r.renter_user_id
+         LEFT JOIN users pu ON pu.user_id = r.processed_by_user_id
+         LEFT JOIN student_numbers sn ON sn.student_number = ru.student_number
+         JOIN rental_items ri ON ri.rental_id = r.rental_id
+         JOIN inventory_items i ON i.item_id = ri.item_id
+         WHERE r.org_id = :org_id
+         GROUP BY r.rental_id
+         ORDER BY r.rent_time DESC"
+    );
+    $stmt->execute([':org_id' => $orgId]);
+
+    $rows = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $serviceType = igpNormalizeFinancialServiceType((string)($row['service_kind'] ?? 'rental'));
+        $totalCost = (float)($row['total_cost'] ?? 0);
+        $baseCost = (float)($row['base_cost'] ?? 0);
+        if ($serviceType === 'locker') {
+            $baseCost = $totalCost;
+        }
+        $overtimeCost = $serviceType === 'rental' ? max(0, $totalCost - $baseCost) : 0.0;
+
+        $rows[] = [
+            'service_type' => $serviceType,
+            'transaction_id' => (int)$row['rental_id'],
+            'transaction_date' => (string)($row['rent_time'] ?? ''),
+            'item_label' => (string)($row['items_label'] ?? ''),
+            'customer_name' => trim((string)($row['renter_name'] ?? '')) ?: '-',
+            'customer_identifier' => trim((string)($row['renter_student_number'] ?? '')) ?: '-',
+            'customer_section' => trim((string)($row['renter_section'] ?? '')),
+            'processed_by' => trim((string)($row['processor_name'] ?? '')) ?: '-',
+            'status' => (string)($row['status'] ?? ''),
+            'payment_status' => strtolower((string)($row['payment_status'] ?? 'unpaid')) === 'paid' ? 'paid' : 'unpaid',
+            'base_cost' => $baseCost,
+            'overtime_cost' => $overtimeCost,
+            'total_cost' => $totalCost,
+            'raw_total_cost' => $totalCost,
+            'expected_return_time' => (string)($row['expected_return_time'] ?? ''),
+            'actual_return_time' => (string)($row['actual_return_time'] ?? ''),
+            'locker_period_type' => (string)($row['locker_period_type'] ?? ''),
+        ];
+    }
+
+    return $rows;
+}
+
+function igpGetPrintingFinancialRows(PDO $pdo, int $orgId): array
+{
+    $hasPrintTotalCost = igpColumnExists($pdo, 'print_jobs', 'total_cost');
+    $totalCostSelectExpr = $hasPrintTotalCost ? 'COALESCE(pj.total_cost, 0)' : '0';
+
+    $stmt = $pdo->prepare(
+        "SELECT pj.print_job_id,
+                pj.file_name,
+                pj.status,
+                pj.submitted_at,
+                pj.processing_started_at,
+                pj.ready_at,
+                pj.claimed_at,
+                {$totalCostSelectExpr} AS total_cost,
+                CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS student_name,
+                u.student_number,
+                CONCAT(COALESCE(updated_by.first_name, ''), ' ', COALESCE(updated_by.last_name, '')) AS processed_by
+         FROM print_jobs pj
+         JOIN users u ON u.user_id = pj.user_id
+         LEFT JOIN users updated_by ON updated_by.user_id = pj.last_updated_by_user_id
+         WHERE pj.org_id = :org_id
+         ORDER BY pj.submitted_at DESC, pj.print_job_id DESC"
+    );
+    $stmt->execute([':org_id' => $orgId]);
+
+    $rows = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $status = strtolower((string)($row['status'] ?? 'queued'));
+        $totalCost = (float)($row['total_cost'] ?? 0);
+        $rows[] = [
+            'service_type' => 'printing',
+            'transaction_id' => (int)$row['print_job_id'],
+            'transaction_date' => (string)($row['submitted_at'] ?? ''),
+            'item_label' => trim((string)($row['file_name'] ?? '')) ?: 'Print Job',
+            'customer_name' => trim((string)($row['student_name'] ?? '')) ?: '-',
+            'customer_identifier' => trim((string)($row['student_number'] ?? '')) ?: '-',
+            'customer_section' => '',
+            'processed_by' => trim((string)($row['processed_by'] ?? '')) ?: '-',
+            'status' => $status,
+            'payment_status' => $status === 'claimed' ? 'paid' : 'unpaid',
+            'base_cost' => $totalCost,
+            'overtime_cost' => 0.0,
+            'total_cost' => $totalCost,
+            'raw_total_cost' => $totalCost,
+            'expected_return_time' => '',
+            'actual_return_time' => (string)($row['claimed_at'] ?? ''),
+            'locker_period_type' => '',
+            'processing_started_at' => (string)($row['processing_started_at'] ?? ''),
+            'ready_at' => (string)($row['ready_at'] ?? ''),
+            'claimed_at' => (string)($row['claimed_at'] ?? ''),
+        ];
+    }
+
+    return $rows;
+}
+
+function igpApplyFinancialSummaryFilters(array $rows, array $filters = []): array
+{
+    $serviceType = igpNormalizeFinancialServiceType((string)($filters['service_type'] ?? ''));
+    $rawServiceType = trim((string)($filters['service_type'] ?? ''));
+    $paymentStatus = strtolower(trim((string)($filters['payment_status'] ?? '')));
+    $dateFrom = trim((string)($filters['date_from'] ?? ''));
+    $dateTo = trim((string)($filters['date_to'] ?? ''));
+    $query = strtolower(trim((string)($filters['q'] ?? '')));
+
+    return array_values(array_filter($rows, static function (array $row) use ($rawServiceType, $serviceType, $paymentStatus, $dateFrom, $dateTo, $query): bool {
+        if ($rawServiceType !== '' && ($row['service_type'] ?? '') !== $serviceType) {
+            return false;
+        }
+        if ($paymentStatus !== '' && strtolower((string)($row['payment_status'] ?? '')) !== $paymentStatus) {
+            return false;
+        }
+
+        $transactionDate = trim((string)($row['transaction_date'] ?? ''));
+        if ($dateFrom !== '' && $transactionDate !== '' && substr($transactionDate, 0, 10) < $dateFrom) {
+            return false;
+        }
+        if ($dateTo !== '' && $transactionDate !== '' && substr($transactionDate, 0, 10) > $dateTo) {
+            return false;
+        }
+
+        if ($query !== '') {
+            $haystack = strtolower(implode(' ', [
+                (string)($row['item_label'] ?? ''),
+                (string)($row['customer_name'] ?? ''),
+                (string)($row['customer_identifier'] ?? ''),
+                (string)($row['processed_by'] ?? ''),
+                (string)($row['status'] ?? ''),
+                (string)($row['service_type'] ?? ''),
+            ]));
+            if (strpos($haystack, $query) === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }));
+}
+
 function igpGetFinancialSummary(PDO $pdo, int $orgId, array $filters = []): array
 {
-    $rows = igpGetRentals($pdo, $orgId, $filters);
+    $rows = array_merge(
+        igpGetRentalFinancialRows($pdo, $orgId),
+        igpGetPrintingFinancialRows($pdo, $orgId)
+    );
+
+    usort($rows, static function (array $a, array $b): int {
+        return strcmp((string)($b['transaction_date'] ?? ''), (string)($a['transaction_date'] ?? ''));
+    });
+
+    $rows = igpApplyFinancialSummaryFilters($rows, $filters);
+
     $summary = [
         'total_transactions' => 0,
         'paid_transactions' => 0,
@@ -1525,10 +1723,10 @@ function igpGetFinancialSummary(PDO $pdo, int $orgId, array $filters = []): arra
         'items' => $rows,
     ];
 
-    foreach ($rows as $r) {
+    foreach ($rows as $row) {
         $summary['total_transactions']++;
-        $cost = (float)$r['total_cost'];
-        if ($r['payment_status'] === 'paid') {
+        $cost = (float)($row['total_cost'] ?? 0);
+        if (($row['payment_status'] ?? 'unpaid') === 'paid') {
             $summary['paid_transactions']++;
             $summary['total_revenue'] += $cost;
         } else {
@@ -1536,6 +1734,7 @@ function igpGetFinancialSummary(PDO $pdo, int $orgId, array $filters = []): arra
             $summary['total_unpaid'] += $cost;
         }
     }
+
     return $summary;
 }
 

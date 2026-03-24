@@ -265,6 +265,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
         if (sbText) sbText.innerText = 'Light Mode';
     }
+
+    if (window.location.hash === '#tracker-financial-summary') {
+        navigate('tracker');
+        switchTrackerSubView('financial-summary');
+    }
 });
 
 // --- NAVIGATION LOGIC ---
@@ -338,6 +343,7 @@ let officerPrintingCalendarSelectedStart = null;
 let officerPrintingCalendarSelectedEnd = null;
 let officerPrintingEnabled = true;
 let officerLockerEnabled = false;
+let officerFinancialSummaryData = [];
 let officerLockerBoard = [];
 let selectedLockerTile = null;
 let lockerAssignableStudents = [];
@@ -355,19 +361,13 @@ function setOfficerTrackerPrintingAccess(printingEnabled) {
     officerLockerEnabled = isOfficerLockerEnabled();
 
     const trackerLayout = document.getElementById('trackerLayout');
-    const trackerSidebar = document.getElementById('trackerSidebar');
     const printingBtn = document.getElementById('trackerPrintingBtn');
     const lockerBtn = document.getElementById('trackerLockerBtn');
     const printingView = document.getElementById('tracker-printing-view');
     const lockerView = document.getElementById('tracker-lockers-view');
-    const rentalsView = document.getElementById('tracker-rentals-view');
-    const hasExtraTrackerViews = officerPrintingEnabled || officerLockerEnabled;
 
     if (trackerLayout) {
-        trackerLayout.classList.toggle('rentals-only', !hasExtraTrackerViews);
-    }
-    if (trackerSidebar) {
-        trackerSidebar.hidden = !hasExtraTrackerViews;
+        trackerLayout.classList.remove('rentals-only');
     }
     if (printingBtn) {
         printingBtn.hidden = !officerPrintingEnabled;
@@ -387,10 +387,6 @@ function setOfficerTrackerPrintingAccess(printingEnabled) {
     }
     if (!officerLockerEnabled && currentTrackerSubView === 'lockers') {
         currentTrackerSubView = 'rentals';
-    }
-
-    if (!hasExtraTrackerViews && rentalsView) {
-        rentalsView.classList.add('active');
     }
 }
 
@@ -430,8 +426,328 @@ function switchTrackerSubView(viewId, button = null) {
     if (viewId === 'printing') {
         showOfficerPrintingQueueView();
         loadOfficerPrintingQueue().catch((error) => console.error(error));
+    } else if (viewId === 'financial-summary') {
+        loadOfficerFinancialSummary().catch((error) => console.error(error));
     } else if (viewId === 'lockers') {
         loadOfficerLockerBoard().catch((error) => console.error(error));
+    }
+}
+
+function formatOfficerPeso(value) {
+    return `P${Number(value || 0).toFixed(2)}`;
+}
+
+function getOfficerFinancialServiceLabel(serviceType) {
+    const normalized = String(serviceType || '').toLowerCase();
+    if (normalized === 'locker') return 'Locker';
+    if (normalized === 'printing') return 'Printing';
+    return 'Rental';
+}
+
+function getOfficerFinancialStatusLabel(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'ready_to_claim') return 'Ready to Claim';
+    if (normalized === 'locker_active') return 'Locker Active';
+    if (normalized === 'locker_pending') return 'Locker Pending';
+    if (normalized === 'locker_released') return 'Locker Released';
+    if (normalized === 'locker_overdue') return 'Locker Overdue';
+    return normalized
+        ? normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+        : 'Unknown';
+}
+
+function formatOfficerFinancialDate(value) {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return parsed.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+    });
+}
+
+function getOfficerFinancialDateValue(item) {
+    return item?.transaction_date || item?.transaction_datetime || item?.submitted_at || '';
+}
+
+function getOfficerFinancialItemDisplayLabel(item) {
+    if (String(item?.service_type || '').toLowerCase() === 'printing') {
+        return String(item?.customer_name || '').trim() || String(item?.item_label || '').trim() || '-';
+    }
+    return String(item?.item_label || '').trim() || '-';
+}
+
+function getOfficerFinancialSummaryFilters() {
+    return {
+        service: document.getElementById('financialSummaryServiceFilter')?.value || '',
+        item: document.getElementById('financialSummaryItemFilter')?.value || '',
+        startDate: document.getElementById('financialSummaryStartDate')?.value || '',
+        endDate: document.getElementById('financialSummaryEndDate')?.value || '',
+        payment: document.getElementById('financialSummaryPaymentFilter')?.value || '',
+    };
+}
+
+function matchesOfficerFinancialDateFilter(item, startDate, endDate) {
+    const dateValue = getOfficerFinancialDateValue(item);
+    const parsedDate = dateValue ? new Date(dateValue) : null;
+    if ((startDate || endDate) && !(parsedDate instanceof Date && !Number.isNaN(parsedDate.getTime()))) {
+        return false;
+    }
+    if (startDate && !endDate) {
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${startDate}T23:59:59`);
+        return parsedDate >= start && parsedDate <= end;
+    }
+    if (!startDate && endDate) {
+        const start = new Date(`${endDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59`);
+        return parsedDate >= start && parsedDate <= end;
+    }
+    if (startDate) {
+        const start = new Date(`${startDate}T00:00:00`);
+        if (parsedDate < start) return false;
+    }
+    if (endDate) {
+        const end = new Date(`${endDate}T23:59:59`);
+        if (parsedDate > end) return false;
+    }
+    return true;
+}
+
+function populateOfficerFinancialItemFilter(items) {
+    const select = document.getElementById('financialSummaryItemFilter');
+    if (!select) return;
+
+    const current = select.value || '';
+    const filters = getOfficerFinancialSummaryFilters();
+
+    const labels = Array.from(new Set(
+        (items || [])
+            .filter((item) => !filters.service || String(item.service_type || '').toLowerCase() === filters.service)
+            .filter((item) => !filters.payment || String(item.payment_status || '').toLowerCase() === filters.payment)
+            .filter((item) => matchesOfficerFinancialDateFilter(item, filters.startDate, filters.endDate))
+            .map((item) => getOfficerFinancialItemDisplayLabel(item))
+            .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b));
+
+    select.innerHTML = '<option value="">All Items</option>' + labels
+        .map((label) => `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`)
+        .join('');
+    select.value = labels.includes(current) ? current : '';
+}
+
+function getFilteredOfficerFinancialSummaryItems() {
+    const filters = getOfficerFinancialSummaryFilters();
+    return officerFinancialSummaryData.filter((item) => {
+        const serviceType = String(item.service_type || '').toLowerCase();
+        const paymentStatus = String(item.payment_status || '').toLowerCase();
+        const itemLabel = getOfficerFinancialItemDisplayLabel(item);
+        if (filters.service && serviceType !== filters.service) return false;
+        if (filters.item && itemLabel !== filters.item) return false;
+        if (filters.payment && paymentStatus !== filters.payment) return false;
+        if (!matchesOfficerFinancialDateFilter(item, filters.startDate, filters.endDate)) {
+            return false;
+        }
+        return true;
+    });
+}
+
+function setOfficerFinancialSummaryText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+function renderOfficerFinancialSummary() {
+    populateOfficerFinancialItemFilter(officerFinancialSummaryData);
+
+    const rows = getFilteredOfficerFinancialSummaryItems();
+    const filters = getOfficerFinancialSummaryFilters();
+    const transactionsBody = document.getElementById('financialSummaryTransactionsTable');
+    const monthlyBody = document.getElementById('financialSummaryMonthlyTable');
+
+    let totalRevenue = 0;
+    let totalUnpaid = 0;
+    let paidTransactions = 0;
+    let unpaidTransactions = 0;
+    let highest = null;
+    let lowest = null;
+    const dateValues = [];
+    const monthlyMap = new Map();
+
+    rows.forEach((item) => {
+        const totalCost = Number(item.total_cost || 0);
+        const paymentStatus = String(item.payment_status || '').toLowerCase();
+        const dateValue = getOfficerFinancialDateValue(item);
+        const parsedDate = dateValue ? new Date(dateValue) : null;
+
+        if (paymentStatus === 'paid') {
+            totalRevenue += totalCost;
+            paidTransactions += 1;
+        } else {
+            totalUnpaid += totalCost;
+            unpaidTransactions += 1;
+        }
+
+        if (!highest || totalCost > Number(highest.total_cost || 0)) highest = item;
+        if (!lowest || totalCost < Number(lowest.total_cost || 0)) lowest = item;
+
+        if (parsedDate instanceof Date && !Number.isNaN(parsedDate.getTime())) {
+            dateValues.push(parsedDate);
+            const monthKey = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}`;
+            if (!monthlyMap.has(monthKey)) {
+                monthlyMap.set(monthKey, {
+                    revenue: 0,
+                    unpaid: 0,
+                    transactions: 0,
+                    paid: 0,
+                    unpaidCount: 0,
+                });
+            }
+            const monthBucket = monthlyMap.get(monthKey);
+            monthBucket.transactions += 1;
+            if (paymentStatus === 'paid') {
+                monthBucket.revenue += totalCost;
+                monthBucket.paid += 1;
+            } else {
+                monthBucket.unpaid += totalCost;
+                monthBucket.unpaidCount += 1;
+            }
+        }
+    });
+
+    setOfficerFinancialSummaryText('financialSummaryTotalRevenue', formatOfficerPeso(totalRevenue));
+    setOfficerFinancialSummaryText('financialSummaryTotalUnpaid', formatOfficerPeso(totalUnpaid));
+    setOfficerFinancialSummaryText('financialSummaryTotalTransactions', String(rows.length));
+    setOfficerFinancialSummaryText('financialSummaryPaidTransactions', String(paidTransactions));
+    setOfficerFinancialSummaryText('financialSummaryUnpaidTransactions', String(unpaidTransactions));
+    setOfficerFinancialSummaryText('financialSummaryAverageValue', formatOfficerPeso(paidTransactions ? totalRevenue / paidTransactions : 0));
+    setOfficerFinancialSummaryText('financialSummaryHighestValue', formatOfficerPeso(highest ? highest.total_cost : 0));
+    setOfficerFinancialSummaryText(
+        'financialSummaryHighestMeta',
+        highest ? `${highest.customer_name || '-'} | ${highest.item_label || '-'}` : ''
+    );
+    setOfficerFinancialSummaryText('financialSummaryLowestValue', formatOfficerPeso(lowest ? lowest.total_cost : 0));
+    setOfficerFinancialSummaryText(
+        'financialSummaryLowestMeta',
+        lowest ? `${lowest.customer_name || '-'} | ${lowest.item_label || '-'}` : ''
+    );
+
+    if (filters.startDate && !filters.endDate) {
+        setOfficerFinancialSummaryText(
+            'financialSummaryDateRange',
+            formatOfficerFinancialDate(`${filters.startDate}T00:00:00`)
+        );
+    } else if (!filters.startDate && filters.endDate) {
+        setOfficerFinancialSummaryText(
+            'financialSummaryDateRange',
+            formatOfficerFinancialDate(`${filters.endDate}T00:00:00`)
+        );
+    } else if (filters.startDate && filters.endDate) {
+        setOfficerFinancialSummaryText(
+            'financialSummaryDateRange',
+            `${formatOfficerFinancialDate(`${filters.startDate}T00:00:00`)} - ${formatOfficerFinancialDate(`${filters.endDate}T00:00:00`)}`
+        );
+    } else if (dateValues.length) {
+        dateValues.sort((a, b) => a - b);
+        setOfficerFinancialSummaryText(
+            'financialSummaryDateRange',
+            `${formatOfficerFinancialDate(dateValues[0])} - ${formatOfficerFinancialDate(dateValues[dateValues.length - 1])}`
+        );
+    } else {
+        setOfficerFinancialSummaryText('financialSummaryDateRange', '-');
+    }
+
+    if (transactionsBody) {
+        if (!rows.length) {
+            transactionsBody.innerHTML = '<tr><td colspan="10" class="financial-empty-state">No transactions matched the current filters.</td></tr>';
+        } else {
+            const sortedRows = [...rows].sort((a, b) => {
+                const aTime = new Date(getOfficerFinancialDateValue(a) || 0).getTime();
+                const bTime = new Date(getOfficerFinancialDateValue(b) || 0).getTime();
+                return bTime - aTime;
+            });
+            transactionsBody.innerHTML = sortedRows.map((item) => `
+                <tr>
+                    <td>${escapeHtml(formatOfficerFinancialDate(getOfficerFinancialDateValue(item)))}</td>
+                    <td><span class="financial-service-badge ${escapeHtml(String(item.service_type || '').toLowerCase())}">${escapeHtml(getOfficerFinancialServiceLabel(item.service_type))}</span></td>
+                    <td>${escapeHtml(getOfficerFinancialItemDisplayLabel(item))}</td>
+                    <td>${escapeHtml(item.customer_name || '-')}<br><small style="color:var(--muted);">${escapeHtml(item.customer_identifier || '-')}</small></td>
+                    <td>${escapeHtml(item.processed_by || '-')}</td>
+                    <td>${escapeHtml(formatOfficerPeso(item.base_cost || 0))}</td>
+                    <td>${escapeHtml(formatOfficerPeso(item.overtime_cost || 0))}</td>
+                    <td>${escapeHtml(formatOfficerPeso(item.total_cost || 0))}</td>
+                    <td>${escapeHtml(getOfficerFinancialStatusLabel(item.status))}</td>
+                    <td><span class="financial-payment-badge ${escapeHtml(String(item.payment_status || '').toLowerCase())}">${escapeHtml(String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid')}</span></td>
+                </tr>
+            `).join('');
+        }
+    }
+
+    if (monthlyBody) {
+        const monthlyRows = Array.from(monthlyMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        if (!monthlyRows.length) {
+            monthlyBody.innerHTML = '<tr><td colspan="6" class="financial-empty-state">No monthly data available for the selected filters.</td></tr>';
+        } else {
+            monthlyBody.innerHTML = monthlyRows.map(([monthKey, month]) => `
+                <tr>
+                    <td>${escapeHtml(monthKey)}</td>
+                    <td>${escapeHtml(formatOfficerPeso(month.revenue))}</td>
+                    <td>${escapeHtml(formatOfficerPeso(month.unpaid))}</td>
+                    <td>${month.transactions}</td>
+                    <td>${month.paid}</td>
+                    <td>${month.unpaidCount}</td>
+                </tr>
+            `).join('');
+        }
+    }
+}
+
+function clearOfficerFinancialSummaryFilters() {
+    const serviceFilter = document.getElementById('financialSummaryServiceFilter');
+    const itemFilter = document.getElementById('financialSummaryItemFilter');
+    const startDate = document.getElementById('financialSummaryStartDate');
+    const endDate = document.getElementById('financialSummaryEndDate');
+    const paymentFilter = document.getElementById('financialSummaryPaymentFilter');
+    if (serviceFilter) serviceFilter.value = '';
+    if (itemFilter) itemFilter.value = '';
+    if (startDate) startDate.value = '';
+    if (endDate) endDate.value = '';
+    if (paymentFilter) paymentFilter.value = '';
+    renderOfficerFinancialSummary();
+}
+
+function initializeOfficerFinancialSummaryDefaultDate() {
+    const startDate = document.getElementById('financialSummaryStartDate');
+    const endDate = document.getElementById('financialSummaryEndDate');
+    const today = new Date();
+    const todayValue = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, '0'),
+        String(today.getDate()).padStart(2, '0'),
+    ].join('-');
+
+    if (startDate && !startDate.value) {
+        startDate.value = todayValue;
+    }
+    if (endDate && endDate.value) {
+        endDate.value = '';
+    }
+}
+
+async function loadOfficerFinancialSummary(force = false) {
+    try {
+        const data = await window.igpApi.getFinancialSummary({});
+        officerFinancialSummaryData = Array.isArray(data.items) ? data.items : [];
+        renderOfficerFinancialSummary();
+        return officerFinancialSummaryData;
+    } catch (error) {
+        if (force) {
+            console.error('[loadOfficerFinancialSummary]', error);
+        }
+        officerFinancialSummaryData = [];
+        renderOfficerFinancialSummary();
+        throw error;
     }
 }
 
@@ -2612,6 +2928,7 @@ function returnItem(index) {
 function viewAllRentals() {
     // 1. Switch to the Services Tracker tab
     navigate('tracker');
+    switchTrackerSubView('rentals');
 
     // 2. Find the iframe
     const trackerFrame = document.querySelector('#tracker iframe');
@@ -2885,6 +3202,7 @@ if (themeBtn) {
 window.addEventListener('DOMContentLoaded', () => {
     setDate();
     initTrackerSidebarBehavior();
+    initializeOfficerFinancialSummaryDefaultDate();
     renderRentals();
     renderDocs();
     renderRecentDocs();
@@ -2894,6 +3212,7 @@ window.addEventListener('DOMContentLoaded', () => {
     loadDocsFromApi();
     loadRepoFromApi();
     loadOfficerPrintingQueue().catch(() => {});
+    loadOfficerFinancialSummary().catch(() => {});
     // Initialize repository counts
     if (typeof updateFolderCounts === 'function') {
         updateFolderCounts();

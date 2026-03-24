@@ -10,7 +10,7 @@
     /* Gold */
     --accent-hover: #d4b128;
     /* Darker Gold */
-    --bg: #f3f6fb;
+    --bg: #ffffff;
     /* Dashboard Background */
     --card-bg: #ffffff;
     --text: #0f172a;
@@ -383,6 +383,7 @@ body {
     margin-top: 100px !important;
     /* Enough space for the slightly taller single navbar */
     padding-bottom: 40px;
+    background-color: #ffffff;
 }
 
 /* Remove old sub-navbar styles if present to keep file clean */
