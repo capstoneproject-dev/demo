@@ -208,54 +208,141 @@ function groupOfficerAnalyticsFinancialRows(rows, modeType) {
         .map(([, value]) => value);
 }
 
-function getOfficerAnalyticsComparisonRevenue(financialRows, filters) {
-    let currentStart = filters.yearRange.start;
-    let currentEnd = filters.yearRange.end;
-
-    if (filters.mode.type === 'day' && filters.mode.value) {
-        currentStart = new Date(`${filters.mode.value}T00:00:00`);
-        currentEnd = new Date(`${filters.mode.value}T23:59:59.999`);
-    } else if (filters.mode.type === 'month' && filters.mode.value) {
-        const [year, month] = filters.mode.value.split('-').map(Number);
-        currentStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
-        currentEnd = new Date(year, month, 0, 23, 59, 59, 999);
-    }
-
-    if (!(currentStart instanceof Date) || Number.isNaN(currentStart.getTime())
-        || !(currentEnd instanceof Date) || Number.isNaN(currentEnd.getTime())) {
-        return { total: 0, label: 'No previous period data' };
-    }
-
-    let previousStart;
-    let previousEnd;
-
-    if (filters.mode.type === 'day') {
-        previousStart = new Date(currentStart);
-        previousStart.setDate(previousStart.getDate() - 1);
-        previousEnd = new Date(currentEnd);
-        previousEnd.setDate(previousEnd.getDate() - 1);
-    } else if (filters.mode.type === 'month') {
-        previousStart = new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1, 0, 0, 0, 0);
-        previousEnd = new Date(currentStart.getFullYear(), currentStart.getMonth(), 0, 23, 59, 59, 999);
-    } else {
-        previousStart = new Date(currentStart.getFullYear() - 1, 7, 1, 0, 0, 0, 0);
-        previousEnd = new Date(currentEnd.getFullYear() - 1, 6, 31, 23, 59, 59, 999);
-    }
-
-    const total = financialRows.reduce((sum, item) => {
+function getOfficerAnalyticsRevenueGrowthBreakdown(financialRows, filters) {
+    const scopedRows = financialRows.filter((item) => {
         const date = parseOfficerAnalyticsDate(
             item?.transaction_date || item?.transaction_datetime || item?.submitted_at
         );
-        if (!date || date < previousStart || date > previousEnd) return sum;
-        if (String(item.payment_status || '').toLowerCase() !== 'paid') return sum;
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
+
+        if (filters.exportRange && (filters.exportRange.startDate || filters.exportRange.endDate)) {
+            if (filters.exportRange.startDate) {
+                const start = new Date(`${filters.exportRange.startDate}T00:00:00`);
+                if (date < start) return false;
+            }
+            if (filters.exportRange.endDate) {
+                const end = new Date(`${filters.exportRange.endDate}T23:59:59.999`);
+                if (date > end) return false;
+            }
+            return true;
+        }
+
+        if (filters.yearRange.start && date < filters.yearRange.start) return false;
+        if (filters.yearRange.end && date > filters.yearRange.end) return false;
+        return true;
+    });
+
+    const paidRows = scopedRows.filter((item) => String(item.payment_status || '').toLowerCase() === 'paid');
+    const latestDate = paidRows.reduce((latest, item) => {
+        const date = parseOfficerAnalyticsDate(
+            item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+        );
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return latest;
+        return !latest || date > latest ? date : latest;
+    }, null);
+
+    const anchorDate = latestDate || new Date();
+    anchorDate.setHours(23, 59, 59, 999);
+
+    const sumRange = (start, end) => paidRows.reduce((sum, item) => {
+        const date = parseOfficerAnalyticsDate(
+            item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+        );
+        if (!date || date < start || date > end) return sum;
         return sum + Number(item.total_cost || 0);
     }, 0);
 
-    const label = filters.mode.type === 'day'
-        ? 'vs previous day'
-        : (filters.mode.type === 'month' ? 'vs previous month' : 'vs previous academic year');
+    const buildGrowth = (days, label) => {
+        const currentEnd = new Date(anchorDate);
+        const currentStart = new Date(anchorDate);
+        currentStart.setDate(currentStart.getDate() - (days - 1));
+        currentStart.setHours(0, 0, 0, 0);
 
-    return { total, label };
+        const previousEnd = new Date(currentStart);
+        previousEnd.setMilliseconds(-1);
+        const previousStart = new Date(previousEnd);
+        previousStart.setDate(previousStart.getDate() - (days - 1));
+        previousStart.setHours(0, 0, 0, 0);
+
+        const currentTotal = sumRange(currentStart, currentEnd);
+        const previousTotal = sumRange(previousStart, previousEnd);
+        const delta = previousTotal > 0
+            ? ((currentTotal - previousTotal) / previousTotal) * 100
+            : (currentTotal > 0 ? 100 : 0);
+
+        return {
+            label,
+            value: delta,
+            currentTotal,
+            previousTotal,
+        };
+    };
+
+    return [
+        buildGrowth(7, 'vs last week'),
+        buildGrowth(30, 'vs last month'),
+        buildGrowth(365, 'vs last year'),
+    ];
+}
+
+function formatOfficerAnalyticsRevenueTrend(growthBreakdown) {
+    return (growthBreakdown || []).map((item) => {
+        const sign = item.value > 0 ? '+' : '';
+        return `${sign}${item.value.toFixed(1)}% ${item.label}`;
+    }).join(' | ');
+}
+
+function getOfficerAnalyticsRetentionLevel(events) {
+    if (!Array.isArray(events) || !events.length) return 'Low';
+
+    const participantCounts = events
+        .map((event) => Number(event.participants || 0))
+        .filter((value) => Number.isFinite(value) && value >= 0);
+    if (!participantCounts.length) return 'Low';
+
+    const average = participantCounts.reduce((sum, value) => sum + value, 0) / participantCounts.length;
+    const variance = participantCounts.reduce((sum, value) => {
+        const diff = value - average;
+        return sum + (diff * diff);
+    }, 0) / participantCounts.length;
+    const standardDeviation = Math.sqrt(variance);
+    const consistencyRatio = average > 0 ? standardDeviation / average : 1;
+
+    const chronological = events
+        .slice()
+        .sort((a, b) => (parseOfficerAnalyticsDate(a.date)?.getTime() || 0) - (parseOfficerAnalyticsDate(b.date)?.getTime() || 0))
+        .map((event) => Number(event.participants || 0))
+        .filter((value) => Number.isFinite(value) && value >= 0);
+    const recentSample = chronological.slice(-3);
+    const baselineSample = chronological.slice(0, Math.min(3, chronological.length));
+    const recentAverage = recentSample.length
+        ? recentSample.reduce((sum, value) => sum + value, 0) / recentSample.length
+        : average;
+    const baselineAverage = baselineSample.length
+        ? baselineSample.reduce((sum, value) => sum + value, 0) / baselineSample.length
+        : average;
+    const momentumRatio = baselineAverage > 0 ? recentAverage / baselineAverage : (recentAverage > 0 ? 1 : 0);
+
+    let score = 0;
+    if (average >= 120) score += 3;
+    else if (average >= 80) score += 2;
+    else if (average >= 45) score += 1;
+
+    if (consistencyRatio <= 0.2) score += 3;
+    else if (consistencyRatio <= 0.35) score += 2;
+    else if (consistencyRatio <= 0.5) score += 1;
+    else if (consistencyRatio >= 0.8) score -= 1;
+
+    if (momentumRatio >= 1.15) score += 2;
+    else if (momentumRatio >= 0.95) score += 1;
+    else if (momentumRatio < 0.75) score -= 2;
+    else if (momentumRatio < 0.9) score -= 1;
+
+    if (participantCounts.length < 4) score -= 1;
+
+    if (score >= 6) return 'High';
+    if (score >= 3) return 'Medium';
+    return 'Low';
 }
 
 function getOfficerAnalyticsSnapshot(overrides = {}) {
@@ -289,44 +376,13 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         return sum + Number(item.total_cost || 0);
     }, 0);
 
-    const comparison = getOfficerAnalyticsComparisonRevenue(source.financial, filters);
-    let revenueTrend = 'No previous period data';
-    if (comparison.total > 0) {
-        const delta = ((totalRevenue - comparison.total) / comparison.total) * 100;
-        const icon = delta >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
-        const color = delta >= 0 ? '#059669' : '#dc2626';
-        revenueTrend = `<span style="color: ${color};"><i class="fa-solid ${icon}"></i> ${Math.abs(delta).toFixed(1)}% ${comparison.label}</span>`;
-    } else if (totalRevenue > 0) {
-        revenueTrend = `<span style="color: #059669;"><i class="fa-solid fa-arrow-up"></i> New revenue recorded</span>`;
-    }
+    const revenueGrowthBreakdown = getOfficerAnalyticsRevenueGrowthBreakdown(source.financial, filters);
+    const revenueTrend = formatOfficerAnalyticsRevenueTrend(revenueGrowthBreakdown);
 
     const participationTotal = filteredEvents.reduce((sum, event) => sum + Number(event.participants || 0), 0);
     const participationAverage = filteredEvents.length ? Math.round(participationTotal / filteredEvents.length) : 0;
 
-    // Calculate retention level based on average participation and consistency
-    let retentionLevel = 'Low';
-    if (filteredEvents.length > 0) {
-        // Calculate consistency (how close events are to the average)
-        const variance = filteredEvents.reduce((sum, event) => {
-            const diff = Number(event.participants || 0) - participationAverage;
-            return sum + (diff * diff);
-        }, 0) / filteredEvents.length;
-        const standardDeviation = Math.sqrt(variance);
-        const consistencyRatio = participationAverage > 0 ? standardDeviation / participationAverage : 1;
-
-        // Determine retention level
-        if (participationAverage >= 100 && consistencyRatio < 0.5) {
-            retentionLevel = 'High';
-        } else if (participationAverage >= 80 || (participationAverage >= 50 && consistencyRatio < 0.6)) {
-            retentionLevel = 'High';
-        } else if (participationAverage >= 50 || (participationAverage >= 30 && consistencyRatio < 0.7)) {
-            retentionLevel = 'Medium';
-        } else if (participationAverage >= 30) {
-            retentionLevel = 'Medium';
-        } else {
-            retentionLevel = 'Low';
-        }
-    }
+    const retentionLevel = getOfficerAnalyticsRetentionLevel(filteredEvents);
 
     const rentalCounts = { active: 0, pending: 0, overdue: 0 };
     filteredRentals.forEach((item) => {
@@ -419,6 +475,7 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         },
         summaries: {
             revenueTrend,
+            revenueGrowthBreakdown,
             participation: retentionLevel,
             filterSummary,
         },
@@ -458,17 +515,23 @@ function updateOfficerAnalyticsCardText(snapshot) {
                 : `₱${snapshot.totals.revenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
         if (statValues[1]) {
-            // Parse growth from summary like "+8.5% Growth"
-            const growthMatch = snapshot.summaries.revenueTrend.match(/([\+\-]?\d+\.?\d*)%/);
-            if (growthMatch) {
-                const growthValue = parseFloat(growthMatch[1]);
-                const icon = growthValue >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
-                const colorClass = growthValue >= 0 ? 'stat-positive' : 'stat-negative';
-                statValues[1].className = `stat-value ${colorClass}`;
-                statValues[1].innerHTML = `<i class="fa-solid ${icon}"></i> ${growthMatch[1]}%`;
-            } else {
-                statValues[1].innerHTML = snapshot.summaries.revenueTrend;
-            }
+            const growthItems = Array.isArray(snapshot.summaries.revenueGrowthBreakdown)
+                ? snapshot.summaries.revenueGrowthBreakdown
+                : [];
+            statValues[1].className = 'stat-value';
+            statValues[1].innerHTML = growthItems.map((item) => {
+                const icon = item.value >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+                const color = item.value >= 0 ? '#059669' : '#dc2626';
+                const sign = item.value > 0 ? '+' : '';
+                return `
+                    <div style="display:flex; flex-direction:column; align-items:center; line-height:1.15; margin-bottom:6px;">
+                        <span style="color:${color}; font-weight:700;"><i class="fa-solid ${icon}"></i> ${sign}${item.value.toFixed(1)}%</span>
+                        <span style="font-size:0.72rem; font-weight:500; color:var(--muted); margin-top:4px;">
+                            ${item.label}
+                        </span>
+                    </div>
+                `;
+            }).join('');
         }
     }
 
@@ -762,6 +825,46 @@ function generateMockAnalyticsData() {
     const now = new Date();
     const currentYear = now.getFullYear();
     const academicYear = now.getMonth() >= 7 ? currentYear : currentYear - 1;
+    const studentFirstNames = ['Aira', 'Miguel', 'Sofia', 'Liam', 'Nicole', 'Daniel', 'Kyla', 'Ethan', 'Pat', 'Rica', 'Paolo', 'Andrea'];
+    const studentLastNames = ['Santos', 'Reyes', 'Cruz', 'Garcia', 'Mendoza', 'Flores', 'Castro', 'Torres', 'Navarro', 'Gonzales'];
+    const orgNames = ['Computer Society', 'Junior Finance Execs', 'Aviation Circle', 'Debate Guild', 'Media Arts Club'];
+    const serviceTypes = ['printing', 'lamination', 'document_request', 'event_registration'];
+    const printingItems = ['Poster Printing', 'Certificate Printing', 'ID Reprint', 'Flyer Batch'];
+    const docTypes = ['Budget Proposal', 'Activity Report', 'Permit Request', 'Equipment Request'];
+    const eventConfigs = [
+        { title: 'General Assembly', base: 125 },
+        { title: 'Leadership Workshop', base: 92 },
+        { title: 'Org Seminar', base: 76 },
+        { title: 'Volunteer Drive', base: 58 },
+        { title: 'Fundraising Booth', base: 49 },
+        { title: 'Career Fair', base: 101 },
+        { title: 'Team Building', base: 68 },
+        { title: 'Sports Fest', base: 140 },
+        { title: 'Cultural Night', base: 155 },
+    ];
+    const venues = ['Auditorium', 'Gymnasium', 'Quadrangle', 'Room 101', 'Covered Court', 'Innovation Hub'];
+    const rentalItems = [
+        { item: 'Projector', category: 'AV Equipment' },
+        { item: 'Sound System', category: 'AV Equipment' },
+        { item: 'Folding Tables', category: 'Furniture' },
+        { item: 'Plastic Chairs', category: 'Furniture' },
+        { item: 'Laptop', category: 'IT Equipment' },
+        { item: 'Microphone Set', category: 'AV Equipment' },
+        { item: 'Extension Cords', category: 'Utilities' },
+        { item: 'Backdrop Stand', category: 'Event Setup' },
+    ];
+
+    const pad = (value) => String(value).padStart(2, '0');
+    const toIsoDate = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const toIsoDateTime = (date, hour = 9, minute = 0) => {
+        const dt = new Date(date);
+        dt.setHours(hour, minute, 0, 0);
+        return `${toIsoDate(dt)}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00`;
+    };
+    const pick = (values) => values[Math.floor(Math.random() * values.length)];
+    const randomName = () => `${pick(studentFirstNames)} ${pick(studentLastNames)}`;
+    const randomStudentId = (index) => `202${Math.floor(Math.random() * 4) + 2}-${pad((index % 90) + 10)}${pad(Math.floor(Math.random() * 90) + 10)}`;
+    const randomPhone = () => `09${Math.floor(100000000 + Math.random() * 900000000)}`;
 
     // Helper to generate random date in current academic year
     const randomDate = (monthsBack = 6) => {
@@ -769,61 +872,133 @@ function generateMockAnalyticsData() {
         return date.toISOString().split('T')[0];
     };
 
+    const randomDateObject = (monthsBack = 6) => new Date(`${randomDate(monthsBack)}T00:00:00`);
+
     // Generate 20-30 financial transactions
     const transactionCount = 20 + Math.floor(Math.random() * 11);
     const financial = [];
     for (let i = 0; i < transactionCount; i++) {
         const amount = 50 + Math.floor(Math.random() * 950); // 50-1000
         const isPaid = Math.random() > 0.2; // 80% paid
+        const serviceType = pick(serviceTypes);
+        const customerName = randomName();
+        const transactionDate = randomDateObject(8);
+        const quantity = 1 + Math.floor(Math.random() * 5);
+        const itemLabel = serviceType === 'printing'
+            ? pick(printingItems)
+            : (serviceType === 'lamination'
+                ? `Document Lamination ${String.fromCharCode(65 + (i % 3))}`
+                : (serviceType === 'document_request'
+                    ? pick(docTypes)
+                    : `Event Ticket Batch ${1 + (i % 4)}`));
         financial.push({
             transaction_id: `mock-txn-${i}`,
-            transaction_date: randomDate(8),
+            transaction_date: toIsoDate(transactionDate),
+            transaction_datetime: toIsoDateTime(transactionDate, 8 + (i % 8), (i * 7) % 60),
+            submitted_at: toIsoDateTime(transactionDate, 8 + (i % 8), (i * 7) % 60),
             total_cost: amount,
             payment_status: isPaid ? 'paid' : 'pending',
-            service_name: ['Printing', 'Lamination', 'Document Request', 'Event Registration'][Math.floor(Math.random() * 4)]
+            service_type: serviceType,
+            service_name: serviceType.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
+            item_label: itemLabel,
+            customer_name: customerName,
+            customer_identifier: randomStudentId(i),
+            quantity,
+            unit_price: Number((amount / quantity).toFixed(2)),
+            reference_no: `OR-${academicYear}-${1000 + i}`,
+            notes: isPaid ? 'Paid at cashier' : 'Awaiting payment verification',
+            org_name: pick(orgNames),
         });
     }
 
     // Generate 8-12 events
     const eventCount = 8 + Math.floor(Math.random() * 5);
-    const eventNames = ['General Assembly', 'Workshop', 'Seminar', 'Team Building', 'Fundraising', 'Sports Fest', 'Cultural Night', 'Career Fair'];
     const events = [];
+    let eventAttendanceBase = 55 + Math.floor(Math.random() * 45);
     for (let i = 0; i < eventCount; i++) {
+        const config = eventConfigs[i % eventConfigs.length];
+        const eventDate = randomDateObject(8);
+        const attendanceDrift = Math.floor((Math.random() - 0.5) * 40);
+        const participationSeed = config.base + attendanceDrift + Math.floor((eventAttendanceBase - config.base) * 0.35);
+        const participants = Math.max(18, Math.min(220, participationSeed));
+        eventAttendanceBase = Math.round((eventAttendanceBase * 0.55) + (participants * 0.45));
+        const title = `${config.title} ${Math.floor(i / eventConfigs.length) + 1}`;
         events.push({
             id: `mock-event-${i}`,
-            title: eventNames[i % eventNames.length] + ` ${Math.floor(i / eventNames.length) + 1}`,
-            date: randomDate(8),
-            venue: ['Auditorium', 'Gym', 'Quadrangle', 'Room 101'][Math.floor(Math.random() * 4)],
-            participants: 20 + Math.floor(Math.random() * 180), // 20-200 participants
-            status: 'published'
+            event_id: `mock-event-${i}`,
+            title,
+            event_name: title,
+            date: toIsoDate(eventDate),
+            event_datetime: toIsoDateTime(eventDate, 9 + (i % 6), 0),
+            venue: pick(venues),
+            location: pick(venues),
+            participants,
+            attendance_count: participants,
+            status: 'published',
+            is_published: 1,
+            description: `${title} mock event for analytics simulation.`,
         });
     }
 
     // Generate 10-20 documents
     const docCount = 10 + Math.floor(Math.random() * 11);
-    const docTypes = ['Budget Proposal', 'Activity Report', 'Permit Request', 'Equipment Request'];
     const docs = [];
     for (let i = 0; i < docCount; i++) {
         const statuses = ['approved', 'pending', 'pending', 'rejected']; // More pending
+        const submitter = randomName();
+        const docDate = randomDateObject(6);
+        const docType = pick(docTypes);
+        const title = `${docType} ${i + 1}`;
         docs.push({
             submission_id: `mock-doc-${i}`,
-            document_type: docTypes[Math.floor(Math.random() * docTypes.length)],
-            submittedAt: randomDate(6),
-            status: statuses[Math.floor(Math.random() * statuses.length)]
+            id: `mock-doc-${i}`,
+            title,
+            type: docType,
+            document_type: docType,
+            recipient: Math.random() > 0.5 ? 'OSA' : 'SSC',
+            submittedAt: toIsoDateTime(docDate, 10 + (i % 5), 15),
+            submitted_at: toIsoDateTime(docDate, 10 + (i % 5), 15),
+            date: toIsoDate(docDate),
+            status: pick(statuses),
+            description: `${title} generated for mock workflow simulation.`,
+            submitted_by: submitter,
+            sender: submitter,
+            academic_year: `${academicYear}-${academicYear + 1}`,
+            semester: docDate.getMonth() >= 7 && docDate.getMonth() <= 11 ? '1st' : '2nd',
         });
     }
 
     // Generate 15-25 rentals
     const rentalCount = 15 + Math.floor(Math.random() * 11);
-    const rentalItems = ['Projector', 'Sound System', 'Tables', 'Chairs', 'Laptop', 'Microphone'];
     const rentals = [];
     for (let i = 0; i < rentalCount; i++) {
         const statuses = ['active', 'active', 'pending', 'overdue']; // More active
+        const rentalConfig = pick(rentalItems);
+        const borrowerName = randomName();
+        const borrowDate = randomDateObject(2);
+        const dueDate = new Date(borrowDate);
+        dueDate.setDate(dueDate.getDate() + 2 + Math.floor(Math.random() * 12));
+        const status = pick(statuses);
         rentals.push({
             rental_id: `mock-rental-${i}`,
-            item_name: rentalItems[Math.floor(Math.random() * rentalItems.length)],
-            dueAt: randomDate(2),
-            status: statuses[Math.floor(Math.random() * statuses.length)]
+            id: `mock-rental-${i}`,
+            item: rentalConfig.item,
+            item_name: rentalConfig.item,
+            renter: borrowerName,
+            renter_name: borrowerName,
+            borrower_name: borrowerName,
+            borrower_id: randomStudentId(i),
+            borrower_contact: randomPhone(),
+            category: rentalConfig.category,
+            quantity: 1 + Math.floor(Math.random() * 3),
+            dateBorrowed: toIsoDate(borrowDate),
+            borrowed_at: toIsoDateTime(borrowDate, 9 + (i % 4), 30),
+            due: toIsoDate(dueDate),
+            dueAt: toIsoDateTime(dueDate, 17, 0),
+            expected_return_time: toIsoDateTime(dueDate, 17, 0),
+            status,
+            condition: status === 'overdue' ? 'Needs follow-up' : 'Good',
+            notes: status === 'pending' ? 'Awaiting approval from custodian' : 'Mock rental record',
         });
     }
 
