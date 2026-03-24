@@ -865,6 +865,14 @@ header {
     background-color: #000;
 }
 
+button.org-card {
+    border: none;
+    padding: 0;
+    width: 100%;
+    text-align: inherit;
+    appearance: none;
+}
+
 .org-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
@@ -1213,6 +1221,24 @@ body.dark .tab-btn:hover {
     gap: 15px;
 }
 
+.my-org-ref-top-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.my-org-ref-top-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #000000;
+}
+
+.my-org-ref-top-summary strong {
+    font-size: 1.05rem;
+    color: #000000;
+}
+
 .my-org-ref-portal {
     font-size: 1.25rem;
     font-weight: 700;
@@ -1227,6 +1253,24 @@ body.dark .tab-btn:hover {
     margin-left: auto;
 }
 
+.my-org-browse-back-btn {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: #000000;
+    border-radius: 999px;
+    padding: 9px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.my-org-browse-back-btn:hover {
+    background: var(--panel-2);
+}
+
 .my-org-ref-search {
     display: inline-flex;
     align-items: center;
@@ -1238,7 +1282,7 @@ body.dark .tab-btn:hover {
 }
 
 .my-org-ref-search i {
-    color: var(--my-org-muted);
+    color: #000000;
 }
 
 .my-org-ref-search input {
@@ -1247,7 +1291,12 @@ body.dark .tab-btn:hover {
     width: 180px;
     font-size: 0.9rem;
     background: transparent;
-    color: var(--my-org-text);
+    color: #000000;
+}
+
+.my-org-ref-search input::placeholder {
+    color: #000000;
+    opacity: 1;
 }
 
 .my-org-ref-badge {
@@ -1295,7 +1344,7 @@ body.dark .tab-btn:hover {
 }
 
 .my-org-ref-orgtitle span {
-    color: var(--my-org-on-primary);
+    color: #000000;
     font-weight: 600;
     font-size: 0.85rem;
     letter-spacing: 0.3px;
@@ -1310,14 +1359,37 @@ body.dark .tab-btn:hover {
     gap: 25px;
 }
 
-.my-org-ref-links a {
-    color: var(--my-org-on-primary);
-    text-decoration: none;
+.my-org-ref-links button {
+    color: #000000;
+    background: transparent;
+    border: none;
     font-weight: 500;
     font-size: 1rem;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     padding-bottom: 3px;
+    cursor: pointer;
+    position: relative;
+}
+
+.my-org-ref-links button::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -4px;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.2s ease;
+}
+
+.my-org-ref-links button:hover::after,
+.my-org-ref-links button.active::after {
+    transform: scaleX(1);
 }
 
 .my-org-ref-main {
@@ -1355,7 +1427,7 @@ body.dark .tab-btn:hover {
     top: var(--my-org-hero-edge-pad);
     left: var(--my-org-hero-edge-pad);
     background: var(--my-org-primary);
-    color: var(--my-org-on-primary);
+    color: #ffffff;
     border-radius: 20px;
     padding: 6px 16px;
     font-weight: 700;
@@ -1367,7 +1439,7 @@ body.dark .tab-btn:hover {
     position: absolute;
     top: var(--my-org-hero-edge-pad);
     right: var(--my-org-hero-edge-pad);
-    color: var(--my-org-on-primary);
+    color: #ffffff;
     font-weight: 600;
     z-index: 2;
     font-size: 1rem;
@@ -1415,7 +1487,7 @@ body.dark .tab-btn:hover {
     border: none;
     border-radius: 999px;
     background: var(--my-org-primary);
-    color: var(--my-org-on-primary);
+    color: #000000;
     font-weight: 600;
     padding: 10px 20px;
     font-size: 0.95rem;
@@ -1452,7 +1524,7 @@ body.dark .tab-btn:hover {
 }
 
 .my-org-ref-contact h3 {
-    color: var(--my-org-on-primary);
+    color: #000000;
     font-size: 1.3rem;
 }
 
@@ -1505,7 +1577,7 @@ body.dark .tab-btn:hover {
 }
 
 .my-org-ref-contact p {
-    color: rgba(255, 255, 255, 0.9);
+    color: #000000;
     line-height: 1.45;
     margin-bottom: 15px;
     font-size: 0.85rem;
@@ -1540,7 +1612,7 @@ body.dark .tab-btn:hover {
     display: flex;
     gap: 12px;
     font-size: 1.1rem;
-    color: var(--my-org-on-primary);
+    color: #000000;
 }
 
 .my-org-ref-socials a {
@@ -1584,7 +1656,7 @@ body.dark .tab-btn:hover {
 }
 
 .my-org-ref-quickfacts h3 {
-    color: var(--my-org-on-primary);
+    color: #000000;
     font-size: 1.1rem;
     margin-bottom: 15px;
 }
@@ -1598,14 +1670,14 @@ body.dark .tab-btn:hover {
 .my-org-ref-quickfacts ul {
     margin: 0;
     padding-left: 16px;
-    color: var(--my-org-on-primary);
+    color: #000000;
     line-height: 1.5;
 }
 
 .my-org-ref-quickfacts li {
     margin-bottom: 10px;
     font-size: 0.85rem;
-    color: var(--my-org-on-primary);
+    color: #000000;
 }
 
 .my-org-ref-activities-grid {
@@ -1617,6 +1689,346 @@ body.dark .tab-btn:hover {
     flex: 1;
     min-height: 0;
     background: transparent;
+}
+
+.my-org-spa-section {
+    display: grid;
+    gap: 20px;
+}
+
+.my-org-spa-header {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(244, 246, 251, 0.94) 100%);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 24px;
+}
+
+.my-org-spa-eyebrow {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--my-org-secondary);
+    margin-bottom: 8px;
+}
+
+.my-org-spa-header h2 {
+    color: var(--my-org-text);
+    margin-bottom: 8px;
+    font-size: 1.75rem;
+}
+
+.my-org-spa-header p:last-child {
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.my-org-spa-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.my-org-spa-empty {
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: 18px;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.my-org-spa-empty i {
+    font-size: 2.4rem;
+    margin-bottom: 14px;
+}
+
+.my-org-events-stack {
+    display: grid;
+    gap: 18px;
+}
+
+.my-org-event-card {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 20px;
+    align-items: stretch;
+    overflow: hidden;
+    padding: 0;
+}
+
+.my-org-event-media {
+    position: relative;
+    min-height: 240px;
+}
+
+.my-org-event-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.my-org-event-index {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: rgba(15, 23, 42, 0.8);
+    color: #fff;
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.my-org-event-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px 22px 22px 0;
+}
+
+.my-org-event-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.my-org-event-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.my-org-event-content h3,
+.my-org-about-grid h3,
+.my-org-contact-card h3 {
+    color: var(--my-org-text);
+}
+
+.my-org-event-content p,
+.my-org-about-grid p,
+.my-org-contact-card p {
+    color: var(--muted);
+    line-height: 1.65;
+}
+
+.my-org-event-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: auto;
+}
+
+.my-org-stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    padding: 10px 14px;
+    color: var(--my-org-secondary);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.my-org-about-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.my-org-about-banner {
+    margin-top: 18px;
+    border-radius: 16px;
+    overflow: hidden;
+    min-height: 220px;
+}
+
+.my-org-about-banner img {
+    width: 100%;
+    height: 100%;
+    min-height: 220px;
+    object-fit: cover;
+    display: block;
+}
+
+.my-org-highlight-list {
+    list-style: none;
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.my-org-highlight-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: var(--text);
+}
+
+.my-org-highlight-list i {
+    color: var(--my-org-secondary);
+    margin-top: 3px;
+}
+
+.my-org-service-pill-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.my-org-service-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: #000000;
+    border: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 0.88rem;
+}
+
+.my-org-inline-empty {
+    margin-top: 16px;
+}
+
+.my-org-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.my-org-kpi-box {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 14px;
+    text-align: center;
+}
+
+.my-org-kpi-box strong {
+    display: block;
+    font-size: 1.7rem;
+    color: #000000;
+    margin-bottom: 6px;
+}
+
+.my-org-kpi-box span {
+    color: #000000;
+    font-size: 0.84rem;
+}
+
+.my-org-officers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+}
+
+.my-org-officer-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.my-org-officer-avatar {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--my-org-primary) 0%, var(--my-org-secondary) 100%);
+    color: var(--my-org-on-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+}
+
+.my-org-officer-body {
+    min-width: 0;
+}
+
+.my-org-officer-role {
+    color: #000000;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+}
+
+.my-org-officer-body h3 {
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+    color: #000000;
+}
+
+.my-org-officer-meta {
+    color: #000000;
+    font-size: 0.88rem;
+}
+
+.my-org-contact-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.my-org-contact-list,
+.my-org-contact-links {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.my-org-contact-list div,
+.my-org-contact-links a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: #000000;
+    text-decoration: none;
+}
+
+.my-org-contact-list i,
+.my-org-contact-links i {
+    width: 18px;
+    color: #000000;
+    text-align: center;
+}
+
+.my-org-contact-icon-x {
+    width: 18px;
+    color: #000000;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+    flex: 0 0 18px;
+}
+
+.my-org-contact-links a:hover {
+    border-color: var(--my-org-secondary);
 }
 
 .student-locker-section {
@@ -2159,6 +2571,16 @@ body.dark .tab-btn:hover {
     .my-org-ref-hero {
         height: 340px;
     }
+
+    .my-org-event-card,
+    .my-org-about-grid,
+    .my-org-contact-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .my-org-event-content {
+        padding: 0 22px 22px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -2170,6 +2592,10 @@ body.dark .tab-btn:hover {
     .my-org-ref-top-actions {
         width: 100%;
         flex-wrap: wrap;
+    }
+
+    .my-org-ref-top-summary {
+        width: 100%;
     }
 
     .my-org-ref-search {
@@ -2220,6 +2646,32 @@ body.dark .tab-btn:hover {
         padding: 8px 14px;
         font-size: 0.82rem;
     }
+
+    .my-org-ref-links {
+        gap: 14px;
+    }
+
+    .my-org-ref-links button {
+        font-size: 0.92rem;
+    }
+
+    .my-org-spa-header,
+    .my-org-spa-card {
+        padding: 18px;
+    }
+
+    .my-org-event-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .my-org-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .my-org-officer-card {
+        align-items: flex-start;
+    }
 }
 
 /* Dark Mode Overrides for My Organization */
@@ -2228,27 +2680,27 @@ body.dark .my-org-ref-announcements h3 {
 }
 
 body.dark .my-org-ref-orgbar .my-org-ref-orgtitle span {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
-body.dark .my-org-ref-orgbar .my-org-ref-links a {
-    color: var(--my-org-text);
+body.dark .my-org-ref-orgbar .my-org-ref-links button {
+    color: #000000;
 }
 
 body.dark .my-org-ref-date {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
 body.dark .my-org-ref-contact h3 {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
 body.dark .my-org-ref-contact p {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
 body.dark .my-org-ref-contact-search input {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
 body.dark .my-org-ref-contact-search input::placeholder {
@@ -2256,26 +2708,38 @@ body.dark .my-org-ref-contact-search input::placeholder {
 }
 
 body.dark .my-org-ref-quickfacts h3 {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
 body.dark .my-org-ref-quickfacts ul {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
 body.dark .my-org-ref-quickfacts li {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
 body.dark .my-org-ref-activity-caption {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
 body.dark .my-org-ref-activities h3 {
-    color: var(--my-org-text);
+    color: #000000;
 }
 
-/* Force the hero date to white in dark mode for guaranteed readability */
+body.dark .my-org-spa-header {
+    background: rgba(15, 23, 42, 0.72);
+}
+
+body.dark .my-org-contact-links a,
+body.dark .my-org-contact-list div,
+body.dark .my-org-kpi-box,
+body.dark .my-org-service-pill,
+body.dark .my-org-stat-chip {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Keep hero text readable across themes */
 body.dark .my-org-ref-date {
     color: #ffffff !important;
 }

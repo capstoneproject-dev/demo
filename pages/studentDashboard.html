@@ -10,8 +10,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- STYLESHEET REFERENCE -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css">
-    <link rel="stylesheet" href="../assets/css/organizationColorThemes.css">
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260324-1">
+    <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260324-1">
 </head>
 
 <body>
@@ -220,7 +220,6 @@
                 <button class="tab-btn" onclick="switchOrgTab('my-organization', this)">My Organization</button>
                 <button class="tab-btn" onclick="switchOrgTab('membership', this)">Membership</button>
                 <button class="tab-btn" onclick="switchOrgTab('events', this)">Events</button>
-                <button class="tab-btn" onclick="switchOrgTab('contacts', this)">Contacts</button>
             </div>
 
             <div id="tab-content" class="card">
@@ -905,8 +904,8 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
     <!-- Org-specific data config — must load before studentDashboard.js -->
-    <script src="../data/orgData.js"></script>
-    <script src="../assets/js/studentDashboard.js"></script>
+    <script src="../data/orgData.js?v=20260324-1"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260324-1"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">
