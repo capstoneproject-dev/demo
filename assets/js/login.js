@@ -651,6 +651,18 @@ function switchTab(type) {
    ===================== */
 const orgModal = document.getElementById('orgModal');
 const orgInput = document.getElementById('org-input');
+const orgStudentNumberInput = document.getElementById('org-student-number-input');
+const orgRegistrationDetails = document.getElementById('org-registration-details');
+const orgLookupMessage = document.getElementById('org-student-lookup-message');
+const orgLockedFieldIds = [
+  'org-name-input',
+  'org-course-input',
+  'org-section-input',
+  'org-email-input',
+  'org-phone-input'
+];
+let verifiedOrgStudentNumber = '';
+let activeOrgLookupToken = 0;
 
 function openOrgModal() {
   if (orgModal) orgModal.classList.add('open');
@@ -726,6 +738,132 @@ function setupPhoneInput(inputId) {
   input.addEventListener('input', applyNormalized);
   input.addEventListener('focus', () => {
     if (!input.value || input.value === '+63' || input.value === '+63 ') input.value = '+63 ';
+  });
+}
+
+function setOrgLookupMessage(message, state = '') {
+  if (!orgLookupMessage) return;
+  orgLookupMessage.textContent = message;
+  orgLookupMessage.classList.remove('success', 'error');
+  if (state) orgLookupMessage.classList.add(state);
+}
+
+function clearOrgRegistrationFields() {
+  const orgNameInput = document.getElementById('org-name-input');
+  const orgCourseInput = document.getElementById('org-course-input');
+  const orgSectionInput = document.getElementById('org-section-input');
+  const orgEmailInput = document.getElementById('org-email-input');
+  const orgPhoneInput = document.getElementById('org-phone-input');
+  const orgPasswordInput = document.getElementById('org-password-input');
+  const orgConfirmPasswordInput = document.getElementById('org-confirm-password-input');
+
+  if (orgNameInput) orgNameInput.value = '';
+  if (orgCourseInput) orgCourseInput.value = '';
+  if (orgSectionInput) orgSectionInput.value = '';
+  if (orgEmailInput) orgEmailInput.value = '';
+  if (orgPhoneInput) orgPhoneInput.value = '';
+  if (orgInput) orgInput.value = '';
+  if (orgPasswordInput) orgPasswordInput.value = '';
+  if (orgConfirmPasswordInput) orgConfirmPasswordInput.value = '';
+}
+
+function setOrgRegistrationVisibility(isVisible) {
+  if (!orgRegistrationDetails) return;
+  orgRegistrationDetails.hidden = !isVisible;
+}
+
+function resetOrgRegistrationState(message = 'Enter a registered student number to continue organization account registration.', state = '') {
+  verifiedOrgStudentNumber = '';
+  clearOrgRegistrationFields();
+  setOrgRegistrationVisibility(false);
+  setOrgLookupMessage(message, state);
+}
+
+function applyVerifiedOrgStudent(student) {
+  const fullNameInput = document.getElementById('org-name-input');
+  const courseInput = document.getElementById('org-course-input');
+  const sectionInput = document.getElementById('org-section-input');
+  const emailInput = document.getElementById('org-email-input');
+  const phoneInput = document.getElementById('org-phone-input');
+
+  if (fullNameInput) fullNameInput.value = student.full_name || '';
+  if (courseInput) courseInput.value = student.course || '';
+  if (sectionInput) sectionInput.value = student.section || '';
+  if (emailInput) emailInput.value = student.email || '';
+  if (phoneInput) phoneInput.value = student.phone ? normalizePhoneInput(student.phone) : '';
+
+  orgLockedFieldIds.forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.readOnly = true;
+  });
+
+  verifiedOrgStudentNumber = String(student.student_number || '').trim();
+  setOrgRegistrationVisibility(true);
+  setOrgLookupMessage('Student record found. Only organization and password fields can be changed.', 'success');
+}
+
+async function lookupOrganizationStudent(force = false) {
+  const studentNumber = orgStudentNumberInput ? String(orgStudentNumberInput.value || '').trim() : '';
+  if (!studentNumber) {
+    resetOrgRegistrationState();
+    return false;
+  }
+
+  if (!force && verifiedOrgStudentNumber && verifiedOrgStudentNumber === studentNumber) {
+    return true;
+  }
+
+  const lookupToken = ++activeOrgLookupToken;
+  verifiedOrgStudentNumber = '';
+  clearOrgRegistrationFields();
+  setOrgRegistrationVisibility(false);
+  setOrgLookupMessage('Checking student number...', '');
+
+  try {
+    const response = await fetch('../api/auth/lookup-student.php', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_number: studentNumber })
+    });
+    const data = await response.json();
+
+    if (lookupToken !== activeOrgLookupToken) return false;
+
+    if (!data.ok || !data.student) {
+      resetOrgRegistrationState(data.error || 'Student number is not registered as an active student account.', 'error');
+      return false;
+    }
+
+    applyVerifiedOrgStudent(data.student);
+    return true;
+  } catch (error) {
+    if (lookupToken !== activeOrgLookupToken) return false;
+    resetOrgRegistrationState('Could not verify the student number right now.', 'error');
+    return false;
+  }
+}
+
+function setupOrganizationRegistrationLookup() {
+  if (!orgStudentNumberInput) return;
+
+  orgStudentNumberInput.addEventListener('input', () => {
+    const currentValue = String(orgStudentNumberInput.value || '').trim();
+    if (verifiedOrgStudentNumber && currentValue !== verifiedOrgStudentNumber) {
+      resetOrgRegistrationState();
+      return;
+    }
+    if (!currentValue) resetOrgRegistrationState();
+  });
+
+  orgStudentNumberInput.addEventListener('blur', () => {
+    lookupOrganizationStudent();
+  });
+
+  orgStudentNumberInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    lookupOrganizationStudent(true);
   });
 }
 
@@ -870,11 +1008,17 @@ async function registerOrgOfficer() {
   const password = (document.getElementById('org-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('org-confirm-password-input') || {}).value || '';
 
-  if (!studentNumber || !fullName || !course || !section || !orgName || !email || !phone || !password || !confirmPassword) {
+  const verified = await lookupOrganizationStudent(true);
+  if (!verified || verifiedOrgStudentNumber !== studentNumber) {
+    alert('Enter a student number that is already registered as a student account first.');
+    return;
+  }
+
+  if (!studentNumber || !fullName || !course || !section || !orgName || !email || !password || !confirmPassword) {
     alert('Please complete all Organization registration fields.');
     return;
   }
-  if (!isValidPhoneInput(phone)) {
+  if (phone && !isValidPhoneInput(phone)) {
     alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
@@ -1084,6 +1228,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPhoneInput('student-phone-input');
   setupPhoneInput('org-phone-input');
   setupPhoneInput('osa-phone-input');
+  setupOrganizationRegistrationLookup();
+  resetOrgRegistrationState();
 
   const studentRegisterBtn = document.getElementById('studentRegisterBtn');
   const orgRegisterBtn = document.getElementById('orgRegisterBtn');

@@ -2081,17 +2081,16 @@ function renderStudentLockerBoard() {
     const board = document.getElementById('studentLockerBoard');
     const badge = document.getElementById('studentLockerCurrentBadge');
     const currentCard = document.getElementById('studentLockerCurrentCard');
+    const openButton = document.querySelector('.student-locker-open-btn');
     if (!section || !board || !currentCard) return;
-
-    if (!studentLockerState.enabled) {
-        section.style.display = 'none';
-        renderStudentLockerProfile();
-        return;
-    }
 
     section.style.display = 'block';
     const lockers = Array.isArray(studentLockerState.lockers) ? studentLockerState.lockers : [];
     const currentLocker = studentLockerState.current_locker || null;
+
+    if (openButton) {
+        openButton.disabled = !studentLockerState.enabled;
+    }
 
     if (badge) {
         if (currentLocker?.locker_code) {
@@ -2101,6 +2100,23 @@ function renderStudentLockerBoard() {
             badge.style.display = 'none';
             badge.textContent = '';
         }
+    }
+
+    if (!studentLockerState.enabled) {
+        board.innerHTML = `
+            <div class="student-locker-empty">
+                <i class="fa-solid fa-door-closed"></i>
+                <p>Locker services are currently unavailable.</p>
+            </div>
+        `;
+        currentCard.innerHTML = `
+            <div class="student-locker-empty">
+                <i class="fa-solid fa-door-closed"></i>
+                <p>Locker services are currently unavailable.</p>
+            </div>
+        `;
+        renderStudentLockerProfile();
+        return;
     }
 
     const groups = lockers.reduce((acc, locker) => {
@@ -2542,10 +2558,8 @@ function renderServices(filter = "") {
     const grid = document.getElementById('servicesGrid');
     const hero = document.getElementById('printingHero');
     const filterLower = String(filter || '').toLowerCase();
-    const printingModule = getServiceModuleMeta('printing');
-    const printingEnabled = printingModule ? !!printingModule.enabled : false;
     const printingKeywords = ["printing", "photo", "1x1"];
-    const showHero = printingEnabled && (filterLower === "" || printingKeywords.some(keyword => filterLower.includes(keyword)));
+    const showHero = filterLower === "" || printingKeywords.some(keyword => filterLower.includes(keyword));
     if (!grid) return;
     if (hero) {
         hero.style.display = showHero ? "block" : "none";

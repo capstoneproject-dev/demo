@@ -273,16 +273,37 @@
   /* Organization registration: 2-column layout on desktop */
   #form-org.reg-fields.active {
     display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .org-registration-details {
+    display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
   }
 
-  #form-org.reg-fields.active button {
+  .org-registration-details[hidden] {
+    display: none !important;
+  }
+
+  .org-registration-details .org-full-width {
     grid-column: 1 / -1;
   }
 
-  #form-org.reg-fields.active .org-full-width {
-    grid-column: 1 / -1;
+  .org-lookup-message {
+    margin: -4px 0 0;
+    font-size: 0.9rem;
+    color: #6b7280;
+    text-align: left;
+  }
+
+  .org-lookup-message.success {
+    color: #0f766e;
+  }
+
+  .org-lookup-message.error {
+    color: #b91c1c;
   }
 
   @keyframes fadeIn {
@@ -629,8 +650,11 @@
     }
 
     #form-org.reg-fields.active {
-      grid-template-columns: 1fr;
       gap: 16px;
+    }
+
+    .org-registration-details {
+      grid-template-columns: 1fr;
     }
   }
   @media (min-width: 769px) { .mobile-toggle { display: none; } }

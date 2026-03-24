@@ -41,12 +41,26 @@ try {
         jsonError('You already have a pending registration request.', 409);
     }
 
-    // Block duplicate student accounts, but allow org_officer requests even if already registered
+    // Block duplicate student accounts, but allow org_officer requests only for
+    // existing student accounts that do not already have an organization_members row.
     if ($reqRole !== 'org_officer') {
         $usrStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn LIMIT 1");
         $usrStmt->execute([':sn' => $studentNumber]);
         if ($usrStmt->fetch()) {
             jsonError('An account for that student number already exists. If you are registering as an organization officer, please select the Organization tab.', 409);
+        }
+    } else {
+        $usrStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn AND is_active = 1 LIMIT 1");
+        $usrStmt->execute([':sn' => $studentNumber]);
+        $existingUser = $usrStmt->fetch();
+        if (!$existingUser) {
+            jsonError('A registered student account is required before requesting an organization account.', 409);
+        }
+
+        $memberStmt = $pdo->prepare("SELECT membership_id FROM organization_members WHERE user_id = :uid LIMIT 1");
+        $memberStmt->execute([':uid' => (int)$existingUser['user_id']]);
+        if ($memberStmt->fetch()) {
+            jsonError('This account already exists in the organization members table.', 409);
         }
     }
 

@@ -101,18 +101,21 @@
         <!-- Organization Fields -->
         <form id="form-org" class="reg-fields">
           <input type="text" id="org-student-number-input" placeholder="Student Number" />
-          <input type="text" id="org-name-input" placeholder="Name" />
-          <input type="text" id="org-course-input" placeholder="Select Course" class="org-select-trigger" readonly
-            onclick="openCourseModal('org-course-input')" />
-          <input type="text" id="org-section-input" placeholder="Section" />
-          <!-- Org Selector Trigger -->
-          <input type="text" id="org-input" placeholder="Select Organization"
-            class="org-select-trigger org-full-width" readonly
-            onclick="openOrgModal()" />
-          <input type="email" id="org-email-input" placeholder="Email" />
-          <input type="tel" id="org-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
-          <input type="password" id="org-password-input" placeholder="Password" />
-          <input type="password" id="org-confirm-password-input" placeholder="Re-enter Password" />
+          <p id="org-student-lookup-message" class="org-lookup-message">
+            Enter a registered student number to continue organization account registration.
+          </p>
+          <div id="org-registration-details" class="org-registration-details" hidden>
+            <input type="text" id="org-name-input" placeholder="Name" readonly />
+            <input type="text" id="org-course-input" placeholder="Select Course" readonly />
+            <input type="text" id="org-section-input" placeholder="Section" readonly />
+            <input type="email" id="org-email-input" placeholder="Email" readonly />
+            <input type="tel" id="org-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " readonly />
+            <input type="text" id="org-input" placeholder="Select Organization"
+              class="org-select-trigger org-full-width" readonly
+              onclick="openOrgModal()" />
+            <input type="password" id="org-password-input" placeholder="Password" />
+            <input type="password" id="org-confirm-password-input" placeholder="Re-enter Password" />
+          </div>
           <button type="button" id="orgRegisterBtn">REGISTER</button>
         </form>
 
