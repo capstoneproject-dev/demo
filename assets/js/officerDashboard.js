@@ -1,4 +1,5 @@
 const AUTH_SESSION_KEY = 'naapAuthSession';
+let officerOrgSyncPromise = Promise.resolve();
 
 function readAuthSession() {
     try {
@@ -27,9 +28,9 @@ function validatePhpSession() {
 function syncActiveOrgToPhpSession() {
     const session = readAuthSession();
     const orgId = Number(session.active_org_id || 0);
-    if (!orgId) return;
+    if (!orgId) return Promise.resolve();
 
-    fetch('../api/auth/activate-org.php', {
+    return fetch('../api/auth/activate-org.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -92,7 +93,7 @@ function initOfficerAuthContext() {
 
     // Validate PHP session in the background (catches server-side expiry)
     validatePhpSession();
-    syncActiveOrgToPhpSession();
+    officerOrgSyncPromise = syncActiveOrgToPhpSession();
 
     // Seed org-specific data into localStorage so the IGP Rental and QR-Attendance
     // iframes pick up the correct inventory and officer barcodes on first load.
@@ -250,6 +251,7 @@ function toggleThemeMobile() {
 // Initialize Theme on Load
 document.addEventListener('DOMContentLoaded', () => {
     initOfficerAuthContext();
+    setOfficerTrackerPrintingAccess(false);
 
     // Check if user previously selected dark mode
     if (localStorage.getItem('theme') === 'dark') {
@@ -341,7 +343,7 @@ let currentPrintingPanelView = 'queue';
 let officerPrintingCalendarCurrentDate = new Date();
 let officerPrintingCalendarSelectedStart = null;
 let officerPrintingCalendarSelectedEnd = null;
-let officerPrintingEnabled = true;
+let officerPrintingEnabled = false;
 let officerLockerEnabled = false;
 let officerFinancialSummaryData = [];
 let officerLockerBoard = [];
@@ -350,10 +352,7 @@ let lockerAssignableStudents = [];
 let selectedLockerAssignStudent = null;
 
 function isOfficerLockerEnabled() {
-    const session = readAuthSession();
-    const orgName = normalizeOfficerOrgName(session.active_org_name || '');
-    const orgCode = String(session.active_org_code || '').trim().toUpperCase();
-    return orgName === 'SUPREME STUDENT COUNCIL' || orgCode === 'SSC';
+    return true;
 }
 
 function setOfficerTrackerPrintingAccess(printingEnabled) {
@@ -1235,8 +1234,8 @@ async function loadOfficerPrintingQueue(force = false) {
             console.error('[loadOfficerPrintingQueue]', error);
         }
         officerPrintingQueue = [];
-        setOfficerTrackerPrintingAccess(true);
-        renderOfficerPrintingQueue(true);
+        setOfficerTrackerPrintingAccess(false);
+        renderOfficerPrintingQueue(false);
         throw error;
     }
 }
@@ -3211,7 +3210,11 @@ window.addEventListener('DOMContentLoaded', () => {
     loadRentalsFromApi();
     loadDocsFromApi();
     loadRepoFromApi();
-    loadOfficerPrintingQueue().catch(() => {});
+    officerOrgSyncPromise
+        .catch(() => {})
+        .finally(() => {
+            loadOfficerPrintingQueue().catch(() => {});
+        });
     loadOfficerFinancialSummary().catch(() => {});
     // Initialize repository counts
     if (typeof updateFolderCounts === 'function') {

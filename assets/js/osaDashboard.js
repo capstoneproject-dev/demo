@@ -433,24 +433,32 @@ function renderMonitoringServiceAuthorizations(orgId) {
         return;
     }
 
-    container.innerHTML = services.map((service) => {
+    container.innerHTML = services.filter((service) => {
+        return service.service_key !== 'rentals';
+    }).map((service) => {
         const checked = !!(org.services || {})[service.service_key];
+        const isMasterServices = service.service_key === 'services';
         const isPrinting = service.service_key === 'printing';
+        const isDirectlyManaged = isMasterServices || isPrinting;
+        const toggleLabel = isMasterServices
+            ? 'Organization Services'
+            : service.service_name;
         return `
             <label class="service-toggle-item">
                 <div>
-                    <strong>${service.service_name}</strong>
+                    <strong>${toggleLabel}</strong>
                     <div style="color: var(--muted); font-size: 0.82rem; margin-top: 4px;">
-                        ${isPrinting
+                        ${isDirectlyManaged
                             ? (service.description || '')
-                            : 'Available for active organizations by default.'}
+                            : 'Available when the organization-wide services switch is enabled.'}
                     </div>
                 </div>
                 <input type="checkbox"
                        class="service-toggle-checkbox"
                        data-service-key="${service.service_key}"
                        ${checked ? 'checked' : ''}
-                       ${isPrinting ? '' : 'disabled'}>
+                       ${isDirectlyManaged ? '' : 'disabled'}
+                       >
             </label>
         `;
     }).join('');

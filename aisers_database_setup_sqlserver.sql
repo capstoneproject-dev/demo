@@ -99,6 +99,8 @@ CREATE TABLE dbo.organizations (
     status     VARCHAR(20)  NOT NULL CONSTRAINT df_organizations_status     DEFAULT 'active',
     created_at DATETIME2(0) NOT NULL CONSTRAINT df_organizations_created_at DEFAULT SYSDATETIME(),
     updated_at DATETIME2(0) NOT NULL CONSTRAINT df_organizations_updated_at DEFAULT SYSDATETIME(),
+    can_offer_printing BIT  NOT NULL CONSTRAINT df_organizations_can_offer_printing DEFAULT 0,
+    can_offer_services BIT  NOT NULL CONSTRAINT df_organizations_can_offer_services DEFAULT 1,
     CONSTRAINT pk_organizations PRIMARY KEY (org_id)
 );
 GO
