@@ -230,6 +230,145 @@ const organizations = [
     { id: 11, name: "AERONAUTICA", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" }
 ];
 
+function normalizeMonitoringOrgName(name) {
+    const normalized = String(name || '').trim().toUpperCase();
+    const aliases = {
+        'SSC': 'SUPREME STUDENT COUNCIL',
+        'SUPREME STUDENT COUNCIL': 'SUPREME STUDENT COUNCIL',
+        'AISERS': 'AISERS',
+        'ELITECH': 'ELITECH',
+        'ILASSO': 'ILASSO',
+        'AERO-ATSO': 'AERO-ATSO',
+        'AETSO': 'AETSO',
+        'AMTSO': 'AMTSO',
+        'RCYC': 'RCYC',
+        'CYC': 'CYC',
+        "SCHOLAR'S GUILD": "SCHOLAR'S GUILD",
+        'SCHOLARS GUILD': "SCHOLAR'S GUILD",
+        'AERONAUTICA': 'AERONAUTICA'
+    };
+    return aliases[normalized] || normalized;
+}
+
+function parseActivityDate(value) {
+    if (!value) return null;
+    const parsed = new Date(String(value).replace(/\./g, ''));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatActivityDate(value) {
+    const parsed = parseActivityDate(value);
+    if (!parsed) return String(value || 'Recent');
+    return parsed.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+}
+
+function buildMonitoringActivities(org) {
+    const orgName = normalizeMonitoringOrgName(org?.name);
+    const orgDataKey = typeof ORG_DATA !== 'undefined'
+        ? Object.keys(ORG_DATA).find((key) => normalizeMonitoringOrgName(key) === orgName)
+        : null;
+    const orgConfig = orgDataKey && typeof ORG_DATA !== 'undefined' ? ORG_DATA[orgDataKey] : null;
+    const orgServices = getServiceAuthorizationOrg(org?.id);
+    const items = [];
+
+    (orgConfig?.events || []).forEach((event) => {
+        items.push({
+            title: event.title,
+            type: 'Event',
+            dateRaw: event.date,
+            dateLabel: formatActivityDate(event.date),
+            status: parseActivityDate(event.date) && parseActivityDate(event.date) >= new Date() ? 'Upcoming' : 'Published'
+        });
+    });
+
+    (orgConfig?.services || []).forEach((service) => {
+        items.push({
+            title: `${service.name} service available`,
+            type: 'Service',
+            dateRaw: new Date().toISOString(),
+            dateLabel: 'Active this term',
+            status: 'Available'
+        });
+    });
+
+    requests
+        .filter((request) => normalizeMonitoringOrgName(request.org) === orgName)
+        .forEach((request) => {
+            items.push({
+                title: request.title,
+                type: request.type,
+                dateRaw: request.date,
+                dateLabel: request.date,
+                status: request.status
+            });
+        });
+
+    docsData
+        .filter((doc) => normalizeMonitoringOrgName(doc.org) === orgName)
+        .forEach((doc) => {
+            items.push({
+                title: doc.title,
+                type: 'Document',
+                dateRaw: doc.submittedAt || doc.date,
+                dateLabel: doc.date || formatActivityDate(doc.submittedAt),
+                status: doc.status
+            });
+        });
+
+    transactions
+        .filter((transaction) => normalizeMonitoringOrgName(transaction.org) === orgName)
+        .forEach((transaction) => {
+            items.push({
+                title: transaction.doc,
+                type: 'Submission',
+                dateRaw: transaction.date,
+                dateLabel: transaction.date,
+                status: transaction.status
+            });
+        });
+
+    if (orgServices?.services?.printing) {
+        items.push({
+            title: 'Printing service access enabled',
+            type: 'Printing',
+            dateRaw: new Date().toISOString(),
+            dateLabel: 'Current access',
+            status: 'Active'
+        });
+    }
+
+    if (orgServices?.services?.locker) {
+        items.push({
+            title: 'Locker service access enabled',
+            type: 'Locker',
+            dateRaw: new Date().toISOString(),
+            dateLabel: 'Current access',
+            status: 'Active'
+        });
+    }
+
+    if (!items.length) {
+        items.push({
+            title: `${org?.name || 'Organization'} monitoring initialized`,
+            type: 'System',
+            dateRaw: new Date().toISOString(),
+            dateLabel: 'Today',
+            status: 'No recent records'
+        });
+    }
+
+    return items
+        .sort((a, b) => {
+            const dateA = parseActivityDate(a.dateRaw);
+            const dateB = parseActivityDate(b.dateRaw);
+            if (dateA && dateB) return dateB - dateA;
+            if (dateB) return 1;
+            if (dateA) return -1;
+            return String(b.dateLabel || '').localeCompare(String(a.dateLabel || ''));
+        })
+        .slice(0, 10);
+}
+
 const requests = [
     { id: 101, type: "Event Proposal", org: "AISERS", sender: "Pres. Alano", title: "AIS-AHAN: Constituency Check", date: "Oct 24, 2023", status: "Pending" },
     { id: 102, type: "Posting", org: "Supreme Student Council", sender: "VPI Flores", title: "Love Surge", date: "Oct 24, 2023", status: "Pending" },
@@ -881,9 +1020,11 @@ function openMonitoring(orgId) {
         document.getElementById('monitoring-org-name').innerText = org.name;
         document.getElementById('monitoring-org-details').innerText = `${org.category} • ID: ${org.id}`;
 
-        // 2. Activity Recency (Simulated logic based on ID)
-        const activityDates = ["Oct 24, 2023", "Oct 20, 2023", "Just now", "Yesterday"];
-        document.getElementById('monitoring-recency').innerText = `Last recorded activity: ${activityDates[org.id % activityDates.length]}`;
+        const monitoringActivities = buildMonitoringActivities(org);
+        const latestActivity = monitoringActivities[0];
+
+        // 2. Activity Recency
+        document.getElementById('monitoring-recency').innerText = `Last recorded activity: ${latestActivity?.dateLabel || 'No recent records'}`;
 
         // 3. Render Compliance Overview
         const complianceContainer = document.getElementById('monitoring-compliance-list');
@@ -943,22 +1084,16 @@ function openMonitoring(orgId) {
         });
         officersContainer.innerHTML = officersHTML;
 
-        // 5. Event History (Keep existing mock logic)
+        // 5. Recent Activities
         const eventTable = document.getElementById('monitoring-events-table');
-        eventTable.innerHTML = `
+        eventTable.innerHTML = monitoringActivities.map((activity) => `
             <tr>
-                <td>${org.category} General Assembly</td>
-                <td>Aug 15, 2023</td>
-                <td>98%</td>
-                <td><span class="status-badge status-approved">Completed</span></td>
+                <td>${activity.title}</td>
+                <td>${activity.type}</td>
+                <td>${activity.dateLabel}</td>
+                <td><span class="status-badge status-${String(activity.status).toLowerCase().replace(/[^a-z0-9]+/g, '-')}">${activity.status}</span></td>
             </tr>
-            <tr>
-                <td>Semester Planning</td>
-                <td>Sep 01, 2023</td>
-                <td>100%</td>
-                <td><span class="status-badge status-approved">Completed</span></td>
-            </tr>
-        `;
+        `).join('');
     }
     renderMonitoringServiceAuthorizations(orgId);
     loadServiceAuthorizations().then(() => {
