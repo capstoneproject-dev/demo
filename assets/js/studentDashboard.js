@@ -2165,6 +2165,7 @@ function renderStudentLockerBoard() {
         const normalizedStatus = getNormalizedLockerActivityStatus(currentLocker.status, currentLocker);
         const noticeEntries = getStudentLockerNoticeEntries(currentLocker);
         const currentAlert = noticeEntries.find((entry) => entry.type === 'overdue') || noticeEntries[noticeEntries.length - 1] || null;
+        const paymentStatus = String(currentLocker.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid';
         currentCard.innerHTML = `
             <div class="student-locker-current-top">
                 <div class="student-locker-current-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
@@ -2179,6 +2180,7 @@ function renderStudentLockerBoard() {
                     <span><i class="fa-solid fa-calendar-check"></i> Start: ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
                     <span><i class="fa-solid fa-calendar-xmark"></i> Due: ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
                     <span><i class="fa-solid fa-money-bill-wave"></i> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                    <span><i class="fa-solid fa-wallet"></i> ${escapeStudentHtml(paymentStatus)}</span>
                 </div>
             `}
             ${currentAlert ? `
@@ -2286,6 +2288,7 @@ function renderStudentLockerProfile() {
     const normalizedStatus = getNormalizedLockerActivityStatus(currentLocker.status, currentLocker);
     const noticeEntries = getStudentLockerNoticeEntries(currentLocker);
     const latestNotice = noticeEntries.find((entry) => entry.type === 'overdue') || noticeEntries[noticeEntries.length - 1] || null;
+    const paymentStatus = String(currentLocker.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid';
     content.innerHTML = `
         <div class="profile-locker-card">
             <div class="profile-locker-main">
@@ -2300,6 +2303,7 @@ function renderStudentLockerProfile() {
                         <span><strong>Start:</strong> ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
                         <span><strong>Due:</strong> ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
                         <span><strong>Price:</strong> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                        <span><strong>Payment:</strong> ${escapeStudentHtml(paymentStatus)}</span>
                     </div>
                 `}
             </div>
