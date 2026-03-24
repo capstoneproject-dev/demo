@@ -388,8 +388,449 @@ function syncStudentIdentity() {
     if (profileEmail) profileEmail.innerText = `Email: ${currentStudentProfile.email || "-"}`;
 }
 
-function renderMyOrganizationTab(contentDiv) {
-    const targetOrgName = currentStudentProfile.associatedOrg;
+let activeMyOrgSection = 'home';
+let organizationBrowseContext = null;
+const myOrgOfficersState = {
+    orgName: '',
+    loading: false,
+    loaded: false,
+    error: '',
+    items: []
+};
+
+function buildMyOrgSectionLabel(section) {
+    const labels = {
+        home: 'Home',
+        events: 'Events',
+        about: 'About',
+        officers: 'Officers',
+        contact: 'Contact'
+    };
+    return labels[section] || 'Home';
+}
+
+function parseOfficerEntries(officerList) {
+    return (Array.isArray(officerList) ? officerList : [])
+        .map((entry, index) => {
+            const [rolePart, ...nameParts] = String(entry || '').split(':');
+            const role = String(rolePart || '').trim() || `Officer ${index + 1}`;
+            const name = nameParts.join(':').trim() || 'TBD';
+            return { role, name };
+        });
+}
+
+function normalizeOfficerRoleName(roleName) {
+    const raw = String(roleName || '').trim();
+    if (!raw) return 'Officer';
+    return raw
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildOfficerFallbackFromProfile(profileConfig) {
+    return parseOfficerEntries(profileConfig?.officers || []).map((item, index) => ({
+        membership_id: index + 1,
+        officer_name: item.name,
+        role_name: item.role,
+        program_code: '',
+        section: '',
+        joined_at: ''
+    }));
+}
+
+function ensureMyOrgOfficersLoaded(viewModel) {
+    if (!viewModel?.organization?.name) return;
+    if (myOrgOfficersState.loading) return;
+    if (myOrgOfficersState.loaded && myOrgOfficersState.orgName === viewModel.organization.name) return;
+
+    myOrgOfficersState.orgName = viewModel.organization.name;
+    myOrgOfficersState.loading = true;
+    myOrgOfficersState.loaded = false;
+    myOrgOfficersState.error = '';
+    myOrgOfficersState.items = [];
+
+    fetch('../api/student/organizations/officers.php', { credentials: 'same-origin' })
+        .then(async (response) => {
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || `Request failed (${response.status})`);
+            }
+            myOrgOfficersState.items = Array.isArray(data.items) ? data.items : [];
+            myOrgOfficersState.loaded = true;
+        })
+        .catch((error) => {
+            console.error('load student organization officers failed', error);
+            myOrgOfficersState.error = error.message || 'Unable to load officers.';
+            myOrgOfficersState.items = [];
+            myOrgOfficersState.loaded = false;
+        })
+        .finally(() => {
+            myOrgOfficersState.loading = false;
+            const contentDiv = document.getElementById('tab-content');
+            if (contentDiv && activeMyOrgSection === 'officers') {
+                if (organizationBrowseContext?.orgName) {
+                    renderOrganizationProfileView(contentDiv, organizationBrowseContext.orgName, { browseMode: true });
+                } else {
+                    renderMyOrganizationTab(contentDiv);
+                }
+            }
+        });
+}
+
+function buildMyOrgContactProfile(orgName, organization, orgEntry) {
+    const baseSlug = String(orgName || organization?.name || 'organization')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '')
+        .replace(/^\d+|\d+$/g, '') || 'organization';
+
+    return {
+        office: 'Shared Office Blg A',
+        hours: 'Monday to Friday, 8:00 AM - 5:00 PM',
+        email: `${baseSlug}@naap.edu.ph`,
+        phone: '(02) 8123-4567',
+        facebook: `https://www.facebook.com/${baseSlug}`,
+        instagram: `https://www.instagram.com/${baseSlug}`,
+        x: `https://x.com/${baseSlug}`,
+        tiktok: `https://www.tiktok.com/@${baseSlug}`,
+        summary: orgEntry?.motto || 'Reach out for organization updates, collaborations, and student concerns.'
+    };
+}
+
+function renderMyOrgHomeSection(viewModel) {
+    const {
+        organization,
+        profileConfig,
+        heroBackgroundImage,
+        announcementEvents,
+        recentActivities,
+        relevantServices,
+        fullOrgName,
+        orgMotto,
+        formattedDate
+    } = viewModel;
+
+    const announcementMarkup = announcementEvents.map(event => `
+        <div class="my-org-ref-ann-item">
+            <img src="${organization.image}" alt="${organization.name} logo" class="my-org-ref-ann-thumb">
+            <div>
+                <div class="my-org-ref-ann-title">Upcoming Event: ${event.title}</div>
+                <div class="my-org-ref-ann-date">${event.date}</div>
+            </div>
+            <button class="my-org-ref-pill-btn" type="button" onclick="switchMyOrgSection('events')">Read More</button>
+        </div>
+    `).join("");
+
+    const activitiesMarkup = recentActivities.map(event => `
+        <article class="my-org-ref-activity-card">
+            <img src="${event.img}" alt="${event.title}">
+            <div class="my-org-ref-activity-caption">${event.title}</div>
+        </article>
+    `).join("");
+
+    const quickFactsMarkup = `
+        <ul>
+            <li><strong>Course:</strong> ${currentStudentProfile.course}</li>
+            <li><strong>Associated Org:</strong> ${organization.name}</li>
+            <li><strong>Services:</strong> ${relevantServices.map(service => service.name).join(", ") || "No active services yet"}</li>
+            <li><strong>Core Mission:</strong> ${profileConfig.about}</li>
+        </ul>
+    `;
+
+    return `
+        <section class="my-org-ref-main">
+            <article class="my-org-ref-hero">
+                <img src="${heroBackgroundImage}" alt="${organization.name} banner">
+                <div class="my-org-ref-hero-overlay"></div>
+                <div class="my-org-ref-chip">${organization.category}</div>
+                <div class="my-org-ref-date">${formattedDate}</div>
+                <div class="my-org-ref-hero-content">
+                    <h2>WELCOME TO ${fullOrgName.toUpperCase()}!</h2>
+                    <p>"${orgMotto}"</p>
+                </div>
+                <div class="my-org-ref-hero-actions">
+                    <button type="button"><i class="fa-solid fa-user-plus"></i> Join</button>
+                    <button type="button"><i class="fa-solid fa-link"></i> Share</button>
+                </div>
+            </article>
+
+            <aside class="my-org-ref-side">
+                <article class="my-org-ref-announcements">
+                    <h3>ANNOUNCEMENTS</h3>
+                    ${announcementMarkup}
+                </article>
+                <article class="my-org-ref-contact">
+                    <h3>${organization.name}</h3>
+                    <div class="my-org-ref-contact-search">
+                        <input type="text" placeholder="What are you looking for?">
+                        <button type="button"><i class="fa-solid fa-magnifying-glass"></i></button>
+                    </div>
+                    <div class="my-org-ref-socials">
+                        <a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                            <i class="fa-brands fa-facebook-f"></i>
+                        </a>
+                        <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                            <i class="fa-brands fa-instagram"></i>
+                        </a>
+                        <a href="https://x.com/" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)">
+                            <span class="x-text">X</span>
+                        </a>
+                        <a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
+                            <i class="fa-brands fa-tiktok"></i>
+                        </a>
+                    </div>
+                </article>
+            </aside>
+        </section>
+
+        <section class="my-org-ref-bottom">
+            <article class="my-org-ref-quickfacts">
+                <h3>QUICK FACTS</h3>
+                ${quickFactsMarkup}
+            </article>
+            <article class="my-org-ref-activities">
+                <h3>RECENT ACTIVITIES</h3>
+                <div class="my-org-ref-activities-grid">
+                    ${activitiesMarkup}
+                </div>
+            </article>
+        </section>
+    `;
+}
+
+function renderMyOrgEventsSection(viewModel) {
+    const eventsMarkup = viewModel.relevantEvents.length
+        ? viewModel.relevantEvents.map((event, index) => `
+            <article class="my-org-spa-card my-org-event-card">
+                <div class="my-org-event-media">
+                    <img src="${event.img}" alt="${event.title}">
+                    <span class="my-org-event-index">Event ${String(index + 1).padStart(2, '0')}</span>
+                </div>
+                <div class="my-org-event-content">
+                    <div class="my-org-event-meta">
+                        <span><i class="fa-regular fa-calendar"></i> ${event.date}</span>
+                        <span><i class="fa-regular fa-clock"></i> ${event.time || 'Time TBA'}</span>
+                        <span><i class="fa-solid fa-location-dot"></i> ${event.venue || 'Venue TBA'}</span>
+                    </div>
+                    <h3>${event.title}</h3>
+                    <p>${event.description || 'No event description available yet.'}</p>
+                    <div class="my-org-event-footer">
+                        <span class="my-org-stat-chip"><i class="fa-solid fa-users"></i> ${event.participants || 0} participants</span>
+                        <button type="button" class="my-org-ref-pill-btn" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}')">Register</button>
+                    </div>
+                </div>
+            </article>
+        `).join('')
+        : `
+            <div class="my-org-spa-empty">
+                <i class="fa-regular fa-calendar-xmark"></i>
+                <h3>No Events Yet</h3>
+                <p>This organization has no published events at the moment.</p>
+            </div>
+        `;
+
+    return `
+        <section class="my-org-spa-section">
+            <div class="my-org-spa-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Organization Events</p>
+                    <h2>${viewModel.organization.name} Event Lineup</h2>
+                    <p>Browse scheduled activities, venue details, and participation scope for your organization.</p>
+                </div>
+            </div>
+            <div class="my-org-events-stack">
+                ${eventsMarkup}
+            </div>
+        </section>
+    `;
+}
+
+function renderMyOrgAboutSection(viewModel) {
+    const highlightsMarkup = (viewModel.profileConfig.highlights || []).map(item => `
+        <li><i class="fa-solid fa-check"></i><span>${item}</span></li>
+    `).join('');
+    const servicesMarkup = viewModel.relevantServices.length
+        ? viewModel.relevantServices.map(service => `
+            <div class="my-org-service-pill">
+                <i class="fa-solid ${service.icon || 'fa-circle'}"></i>
+                <span>${service.name}</span>
+            </div>
+        `).join('')
+        : '<p class="my-org-inline-empty">No active services listed yet.</p>';
+
+    return `
+        <section class="my-org-spa-section">
+            <div class="my-org-spa-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">About The Organization</p>
+                    <h2>${viewModel.fullOrgName}</h2>
+                    <p>${viewModel.orgMotto}</p>
+                </div>
+            </div>
+
+            <div class="my-org-about-grid">
+                <article class="my-org-spa-card my-org-about-story">
+                    <h3>Who We Are</h3>
+                    <p>${viewModel.profileConfig.about}</p>
+                    <div class="my-org-about-banner">
+                        <img src="${viewModel.heroBackgroundImage}" alt="${viewModel.organization.name} banner">
+                    </div>
+                </article>
+
+                <article class="my-org-spa-card my-org-about-highlights">
+                    <h3>Signature Programs</h3>
+                    <ul class="my-org-highlight-list">
+                        ${highlightsMarkup}
+                    </ul>
+                </article>
+
+                <article class="my-org-spa-card">
+                    <h3>Student Services</h3>
+                    <div class="my-org-service-pill-list">
+                        ${servicesMarkup}
+                    </div>
+                </article>
+
+                <article class="my-org-spa-card">
+                    <h3>Membership Snapshot</h3>
+                    <div class="my-org-kpi-grid">
+                        <div class="my-org-kpi-box">
+                            <strong>${viewModel.relevantEvents.length}</strong>
+                            <span>Published Events</span>
+                        </div>
+                        <div class="my-org-kpi-box">
+                            <strong>${viewModel.relevantServices.length}</strong>
+                            <span>Active Services</span>
+                        </div>
+                        <div class="my-org-kpi-box">
+                            <strong>${viewModel.officers.length}</strong>
+                            <span>Core Officers</span>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+    `;
+}
+
+function renderMyOrgOfficersSection(viewModel) {
+    const shouldUseLiveOfficers = myOrgOfficersState.orgName === viewModel.organization.name;
+    const liveOfficers = shouldUseLiveOfficers ? myOrgOfficersState.items : [];
+    const officersToRender = liveOfficers.length
+        ? liveOfficers.map((officer, index) => ({
+            role: normalizeOfficerRoleName(officer.role_name),
+            name: officer.officer_name || 'TBD',
+            meta: [officer.program_code, officer.section].filter(Boolean).join(' • ') || `Organization leadership team member ${index + 1}`
+        }))
+        : buildOfficerFallbackFromProfile(viewModel.profileConfig).map((officer, index) => ({
+            role: normalizeOfficerRoleName(officer.role_name),
+            name: officer.officer_name || 'TBD',
+            meta: [officer.program_code, officer.section].filter(Boolean).join(' • ') || `Organization leadership team member ${index + 1}`
+        }));
+
+    if (!myOrgOfficersState.loading && !shouldUseLiveOfficers) {
+        ensureMyOrgOfficersLoaded(viewModel);
+    }
+
+    const statusMarkup = myOrgOfficersState.loading
+        ? `
+            <div class="my-org-spa-empty">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <h3>Loading Officers</h3>
+                <p>Fetching the latest officers from the organization members database.</p>
+            </div>
+        `
+        : myOrgOfficersState.error
+            ? `
+                <div class="my-org-spa-empty">
+                    <i class="fa-regular fa-circle-xmark"></i>
+                    <h3>Showing Saved Officer Profiles</h3>
+                    <p>${escapeHtml(myOrgOfficersState.error)}</p>
+                </div>
+            `
+            : '';
+
+    const officerMarkup = officersToRender.length
+        ? officersToRender.map((officer, index) => `
+            <article class="my-org-spa-card my-org-officer-card">
+                <div class="my-org-officer-avatar">${officer.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</div>
+                <div class="my-org-officer-body">
+                    <p class="my-org-officer-role">${officer.role}</p>
+                    <h3>${officer.name}</h3>
+                    <p class="my-org-officer-meta">${officer.meta}</p>
+                </div>
+            </article>
+        `).join('')
+        : `
+            <div class="my-org-spa-empty">
+                <i class="fa-regular fa-user"></i>
+                <h3>No Officers Listed</h3>
+                <p>Officer details are not available yet for this organization.</p>
+            </div>
+        `;
+
+    return `
+        <section class="my-org-spa-section">
+            <div class="my-org-spa-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Organization Officers</p>
+                    <h2>${viewModel.organization.name} Leadership Team</h2>
+                    <p>Core student leaders currently assigned in the <code>organization_members</code> table for this organization.</p>
+                </div>
+            </div>
+            ${statusMarkup}
+            <div class="my-org-officers-grid">
+                ${officerMarkup}
+            </div>
+        </section>
+    `;
+}
+
+function renderMyOrgContactSection(viewModel) {
+    return `
+        <section class="my-org-spa-section">
+            <div class="my-org-spa-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Contact Directory</p>
+                    <h2>Reach ${viewModel.organization.name}</h2>
+                    <p>${viewModel.contactProfile.summary}</p>
+                </div>
+            </div>
+
+            <div class="my-org-contact-grid">
+                <article class="my-org-spa-card my-org-contact-card">
+                    <h3>Office Information</h3>
+                    <div class="my-org-contact-list">
+                        <div><i class="fa-solid fa-building"></i><span>${viewModel.contactProfile.office}</span></div>
+                        <div><i class="fa-regular fa-clock"></i><span>${viewModel.contactProfile.hours}</span></div>
+                        <div><i class="fa-regular fa-envelope"></i><a href="mailto:${viewModel.contactProfile.email}">${viewModel.contactProfile.email}</a></div>
+                        <div><i class="fa-solid fa-phone"></i><a href="tel:${viewModel.contactProfile.phone}">${viewModel.contactProfile.phone}</a></div>
+                    </div>
+                </article>
+
+                <article class="my-org-spa-card my-org-contact-card">
+                    <h3>Online Channels</h3>
+                    <div class="my-org-contact-links">
+                        <a href="${viewModel.contactProfile.facebook}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-facebook-f"></i><span>Facebook Page</span></a>
+                        <a href="${viewModel.contactProfile.instagram}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-instagram"></i><span>Instagram</span></a>
+                        <a href="${viewModel.contactProfile.x}" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)"><span class="my-org-contact-icon-x" aria-hidden="true">X</span><span>X (Twitter)</span></a>
+                        <a href="${viewModel.contactProfile.tiktok}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-tiktok"></i><span>TikTok</span></a>
+                    </div>
+                </article>
+            </div>
+        </section>
+    `;
+}
+
+function renderMyOrgActiveSection(viewModel) {
+    if (activeMyOrgSection === 'events') return renderMyOrgEventsSection(viewModel);
+    if (activeMyOrgSection === 'about') return renderMyOrgAboutSection(viewModel);
+    if (activeMyOrgSection === 'officers') return renderMyOrgOfficersSection(viewModel);
+    if (activeMyOrgSection === 'contact') return renderMyOrgContactSection(viewModel);
+    return renderMyOrgHomeSection(viewModel);
+}
+
+function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) {
     const organization = organizationData.find(item => normalizeOrgName(item.name) === targetOrgName);
 
     if (!organization) {
@@ -419,41 +860,42 @@ function renderMyOrganizationTab(contentDiv) {
     const fullOrgName = orgEntry.fullName || organization.name;
     const orgMotto = orgEntry.motto || profileConfig.tagline || "";
     const formattedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
-    const announcementMarkup = announcementEvents.map(event => `
-        <div class="my-org-ref-ann-item">
-            <img src="${organization.image}" alt="${organization.name} logo" class="my-org-ref-ann-thumb">
-            <div>
-                <div class="my-org-ref-ann-title">Upcoming Event: ${event.title}</div>
-                <div class="my-org-ref-ann-date">${event.date}</div>
-            </div>
-            <button class="my-org-ref-pill-btn" type="button">Read More</button>
-        </div>
-    `).join("");
-
-    const activitiesMarkup = recentActivities.map(event => `
-        <article class="my-org-ref-activity-card">
-            <img src="${event.img}" alt="${event.title}">
-            <div class="my-org-ref-activity-caption">${event.title}</div>
-        </article>
-    `).join("");
-
-    const quickFactsMarkup = `
-        <ul>
-            <li><strong>Course:</strong> ${currentStudentProfile.course}</li>
-            <li><strong>Associated Org:</strong> ${organization.name}</li>
-            <li><strong>Services:</strong> ${relevantServices.map(service => service.name).join(", ") || "No active services yet"}</li>
-            <li><strong>Core Mission:</strong> ${profileConfig.about}</li>
-        </ul>
-    `;
+    const officers = parseOfficerEntries(profileConfig.officers);
+    const contactProfile = buildMyOrgContactProfile(targetOrgName, organization, orgEntry);
+    const viewModel = {
+        organization,
+        profileConfig,
+        orgThemeClass,
+        heroBackgroundImage,
+        relevantEvents,
+        relevantServices,
+        announcementEvents,
+        recentActivities,
+        orgEntry,
+        fullOrgName,
+        orgMotto,
+        formattedDate,
+        officers,
+        contactProfile
+    };
+    const topbarLabel = options.browseMode ? 'Organization Directory' : 'My Organization';
+    const topbarTitle = options.browseMode ? organization.name : buildMyOrgSectionLabel(activeMyOrgSection);
+    const backButtonMarkup = options.browseMode
+        ? `<button type="button" class="my-org-browse-back-btn" onclick="returnToOrganizationsAboutGrid()"><i class="fa-solid fa-arrow-left"></i> Back to Organizations</button>`
+        : '';
 
     contentDiv.innerHTML = `
         <div class="my-org-page ${orgThemeClass}">
             <section class="my-org-ref-topbar">
+                <div class="my-org-ref-top-summary">
+                    <p class="my-org-ref-top-label">${topbarLabel}</p>
+                    <strong>${topbarTitle}</strong>
+                </div>
                 <div class="my-org-ref-top-actions">
+                    ${backButtonMarkup}
                     <div class="my-org-ref-search">
                         <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" placeholder="Search">
+                        <input type="text" placeholder="Search ${buildMyOrgSectionLabel(activeMyOrgSection)}">
                     </div>
                     <img src="${organization.image}" alt="${organization.name} logo" class="my-org-ref-top-logo">
                 </div>
@@ -465,73 +907,147 @@ function renderMyOrganizationTab(contentDiv) {
                     <span>${fullOrgName}</span>
                 </div>
                 <nav class="my-org-ref-links">
-                    <a href="#">Home</a>
-                    <a href="#">Events</a>
-                    <a href="#">About</a>
-                    <a href="#">Officers</a>
-                    <a href="#">Contact</a>
+                    <button type="button" class="${activeMyOrgSection === 'home' ? 'active' : ''}" onclick="switchMyOrgSection('home')">Home</button>
+                    <button type="button" class="${activeMyOrgSection === 'events' ? 'active' : ''}" onclick="switchMyOrgSection('events')">Events</button>
+                    <button type="button" class="${activeMyOrgSection === 'about' ? 'active' : ''}" onclick="switchMyOrgSection('about')">About</button>
+                    <button type="button" class="${activeMyOrgSection === 'officers' ? 'active' : ''}" onclick="switchMyOrgSection('officers')">Officers</button>
+                    <button type="button" class="${activeMyOrgSection === 'contact' ? 'active' : ''}" onclick="switchMyOrgSection('contact')">Contact</button>
                 </nav>
             </section>
 
-            <section class="my-org-ref-main">
-                <article class="my-org-ref-hero">
-                    <img src="${heroBackgroundImage}" alt="${organization.name} banner">
-                    <div class="my-org-ref-hero-overlay"></div>
-                    <div class="my-org-ref-chip">${organization.category}</div>
-                    <div class="my-org-ref-date">${formattedDate}</div>
-                    <div class="my-org-ref-hero-content">
-                        <h2>WELCOME TO ${fullOrgName.toUpperCase()}!</h2>
-                        <p>"${orgMotto}"</p>
-                    </div>
-                    <div class="my-org-ref-hero-actions">
-                        <button type="button"><i class="fa-solid fa-user-plus"></i> Join</button>
-                        <button type="button"><i class="fa-solid fa-link"></i> Share</button>
-                    </div>
-                </article>
-
-                <aside class="my-org-ref-side">
-                    <article class="my-org-ref-announcements">
-                        <h3>ANNOUNCEMENTS</h3>
-                        ${announcementMarkup}
-                    </article>
-                    <article class="my-org-ref-contact">
-                        <h3>${organization.name}</h3>
-                        <div class="my-org-ref-contact-search">
-                            <input type="text" placeholder="What are you looking for?">
-                            <button type="button"><i class="fa-solid fa-magnifying-glass"></i></button>
-                        </div>
-                        <div class="my-org-ref-socials">
-                            <a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-                                <i class="fa-brands fa-facebook-f"></i>
-                            </a>
-                            <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-                                <i class="fa-brands fa-instagram"></i>
-                            </a>
-                            <a href="https://x.com/" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)">
-                                <span class="x-text">X</span>
-                            </a>
-                            <a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
-                                <i class="fa-brands fa-tiktok"></i>
-                            </a>
-                        </div>
-                    </article>
-                </aside>
-            </section>
-
-            <section class="my-org-ref-bottom">
-                <article class="my-org-ref-quickfacts">
-                    <h3>QUICK FACTS</h3>
-                    ${quickFactsMarkup}
-                </article>
-                <article class="my-org-ref-activities">
-                    <h3>RECENT ACTIVITIES</h3>
-                    <div class="my-org-ref-activities-grid">
-                        ${activitiesMarkup}
-                    </div>
-                </article>
-            </section>
+            ${renderMyOrgActiveSection(viewModel)}
         </div>
     `;
+}
+
+function renderMyOrganizationTab(contentDiv) {
+    organizationBrowseContext = null;
+    renderOrganizationProfileView(contentDiv, currentStudentProfile.associatedOrg, { browseMode: false });
+}
+
+function renderOrganizationsAboutTab(contentDiv) {
+    // --- FILTER BUTTONS ---
+    const filterBar = document.createElement('div');
+    filterBar.style.display = 'flex';
+    filterBar.style.gap = '12px';
+    filterBar.style.marginBottom = '24px';
+    filterBar.style.flexWrap = 'wrap';
+
+    const categories = [
+        { key: 'all', label: 'All', icon: 'fa-layer-group' },
+        { key: 'Council', label: 'Council', icon: 'fa-university' },
+        { key: 'ICS', label: 'ICS', icon: 'fa-microchip' },
+        { key: 'ILAS', label: 'ILAS', icon: 'fa-book' },
+        { key: 'INET', label: 'INET', icon: 'fa-network-wired' },
+        { key: 'Interest Club', label: 'Interest Club', icon: 'fa-star' }
+    ];
+
+    categories.forEach((cat, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'org-filter-btn';
+        btn.innerText = cat.label;
+        btn.setAttribute('data-category', cat.key);
+        if (idx === 0) btn.classList.add('active');
+        filterBar.appendChild(btn);
+    });
+    contentDiv.appendChild(filterBar);
+
+    const grid = document.createElement('div');
+    grid.className = 'org-grid-layout';
+    contentDiv.appendChild(grid);
+
+    function renderOrgs(categoryKey) {
+        grid.innerHTML = '';
+        let orgsToShow = [];
+        if (!categoryKey || categoryKey === 'all') {
+            orgsToShow = organizationData;
+        } else if (categoryKey === 'Council') {
+            orgsToShow = organizationData.filter(o => o.name === 'Supreme Student Council');
+        } else if (categoryKey === 'ICS') {
+            orgsToShow = organizationData.filter(o => o.name === 'AISERS' || o.name === 'ELITECH');
+        } else if (categoryKey === 'ILAS') {
+            orgsToShow = organizationData.filter(o => o.name === 'ILASSO');
+        } else if (categoryKey === 'INET') {
+            orgsToShow = organizationData.filter(o => ['AERO-ATSO', 'AETSO', 'AMTSO'].includes(o.name));
+        } else if (categoryKey === 'Interest Club') {
+            orgsToShow = organizationData.filter(o => [
+                'RCYC', 'CYC', "Scholarâ€™s Guild", 'Aeronautica'
+            ].includes(o.name));
+        }
+
+        if (orgsToShow.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted);">No organizations found for this category.</div>';
+            return;
+        }
+
+        orgsToShow.forEach(org => {
+            const card = document.createElement('button');
+            card.className = 'org-card';
+            card.type = 'button';
+            card.setAttribute('aria-label', `Open ${org.name}`);
+            card.addEventListener('click', () => openOrganizationPreview(normalizeOrgName(org.name)));
+
+            const img = document.createElement('img');
+            img.src = org.image ? org.image : `https://picsum.photos/seed/${org.imgSeed}/400/225`;
+            img.className = 'org-card-image';
+            img.alt = org.name;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'org-overlay';
+
+            const title = document.createElement('div');
+            title.className = 'org-title';
+            title.innerText = org.name;
+
+            overlay.appendChild(title);
+            card.appendChild(img);
+            card.appendChild(overlay);
+            grid.appendChild(card);
+        });
+    }
+
+    renderOrgs('all');
+
+    filterBar.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', function () {
+            filterBar.querySelectorAll('button').forEach(b => {
+                b.classList.remove('active');
+            });
+            this.classList.add('active');
+            renderOrgs(this.getAttribute('data-category'));
+        });
+    });
+}
+
+function openOrganizationPreview(orgName) {
+    activeMyOrgSection = 'home';
+    organizationBrowseContext = { orgName };
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        renderOrganizationProfileView(contentDiv, orgName, { browseMode: true });
+    }
+}
+
+function returnToOrganizationsAboutGrid() {
+    organizationBrowseContext = null;
+    activeMyOrgSection = 'home';
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        contentDiv.innerHTML = '';
+        renderOrganizationsAboutTab(contentDiv);
+    }
+}
+
+function switchMyOrgSection(sectionName) {
+    activeMyOrgSection = sectionName || 'home';
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        if (organizationBrowseContext?.orgName) {
+            renderOrganizationProfileView(contentDiv, organizationBrowseContext.orgName, { browseMode: true });
+        } else {
+            renderMyOrganizationTab(contentDiv);
+        }
+    }
 }
 
 
@@ -620,6 +1136,11 @@ function switchOrgTab(tabName, btn) {
     // Update Content
     const contentDiv = document.getElementById('tab-content');
     contentDiv.innerHTML = ''; // Clear previous content
+
+    if (tabName === 'about') {
+        renderOrganizationsAboutTab(contentDiv);
+        return;
+    }
 
     if (tabName === 'about') {
         // --- FILTER BUTTONS ---
