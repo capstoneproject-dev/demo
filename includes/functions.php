@@ -46,6 +46,25 @@ function getUserById(int $userId): ?array
     return $stmt->fetch() ?: null;
 }
 
+function findStudentUserByStudentNumber(string $studentNumber): ?array
+{
+    $stmt = getPdo()->prepare(
+        "SELECT u.*,
+                sn.year_section AS student_numbers_year_section,
+                ap.program_code,
+                ap.program_id
+         FROM   users u
+         LEFT JOIN student_numbers sn ON sn.student_number = u.student_number
+         LEFT JOIN academic_programs ap ON ap.program_id = u.program_id
+         WHERE  u.student_number = :student_number
+           AND  u.account_type = 'student'
+           AND  u.is_active = 1
+         LIMIT 1"
+    );
+    $stmt->execute([':student_number' => trim($studentNumber)]);
+    return $stmt->fetch() ?: null;
+}
+
 // ---------------------------------------------------------------------------
 // Officer memberships
 // ---------------------------------------------------------------------------
