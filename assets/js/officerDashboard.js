@@ -604,6 +604,10 @@ function getFilteredOfficerFinancialSummaryItems() {
     });
 }
 
+function getOfficerFinancialSummaryRows() {
+    return Array.isArray(officerFinancialSummaryData) ? officerFinancialSummaryData.slice() : [];
+}
+
 function setOfficerFinancialSummaryText(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
@@ -736,6 +740,13 @@ function renderOfficerFinancialSummary() {
                 </tr>
             `).join('');
         }
+    }
+
+    if (typeof initializeOfficerAnalyticsYearOptions === 'function') {
+        initializeOfficerAnalyticsYearOptions();
+    }
+    if (typeof refreshAnalyticsCharts === 'function') {
+        refreshAnalyticsCharts();
     }
 }
 
@@ -2549,6 +2560,10 @@ function renderRentals() {
             <td><span class="status-badge ${badgeClass}">${item.status}</span></td>
         </tr>`;
     }).join('');
+
+    if (typeof refreshAnalyticsCharts === 'function') {
+        refreshAnalyticsCharts();
+    }
 }
 
 async function loadRentalsFromApi() {
@@ -2562,6 +2577,7 @@ async function loadRentalsFromApi() {
             item: String(item.items_label || '-').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || '-',
             renter: item.renter_name || '-',
             due: fmtDateShort(item.expected_return_time),
+            dueAt: item.expected_return_time || null,
             status: String(item.status || '').toLowerCase() === 'reserved'
                 ? 'Reserved'
                 : (String(item.status || '').toLowerCase() === 'overdue' ? 'Overdue' : 'Rented'),
@@ -2573,6 +2589,9 @@ async function loadRentalsFromApi() {
         const countEl = activeRentalsCard ? activeRentalsCard.parentElement.querySelector('h3') : null;
         if (countEl) countEl.innerText = String(items.length);
 
+        if (typeof initializeOfficerAnalyticsYearOptions === 'function') {
+            initializeOfficerAnalyticsYearOptions();
+        }
         renderRentals();
     } catch (e) {
         console.error('loadRentalsFromApi failed', e);
@@ -2870,6 +2889,9 @@ function renderDocs(filter = 'All', btnElement = null) {
 
     if (filteredData.length === 0) {
         list.innerHTML = `<div style="text-align:center; padding: 40px; color:var(--muted); grid-column: 1/-1;">No documents match these filters.</div>`;
+        if (typeof refreshAnalyticsCharts === 'function') {
+            refreshAnalyticsCharts();
+        }
         return;
     }
 
@@ -2975,6 +2997,10 @@ function renderDocs(filter = 'All', btnElement = null) {
             </div>
         </div>`;
     }).join('');
+
+    if (typeof refreshAnalyticsCharts === 'function') {
+        refreshAnalyticsCharts();
+    }
 }
 
 // Helper: Clear filters
@@ -3355,6 +3381,12 @@ function resetAnalyticsFilters() {
  * Sends the selected filter to the Analytics logic.
  */
 function syncCharts(value, type) {
+    if (typeof refreshAnalyticsCharts === 'function') {
+        refreshAnalyticsCharts(value, type);
+    }
+    window.dispatchEvent(new Event('resize'));
+    return;
+
     console.log(`Syncing charts for ${type}: ${value}`);
 
     // Update Stat Cards UI immediately
@@ -3533,6 +3565,290 @@ function exportPDF() {
     doc.save(`OrgReport_Full_${meta.monthInput || 'Summary'}.pdf`);
 }
 
+function getReportMetadata() {
+    const filterYear = document.getElementById('filter-year');
+    const analyticsDate = document.getElementById('analytics-date');
+    const filterMonth = document.getElementById('filter-month');
+
+    const year = filterYear ? filterYear.value : 'Unknown Year';
+    const dayInput = analyticsDate ? analyticsDate.value : '';
+    const monthInput = filterMonth ? filterMonth.value : '';
+
+    let dateLabel = `Academic Year ${year}`;
+    if (dayInput) {
+        dateLabel = new Date(`${dayInput}T00:00:00`).toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } else if (monthInput) {
+        const dateObj = new Date(`${monthInput}-01`);
+        dateLabel = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+
+    return {
+        year,
+        dayInput,
+        monthInput,
+        dateLabel,
+        organization: typeof getActiveOfficerOrgName === 'function' ? getActiveOfficerOrgName() : 'Organization'
+    };
+}
+
+function getAnalyticsExportFileStem(meta) {
+    const scope = meta.dayInput || meta.monthInput || meta.year || 'summary';
+    const safeOrg = String(meta.organization || 'Organization').replace(/[^a-z0-9]+/gi, '_');
+    const safeScope = String(scope).replace(/[^a-z0-9]+/gi, '_');
+    return `${safeOrg}_Analytics_${safeScope}`;
+}
+
+function escapeCsvValue(value) {
+    const stringValue = String(value ?? '');
+    if (/[",\r\n]/.test(stringValue)) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+}
+
+function buildAnalyticsCsvRows(meta, report) {
+    const rows = [
+        ['ORGANIZATION ANALYTICS REPORT'],
+        ['Organization', meta.organization],
+        ['Generated On', new Date().toLocaleString()],
+        ['Academic Year', meta.year],
+        ['Period Covered', meta.dateLabel],
+        [],
+        ['SUMMARY'],
+        ['Metric', 'Value', 'Notes'],
+        ['Total Revenue', formatOfficerPeso(report.totals.revenue), String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '')],
+        ['Average Attendance', report.totals.participationAverage, report.summaries.participation],
+        ['Total Event Participants', report.totals.participationTotal, `${report.events.length} event(s)`],
+        ['Active Rentals', report.counts.rentals.active, 'Inventory utilization'],
+        ['Pending Rentals', report.counts.rentals.pending, 'Inventory utilization'],
+        ['Overdue Rentals', report.counts.rentals.overdue, 'Inventory utilization'],
+        ['Approved Documents', report.counts.docs.approved, 'Document workflow'],
+        ['Pending Documents', report.counts.docs.pending, 'Document workflow'],
+        ['Rejected Documents', report.counts.docs.rejected, 'Document workflow'],
+        [],
+        ['REVENUE SERIES'],
+        ['Period', 'Revenue'],
+    ];
+
+    if (report.charts.revenue.labels.length && !(report.charts.revenue.labels.length === 1 && report.charts.revenue.labels[0] === 'No revenue data')) {
+        report.charts.revenue.labels.forEach((label, index) => {
+            rows.push([label, formatOfficerPeso(report.charts.revenue.values[index] || 0)]);
+        });
+    } else {
+        rows.push(['No revenue data', formatOfficerPeso(0)]);
+    }
+
+    rows.push([]);
+    rows.push(['EVENT PARTICIPATION']);
+    rows.push(['Event', 'Date', 'Participants', 'Venue']);
+    if (report.events.length) {
+        report.events.forEach((event) => {
+            rows.push([
+                event.title || 'Event',
+                event.date || '-',
+                Number(event.participants || 0),
+                event.venue || '-'
+            ]);
+        });
+    } else {
+        rows.push(['No event records', '', '', '']);
+    }
+
+    rows.push([]);
+    rows.push(['FINANCIAL TRANSACTIONS']);
+    rows.push(['Date', 'Service', 'Item', 'Customer', 'Total', 'Payment']);
+    if (report.financial.length) {
+        report.financial.forEach((item) => {
+            rows.push([
+                formatOfficerFinancialDate(getOfficerFinancialDateValue(item)),
+                getOfficerFinancialServiceLabel(item.service_type),
+                getOfficerFinancialItemDisplayLabel(item),
+                item.customer_name || '-',
+                formatOfficerPeso(item.total_cost || 0),
+                String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid',
+            ]);
+        });
+    } else {
+        rows.push(['No financial transactions', '', '', '', '', '']);
+    }
+
+    rows.push([]);
+    rows.push(['RENTAL RECORDS']);
+    rows.push(['Item', 'Borrower', 'Due Date', 'Status']);
+    if (report.rentals.length) {
+        report.rentals.forEach((item) => {
+            rows.push([item.item || '-', item.renter || '-', item.due || '-', item.status || '-']);
+        });
+    } else {
+        rows.push(['No rental records', '', '', '']);
+    }
+
+    rows.push([]);
+    rows.push(['DOCUMENT WORKFLOW']);
+    rows.push(['Title', 'Type', 'Submitted', 'Status']);
+    if (report.docs.length) {
+        report.docs.forEach((item) => {
+            rows.push([item.title || '-', item.type || '-', item.date || '-', item.status || '-']);
+        });
+    } else {
+        rows.push(['No document records', '', '', '']);
+    }
+
+    return rows;
+}
+
+function exportCSV() {
+    const meta = getReportMetadata();
+    const report = typeof getOfficerAnalyticsReportData === 'function' ? getOfficerAnalyticsReportData() : null;
+    if (!report) {
+        alert('Analytics data is not ready yet.');
+        return;
+    }
+
+    const csvRows = buildAnalyticsCsvRows(meta, report);
+    const csvContent = csvRows.map((row) => row.map(escapeCsvValue).join(',')).join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${getAnalyticsExportFileStem(meta)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function exportPDF() {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('PDF export library is unavailable.');
+        return;
+    }
+
+    const meta = getReportMetadata();
+    const report = typeof getOfficerAnalyticsReportData === 'function' ? getOfficerAnalyticsReportData() : null;
+    if (!report) {
+        alert('Analytics data is not ready yet.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(18);
+    doc.setTextColor(0, 33, 71);
+    doc.text('Organization Analytics Report', 14, 18);
+
+    doc.setFontSize(11);
+    doc.setTextColor(90);
+    doc.text(`Organization: ${meta.organization}`, 14, 26);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 32);
+    doc.text(`Period: ${meta.dateLabel} | A.Y. ${meta.year}`, 14, 38);
+
+    doc.autoTable({
+        startY: 46,
+        head: [['Metric', 'Value', 'Notes']],
+        body: [
+            ['Total Revenue', formatOfficerPeso(report.totals.revenue), String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '')],
+            ['Average Attendance', String(report.totals.participationAverage), report.summaries.participation],
+            ['Total Participants', String(report.totals.participationTotal), `${report.events.length} event(s)`],
+            ['Active Rentals', String(report.counts.rentals.active), 'Inventory utilization'],
+            ['Pending Rentals', String(report.counts.rentals.pending), 'Inventory utilization'],
+            ['Overdue Rentals', String(report.counts.rentals.overdue), 'Inventory utilization'],
+            ['Approved Docs', String(report.counts.docs.approved), 'Document workflow'],
+            ['Pending Docs', String(report.counts.docs.pending), 'Document workflow'],
+            ['Rejected Docs', String(report.counts.docs.rejected), 'Document workflow'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [0, 33, 71] },
+        styles: { fontSize: 9, cellPadding: 3 },
+    });
+
+    let currentY = (doc.lastAutoTable?.finalY || 46) + 10;
+    doc.setFontSize(12);
+    doc.setTextColor(0, 33, 71);
+    doc.text('Revenue Series', 14, currentY);
+    doc.autoTable({
+        startY: currentY + 4,
+        head: [['Period', 'Revenue']],
+        body: (report.charts.revenue.labels.length && !(report.charts.revenue.labels.length === 1 && report.charts.revenue.labels[0] === 'No revenue data'))
+            ? report.charts.revenue.labels.map((label, index) => [label, formatOfficerPeso(report.charts.revenue.values[index] || 0)])
+            : [['No revenue data', formatOfficerPeso(0)]],
+        theme: 'striped',
+        headStyles: { fillColor: [0, 33, 71] },
+        styles: { fontSize: 9 },
+    });
+
+    currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
+    doc.text('Event Participation', 14, currentY);
+    doc.autoTable({
+        startY: currentY + 4,
+        head: [['Event', 'Date', 'Participants', 'Venue']],
+        body: report.events.length
+            ? report.events.map((event) => [
+                event.title || 'Event',
+                event.date || '-',
+                String(Number(event.participants || 0)),
+                event.venue || '-',
+            ])
+            : [['No event records', '', '', '']],
+        theme: 'striped',
+        headStyles: { fillColor: [5, 150, 105] },
+        styles: { fontSize: 9 },
+    });
+
+    currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
+    doc.text('Financial Transactions', 14, currentY);
+    doc.autoTable({
+        startY: currentY + 4,
+        head: [['Date', 'Service', 'Item', 'Customer', 'Total', 'Payment']],
+        body: report.financial.length
+            ? report.financial.map((item) => [
+                formatOfficerFinancialDate(getOfficerFinancialDateValue(item)),
+                getOfficerFinancialServiceLabel(item.service_type),
+                getOfficerFinancialItemDisplayLabel(item),
+                item.customer_name || '-',
+                formatOfficerPeso(item.total_cost || 0),
+                String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid',
+            ])
+            : [['No financial transactions', '', '', '', '', '']],
+        theme: 'striped',
+        headStyles: { fillColor: [37, 99, 235] },
+        styles: { fontSize: 8 },
+    });
+
+    currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
+    doc.text('Rental Records', 14, currentY);
+    doc.autoTable({
+        startY: currentY + 4,
+        head: [['Item', 'Borrower', 'Due Date', 'Status']],
+        body: report.rentals.length
+            ? report.rentals.map((item) => [item.item || '-', item.renter || '-', item.due || '-', item.status || '-'])
+            : [['No rental records', '', '', '']],
+        theme: 'striped',
+        headStyles: { fillColor: [217, 119, 6] },
+        styles: { fontSize: 8 },
+    });
+
+    currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
+    doc.text('Document Workflow', 14, currentY);
+    doc.autoTable({
+        startY: currentY + 4,
+        head: [['Title', 'Type', 'Submitted', 'Status']],
+        body: report.docs.length
+            ? report.docs.map((item) => [item.title || '-', item.type || '-', item.date || '-', item.status || '-'])
+            : [['No document records', '', '', '']],
+        theme: 'striped',
+        headStyles: { fillColor: [107, 114, 128] },
+        styles: { fontSize: 8 },
+    });
+
+    doc.save(`${getAnalyticsExportFileStem(meta)}.pdf`);
+}
+
 // --- WORKFLOW ACTION: Submit to OSA ---
 function submitToOSA(index) {
     if (confirm('Submit this approved document to OSA for final review?')) {
@@ -3650,6 +3966,9 @@ async function loadDocsFromApi() {
                 PDFViewer.registerRemote(doc.viewerId, doc.title, doc.fileUrl, { submissionId: doc.submission_id });
             }
         });
+        if (typeof initializeOfficerAnalyticsYearOptions === 'function') {
+            initializeOfficerAnalyticsYearOptions();
+        }
         renderDocs(currentDocFilter);
         renderRecentDocs();
     } catch (e) {

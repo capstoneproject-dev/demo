@@ -836,6 +836,46 @@ function stUpdatePrintJobStatus(PDO $pdo, int $orgId, int $printJobId, string $s
     }
 }
 
+function stCancelStudentPrintJob(PDO $pdo, int $userId, int $printJobId): array
+{
+    stEnsureSchema($pdo);
+    if ($userId <= 0) {
+        throw new ServiceTrackerAuthorizationException('Invalid student session.');
+    }
+
+    $current = stFetchPrintJob($pdo, $printJobId);
+    if ((int)$current['user_id'] !== $userId) {
+        throw new ServiceTrackerAuthorizationException('You are not allowed to cancel this print job.');
+    }
+
+    if (strtolower((string)$current['status']) !== 'queued') {
+        throw new ServiceTrackerValidationException('Only queued print jobs can be cancelled.');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare(
+            "UPDATE print_jobs
+             SET status = 'cancelled',
+                 last_updated_by_user_id = :updated_by
+             WHERE print_job_id = :print_job_id"
+        );
+        $stmt->execute([
+            ':updated_by' => $userId,
+            ':print_job_id' => $printJobId,
+        ]);
+
+        stNormalizeQueuedOrders($pdo, (int)$current['org_id']);
+        $pdo->commit();
+        return stFetchPrintJob($pdo, $printJobId);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
 function stReorderPrintJob(PDO $pdo, int $orgId, int $printJobId, int $newQueueOrder): array
 {
     stEnsureSchema($pdo);

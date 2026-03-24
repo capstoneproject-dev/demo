@@ -1770,6 +1770,7 @@ let studentServicesTracker = {
     printingProviders: []
 };
 let studentPrintingJobs = [];
+const studentCancellingPrintJobs = new Set();
 let studentServicesTrackerPromise = null;
 let studentLockerState = {
     enabled: false,
@@ -2387,18 +2388,63 @@ async function requestStudentLocker(itemId) {
     }
 }
 
+function renderStudentPrintJobCards(jobs, options = {}) {
+    const { showCancelButton = false } = options;
+    return jobs.map((job) => {
+        const status = String(job.status || '').toLowerCase();
+        const queueText = status === 'queued' && Number(job.queue_position || 0) > 0
+            ? `Queue #${job.queue_position}`
+            : (status === 'processing' ? 'In progress' : (status === 'ready_to_claim' ? 'Ready now' : 'Completed'));
+        const submittedAt = formatDateTime(job.submitted_at);
+        const jobUrl = resolveStudentDocumentUrl(job.file_url);
+        const canCancel = showCancelButton && status === 'queued';
+        const isCancelling = studentCancellingPrintJobs.has(Number(job.print_job_id));
+        return `
+            <div class="printing-job-card">
+                <div class="printing-job-header">
+                    <div>
+                        <h4>${escapeStudentHtml(job.file_name || 'Untitled PDF')}</h4>
+                        <p>${escapeStudentHtml(job.org_name || 'Unknown Organization')}${job.org_code ? ` (${escapeStudentHtml(job.org_code)})` : ''}</p>
+                    </div>
+                    <span class="printing-job-status status-${status}">${getPrintingJobStatusLabel(status)}</span>
+                </div>
+                <div class="printing-job-meta">
+                    <span><i class="fa-solid fa-list-ol"></i> ${queueText}</span>
+                    <span><i class="fa-solid fa-calendar-day"></i> ${submittedAt}</span>
+                    ${job.notes ? `<span><i class="fa-solid fa-note-sticky"></i> ${escapeStudentHtml(job.notes)}</span>` : ''}
+                </div>
+                <div class="printing-job-actions">
+                    ${jobUrl ? `<a class="printing-action-btn printing-action-btn-secondary" href="${jobUrl}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> View PDF</a>` : ''}
+                    ${jobUrl ? `<a class="printing-action-btn printing-action-btn-primary" href="${jobUrl}" download><i class="fa-solid fa-download"></i> Download</a>` : ''}
+                    ${canCancel ? `<button class="printing-action-btn printing-action-btn-danger" type="button" onclick="cancelStudentPrintJob(${Number(job.print_job_id)})" ${isCancelling ? 'disabled' : ''}><i class="fa-solid fa-xmark"></i> ${isCancelling ? 'Cancelling...' : 'Cancel'}</button>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function hasStudentActivePrintJobs() {
+    return studentPrintingJobs.some((job) => String(job.status || '').toLowerCase() !== 'claimed');
+}
+
+function updateStudentServicesOverviewLayout(hasSelectedFiles = false) {
+    const studentServicesOverview = document.getElementById('studentServicesOverview');
+    if (!studentServicesOverview) return;
+    studentServicesOverview.classList.toggle('is-stacked', Boolean(hasSelectedFiles || hasStudentActivePrintJobs()));
+}
+
 function renderStudentPrintingJobs() {
     const heroLiveContainer = document.getElementById('printingHeroLive');
-    const lists = [
-        document.getElementById('studentPrintingJobsList'),
-        document.getElementById('studentPrintingHeroJobs')
-    ].filter(Boolean);
+    const standardList = document.getElementById('studentPrintingJobsList');
+    const heroList = document.getElementById('studentPrintingHeroJobs');
+    const lists = [standardList, heroList].filter(Boolean);
     if (!lists.length) return;
 
     const activePrintJobs = studentPrintingJobs.filter((job) => {
         const status = String(job.status || '').toLowerCase();
         return status !== 'claimed';
     });
+    updateStudentServicesOverviewLayout(false);
 
     if (!activePrintJobs.length) {
         if (heroLiveContainer) {
@@ -2421,37 +2467,12 @@ function renderStudentPrintingJobs() {
         heroLiveContainer.style.display = '';
     }
 
-    const markup = activePrintJobs.map((job) => {
-        const status = String(job.status || '').toLowerCase();
-        const queueText = status === 'queued' && Number(job.queue_position || 0) > 0
-            ? `Queue #${job.queue_position}`
-            : (status === 'processing' ? 'In progress' : (status === 'ready_to_claim' ? 'Ready now' : 'Completed'));
-        const submittedAt = formatDateTime(job.submitted_at);
-        const jobUrl = resolveStudentDocumentUrl(job.file_url);
-        return `
-            <div class="printing-job-card">
-                <div class="printing-job-header">
-                    <div>
-                        <h4>${escapeStudentHtml(job.file_name || 'Untitled PDF')}</h4>
-                        <p>${escapeStudentHtml(job.org_name || 'Unknown Organization')}${job.org_code ? ` (${escapeStudentHtml(job.org_code)})` : ''}</p>
-                    </div>
-                    <span class="printing-job-status status-${status}">${getPrintingJobStatusLabel(status)}</span>
-                </div>
-                <div class="printing-job-meta">
-                    <span><i class="fa-solid fa-list-ol"></i> ${queueText}</span>
-                    <span><i class="fa-solid fa-calendar-day"></i> ${submittedAt}</span>
-                    ${job.notes ? `<span><i class="fa-solid fa-note-sticky"></i> ${escapeStudentHtml(job.notes)}</span>` : ''}
-                </div>
-                <div class="printing-job-actions">
-                    ${jobUrl ? `<a class="printing-action-btn printing-action-btn-secondary" href="${jobUrl}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> View PDF</a>` : ''}
-                    ${jobUrl ? `<a class="printing-action-btn printing-action-btn-primary" href="${jobUrl}" download><i class="fa-solid fa-download"></i> Download</a>` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
-    lists.forEach((list) => {
-        list.innerHTML = markup;
-    });
+    if (standardList) {
+        standardList.innerHTML = renderStudentPrintJobCards(activePrintJobs);
+    }
+    if (heroList) {
+        heroList.innerHTML = renderStudentPrintJobCards(activePrintJobs, { showCancelButton: true });
+    }
 }
 
 async function loadStudentPrintJobs(force = false) {
@@ -2484,6 +2505,56 @@ async function loadStudentPrintJobs(force = false) {
         renderRentalHistory();
         updateMyRentalsEmptyState();
         throw error;
+    }
+}
+
+async function cancelStudentPrintJob(printJobId) {
+    const numericJobId = Number(printJobId);
+    const targetJob = studentPrintingJobs.find((job) => Number(job.print_job_id) === numericJobId);
+    if (!targetJob) {
+        alert('Print job not found.');
+        return;
+    }
+
+    if (String(targetJob.status || '').toLowerCase() !== 'queued') {
+        alert('Only queued print jobs can be cancelled.');
+        return;
+    }
+
+    if (studentCancellingPrintJobs.has(numericJobId)) {
+        return;
+    }
+
+    if (!window.confirm(`Cancel the print job for "${targetJob.file_name || 'Untitled PDF'}"?`)) {
+        return;
+    }
+
+    studentCancellingPrintJobs.add(numericJobId);
+    renderStudentPrintingJobs();
+
+    try {
+        const response = await fetch('../api/printing/student/cancel.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                print_job_id: numericJobId
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not cancel the print job.');
+        }
+
+        showToast('Print job cancelled.');
+        await loadStudentPrintJobs(true);
+    } catch (error) {
+        alert(error.message || 'Could not cancel the print job.');
+    } finally {
+        studentCancellingPrintJobs.delete(numericJobId);
+        renderStudentPrintingJobs();
     }
 }
 
@@ -2662,7 +2733,6 @@ function filterServices() {
 
 // --- UPLOAD ZONE LOGIC ---
 document.addEventListener('DOMContentLoaded', () => {
-    const studentServicesOverview = document.getElementById('studentServicesOverview');
     const uploadZone = document.getElementById('uploadZone');
     const fileInput = document.getElementById('fileInput');
     const uploadContent = uploadZone?.querySelector('.upload-content');
@@ -2819,8 +2889,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function syncStudentServicesLayout(hasSelectedFiles) {
-        if (!studentServicesOverview) return;
-        studentServicesOverview.classList.toggle('is-stacked', Boolean(hasSelectedFiles));
+        updateStudentServicesOverviewLayout(hasSelectedFiles);
     }
 
     function showFileSelected(files) {
