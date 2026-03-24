@@ -528,6 +528,7 @@ CREATE TABLE `organization_members` (
   `user_id` int(11) NOT NULL,
   `org_id` int(11) NOT NULL,
   `role_id` int(11) NOT NULL,
+  `position_title` varchar(120) DEFAULT NULL,
   `joined_at` date NOT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
@@ -538,11 +539,11 @@ CREATE TABLE `organization_members` (
 -- Dumping data for table `organization_members`
 --
 
-INSERT INTO `organization_members` (`membership_id`, `user_id`, `org_id`, `role_id`, `joined_at`, `is_active`, `created_at`, `updated_at`) VALUES
-(3, 4, 2, 10, '2026-02-27', 1, '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
-(5, 6, 2, 10, '2026-02-27', 1, '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
-(6, 7, 1, 12, '2026-02-28', 1, '2026-02-28 19:45:28', '2026-02-28 19:45:28'),
-(7, 11, 3, 11, '2026-03-18', 1, '2026-03-18 21:26:31', '2026-03-18 21:26:31');
+INSERT INTO `organization_members` (`membership_id`, `user_id`, `org_id`, `role_id`, `position_title`, `joined_at`, `is_active`, `created_at`, `updated_at`) VALUES
+(3, 4, 2, 10, NULL, '2026-02-27', 1, '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
+(5, 6, 2, 10, NULL, '2026-02-27', 1, '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
+(6, 7, 1, 12, NULL, '2026-02-28', 1, '2026-02-28 19:45:28', '2026-02-28 19:45:28'),
+(7, 11, 3, 11, NULL, '2026-03-18', 1, '2026-03-18 21:26:31', '2026-03-18 21:26:31');
 
 --
 -- Triggers `organization_members`
@@ -606,6 +607,7 @@ CREATE TABLE `pending_registrations` (
   `year_section` varchar(50) DEFAULT NULL,
   `requested_role` varchar(20) NOT NULL DEFAULT 'student',
   `requested_org` varchar(255) DEFAULT NULL,
+  `requested_position` varchar(120) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',
   `reviewed_by_user_id` int(11) DEFAULT NULL,
   `requested_at` datetime NOT NULL DEFAULT current_timestamp(),

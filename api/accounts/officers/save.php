@@ -11,6 +11,7 @@ $membershipId  = (int)($body['id'] ?? 0);          // 0 = new, >0 = update
 $studentNumber = trim($body['studentId'] ?? '');
 $orgCode       = trim($body['orgCode']   ?? '');
 $roleName      = trim($body['roleName']  ?? '');
+$positionTitle = trim($body['positionTitle'] ?? '');
 $joinedAt      = trim($body['joinedAt']  ?? '') ?: date('Y-m-d');
 $isActive      = isset($body['isActive']) ? (int)(bool)$body['isActive'] : 1;
 
@@ -56,13 +57,14 @@ try {
     if ($membershipId === 0) {
         // INSERT
         $ins = $pdo->prepare("
-            INSERT INTO organization_members (user_id, org_id, role_id, joined_at, is_active)
-            VALUES (:uid, :oid, :rid, :ja, :active)
+            INSERT INTO organization_members (user_id, org_id, role_id, position_title, joined_at, is_active)
+            VALUES (:uid, :oid, :rid, :position, :ja, :active)
         ");
         $ins->execute([
             ':uid'    => $userId,
             ':oid'    => $orgId,
             ':rid'    => $roleId,
+            ':position' => $positionTitle !== '' ? $positionTitle : null,
             ':ja'     => $joinedAt,
             ':active' => $isActive,
         ]);
@@ -72,12 +74,14 @@ try {
         $upd = $pdo->prepare("
             UPDATE organization_members
             SET role_id   = :rid,
+                position_title = :position,
                 joined_at = :ja,
                 is_active = :active
             WHERE membership_id = :mid
         ");
         $upd->execute([
             ':rid'    => $roleId,
+            ':position' => $positionTitle !== '' ? $positionTitle : null,
             ':ja'     => $joinedAt,
             ':active' => $isActive,
             ':mid'    => $membershipId,

@@ -16,6 +16,7 @@ try {
                year_section    AS yearSection,
                requested_role  AS requestedRole,
                requested_org   AS requestedOrg,
+               requested_position AS requestedPosition,
                status,
                requested_at    AS requestedAt,
                reviewed_at     AS reviewedAt,
