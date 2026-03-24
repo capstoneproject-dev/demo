@@ -762,7 +762,10 @@ function igpFindStudentRentalInventoryItem(PDO $pdo, int $orgId, string $itemNam
     if (!$candidates) return null;
 
     $conditions = [];
-    $params = [':org' => $orgId];
+    $params = [
+        ':item_org_id' => $orgId,
+        ':category_org_id' => $orgId,
+    ];
     foreach ($candidates as $idx => $candidate) {
         $exactKey = ':exact_' . $idx;
         $likeKey = ':like_' . $idx;
@@ -775,12 +778,12 @@ function igpFindStudentRentalInventoryItem(PDO $pdo, int $orgId, string $itemNam
     $sql = "
         SELECT item_id, item_name, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status
         FROM inventory_items
-        WHERE org_id = :org
+        WHERE org_id = :item_org_id
           AND status = 'available'
           AND category_id IN (
               SELECT category_id
               FROM inventory_categories
-              WHERE org_id = :org
+              WHERE org_id = :category_org_id
                 AND is_active = 1
                 AND LOWER(TRIM(category_name)) <> 'locker'
           )

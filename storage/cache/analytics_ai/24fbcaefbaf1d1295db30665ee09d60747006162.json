@@ -1,0 +1,12 @@
+{
+    "chartSummaries": {
+        "financial": "Total revenue for Feb 2026 is $10,570, representing a 100% increase compared to last week, last month, and last year.",
+        "participation": "Total participation across all events is 2. The events \"AISAHAN\" and \"EVENT\" each had 1 participant. Overall participation is high.",
+        "inventory": "There are no active, pending, or overdue rentals.",
+        "documents": "There are 2 approved documents, with no pending or rejected documents."
+    },
+    "exportSummary": "Showing all available analytics for academic year 2025-2026.",
+    "provider": "gemini",
+    "fallbackUsed": false,
+    "generatedAt": "2026-03-24T12:46:43+00:00"
+}

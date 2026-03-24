@@ -1,0 +1,15 @@
+{
+    "chartSummaries": {
+        "financial": "Revenue stands at PHP 0.00. 0.0% vs last week | 0.0% vs last month | 0.0% vs last year Highest recorded revenue was PHP 0.00 in No revenue data, while the lowest was PHP 0.00 in No revenue data.",
+        "participation": "Average attendance is 1 across 4 event(s), with 2 total participants. Retention is currently marked high. The strongest turnout was 1 for AISAHAN, while the lowest turnout was 0 for EVENT TRY.",
+        "inventory": "Inventory utilization shows 0 active rentals, 0 pending requests, and 0 overdue items. Active rentals remain the largest share of tracked inventory usage.",
+        "documents": "Document workflow currently includes 0 approved, 0 pending, and 0 rejected submissions. Approved submissions currently represent the largest share of document activity."
+    },
+    "exportSummary": "This summary covers academic year 2025-2026. Revenue stands at PHP 0.00. 0.0% vs last week | 0.0% vs last month | 0.0% vs last year Highest recorded revenue was PHP 0.00 in No revenue data, while the lowest was PHP 0.00 in No revenue data. Average attendance is 1 across 4 event(s), with 2 total participants. Retention is currently marked high. The strongest turnout was 1 for AISAHAN, while the lowest turnout was 0 for EVENT TRY. Inventory utilization shows 0 active rentals, 0 pending requests, and 0 overdue items. Active rentals remain the largest share of tracked inventory usage. Document workflow currently includes 0 approved, 0 pending, and 0 rejected submissions. Approved submissions currently represent the largest share of document activity.",
+    "provider": "rule-based",
+    "fallbackUsed": true,
+    "providerErrors": [
+        "llama: Failed to connect to 127.0.0.1 port 11434 after 2022 ms: Couldn't connect to server"
+    ],
+    "generatedAt": "2026-03-24T12:39:51+00:00"
+}

@@ -150,7 +150,7 @@
                 <td>${r.renter_section || '-'}</td>
                 <td>${fmtDate(r.rent_time)}</td>
                 <td>${fmtDate(r.expected_return_time)}</td>
-                <td>${isExpiredNoShow ? '<span class="text-danger fw-semibold">Past due</span>' : dueClock(r.expected_return_time)}</td>
+                <td>${isExpiredNoShow ? '<span class="text-danger fw-semibold">Past due</span>' : (isReserved ? '-' : dueClock(r.expected_return_time))}</td>
                 <td>${Number(accumulatedPrice(r)).toFixed(2)}</td>
                 <td>${renderStatusText(isExpiredNoShow ? 'no show' : (isReserved ? 'reserved' : r.status))}</td>
             `;

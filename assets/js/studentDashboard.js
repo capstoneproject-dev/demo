@@ -599,6 +599,7 @@ function switchServiceTab(tabName, btn) {
     if (tabName === 'catalog') {
         const catalogTab = document.getElementById('services-catalog-tab');
         if (catalogTab) catalogTab.classList.add('active');
+        loadCurrentRentals().catch((error) => console.error(error));
     } else if (tabName === 'my-rentals') {
         const rentalsTab = document.getElementById('services-my-rentals-tab');
         if (rentalsTab) rentalsTab.classList.add('active');
@@ -1553,6 +1554,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     renderServices();
     renderServicesModuleNav();
     renderPrintingProviderOptions();
+    loadCurrentRentals().catch((error) => console.error(error));
     loadStudentPrintJobs().catch((error) => console.error(error));
     loadStudentLockers().catch((error) => console.error(error));
     renderProfile();
@@ -1946,16 +1948,58 @@ function escapeStudentHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function getAuthorizedPrintingProviders() {
+    const providersById = new Map();
+    const authDb = readJsonStorage(AUTH_DB_KEY, {});
+    const orgRows = Array.isArray(authDb.organizations) ? authDb.organizations : [];
+
+    orgRows.forEach((org) => {
+        const orgId = Number(org?.org_id);
+        const isActive = String(org?.status || '').toLowerCase() === 'active';
+        const canOfferPrinting = Number(org?.can_offer_printing || 0) === 1;
+        if (!orgId || !isActive || !canOfferPrinting) {
+            return;
+        }
+
+        providersById.set(orgId, {
+            org_id: orgId,
+            org_name: String(org.org_name || '').trim(),
+            org_code: String(org.org_code || '').trim(),
+            logo_url: String(org.logo_url || '').trim()
+        });
+    });
+
+    const trackerProviders = Array.isArray(studentServicesTracker.printingProviders)
+        ? studentServicesTracker.printingProviders
+        : [];
+
+    trackerProviders.forEach((provider) => {
+        const orgId = Number(provider?.org_id);
+        if (!orgId) {
+            return;
+        }
+
+        const existing = providersById.get(orgId) || {};
+        providersById.set(orgId, {
+            org_id: orgId,
+            org_name: String(existing.org_name || provider.org_name || '').trim(),
+            org_code: String(existing.org_code || provider.org_code || '').trim(),
+            logo_url: String(existing.logo_url || provider.logo_url || '').trim()
+        });
+    });
+
+    return Array.from(providersById.values())
+        .filter((provider) => provider.org_name)
+        .sort((a, b) => a.org_name.localeCompare(b.org_name));
+}
+
 function renderPrintingProviderOptions() {
     const select = document.getElementById('printingProviderSelect');
     const heroSelect = document.getElementById('uploadPrintProvider');
     const summary = document.getElementById('printingProvidersSummary');
     const text = document.getElementById('printingAvailabilityText');
-    if (!summary || !text) return;
-
-    const providers = Array.isArray(studentServicesTracker.printingProviders)
-        ? studentServicesTracker.printingProviders
-        : [];
+    const selectedProviderId = String(heroSelect?.value || select?.value || '').trim();
+    const providers = getAuthorizedPrintingProviders();
 
     if (select) {
         select.innerHTML = '<option value="">Select organization</option>';
@@ -1963,14 +2007,20 @@ function renderPrintingProviderOptions() {
     if (heroSelect) {
         heroSelect.innerHTML = '<option value="">Select printing provider</option>';
     }
-    summary.innerHTML = '';
+    if (summary) {
+        summary.innerHTML = '';
+    }
 
     if (!providers.length) {
-        text.textContent = 'No organizations are currently authorized to offer printing services.';
+        if (text) {
+            text.textContent = 'No organizations are currently authorized to offer printing services.';
+        }
         return;
     }
 
-    text.textContent = `${providers.length} authorized printing provider${providers.length > 1 ? 's' : ''} available.`;
+    if (text) {
+        text.textContent = `${providers.length} authorized printing provider${providers.length > 1 ? 's' : ''} available.`;
+    }
 
     providers.forEach((provider) => {
         [select, heroSelect].forEach((target) => {
@@ -1981,14 +2031,30 @@ function renderPrintingProviderOptions() {
             target.appendChild(option);
         });
 
-        const badge = document.createElement('span');
-        badge.className = 'printing-provider-chip';
-        badge.textContent = provider.org_code || provider.org_name;
-        summary.appendChild(badge);
+        if (summary) {
+            const badge = document.createElement('span');
+            badge.className = 'printing-provider-chip';
+            badge.textContent = provider.org_code || provider.org_name;
+            summary.appendChild(badge);
+        }
     });
 
-    if (heroSelect && providers.length === 1) {
-        heroSelect.value = String(providers[0].org_id);
+    if (select) {
+        const matched = providers.some((provider) => String(provider.org_id) === selectedProviderId);
+        if (matched) {
+            select.value = selectedProviderId;
+        } else if (providers.length === 1) {
+            select.value = String(providers[0].org_id);
+        }
+    }
+
+    if (heroSelect) {
+        const matched = providers.some((provider) => String(provider.org_id) === selectedProviderId);
+        if (matched) {
+            heroSelect.value = selectedProviderId;
+        } else if (providers.length === 1) {
+            heroSelect.value = String(providers[0].org_id);
+        }
     }
 }
 
@@ -2424,7 +2490,10 @@ function renderStudentPrintJobCards(jobs, options = {}) {
 }
 
 function hasStudentActivePrintJobs() {
-    return studentPrintingJobs.some((job) => String(job.status || '').toLowerCase() !== 'claimed');
+    return studentPrintingJobs.some((job) => {
+        const status = String(job.status || '').toLowerCase();
+        return status !== 'claimed' && status !== 'cancelled';
+    });
 }
 
 function updateStudentServicesOverviewLayout(hasSelectedFiles = false) {
@@ -2442,7 +2511,7 @@ function renderStudentPrintingJobs() {
 
     const activePrintJobs = studentPrintingJobs.filter((job) => {
         const status = String(job.status || '').toLowerCase();
-        return status !== 'claimed';
+        return status !== 'claimed' && status !== 'cancelled';
     });
     updateStudentServicesOverviewLayout(false);
 
@@ -4082,10 +4151,21 @@ async function loadCurrentRentals() {
 }
 
 function renderCurrentRentals() {
-    const section = document.getElementById('currentRentalsSection');
-    const container = document.getElementById('currentRentalsContainer');
+    const visibleCurrentRentals = currentRentalsData.filter(
+        (rental) => String(rental.service_kind || '').toLowerCase() !== 'locker'
+    );
+    const targets = [
+        {
+            section: document.getElementById('currentRentalsSection'),
+            container: document.getElementById('currentRentalsContainer')
+        },
+        {
+            section: document.getElementById('servicesCurrentRentalsSection'),
+            container: document.getElementById('servicesCurrentRentalsContainer')
+        }
+    ].filter((target) => target.section && target.container);
 
-    if (!section || !container) return;
+    if (!targets.length) return;
 
     // Clear timer if exists
     if (rentalTimerInterval) {
@@ -4093,8 +4173,11 @@ function renderCurrentRentals() {
         rentalTimerInterval = null;
     }
 
-    if (currentRentalsData.length === 0) {
-        section.style.display = 'none';
+    if (visibleCurrentRentals.length === 0) {
+        targets.forEach(({ section, container }) => {
+            section.style.display = 'none';
+            container.innerHTML = '';
+        });
         // Update empty state
         if (typeof updateMyRentalsEmptyState === 'function') {
             updateMyRentalsEmptyState();
@@ -4102,16 +4185,17 @@ function renderCurrentRentals() {
         return;
     }
 
-    section.style.display = 'block';
-    container.innerHTML = '';
-
-    currentRentalsData.forEach(rental => {
-        const card = createRentalCard(rental);
-        container.appendChild(card);
+    targets.forEach(({ section, container }) => {
+        section.style.display = 'block';
+        container.innerHTML = '';
+        visibleCurrentRentals.forEach(rental => {
+            const card = createRentalCard(rental);
+            container.appendChild(card);
+        });
     });
 
     // Start timer for active rentals
-    const hasActiveRentals = currentRentalsData.some(r => r.status === 'active');
+    const hasActiveRentals = visibleCurrentRentals.some(r => r.status === 'active');
     if (hasActiveRentals) {
         updateRentalTimers();
         rentalTimerInterval = setInterval(updateRentalTimers, 1000);
