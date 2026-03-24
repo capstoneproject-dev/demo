@@ -4108,14 +4108,40 @@ function escapeCsvValue(value) {
     return stringValue;
 }
 
+function normalizeAnalyticsPdfText(value) {
+    return String(value ?? '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .replace(/₱/g, 'PHP ')
+        .replace(/[‐‑‒–—]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .replace(/[“”]/g, '"')
+        .replace(/[\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]/g, ' ')
+        .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, ' ')
+        .replace(/(?:[A-Za-z0-9+.,%:-]\s+){5,}[A-Za-z0-9+.,%:-]/g, (match) => match.replace(/\s+/g, ''))
+        .replace(/[ \t]+/g, ' ')
+        .replace(/ *\n */g, '\n')
+        .trim();
+}
+
 function addAnalyticsPdfSectionDescription(doc, title, description, startY) {
     doc.setFontSize(12);
     doc.setTextColor(0, 33, 71);
-    doc.text(title, 14, startY);
-    const bodyLines = doc.splitTextToSize(description || 'No descriptive analysis available.', 180);
+    doc.setFont('helvetica', 'bold');
+    doc.text(normalizeAnalyticsPdfText(title), 14, startY);
+    const bodyLines = doc.splitTextToSize(
+        normalizeAnalyticsPdfText(description || 'No descriptive analysis available.'),
+        180
+    );
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(60);
-    doc.text(bodyLines, 14, startY + 6);
+    if (typeof doc.setCharSpace === 'function') {
+        doc.setCharSpace(0);
+    }
+    bodyLines.forEach((line, index) => {
+        doc.text(String(line), 14, startY + 6 + (index * 4));
+    });
     let nextY = startY + 10 + (bodyLines.length * 4);
     if (nextY > 240) {
         doc.addPage();
@@ -4308,12 +4334,22 @@ async function exportPDF(options = {}) {
     let currentY = (doc.lastAutoTable?.finalY || 46) + 10;
     doc.setFontSize(12);
     doc.setTextColor(0, 33, 71);
+    doc.setFont('helvetica', 'bold');
     doc.text('Descriptive Insights', 14, currentY);
     const providerLine = `Provider: ${insights?.fallbackUsed ? `${insights?.provider || 'rule-based'} fallback` : (insights?.provider || 'rule-based')}`;
-    const insightText = doc.splitTextToSize(`${providerLine}\n\n${insights?.exportSummary || 'No descriptive insight available.'}`, 180);
+    const insightText = doc.splitTextToSize(
+        normalizeAnalyticsPdfText(`${providerLine}\n\n${insights?.exportSummary || 'No descriptive insight available.'}`),
+        180
+    );
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(60);
-    doc.text(insightText, 14, currentY + 6);
+    if (typeof doc.setCharSpace === 'function') {
+        doc.setCharSpace(0);
+    }
+    insightText.forEach((line, index) => {
+        doc.text(String(line), 14, currentY + 6 + (index * 4));
+    });
 
     currentY += 10 + (insightText.length * 4);
     if (currentY > 240) {
