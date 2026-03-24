@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 24, 2026 at 07:06 AM
+-- Generation Time: Mar 24, 2026 at 05:18 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -354,7 +354,8 @@ INSERT INTO `inventory_categories` (`category_id`, `org_id`, `category_name`, `i
 (3, 3, 'Laboratory', 1, '2026-03-22 01:58:25', '2026-03-22 01:58:25'),
 (4, 2, 'Laboratory', 1, '2026-03-22 02:02:57', '2026-03-22 02:02:57'),
 (5, 3, 'Calculator', 1, '2026-03-22 02:13:52', '2026-03-22 02:13:52'),
-(6, 1, 'Locker', 1, '2026-03-22 23:41:45', '2026-03-22 23:41:45');
+(6, 1, 'Locker', 1, '2026-03-22 23:41:45', '2026-03-22 23:41:45'),
+(7, 3, 'Locker', 1, '2026-03-24 15:21:56', '2026-03-24 15:21:56');
 
 --
 -- Triggers `inventory_categories`
@@ -397,70 +398,70 @@ CREATE TABLE `inventory_items` (
 INSERT INTO `inventory_items` (`item_id`, `org_id`, `item_name`, `barcode`, `image_path`, `category_id`, `hourly_rate`, `overtime_interval_minutes`, `overtime_rate_per_block`, `status`, `created_at`, `updated_at`, `locker_monthly_rate`, `locker_semester_rate`, `locker_school_year_rate`) VALUES
 (1, 2, 'Shoe Cover', 'SH001', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, 'available', '2026-02-27 14:03:59', '2026-03-22 02:02:57', NULL, NULL, NULL),
 (2, 2, 'Shoe Cover', 'SH002', 'assets/photos/studentDashboard/Services/shoerag.png', 4, 10.00, 30, 5.00, 'available', '2026-02-27 14:07:03', '2026-03-22 02:03:03', NULL, NULL, NULL),
-(3, 2, 'Scientific Calculator', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, 'available', '2026-02-27 14:18:25', '2026-03-22 02:07:38', NULL, NULL, NULL),
+(3, 2, 'Scientific Calculator', 'CAL001', 'assets/photos/studentDashboard/Services/scical.png', 2, 15.00, 30, 5.00, 'reserved', '2026-02-27 14:18:25', '2026-03-24 21:33:39', NULL, NULL, NULL),
 (4, 2, 'Business Calculator', 'CAL002', 'assets/photos/studentDashboard/Services/businesscalculator.png', 2, 10.00, 30, 5.00, 'available', '2026-02-27 14:18:55', '2026-03-22 00:54:56', NULL, NULL, NULL),
 (5, 3, 'Crimping Tool', 'CT001', 'uploads/inventory-items/inventory_20260321_185825_888421cd5fe8.webp', 3, 20.00, 30, 5.00, 'available', '2026-03-22 01:58:25', '2026-03-22 01:58:25', NULL, NULL, NULL),
 (7, 3, 'Scientific Calculator', 'ITCALC001', 'assets/photos/studentDashboard/Services/scical.png', 5, 20.00, 30, 5.00, 'available', '2026-03-22 02:13:52', '2026-03-22 14:29:48', NULL, NULL, NULL),
-(8, 1, 'A01', 'A01', NULL, 6, 0.00, NULL, NULL, 'locker_occupied', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(9, 1, 'A02', 'A02', NULL, 6, 0.00, NULL, NULL, 'locker_occupied', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(10, 1, 'A03', 'A03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(11, 1, 'A04', 'A04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(12, 1, 'A05', 'A05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(13, 1, 'A06', 'A06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(14, 1, 'A07', 'A07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(15, 1, 'A08', 'A08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(16, 1, 'A09', 'A09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(17, 1, 'A10', 'A10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(18, 1, 'A11', 'A11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(19, 1, 'A12', 'A12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(20, 1, 'B01', 'B01', NULL, 6, 0.00, NULL, NULL, 'locker_occupied', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(21, 1, 'B02', 'B02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(22, 1, 'B03', 'B03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(23, 1, 'B04', 'B04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(24, 1, 'B05', 'B05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(25, 1, 'B06', 'B06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(26, 1, 'B07', 'B07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(27, 1, 'B08', 'B08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(28, 1, 'B09', 'B09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(29, 1, 'B10', 'B10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(30, 1, 'B11', 'B11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(31, 1, 'B12', 'B12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(32, 1, 'C01', 'C01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(33, 1, 'C02', 'C02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(34, 1, 'C03', 'C03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(35, 1, 'C04', 'C04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(36, 1, 'C05', 'C05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(37, 1, 'C06', 'C06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(38, 1, 'C07', 'C07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(39, 1, 'C08', 'C08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(40, 1, 'C09', 'C09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(41, 1, 'C10', 'C10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(42, 1, 'C11', 'C11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(43, 1, 'C12', 'C12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(44, 1, 'D01', 'D01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(45, 1, 'D02', 'D02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(46, 1, 'D03', 'D03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(47, 1, 'D04', 'D04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(48, 1, 'D05', 'D05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(49, 1, 'D06', 'D06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(50, 1, 'D07', 'D07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(51, 1, 'D08', 'D08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(52, 1, 'D09', 'D09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(53, 1, 'D10', 'D10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(54, 1, 'D11', 'D11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(55, 1, 'D12', 'D12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(56, 1, 'E01', 'E01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(57, 1, 'E02', 'E02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(58, 1, 'E03', 'E03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(59, 1, 'E04', 'E04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(60, 1, 'E05', 'E05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(61, 1, 'E06', 'E06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(62, 1, 'E07', 'E07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(63, 1, 'E08', 'E08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(64, 1, 'E09', 'E09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(65, 1, 'E10', 'E10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(66, 1, 'E11', 'E11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00),
-(67, 1, 'E12', 'E12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 14:02:37', 150.00, 0.00, 0.00);
+(8, 1, 'A01', 'A01', NULL, 6, 0.00, NULL, NULL, 'locker_occupied', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(9, 1, 'A02', 'A02', NULL, 6, 0.00, NULL, NULL, 'locker_occupied', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(10, 1, 'A03', 'A03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(11, 1, 'A04', 'A04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(12, 1, 'A05', 'A05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(13, 1, 'A06', 'A06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(14, 1, 'A07', 'A07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(15, 1, 'A08', 'A08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(16, 1, 'A09', 'A09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(17, 1, 'A10', 'A10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(18, 1, 'A11', 'A11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(19, 1, 'A12', 'A12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(20, 1, 'B01', 'B01', NULL, 6, 0.00, NULL, NULL, 'locker_occupied', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(21, 1, 'B02', 'B02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:40', 150.00, 0.00, 0.00),
+(22, 1, 'B03', 'B03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(23, 1, 'B04', 'B04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(24, 1, 'B05', 'B05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(25, 1, 'B06', 'B06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(26, 1, 'B07', 'B07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(27, 1, 'B08', 'B08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(28, 1, 'B09', 'B09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(29, 1, 'B10', 'B10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(30, 1, 'B11', 'B11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(31, 1, 'B12', 'B12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(32, 1, 'C01', 'C01', NULL, 6, 0.00, NULL, NULL, 'locker_occupied', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(33, 1, 'C02', 'C02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(34, 1, 'C03', 'C03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(35, 1, 'C04', 'C04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(36, 1, 'C05', 'C05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(37, 1, 'C06', 'C06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(38, 1, 'C07', 'C07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(39, 1, 'C08', 'C08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(40, 1, 'C09', 'C09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(41, 1, 'C10', 'C10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(42, 1, 'C11', 'C11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(43, 1, 'C12', 'C12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(44, 1, 'D01', 'D01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(45, 1, 'D02', 'D02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(46, 1, 'D03', 'D03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(47, 1, 'D04', 'D04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(48, 1, 'D05', 'D05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(49, 1, 'D06', 'D06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(50, 1, 'D07', 'D07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(51, 1, 'D08', 'D08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(52, 1, 'D09', 'D09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(53, 1, 'D10', 'D10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(54, 1, 'D11', 'D11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(55, 1, 'D12', 'D12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(56, 1, 'E01', 'E01', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(57, 1, 'E02', 'E02', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(58, 1, 'E03', 'E03', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(59, 1, 'E04', 'E04', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(60, 1, 'E05', 'E05', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(61, 1, 'E06', 'E06', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(62, 1, 'E07', 'E07', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(63, 1, 'E08', 'E08', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(64, 1, 'E09', 'E09', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(65, 1, 'E10', 'E10', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(66, 1, 'E11', 'E11', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00),
+(67, 1, 'E12', 'E12', NULL, 6, 0.00, NULL, NULL, 'available', '2026-03-22 23:41:45', '2026-03-24 23:50:41', 150.00, 0.00, 0.00);
 
 --
 -- Triggers `inventory_items`
@@ -495,13 +496,13 @@ CREATE TABLE `organizations` (
 --
 
 INSERT INTO `organizations` (`org_id`, `org_name`, `org_code`, `logo_url`, `status`, `created_at`, `updated_at`, `can_offer_printing`, `can_offer_services`) VALUES
-(1, 'Supreme Student Council', 'SSC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
-(2, 'Alliance in Information System Empowered Responsive Students', 'AISERS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(1, 'Supreme Student Council', 'SSC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 15:46:44', 1, 0),
+(2, 'Alliance in Information System Empowered Responsive Students', 'AISERS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 21:15:06', 0, 1),
 (3, 'Elite Technologist Society', 'ELITECH', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
 (4, 'Institute of Liberal Arts and Sciences Student Organization', 'ILASSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
 (5, 'Aeronautical Engineering Organization', 'AERO-ATSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
-(6, 'Aeronautical Engineering Technology Student Organization', 'AETSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
-(7, 'Aviation Maintenance Technology Student Organization', 'AMTSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
+(6, 'Aviation Electronics Technology Student Organization', 'AETSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 23:39:43', 1, 1),
+(7, 'Aircraft Maintenance Technology Student Organization', 'AMTSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 23:39:35', 1, 1),
 (8, 'Red Cross Youth Council', 'RCYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
 (9, 'College Youth Club', 'CYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
 (10, 'Scholar\'s Guild', 'SCHOLARS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
@@ -619,16 +620,16 @@ CREATE TABLE `pending_registrations` (
 -- Dumping data for table `pending_registrations`
 --
 
-INSERT INTO `pending_registrations` (`reg_id`, `student_number`, `student_name`, `email`, `phone`, `password_hash`, `program_code`, `year_section`, `requested_role`, `requested_org`, `status`, `reviewed_by_user_id`, `requested_at`, `reviewed_at`, `updated_at`) VALUES
-(2, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'BSAIT', '3-2', 'student', NULL, 'approved', 1, '2026-02-25 18:41:30', '2026-02-25 18:48:15', '2026-02-25 18:48:15'),
-(3, 'aisers', 'aisers', 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, '2026-02-27 11:44:03', '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
-(4, 'elitech', 'elitech', 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'BSAIT', '3-2', 'org_officer', 'ELITECH', 'approved', 1, '2026-02-27 13:46:28', '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
-(5, '12324MN-000094', 'Charles Gabriel A. Martinez', 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'BSAIS', '3-2', 'org_officer', 'AISERS', 'approved', 1, '2026-02-27 13:48:15', '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
-(6, 'ssc', 'ssc', 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'BSAIS', '3-2', 'org_officer', 'Supreme Student Council', 'approved', 1, '2026-02-28 19:37:43', '2026-02-28 19:45:28', '2026-02-28 19:45:28'),
-(7, 'ISstudent', 'ISstudent', 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'BSAIS', '3-2', 'student', NULL, 'approved', 1, '2026-03-18 21:01:22', '2026-03-18 21:01:34', '2026-03-18 21:01:34'),
-(8, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'BSAIT', '3-2', 'student', NULL, 'approved', 1, '2026-03-18 21:05:39', '2026-03-18 21:05:46', '2026-03-18 21:05:46'),
-(9, 'AETstudent', 'AETstudent', 'AETstudent@gmail.com', '+63 1234567890', '$2y$10$Pf0QzbAfnqQBMTUy1nn/4.xkxO7AeVIhxB.OsBQWR45lV4CXrLjI6', 'BSAET', '3-2', 'student', NULL, 'approved', 1, '2026-03-18 21:20:50', '2026-03-18 21:20:54', '2026-03-18 21:20:54'),
-(10, 'elitech', 'elitech', 'elitech@gmail.com', '+63 1234567890', '$2y$10$IYHhWOTf2dIs6FfOiVX99.iDQ8sRYvRi4HGtEuOWg/tuS0vPC0cw2', 'BSAT', '3-2', 'org_officer', 'ELITECH', 'approved', 1, '2026-03-18 21:26:21', '2026-03-18 21:26:31', '2026-03-18 21:26:31');
+INSERT INTO `pending_registrations` (`reg_id`, `student_number`, `student_name`, `email`, `phone`, `password_hash`, `program_code`, `year_section`, `requested_role`, `requested_org`, `requested_position`, `status`, `reviewed_by_user_id`, `requested_at`, `reviewed_at`, `updated_at`) VALUES
+(2, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$cNK9c2VG/87QEsWBqxXOKOOjO7Dv84CSjubQocidhoVeh91LjEcsS', 'BSAIT', '3-2', 'student', NULL, NULL, 'approved', 1, '2026-02-25 18:41:30', '2026-02-25 18:48:15', '2026-02-25 18:48:15'),
+(3, 'aisers', 'aisers', 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'BSAIS', '3-2', 'org_officer', 'AISERS', NULL, 'approved', 1, '2026-02-27 11:44:03', '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
+(4, 'elitech', 'elitech', 'elitech@gmail.com', '+63 1234567890', '$2y$10$Z98l15c6yvWuCpVn2HADZuncX.Fu9x1qg8CQ62WMDvXd40NvCnfjG', 'BSAIT', '3-2', 'org_officer', 'ELITECH', NULL, 'approved', 1, '2026-02-27 13:46:28', '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
+(5, '12324MN-000094', 'Charles Gabriel A. Martinez', 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'BSAIS', '3-2', 'org_officer', 'AISERS', NULL, 'approved', 1, '2026-02-27 13:48:15', '2026-02-27 13:48:26', '2026-02-27 13:48:26'),
+(6, 'ssc', 'ssc', 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'BSAIS', '3-2', 'org_officer', 'Supreme Student Council', NULL, 'approved', 1, '2026-02-28 19:37:43', '2026-02-28 19:45:28', '2026-02-28 19:45:28'),
+(7, 'ISstudent', 'ISstudent', 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'BSAIS', '3-2', 'student', NULL, NULL, 'approved', 1, '2026-03-18 21:01:22', '2026-03-18 21:01:34', '2026-03-18 21:01:34'),
+(8, 'ITstudent', 'ITstudent', 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'BSAIT', '3-2', 'student', NULL, NULL, 'approved', 1, '2026-03-18 21:05:39', '2026-03-18 21:05:46', '2026-03-18 21:05:46'),
+(9, 'AETstudent', 'AETstudent', 'AETstudent@gmail.com', '+63 1234567890', '$2y$10$Pf0QzbAfnqQBMTUy1nn/4.xkxO7AeVIhxB.OsBQWR45lV4CXrLjI6', 'BSAET', '3-2', 'student', NULL, NULL, 'approved', 1, '2026-03-18 21:20:50', '2026-03-18 21:20:54', '2026-03-18 21:20:54'),
+(10, 'elitech', 'elitech', 'elitech@gmail.com', '+63 1234567890', '$2y$10$IYHhWOTf2dIs6FfOiVX99.iDQ8sRYvRi4HGtEuOWg/tuS0vPC0cw2', 'BSAT', '3-2', 'org_officer', 'ELITECH', NULL, 'approved', 1, '2026-03-18 21:26:21', '2026-03-18 21:26:31', '2026-03-18 21:26:31');
 
 --
 -- Triggers `pending_registrations`
@@ -671,7 +672,10 @@ INSERT INTO `print_jobs` (`print_job_id`, `org_id`, `user_id`, `file_name`, `fil
 (1, 6, 7, '4th-QUARTER-REVIEWER-OF-GRADE-5.pdf', 'uploads/documents/20260322_131435_358606f9_4th-QUARTER-REVIEWER-OF-GRADE-5.pdf', 'TEST 1', 'queued', 1, '2026-03-22 12:14:35', NULL, NULL, NULL, 7, '2026-03-22 12:14:35'),
 (2, 1, 7, 'PQMS midterm.pdf', 'uploads/documents/20260322_134323_d4ed5f99_PQMS_midterm.pdf', 'short paper page 1-4 lang po', 'claimed', 1, '2026-03-22 12:43:23', '2026-03-22 13:44:31', '2026-03-22 13:44:33', '2026-03-22 13:44:35', 7, '2026-03-22 12:44:35'),
 (3, 1, 7, 'PQMS midterm.pdf', 'uploads/documents/20260322_134518_963e0cc1_PQMS_midterm.pdf', 'test 2', 'claimed', 1, '2026-03-22 12:45:18', '2026-03-22 14:06:31', '2026-03-22 14:06:41', '2026-03-22 14:06:45', 7, '2026-03-22 13:06:45'),
-(4, 1, 7, '6_human_resource_management_technology_PM.pdf', 'uploads/documents/20260322_134518_2703b727_6_human_resource_management_technology_PM.pdf', 'test 2', 'queued', 1, '2026-03-22 12:45:18', NULL, NULL, NULL, 7, '2026-03-22 13:06:31');
+(4, 1, 7, '6_human_resource_management_technology_PM.pdf', 'uploads/documents/20260322_134518_2703b727_6_human_resource_management_technology_PM.pdf', 'test 2', 'queued', 1, '2026-03-22 12:45:18', NULL, NULL, NULL, 7, '2026-03-22 13:06:31'),
+(5, 1, 10, 'Emergency Hotlines.pdf', 'uploads/documents/20260324_142407_824bf7e2_Emergency_Hotlines.pdf', NULL, 'claimed', 2, '2026-03-24 13:24:07', '2026-03-24 14:24:37', '2026-03-24 14:24:43', '2026-03-24 14:24:54', 7, '2026-03-24 13:24:54'),
+(6, 1, 10, 'Beach Warning Flags.pdf', 'uploads/documents/20260324_142407_547a4e47_Beach_Warning_Flags.pdf', NULL, 'cancelled', 2, '2026-03-24 13:24:07', NULL, NULL, NULL, 10, '2026-03-24 13:35:52'),
+(7, 1, 10, 'OrgReport_Full_2026-03 (1).pdf', 'uploads/documents/20260324_142407_dbd0612b_OrgReport_Full_2026-03__1.pdf', NULL, 'cancelled', 2, '2026-03-24 13:24:07', NULL, NULL, NULL, 10, '2026-03-24 13:35:54');
 
 -- --------------------------------------------------------
 
@@ -767,10 +771,12 @@ INSERT INTO `rentals` (`rental_id`, `org_id`, `renter_user_id`, `processed_by_us
 (15, 1, 8, 7, '2026-03-22 17:58:41', '2026-03-22 17:58:41', '2026-03-23 00:58:58', 0.00, 'unpaid', NULL, 'locker_released', '2026-03-23 00:58:41', '2026-03-23 00:58:58', 'locker', 'pending', NULL, NULL, NULL, NULL, NULL, NULL),
 (16, 1, 8, 7, '2026-03-23 16:10:42', '2026-03-23 16:10:42', '2026-03-23 23:10:57', 0.00, 'unpaid', NULL, 'locker_released', '2026-03-23 23:10:42', '2026-03-23 23:10:57', 'locker', 'pending', NULL, NULL, NULL, NULL, NULL, NULL),
 (17, 1, 8, 7, '2026-03-23 00:00:00', '2026-04-23 23:59:59', '2026-03-23 23:18:58', 150.00, 'unpaid', NULL, 'locker_released', '2026-03-23 23:11:50', '2026-03-23 23:18:58', 'locker', 'monthly', NULL, NULL, NULL, NULL, NULL, NULL),
-(18, 1, 8, 7, '2026-03-23 00:00:00', '2026-04-23 23:59:59', NULL, 150.00, 'unpaid', NULL, 'locker_active', '2026-03-23 23:30:28', '2026-03-24 00:54:27', 'locker', 'monthly', NULL, NULL, NULL, NULL, NULL, NULL),
+(18, 1, 8, 7, '2026-03-23 00:00:00', '2026-04-23 23:59:59', NULL, 150.00, 'paid', '2026-03-24 17:42:00', 'locker_active', '2026-03-23 23:30:28', '2026-03-24 17:42:00', 'locker', 'monthly', NULL, NULL, NULL, NULL, NULL, NULL),
 (19, 1, 9, 7, '2026-03-24 00:00:00', '2026-04-24 23:59:59', '2026-03-24 00:44:14', 150.00, 'unpaid', NULL, 'locker_released', '2026-03-24 00:40:51', '2026-03-24 00:44:14', 'locker', 'monthly', '2026-03-24 00:44:14', 'Locker has been pulled out. If you left any items inside the locker, you may claim them at the SSC office.', 7, '2026-03-24 00:41:48', 'Your locker rental is due within 7 days. Please coordinate with SSC before the due date if you need assistance.', 7),
 (20, 1, 9, 7, '2026-03-24 00:00:00', '2026-04-24 23:59:59', '2026-03-24 00:50:19', 150.00, 'unpaid', NULL, 'locker_released', '2026-03-24 00:50:08', '2026-03-24 00:50:19', 'locker', 'monthly', '2026-03-24 00:50:19', 'Locker has been pulled out. If you left any items inside the locker, you may claim them at the SSC office. This notice will remain visible for 2 weeks or until you rent another locker.', 7, NULL, NULL, NULL),
-(21, 1, 9, 7, '2026-03-24 00:00:00', '2026-04-24 23:59:59', NULL, 150.00, 'unpaid', NULL, 'locker_active', '2026-03-24 00:50:34', '2026-03-24 00:50:34', 'locker', 'monthly', NULL, NULL, NULL, NULL, NULL, NULL);
+(21, 1, 9, 7, '2026-03-24 00:00:00', '2026-04-24 23:59:59', NULL, 150.00, 'paid', '2026-03-24 17:42:05', 'locker_active', '2026-03-24 00:50:34', '2026-03-24 17:42:05', 'locker', 'monthly', NULL, NULL, NULL, NULL, NULL, NULL),
+(22, 1, 10, 7, '2026-03-24 00:00:00', '2026-04-24 23:59:59', NULL, 150.00, 'unpaid', NULL, 'locker_active', '2026-03-24 21:15:28', '2026-03-24 21:16:39', 'locker', 'monthly', NULL, NULL, NULL, '2026-03-24 21:16:39', 'Your locker rental is due within 7 days. Please coordinate with SSC before the due date if you need assistance.', 7),
+(23, 2, 10, 10, '2026-03-25 08:00:00', '2026-03-25 10:00:00', NULL, 30.00, 'unpaid', NULL, 'reserved', '2026-03-24 21:33:39', '2026-03-24 21:33:39', 'rental', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 --
 -- Triggers `rentals`
@@ -843,7 +849,9 @@ INSERT INTO `rental_items` (`rental_item_id`, `rental_id`, `item_id`, `quantity`
 (18, 18, 9, 1, 150.00, 150.00, NULL, NULL, '2026-03-23 23:30:28', '2026-03-23 23:30:37'),
 (19, 19, 20, 1, 150.00, 150.00, NULL, NULL, '2026-03-24 00:40:51', '2026-03-24 00:40:51'),
 (20, 20, 20, 1, 150.00, 150.00, NULL, NULL, '2026-03-24 00:50:08', '2026-03-24 00:50:08'),
-(21, 21, 20, 1, 150.00, 150.00, NULL, NULL, '2026-03-24 00:50:34', '2026-03-24 00:50:34');
+(21, 21, 20, 1, 150.00, 150.00, NULL, NULL, '2026-03-24 00:50:34', '2026-03-24 00:50:34'),
+(22, 22, 32, 1, 150.00, 150.00, NULL, NULL, '2026-03-24 21:15:28', '2026-03-24 21:16:10'),
+(23, 23, 3, 1, 15.00, 30.00, 30, 5.00, '2026-03-24 21:33:39', '2026-03-24 21:33:39');
 
 --
 -- Triggers `rental_items`
@@ -957,14 +965,14 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `student_number`, `program_id`, `institute_id`, `first_name`, `last_name`, `employee_number`, `email`, `phone`, `password_hash`, `account_type`, `has_unpaid_debt`, `is_active`, `last_login_at`, `created_at`, `updated_at`) VALUES
-(1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-03-22 22:36:03', '2026-02-25 18:19:21', '2026-03-22 22:36:03'),
-(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-24 14:02:03', '2026-02-27 11:44:45', '2026-03-24 14:02:03'),
+(1, NULL, NULL, NULL, 'osa', '-', 'osa', 'osa@gmail.com', '+63 1234567890', '$2y$10$84lLDKnVilseyCYVSCFrxOherPdoFcnV.2/I261teTT6mPKasRCOS', 'osa_staff', 0, 1, '2026-03-25 00:15:46', '2026-02-25 18:19:21', '2026-03-25 00:15:46'),
+(4, 'aisers', 2, 1, 'aisers', 'aisers', NULL, 'aisers@gmail.com', '+63 1234567890', '$2y$10$0FvPli/TnKLKOkmyei3lBOK.S1VBZWA/.SDI2Zlr1SoT6miFT2bIK', 'student', 0, 1, '2026-03-24 23:07:57', '2026-02-27 11:44:45', '2026-03-24 23:07:57'),
 (6, '12324MN-000094', 2, 1, 'Charles Gabriel A.', 'Martinez', NULL, 'charles.martinez232610@gmail.com', '+63 9763395956', '$2y$10$R4Sx52NV6nncQbl3mw7ctuqYaC2jdlv9IIWKB1/w5fa56vfF5A49a', 'student', 0, 1, '2026-02-27 17:32:33', '2026-02-27 13:48:26', '2026-02-27 17:32:33'),
-(7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-03-24 14:02:31', '2026-02-28 19:45:28', '2026-03-24 14:02:31'),
-(8, 'ISstudent', 2, 1, 'ISstudent', 'ISstudent', NULL, 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'student', 0, 1, '2026-03-24 13:47:45', '2026-03-18 21:01:34', '2026-03-24 13:47:45'),
-(9, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'student', 0, 1, '2026-03-24 00:41:13', '2026-03-18 21:05:46', '2026-03-24 00:41:13'),
-(10, 'AETstudent', 3, 2, 'AETstudent', 'AETstudent', NULL, 'AETstudent@gmail.com', '+63 1234567890', '$2y$10$Pf0QzbAfnqQBMTUy1nn/4.xkxO7AeVIhxB.OsBQWR45lV4CXrLjI6', 'student', 0, 1, '2026-03-22 01:30:17', '2026-03-18 21:20:54', '2026-03-22 01:30:17'),
-(11, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$IYHhWOTf2dIs6FfOiVX99.iDQ8sRYvRi4HGtEuOWg/tuS0vPC0cw2', 'student', 1, 1, '2026-03-22 13:21:47', '2026-03-18 21:26:31', '2026-03-22 14:29:48');
+(7, 'ssc', 2, 1, 'ssc', 'ssc', NULL, 'ssc@gmail.com', '+63 1234567890', '$2y$10$UM5ah0sZDl.eUF1Y7MWuxONTCIXd6ZHpTGy8WqYX6aEGu9fxl/LVe', 'student', 0, 1, '2026-03-24 21:15:10', '2026-02-28 19:45:28', '2026-03-24 21:15:10'),
+(8, 'ISstudent', 2, 1, 'ISstudent', 'ISstudent', NULL, 'ISstudent@gmail.com', '+63 1234567890', '$2y$10$APOjL8Lk48.8uirVzSUyfenEHQJ5OGcey/5lOOUnUwKjOKiPebUZu', 'student', 0, 1, '2026-03-24 23:08:01', '2026-03-18 21:01:34', '2026-03-24 23:08:01'),
+(9, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'student', 0, 1, '2026-03-24 23:34:04', '2026-03-18 21:05:46', '2026-03-24 23:34:04'),
+(10, 'AETstudent', 3, 2, 'AETstudent', 'AETstudent', NULL, 'AETstudent@gmail.com', '+63 1234567890', '$2y$10$Pf0QzbAfnqQBMTUy1nn/4.xkxO7AeVIhxB.OsBQWR45lV4CXrLjI6', 'student', 0, 1, '2026-03-24 23:37:35', '2026-03-18 21:20:54', '2026-03-24 23:37:35'),
+(11, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', '$2y$10$IYHhWOTf2dIs6FfOiVX99.iDQ8sRYvRi4HGtEuOWg/tuS0vPC0cw2', 'student', 1, 1, '2026-03-24 23:33:54', '2026-03-18 21:26:31', '2026-03-24 23:33:54');
 
 --
 -- Triggers `users`
@@ -1249,7 +1257,7 @@ ALTER TABLE `institutes`
 -- AUTO_INCREMENT for table `inventory_categories`
 --
 ALTER TABLE `inventory_categories`
-  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `inventory_items`
@@ -1285,7 +1293,7 @@ ALTER TABLE `pending_registrations`
 -- AUTO_INCREMENT for table `print_jobs`
 --
 ALTER TABLE `print_jobs`
-  MODIFY `print_job_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `print_job_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `program_org_mappings`
