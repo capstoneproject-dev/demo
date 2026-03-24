@@ -366,6 +366,13 @@ function navigate(viewId, element) {
         setDate();
     }
 
+    // Refresh analytics charts when navigating to analytics view
+    if (viewId === 'analytics' && typeof refreshAnalyticsCharts === 'function') {
+        setTimeout(() => {
+            refreshAnalyticsCharts();
+        }, 100);
+    }
+
     // Fullscreen layout for full-page service views.
     if ((viewId === 'events' || viewId === 'tracker') && mainContent) {
         mainContent.classList.add('tracker-fullscreen');

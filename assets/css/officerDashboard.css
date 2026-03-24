@@ -853,6 +853,199 @@ td {
     margin-bottom: 30px;
 }
 
+/* --- ANALYTICS CARD ENHANCEMENTS --- */
+.analytics-card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.analytics-card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Analytics Stats Footer */
+.analytics-stats-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 16px;
+    padding: 16px 20px;
+    margin-top: 16px;
+    border-top: 2px solid var(--border);
+    background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.02));
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-value i {
+    font-size: 1rem;
+}
+
+.stat-positive {
+    color: #059669 !important;
+}
+
+.stat-negative {
+    color: #dc2626 !important;
+}
+
+.stat-divider {
+    width: 1px;
+    height: 40px;
+    background: var(--border);
+}
+
+.stat-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-badge-high {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.stat-badge-medium {
+    background: #fed7aa;
+    color: #d97706;
+}
+
+.stat-badge-low {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* Modern Analytics Legend */
+.analytics-legend-modern {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 0 20px;
+    min-width: 200px;
+}
+
+.legend-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    transition: all 0.2s ease;
+    cursor: default;
+}
+
+.legend-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+    transform: translateX(4px);
+}
+
+.legend-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.legend-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.legend-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.legend-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+
+.legend-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s ease;
+    animation: fillBar 1s ease-out;
+}
+
+@keyframes fillBar {
+    from {
+        width: 0;
+    }
+}
+
+.legend-progress {
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+
+.legend-progress-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+    animation: fillBar 1s ease-out;
+}
+
+/* Responsive adjustments for analytics */
+@media (max-width: 768px) {
+    .analytics-stats-footer {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .stat-divider {
+        width: 100%;
+        height: 1px;
+    }
+
+    .analytics-legend-modern {
+        padding: 20px 0;
+        min-width: 100%;
+    }
+
+    .legend-item {
+        flex-wrap: wrap;
+    }
+}
+
 /* --- ANALYTICS CARD SEPARATION --- */
 /* Use these classes to customize individual card sizes or behaviors */
 /* --- DOCUMENT SUB-NAVIGATION --- */

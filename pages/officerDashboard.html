@@ -1265,7 +1265,13 @@
                     </div>
                 </div>
 
-                <div class="export-wrapper">
+                <div class="export-wrapper" style="display: flex; align-items: center; gap: 8px;">
+                    <button id="mock-data-btn" class="btn btn-sm" onclick="generateMockAnalyticsData()" style="background: #059669; color: white;">
+                        <i class="fa-solid fa-flask"></i> Generate Mock Data
+                    </button>
+                    <button id="clear-mock-btn" class="btn btn-sm" onclick="clearMockAnalyticsData()" style="background: #dc2626; color: white; display: none;">
+                        <i class="fa-solid fa-trash"></i> Clear Mock
+                    </button>
                     <button class="btn btn-outline btn-sm" onclick="toggleExportMenu()">
                         <i class="fa-solid fa-download"></i> Export Report <i class="fa-solid fa-caret-down ms-2"></i>
                     </button>
@@ -1287,7 +1293,8 @@
 
             <div class="analytics-grid">
 
-                <div class="card card-financial">
+                <!-- Financial Performance Card -->
+                <div class="card card-financial analytics-card-hover">
                     <div class="card-header">
                         <div class="card-title">
                             <i class="fa-solid fa-wallet me-2" style="color: #002147;"></i> Financial Performance
@@ -1296,14 +1303,23 @@
                     <div class="chart-container-relative">
                         <canvas id="revenueChart"></canvas>
                     </div>
-                    <div class="mt-3"
-                        style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); padding-top: 10px; border-top: 1px solid var(--border);">
-                        <span>Total: <strong>₱12,500</strong></span>
-                        <span style="color: #059669;"><i class="fa-solid fa-arrow-up"></i> 8.5% Growth</span>
+                    <div class="analytics-stats-footer">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Revenue</span>
+                            <span class="stat-value" style="color: #002147;">₱12,500</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">Growth</span>
+                            <span class="stat-value stat-positive">
+                                <i class="fa-solid fa-arrow-trend-up"></i> +8.5%
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="card card-participation">
+                <!-- Participation Trends Card -->
+                <div class="card card-participation analytics-card-hover">
                     <div class="card-header">
                         <div class="card-title">
                             <i class="fa-solid fa-arrow-trend-up me-2" style="color: #059669;"></i> Participation Trends
@@ -1312,54 +1328,103 @@
                     <div class="chart-container-relative">
                         <canvas id="participationChart"></canvas>
                     </div>
-                    <div class="mt-3"
-                        style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); padding-top: 10px; border-top: 1px solid var(--border);">
-                        <span>Avg Attendance: <strong>150</strong></span>
-                        <span>Retention: <strong>High</strong></span>
+                    <div class="analytics-stats-footer">
+                        <div class="stat-item">
+                            <span class="stat-label">Avg Attendance</span>
+                            <span class="stat-value">
+                                <i class="fa-solid fa-users"></i> 150
+                            </span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">Retention</span>
+                            <span class="stat-badge stat-badge-high">High</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="card card-inventory">
+                <!-- Inventory Utilization Card -->
+                <div class="card card-inventory analytics-card-hover">
                     <div class="card-header">
                         <div class="card-title">
                             <i class="fa-solid fa-box me-2" style="color: #d97706;"></i> Inventory Utilization
                         </div>
                     </div>
-                    <div style="display: flex; height: 100%; align-items: center; justify-content: center;">
-                        <div class="chart-wrapper" style="height: 200px;">
+                    <div style="display: flex; height: 100%; align-items: center; justify-content: center; padding: 20px 0;">
+                        <div class="chart-wrapper" style="height: 200px; flex-shrink: 0;">
                             <canvas id="rentalsChart"></canvas>
                         </div>
-                        <div class="legend-wrapper" style="font-size: 0.85rem;" id="analytics-rentals-legend">
-                            <div style="margin-bottom: 8px;"><strong>14</strong> Active</div>
-                            <div style="margin-bottom: 8px; color: #d97706;"><strong>4</strong> Pending</div>
-                            <div style="color: #dc2626;"><strong>2</strong> Overdue</div>
+                        <div class="analytics-legend-modern" id="analytics-rentals-legend">
+                            <div class="legend-item legend-active">
+                                <div class="legend-info">
+                                    <span class="legend-label">Active</span>
+                                    <span class="legend-value">14</span>
+                                </div>
+                                <div class="legend-bar">
+                                    <div class="legend-bar-fill" style="width: 70%; background: #059669;"></div>
+                                </div>
+                            </div>
+                            <div class="legend-item legend-pending">
+                                <div class="legend-info">
+                                    <span class="legend-label">Pending</span>
+                                    <span class="legend-value">4</span>
+                                </div>
+                                <div class="legend-bar">
+                                    <div class="legend-bar-fill" style="width: 20%; background: #d97706;"></div>
+                                </div>
+                            </div>
+                            <div class="legend-item legend-overdue">
+                                <div class="legend-info">
+                                    <span class="legend-label">Overdue</span>
+                                    <span class="legend-value">2</span>
+                                </div>
+                                <div class="legend-bar">
+                                    <div class="legend-bar-fill" style="width: 10%; background: #dc2626;"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="card card-workflow">
+                <!-- Document Workflow Card -->
+                <div class="card card-workflow analytics-card-hover">
                     <div class="card-header">
                         <div class="card-title">
-                            <i class="fa-solid fa-file-contract me-2" style="color: var(--muted);"></i> Document
-                            Workflow
+                            <i class="fa-solid fa-file-contract me-2" style="color: #6b7280;"></i> Document Workflow
                         </div>
                     </div>
-                    <div style="display: flex; height: 100%; align-items: center;">
-                        <div class="chart-wrapper" style="height: 200px;">
+                    <div style="display: flex; height: 100%; align-items: center; padding: 20px 0;">
+                        <div class="chart-wrapper" style="height: 200px; flex-shrink: 0;">
                             <canvas id="docsChart"></canvas>
                         </div>
-                        <div class="legend-wrapper" style="font-size: 0.85rem;" id="analytics-docs-legend">
-                            <ul style="list-style: none;">
-                                <li style="margin-bottom: 8px; display: flex; align-items: center;"><span
-                                        style="width: 10px; height: 10px; background: #059669; border-radius: 50%; margin-right: 8px;"></span>
-                                    Approved (0)</li>
-                                <li style="margin-bottom: 8px; display: flex; align-items: center;"><span
-                                        style="width: 10px; height: 10px; background: #d97706; border-radius: 50%; margin-right: 8px;"></span>
-                                    Pending (0)</li>
-                                <li style="display: flex; align-items: center;"><span
-                                        style="width: 10px; height: 10px; background: #dc2626; border-radius: 50%; margin-right: 8px;"></span>
-                                    Rejected (0)</li>
-                            </ul>
+                        <div class="analytics-legend-modern" id="analytics-docs-legend">
+                            <div class="legend-item legend-approved">
+                                <div class="legend-info">
+                                    <span class="legend-label">Approved</span>
+                                    <span class="legend-value">0</span>
+                                </div>
+                                <div class="legend-progress">
+                                    <div class="legend-progress-bar" style="width: 0%; background: #059669;"></div>
+                                </div>
+                            </div>
+                            <div class="legend-item legend-pending">
+                                <div class="legend-info">
+                                    <span class="legend-label">Pending</span>
+                                    <span class="legend-value">0</span>
+                                </div>
+                                <div class="legend-progress">
+                                    <div class="legend-progress-bar" style="width: 0%; background: #d97706;"></div>
+                                </div>
+                            </div>
+                            <div class="legend-item legend-rejected">
+                                <div class="legend-info">
+                                    <span class="legend-label">Rejected</span>
+                                    <span class="legend-value">0</span>
+                                </div>
+                                <div class="legend-progress">
+                                    <div class="legend-progress-bar" style="width: 0%; background: #dc2626;"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
