@@ -9,6 +9,7 @@ const officerAnalyticsState = {
     },
     snapshot: null,
     liveEvents: [],
+    mockData: null, // Temporary mock data for testing
 };
 
 function parseOfficerAnalyticsDate(value) {
@@ -126,6 +127,11 @@ function getOfficerAnalyticsLiveDocs() {
 }
 
 function getOfficerAnalyticsSourceData() {
+    // Return mock data if available (temporary for testing)
+    if (officerAnalyticsState.mockData) {
+        return officerAnalyticsState.mockData;
+    }
+
     const rentals = getOfficerAnalyticsLiveRentals();
     const docs = getOfficerAnalyticsLiveDocs();
     const financial = getOfficerAnalyticsFinancialRows();
@@ -296,10 +302,31 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
 
     const participationTotal = filteredEvents.reduce((sum, event) => sum + Number(event.participants || 0), 0);
     const participationAverage = filteredEvents.length ? Math.round(participationTotal / filteredEvents.length) : 0;
-    const topEvent = filteredEvents.reduce((best, event) => {
-        if (!best || Number(event.participants || 0) > Number(best.participants || 0)) return event;
-        return best;
-    }, null);
+
+    // Calculate retention level based on average participation and consistency
+    let retentionLevel = 'Low';
+    if (filteredEvents.length > 0) {
+        // Calculate consistency (how close events are to the average)
+        const variance = filteredEvents.reduce((sum, event) => {
+            const diff = Number(event.participants || 0) - participationAverage;
+            return sum + (diff * diff);
+        }, 0) / filteredEvents.length;
+        const standardDeviation = Math.sqrt(variance);
+        const consistencyRatio = participationAverage > 0 ? standardDeviation / participationAverage : 1;
+
+        // Determine retention level
+        if (participationAverage >= 100 && consistencyRatio < 0.5) {
+            retentionLevel = 'High';
+        } else if (participationAverage >= 80 || (participationAverage >= 50 && consistencyRatio < 0.6)) {
+            retentionLevel = 'High';
+        } else if (participationAverage >= 50 || (participationAverage >= 30 && consistencyRatio < 0.7)) {
+            retentionLevel = 'Medium';
+        } else if (participationAverage >= 30) {
+            retentionLevel = 'Medium';
+        } else {
+            retentionLevel = 'Low';
+        }
+    }
 
     const rentalCounts = { active: 0, pending: 0, overdue: 0 };
     filteredRentals.forEach((item) => {
@@ -321,8 +348,32 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         filteredFinancial,
         filters.mode.type === 'day' ? 'day' : (filters.mode.type === 'month' ? 'month' : 'all')
     );
-    const revenueLabels = revenueSeries.map((item) => item.label);
-    const revenueValues = revenueSeries.map((item) => Number(item.total.toFixed(2)));
+
+    // If we have too few data points after grouping, show individual transactions
+    let revenueLabels = revenueSeries.map((item) => item.label);
+    let revenueValues = revenueSeries.map((item) => Number(item.total.toFixed(2)));
+
+    // If less than 3 grouped points and we have transactions, show individual transactions
+    if (revenueLabels.length < 3 && filteredFinancial.length > 0 && filteredFinancial.length <= 10) {
+        const individualSeries = filteredFinancial
+            .filter(item => String(item.payment_status || '').toLowerCase() === 'paid')
+            .map(item => {
+                const date = parseOfficerAnalyticsDate(
+                    item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+                );
+                return {
+                    date: date,
+                    label: date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown',
+                    value: Number(item.total_cost || 0)
+                };
+            })
+            .sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
+
+        if (individualSeries.length >= 2) {
+            revenueLabels = individualSeries.map(item => item.label);
+            revenueValues = individualSeries.map(item => item.value);
+        }
+    }
 
     const participationSeries = filteredEvents
         .slice()
@@ -368,9 +419,7 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         },
         summaries: {
             revenueTrend,
-            participation: topEvent
-                ? `Top event: ${topEvent.title} (${Number(topEvent.participants || 0)} attendees)`
-                : 'No event attendance data',
+            participation: retentionLevel,
             filterSummary,
         },
         counts: {
@@ -399,96 +448,205 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
 }
 
 function updateOfficerAnalyticsCardText(snapshot) {
-    const financialFooter = document.querySelector('.card-financial .mt-3');
+    // Update Financial Performance Card
+    const financialFooter = document.querySelector('.card-financial .analytics-stats-footer');
     if (financialFooter) {
-        const spans = financialFooter.querySelectorAll('span');
-        if (spans[0]) {
-            spans[0].innerHTML = `Total Revenue: <strong>${typeof formatOfficerPeso === 'function'
+        const statValues = financialFooter.querySelectorAll('.stat-value');
+        if (statValues[0]) {
+            statValues[0].innerHTML = typeof formatOfficerPeso === 'function'
                 ? formatOfficerPeso(snapshot.totals.revenue)
-                : `PHP ${snapshot.totals.revenue.toFixed(2)}`}</strong>`;
+                : `₱${snapshot.totals.revenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
-        if (spans[1]) {
-            spans[1].innerHTML = snapshot.summaries.revenueTrend;
+        if (statValues[1]) {
+            // Parse growth from summary like "+8.5% Growth"
+            const growthMatch = snapshot.summaries.revenueTrend.match(/([\+\-]?\d+\.?\d*)%/);
+            if (growthMatch) {
+                const growthValue = parseFloat(growthMatch[1]);
+                const icon = growthValue >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+                const colorClass = growthValue >= 0 ? 'stat-positive' : 'stat-negative';
+                statValues[1].className = `stat-value ${colorClass}`;
+                statValues[1].innerHTML = `<i class="fa-solid ${icon}"></i> ${growthMatch[1]}%`;
+            } else {
+                statValues[1].innerHTML = snapshot.summaries.revenueTrend;
+            }
         }
     }
 
-    const participationFooter = document.querySelector('.card-participation .mt-3');
+    // Update Participation Trends Card
+    const participationFooter = document.querySelector('.card-participation .analytics-stats-footer');
     if (participationFooter) {
-        const spans = participationFooter.querySelectorAll('span');
-        if (spans[0]) {
-            spans[0].innerHTML = `Avg Attendance: <strong>${snapshot.totals.participationAverage}</strong>`;
+        const statValues = participationFooter.querySelectorAll('.stat-value');
+        if (statValues[0]) {
+            statValues[0].innerHTML = `<i class="fa-solid fa-users"></i> ${snapshot.totals.participationAverage}`;
         }
-        if (spans[1]) {
-            spans[1].textContent = snapshot.summaries.participation;
+        if (statValues[1]) {
+            const retentionBadge = participationFooter.querySelector('.stat-badge');
+            if (retentionBadge) {
+                retentionBadge.textContent = snapshot.summaries.participation;
+                // Update badge class based on retention level
+                const retentionLower = snapshot.summaries.participation.toLowerCase();
+                retentionBadge.className = 'stat-badge';
+                if (retentionLower.includes('high')) {
+                    retentionBadge.classList.add('stat-badge-high');
+                } else if (retentionLower.includes('medium') || retentionLower.includes('moderate')) {
+                    retentionBadge.classList.add('stat-badge-medium');
+                } else if (retentionLower.includes('low')) {
+                    retentionBadge.classList.add('stat-badge-low');
+                }
+            }
         }
     }
 
     const activeFilter = document.getElementById('analytics-active-filter');
-    if (activeFilter) activeFilter.textContent = snapshot.summaries.filterSummary;
+    if (activeFilter) {
+        let filterText = snapshot.summaries.filterSummary;
+        // Add mock data indicator
+        if (officerAnalyticsState.mockData) {
+            filterText = '<span style="background: #059669; color: white; padding: 4px 8px; border-radius: 4px; font-weight: 600; margin-right: 8px;"><i class="fa-solid fa-flask"></i> MOCK DATA</span> ' + filterText;
+        }
+        activeFilter.innerHTML = filterText;
+    }
 
     const rentalsLegend = document.getElementById('analytics-rentals-legend');
     if (rentalsLegend) {
+        const total = snapshot.counts.rentals.active + snapshot.counts.rentals.pending + snapshot.counts.rentals.overdue;
+        const activePercent = total > 0 ? (snapshot.counts.rentals.active / total) * 100 : 0;
+        const pendingPercent = total > 0 ? (snapshot.counts.rentals.pending / total) * 100 : 0;
+        const overduePercent = total > 0 ? (snapshot.counts.rentals.overdue / total) * 100 : 0;
+
         rentalsLegend.innerHTML = `
-            <div style="margin-bottom: 8px;"><strong>${snapshot.counts.rentals.active}</strong> Active</div>
-            <div style="margin-bottom: 8px; color: #d97706;"><strong>${snapshot.counts.rentals.pending}</strong> Pending</div>
-            <div style="color: #dc2626;"><strong>${snapshot.counts.rentals.overdue}</strong> Overdue</div>
+            <div class="legend-item legend-active">
+                <div class="legend-info">
+                    <span class="legend-label">Active</span>
+                    <span class="legend-value">${snapshot.counts.rentals.active}</span>
+                </div>
+                <div class="legend-bar">
+                    <div class="legend-bar-fill" style="width: ${activePercent}%; background: #059669;"></div>
+                </div>
+            </div>
+            <div class="legend-item legend-pending">
+                <div class="legend-info">
+                    <span class="legend-label">Pending</span>
+                    <span class="legend-value">${snapshot.counts.rentals.pending}</span>
+                </div>
+                <div class="legend-bar">
+                    <div class="legend-bar-fill" style="width: ${pendingPercent}%; background: #d97706;"></div>
+                </div>
+            </div>
+            <div class="legend-item legend-overdue">
+                <div class="legend-info">
+                    <span class="legend-label">Overdue</span>
+                    <span class="legend-value">${snapshot.counts.rentals.overdue}</span>
+                </div>
+                <div class="legend-bar">
+                    <div class="legend-bar-fill" style="width: ${overduePercent}%; background: #dc2626;"></div>
+                </div>
+            </div>
         `;
     }
 
     const docsLegend = document.getElementById('analytics-docs-legend');
     if (docsLegend) {
+        const total = snapshot.counts.docs.approved + snapshot.counts.docs.pending + snapshot.counts.docs.rejected;
+        const approvedPercent = total > 0 ? (snapshot.counts.docs.approved / total) * 100 : 0;
+        const pendingPercent = total > 0 ? (snapshot.counts.docs.pending / total) * 100 : 0;
+        const rejectedPercent = total > 0 ? (snapshot.counts.docs.rejected / total) * 100 : 0;
+
         docsLegend.innerHTML = `
-            <ul style="list-style: none;">
-                <li style="margin-bottom: 8px; display: flex; align-items: center;"><span
-                        style="width: 10px; height: 10px; background: #059669; border-radius: 50%; margin-right: 8px;"></span>
-                    Approved (${snapshot.counts.docs.approved})</li>
-                <li style="margin-bottom: 8px; display: flex; align-items: center;"><span
-                        style="width: 10px; height: 10px; background: #d97706; border-radius: 50%; margin-right: 8px;"></span>
-                    Pending (${snapshot.counts.docs.pending})</li>
-                <li style="display: flex; align-items: center;"><span
-                        style="width: 10px; height: 10px; background: #dc2626; border-radius: 50%; margin-right: 8px;"></span>
-                    Rejected (${snapshot.counts.docs.rejected})</li>
-            </ul>
+            <div class="legend-item legend-approved">
+                <div class="legend-info">
+                    <span class="legend-label">Approved</span>
+                    <span class="legend-value">${snapshot.counts.docs.approved}</span>
+                </div>
+                <div class="legend-progress">
+                    <div class="legend-progress-bar" style="width: ${approvedPercent}%; background: #059669;"></div>
+                </div>
+            </div>
+            <div class="legend-item legend-pending">
+                <div class="legend-info">
+                    <span class="legend-label">Pending</span>
+                    <span class="legend-value">${snapshot.counts.docs.pending}</span>
+                </div>
+                <div class="legend-progress">
+                    <div class="legend-progress-bar" style="width: ${pendingPercent}%; background: #d97706;"></div>
+                </div>
+            </div>
+            <div class="legend-item legend-rejected">
+                <div class="legend-info">
+                    <span class="legend-label">Rejected</span>
+                    <span class="legend-value">${snapshot.counts.docs.rejected}</span>
+                </div>
+                <div class="legend-progress">
+                    <div class="legend-progress-bar" style="width: ${rejectedPercent}%; background: #dc2626;"></div>
+                </div>
+            </div>
         `;
     }
 }
 
 function upsertOfficerAnalyticsChart(key, elementId, config) {
     const canvas = document.getElementById(elementId);
-    if (!canvas || typeof Chart === 'undefined') return;
-
-    if (officerAnalyticsState.charts[key]) {
-        officerAnalyticsState.charts[key].data = config.data;
-        officerAnalyticsState.charts[key].options = config.options;
-        officerAnalyticsState.charts[key].update();
+    if (!canvas || typeof Chart === 'undefined') {
         return;
+    }
+
+    // Destroy existing chart and recreate it to ensure proper rendering
+    if (officerAnalyticsState.charts[key]) {
+        officerAnalyticsState.charts[key].destroy();
+        delete officerAnalyticsState.charts[key];
     }
 
     officerAnalyticsState.charts[key] = new Chart(canvas, config);
 }
 
 function renderOfficerAnalyticsCharts(snapshot) {
+    // Determine chart type based on number of data points
+    const revenueDataPoints = snapshot.charts.revenue.values.length;
+    const useBarChart = revenueDataPoints <= 2;
+
     upsertOfficerAnalyticsChart('revenue', 'revenueChart', {
-        type: 'line',
+        type: useBarChart ? 'bar' : 'line',
         data: {
             labels: snapshot.charts.revenue.labels,
             datasets: [{
                 label: 'Revenue',
                 data: snapshot.charts.revenue.values,
                 borderColor: '#002147',
-                backgroundColor: 'rgba(0, 33, 71, 0.08)',
-                fill: true,
+                backgroundColor: useBarChart ? '#002147' : 'rgba(0, 33, 71, 0.08)',
+                fill: !useBarChart,
                 tension: 0.35,
+                borderWidth: useBarChart ? 0 : 3,
+                pointRadius: useBarChart ? 0 : 6,
+                pointHoverRadius: useBarChart ? 0 : 8,
+                pointBackgroundColor: '#002147',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                borderRadius: useBarChart ? 6 : 0,
             }],
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    callbacks: {
+                        label: function(context) {
+                            return 'Revenue: ₱' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
             scales: {
                 y: {
                     beginAtZero: true,
                     grid: { display: false },
+                    ticks: {
+                        callback: function(value) {
+                            return '₱' + value.toLocaleString();
+                        }
+                    }
                 },
                 x: { grid: { display: false } },
             },
@@ -597,6 +755,120 @@ function initializeOfficerAnalyticsYearOptions() {
     const current = years.includes(select.value) ? select.value : getOfficerAnalyticsDefaultAcademicYear();
     select.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
     select.value = current;
+}
+
+// --- MOCK DATA GENERATOR (for testing only - temporary) ---
+function generateMockAnalyticsData() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const academicYear = now.getMonth() >= 7 ? currentYear : currentYear - 1;
+
+    // Helper to generate random date in current academic year
+    const randomDate = (monthsBack = 6) => {
+        const date = new Date(academicYear, 7 + Math.floor(Math.random() * monthsBack), Math.floor(Math.random() * 28) + 1);
+        return date.toISOString().split('T')[0];
+    };
+
+    // Generate 20-30 financial transactions
+    const transactionCount = 20 + Math.floor(Math.random() * 11);
+    const financial = [];
+    for (let i = 0; i < transactionCount; i++) {
+        const amount = 50 + Math.floor(Math.random() * 950); // 50-1000
+        const isPaid = Math.random() > 0.2; // 80% paid
+        financial.push({
+            transaction_id: `mock-txn-${i}`,
+            transaction_date: randomDate(8),
+            total_cost: amount,
+            payment_status: isPaid ? 'paid' : 'pending',
+            service_name: ['Printing', 'Lamination', 'Document Request', 'Event Registration'][Math.floor(Math.random() * 4)]
+        });
+    }
+
+    // Generate 8-12 events
+    const eventCount = 8 + Math.floor(Math.random() * 5);
+    const eventNames = ['General Assembly', 'Workshop', 'Seminar', 'Team Building', 'Fundraising', 'Sports Fest', 'Cultural Night', 'Career Fair'];
+    const events = [];
+    for (let i = 0; i < eventCount; i++) {
+        events.push({
+            id: `mock-event-${i}`,
+            title: eventNames[i % eventNames.length] + ` ${Math.floor(i / eventNames.length) + 1}`,
+            date: randomDate(8),
+            venue: ['Auditorium', 'Gym', 'Quadrangle', 'Room 101'][Math.floor(Math.random() * 4)],
+            participants: 20 + Math.floor(Math.random() * 180), // 20-200 participants
+            status: 'published'
+        });
+    }
+
+    // Generate 10-20 documents
+    const docCount = 10 + Math.floor(Math.random() * 11);
+    const docTypes = ['Budget Proposal', 'Activity Report', 'Permit Request', 'Equipment Request'];
+    const docs = [];
+    for (let i = 0; i < docCount; i++) {
+        const statuses = ['approved', 'pending', 'pending', 'rejected']; // More pending
+        docs.push({
+            submission_id: `mock-doc-${i}`,
+            document_type: docTypes[Math.floor(Math.random() * docTypes.length)],
+            submittedAt: randomDate(6),
+            status: statuses[Math.floor(Math.random() * statuses.length)]
+        });
+    }
+
+    // Generate 15-25 rentals
+    const rentalCount = 15 + Math.floor(Math.random() * 11);
+    const rentalItems = ['Projector', 'Sound System', 'Tables', 'Chairs', 'Laptop', 'Microphone'];
+    const rentals = [];
+    for (let i = 0; i < rentalCount; i++) {
+        const statuses = ['active', 'active', 'pending', 'overdue']; // More active
+        rentals.push({
+            rental_id: `mock-rental-${i}`,
+            item_name: rentalItems[Math.floor(Math.random() * rentalItems.length)],
+            dueAt: randomDate(2),
+            status: statuses[Math.floor(Math.random() * statuses.length)]
+        });
+    }
+
+    // Store mock data and refresh
+    officerAnalyticsState.mockData = { financial, events, docs, rentals };
+
+    // Toggle buttons
+    const mockBtn = document.getElementById('mock-data-btn');
+    const clearBtn = document.getElementById('clear-mock-btn');
+    if (mockBtn) mockBtn.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'inline-flex';
+
+    // Show notification
+    if (typeof showToast === 'function') {
+        showToast('Mock data generated! ' + transactionCount + ' transactions, ' + eventCount + ' events. Click "Clear Mock" to remove.', 'success');
+    } else {
+        alert('Mock data generated successfully!\n\n' +
+              `${transactionCount} financial transactions\n` +
+              `${eventCount} events\n` +
+              `${docCount} documents\n` +
+              `${rentalCount} rentals\n\n` +
+              'Click "Clear Mock" button to remove mock data.');
+    }
+
+    // Refresh charts
+    refreshAnalyticsCharts();
+}
+
+function clearMockAnalyticsData() {
+    // Clear mock data
+    officerAnalyticsState.mockData = null;
+
+    // Toggle buttons
+    const mockBtn = document.getElementById('mock-data-btn');
+    const clearBtn = document.getElementById('clear-mock-btn');
+    if (mockBtn) mockBtn.style.display = 'inline-flex';
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    // Show notification
+    if (typeof showToast === 'function') {
+        showToast('Mock data cleared. Showing real data.', 'info');
+    }
+
+    // Refresh charts with real data
+    refreshAnalyticsCharts();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
