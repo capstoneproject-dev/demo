@@ -96,6 +96,7 @@ try {
                 u.student_number,
                 u.employee_number,
                 r.role_name,
+                COALESCE(NULLIF(om.position_title, ''), r.role_name) AS position_title,
                 COALESCE(ap.program_code, '') AS program_code,
                 {$sectionExpr} AS section,
                 om.joined_at

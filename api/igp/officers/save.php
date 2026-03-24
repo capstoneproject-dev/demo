@@ -12,6 +12,7 @@ $officerId = trim((string)($body['officerId'] ?? ''));
 $officerName = trim((string)($body['officerName'] ?? ''));
 $department = trim((string)($body['department'] ?? ''));
 $roleName = trim((string)($body['roleName'] ?? 'officer'));
+$positionTitle = trim((string)($body['positionTitle'] ?? ''));
 $joinedAt = trim((string)($body['joinedAt'] ?? date('Y-m-d')));
 $isActive = isset($body['isActive']) ? (int)(bool)$body['isActive'] : 1;
 
@@ -102,11 +103,12 @@ try {
     if ($id > 0) {
         $upd = $pdo->prepare(
             "UPDATE organization_members
-             SET role_id = :rid, joined_at = :joined, is_active = :active
+             SET role_id = :rid, position_title = :position, joined_at = :joined, is_active = :active
              WHERE membership_id = :id AND org_id = :org"
         );
         $upd->execute([
             ':rid' => $roleId,
+            ':position' => $positionTitle !== '' ? $positionTitle : null,
             ':joined' => $joinedAt,
             ':active' => $isActive,
             ':id' => $id,
@@ -116,14 +118,15 @@ try {
         jsonOk(['id' => $id, 'msg' => 'Officer updated.']);
     } else {
         $ins = $pdo->prepare(
-            "INSERT INTO organization_members (user_id, org_id, role_id, joined_at, is_active)
-             VALUES (:uid, :org, :rid, :joined, :active)
-             ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), joined_at = VALUES(joined_at), is_active = VALUES(is_active)"
+            "INSERT INTO organization_members (user_id, org_id, role_id, position_title, joined_at, is_active)
+             VALUES (:uid, :org, :rid, :position, :joined, :active)
+             ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), position_title = VALUES(position_title), joined_at = VALUES(joined_at), is_active = VALUES(is_active)"
         );
         $ins->execute([
             ':uid' => $userId,
             ':org' => $ctx['org_id'],
             ':rid' => $roleId,
+            ':position' => $positionTitle !== '' ? $positionTitle : null,
             ':joined' => $joinedAt,
             ':active' => $isActive
         ]);

@@ -16,6 +16,7 @@ $programCode   = trim($body['course']    ?? $body['programCode'] ?? '');
 $yearSection   = trim($body['yearSection'] ?? $body['section'] ?? '');
 $reqRole       = trim($body['requestedRole'] ?? 'student');
 $reqOrg        = trim($body['requestedOrg']  ?? '');
+$reqPosition   = trim($body['requestedPosition'] ?? '');
 
 if (!$studentNumber || !$studentName || !$email || !$password) {
     jsonError('studentId, name, email, and password are required.', 422);
@@ -69,8 +70,8 @@ try {
     $ins = $pdo->prepare("
         INSERT INTO pending_registrations
             (student_number, student_name, email, password_hash,
-             program_code, year_section, phone, requested_role, requested_org, status)
-        VALUES (:sn, :name, :email, :pw, :prog, :ys, :phone, :role, :org, 'pending')
+             program_code, year_section, phone, requested_role, requested_org, requested_position, status)
+        VALUES (:sn, :name, :email, :pw, :prog, :ys, :phone, :role, :org, :position, 'pending')
     ");
     $ins->execute([
         ':sn'   => $studentNumber,
@@ -82,6 +83,7 @@ try {
         ':phone'=> $phone ?: null,
         ':role' => in_array($reqRole, ['student', 'org_officer']) ? $reqRole : 'student',
         ':org'  => $reqOrg ?: null,
+        ':position' => $reqPosition ?: null,
     ]);
     $regId = (int)$pdo->lastInsertId();
 

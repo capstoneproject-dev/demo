@@ -291,6 +291,12 @@
     grid-column: 1 / -1;
   }
 
+  .org-registration-inline-picks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
   .org-lookup-message {
     margin: -4px 0 0;
     font-size: 0.9rem;
@@ -553,6 +559,12 @@
     color: #fff;
     border-color: var(--primary);
   }
+
+  .position-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
   
   .org-item.disabled {
     opacity: 0.5;
@@ -654,6 +666,11 @@
     }
 
     .org-registration-details {
+      grid-template-columns: 1fr;
+    }
+
+    .org-registration-inline-picks,
+    .position-list {
       grid-template-columns: 1fr;
     }
   }

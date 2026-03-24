@@ -15,6 +15,7 @@ try {
                org.org_code AS orgCode,
                org.org_name AS orgName,
                r.role_name AS roleName,
+               COALESCE(NULLIF(om.position_title, ''), r.role_name) AS positionTitle,
                om.joined_at AS joinedAt,
                om.is_active AS isActive,
                om.created_at AS addedAt

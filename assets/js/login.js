@@ -169,6 +169,7 @@ function seedAuthDb() {
       user_id: 1,
       org_id: 1,
       role_id: officerRoleAisers ? officerRoleAisers.role_id : 1,
+      position_title: 'President',
       joined_at: '2025-08-01',
       is_active: 1
     }
@@ -181,6 +182,7 @@ function seedAuthDb() {
         user_id: users[1].user_id,
         org_id: role.org_id,
         role_id: role.role_id,
+        position_title: null,
         joined_at: '2025-08-01',
         is_active: 1
       });
@@ -280,6 +282,9 @@ function addMembershipIfMissing(db, userId, orgId, roleId) {
   const exists = db.organization_members.find((membership) => membership.user_id === userId && membership.org_id === orgId);
   if (exists) {
     exists.role_id = roleId;
+    if (!Object.prototype.hasOwnProperty.call(exists, 'position_title')) {
+      exists.position_title = null;
+    }
     exists.is_active = 1;
     return exists;
   }
@@ -289,6 +294,7 @@ function addMembershipIfMissing(db, userId, orgId, roleId) {
     user_id: userId,
     org_id: orgId,
     role_id: roleId,
+    position_title: null,
     joined_at: new Date().toISOString().slice(0, 10),
     is_active: 1,
     created_at: nowIso(),
@@ -324,6 +330,7 @@ function getOfficerMemberships(db, userId) {
         org_id: org.org_id,
         org_name: org.org_name,
         role_name: role.role_name,
+        position_title: membership.position_title || role.role_name,
         role_id: role.role_id
       };
     })
@@ -518,7 +525,8 @@ async function submitPendingRegistration(payload) {
         yearSection:  payload.yearSection  || '',
         section:      payload.section      || '',
         requestedRole: payload.requestedRole || 'student',
-        requestedOrg:  payload.requestedOrg  || ''
+        requestedOrg:  payload.requestedOrg  || '',
+        requestedPosition: payload.requestedPosition || ''
       })
     });
     const json = await res.json();
@@ -583,7 +591,11 @@ function trySyncAuthorizedStudentFromAccounts(db, identifier, password) {
   if (String(approved.requestedRole || '').toLowerCase() === 'org_officer' && approved.requestedOrg) {
     const selectedOrg = findOrCreateOrganization(db, approved.requestedOrg);
     const officerRole = findRole(db, selectedOrg.org_id, 'officer');
-    if (officerRole) addMembershipIfMissing(db, user.user_id, selectedOrg.org_id, officerRole.role_id);
+    if (officerRole) {
+      const membership = addMembershipIfMissing(db, user.user_id, selectedOrg.org_id, officerRole.role_id);
+      membership.position_title = approved.requestedPosition || membership.position_title || null;
+      membership.updated_at = nowIso();
+    }
   }
 
   return user;
@@ -651,6 +663,7 @@ function switchTab(type) {
    ===================== */
 const orgModal = document.getElementById('orgModal');
 const orgInput = document.getElementById('org-input');
+const orgPositionInput = document.getElementById('org-position-input');
 const orgStudentNumberInput = document.getElementById('org-student-number-input');
 const orgRegistrationDetails = document.getElementById('org-registration-details');
 const orgLookupMessage = document.getElementById('org-student-lookup-message');
@@ -680,6 +693,27 @@ function selectOrg(orgName) {
 if (orgModal) {
   orgModal.addEventListener('click', (e) => {
     if (e.target === orgModal) closeOrgModal();
+  });
+}
+
+const positionModal = document.getElementById('positionModal');
+
+function openPositionModal() {
+  if (positionModal) positionModal.classList.add('open');
+}
+
+function closePositionModal() {
+  if (positionModal) positionModal.classList.remove('open');
+}
+
+function selectPosition(positionTitle) {
+  if (orgPositionInput) orgPositionInput.value = String(positionTitle || '').trim();
+  closePositionModal();
+}
+
+if (positionModal) {
+  positionModal.addEventListener('click', (e) => {
+    if (e.target === positionModal) closePositionModal();
   });
 }
 
@@ -763,6 +797,7 @@ function clearOrgRegistrationFields() {
   if (orgEmailInput) orgEmailInput.value = '';
   if (orgPhoneInput) orgPhoneInput.value = '';
   if (orgInput) orgInput.value = '';
+  if (orgPositionInput) orgPositionInput.value = '';
   if (orgPasswordInput) orgPasswordInput.value = '';
   if (orgConfirmPasswordInput) orgConfirmPasswordInput.value = '';
 }
@@ -1003,6 +1038,7 @@ async function registerOrgOfficer() {
   const course = (document.getElementById('org-course-input') || {}).value?.trim() || '';
   const section = (document.getElementById('org-section-input') || {}).value?.trim() || '';
   const orgName = normalizeOrgName((document.getElementById('org-input') || {}).value?.trim() || '');
+  const positionTitle = (document.getElementById('org-position-input') || {}).value?.trim() || '';
   const email = (document.getElementById('org-email-input') || {}).value?.trim() || '';
   const phone = normalizePhoneInput((document.getElementById('org-phone-input') || {}).value?.trim() || '');
   const password = (document.getElementById('org-password-input') || {}).value || '';
@@ -1014,7 +1050,7 @@ async function registerOrgOfficer() {
     return;
   }
 
-  if (!studentNumber || !fullName || !course || !section || !orgName || !email || !password || !confirmPassword) {
+  if (!studentNumber || !fullName || !course || !section || !orgName || !positionTitle || !email || !password || !confirmPassword) {
     alert('Please complete all Organization registration fields.');
     return;
   }
@@ -1037,7 +1073,8 @@ async function registerOrgOfficer() {
     yearSection: section,
     section: `${normalizeCourse(course)} ${section}`.trim(),
     requestedRole: 'org_officer',
-    requestedOrg: orgName
+    requestedOrg: orgName,
+    requestedPosition: positionTitle
   });
 
   if (!submitted.ok) {
