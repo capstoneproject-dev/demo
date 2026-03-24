@@ -343,6 +343,10 @@
                             <i class="fa-solid fa-door-closed"></i>
                             <span class="tracker-btn-label">Locker Services</span>
                         </button>
+                        <button id="trackerFinancialBtn" class="sub-nav-btn" onclick="switchTrackerSubView('financial-summary', this)">
+                            <i class="fa-solid fa-wallet"></i>
+                            <span class="tracker-btn-label">Financial Summary</span>
+                        </button>
                     </div>
                 </aside>
 
@@ -351,6 +355,182 @@
                         <div class="card">
                             <iframe src="../pages/igp/index.php" title="IGP Rental System">
                             </iframe>
+                        </div>
+                    </div>
+
+                    <div id="tracker-financial-summary-view" class="tracker-sub-view">
+                        <div class="card financial-summary-panel">
+                            <div class="card-header financial-summary-header">
+                                <div>
+                                    <div class="card-title">Financial Summary</div>
+                                    <p class="financial-summary-subtitle">
+                                        Review rentals, lockers, and printing transactions for your organization in one summary.
+                                    </p>
+                                </div>
+                                <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerFinancialSummary(true)">
+                                    <i class="fa-solid fa-rotate-right"></i> Refresh
+                                </button>
+                            </div>
+
+                            <div class="financial-summary-filter-grid">
+                                <div class="form-group">
+                                    <label for="financialSummaryServiceFilter">Service</label>
+                                    <select id="financialSummaryServiceFilter" onchange="renderOfficerFinancialSummary()">
+                                        <option value="">All Services</option>
+                                        <option value="rental">Rentals</option>
+                                        <option value="locker">Lockers</option>
+                                        <option value="printing">Printing</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="financialSummaryItemFilter">Item / Job</label>
+                                    <select id="financialSummaryItemFilter" onchange="renderOfficerFinancialSummary()">
+                                        <option value="">All Items</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="financialSummaryStartDate">Start Date</label>
+                                    <input type="date" id="financialSummaryStartDate" onchange="renderOfficerFinancialSummary()">
+                                </div>
+                                <div class="form-group">
+                                    <label for="financialSummaryEndDate">End Date</label>
+                                    <input type="date" id="financialSummaryEndDate" onchange="renderOfficerFinancialSummary()">
+                                </div>
+                                <div class="form-group">
+                                    <label for="financialSummaryPaymentFilter">Payment</label>
+                                    <select id="financialSummaryPaymentFilter" onchange="renderOfficerFinancialSummary()">
+                                        <option value="">All</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="unpaid">Unpaid</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>&nbsp;</label>
+                                    <button class="btn btn-outline" type="button" onclick="clearOfficerFinancialSummaryFilters()">
+                                        Clear Filters
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="financial-summary-stats-grid">
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryTotalRevenue">P0.00</h3>
+                                        <p>Total Revenue</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryTotalUnpaid">P0.00</h3>
+                                        <p>Total Unpaid</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryTotalTransactions">0</h3>
+                                        <p>Total Transactions</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-receipt"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryPaidTransactions">0</h3>
+                                        <p>Paid Transactions</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryUnpaidTransactions">0</h3>
+                                        <p>Unpaid Transactions</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryAverageValue">P0.00</h3>
+                                        <p>Average Paid Value</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-chart-simple"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryHighestValue">P0.00</h3>
+                                        <p>Highest Transaction</p>
+                                        <small id="financialSummaryHighestMeta" class="financial-stat-meta"></small>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryLowestValue">P0.00</h3>
+                                        <p>Lowest Transaction</p>
+                                        <small id="financialSummaryLowestMeta" class="financial-stat-meta"></small>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                                </div>
+                            </div>
+
+                            <div class="financial-summary-range-card">
+                                <strong>Date Range Summary</strong>
+                                <span id="financialSummaryDateRange">-</span>
+                            </div>
+
+                            <div class="card financial-summary-table-card">
+                                <div class="card-header">
+                                    <div class="card-title">All Transactions</div>
+                                </div>
+                                <div class="table-container">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Service</th>
+                                                <th>Item / Job</th>
+                                                <th>Customer</th>
+                                                <th>Processed By</th>
+                                                <th>Base Cost</th>
+                                                <th>Overtime</th>
+                                                <th>Total Cost</th>
+                                                <th>Status</th>
+                                                <th>Payment</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="financialSummaryTransactionsTable">
+                                            <tr>
+                                                <td colspan="10" style="text-align:center; padding:32px; color:var(--muted);">Loading financial summary...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="card financial-summary-table-card">
+                                <div class="card-header">
+                                    <div class="card-title">Monthly Breakdown</div>
+                                </div>
+                                <div class="table-container">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Month</th>
+                                                <th>Total Revenue</th>
+                                                <th>Total Unpaid</th>
+                                                <th>Transactions</th>
+                                                <th>Paid</th>
+                                                <th>Unpaid</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="financialSummaryMonthlyTable">
+                                            <tr>
+                                                <td colspan="6" style="text-align:center; padding:24px; color:var(--muted);">No monthly data yet.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

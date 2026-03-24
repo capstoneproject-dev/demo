@@ -2584,6 +2584,123 @@ body.dark .btn-outline:hover {
     overflow-x: auto;
 }
 
+.financial-summary-panel {
+    width: 100%;
+    min-height: 88vh;
+    margin: 0;
+}
+
+.financial-summary-header {
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.financial-summary-subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-top: 4px;
+}
+
+.financial-summary-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+}
+
+.financial-summary-filter-grid .form-group {
+    margin-bottom: 0;
+}
+
+.financial-summary-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.financial-stat-card {
+    min-height: 126px;
+}
+
+.financial-stat-meta {
+    display: block;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.35;
+}
+
+.financial-summary-range-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--panel);
+}
+
+.financial-summary-table-card {
+    margin-bottom: 20px;
+}
+
+.financial-service-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: capitalize;
+    background: rgba(15, 23, 42, 0.06);
+    color: var(--text);
+}
+
+.financial-service-badge.rental {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+}
+
+.financial-service-badge.locker {
+    background: rgba(220, 38, 38, 0.12);
+    color: #b91c1c;
+}
+
+.financial-service-badge.printing {
+    background: rgba(5, 150, 105, 0.12);
+    color: #047857;
+}
+
+.financial-payment-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.financial-payment-badge.paid {
+    background: rgba(22, 163, 74, 0.14);
+    color: #15803d;
+}
+
+.financial-payment-badge.unpaid {
+    background: rgba(217, 119, 6, 0.14);
+    color: #b45309;
+}
+
+.financial-empty-state {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+}
+
 .printing-queue-header-actions {
     display: flex;
     align-items: center;
@@ -2890,7 +3007,7 @@ body.dark .btn-outline:hover {
 
 .tracker-layout:has(.tracker-sidebar:hover),
 .tracker-layout:has(.tracker-sidebar:focus-within) {
-    grid-template-columns: 188px minmax(0, 1fr);
+    grid-template-columns: 236px minmax(0, 1fr);
 }
 
 .tracker-layout.rentals-only {
@@ -2930,7 +3047,7 @@ body.dark .btn-outline:hover {
 
 .tracker-sidebar:hover,
 .tracker-sidebar:focus-within {
-    width: 188px;
+    width: 236px;
     padding: 90px 10px 14px 12px;
     box-shadow: 0 20px 48px rgba(15, 23, 42, 0.14);
 }
@@ -2982,7 +3099,7 @@ body.dark .btn-outline:hover {
 
 .tracker-sidebar:hover .tracker-btn-label,
 .tracker-sidebar:focus-within .tracker-btn-label {
-    max-width: 140px;
+    max-width: 180px;
     opacity: 1;
     margin-left: 10px;
 }
@@ -3037,7 +3154,7 @@ body.dark .btn-outline:hover {
     overflow: hidden;
     border-radius: 0;
     border: 0;
-    background: transparent;
+    background: #ffffff;
     box-shadow: none;
     transition: width 0.3s ease, min-height 0.3s ease, height 0.3s ease;
 }
@@ -3089,6 +3206,11 @@ body.dark .btn-outline:hover {
         max-width: 140px;
         opacity: 1;
         margin-left: 10px;
+    }
+
+    .financial-summary-range-card {
+        align-items: flex-start;
+        flex-direction: column;
     }
 }
 
