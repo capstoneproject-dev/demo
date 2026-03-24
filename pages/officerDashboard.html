@@ -389,12 +389,11 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="financialSummaryStartDate">Start Date</label>
-                                    <input type="date" id="financialSummaryStartDate" onchange="renderOfficerFinancialSummary()">
-                                </div>
-                                <div class="form-group">
-                                    <label for="financialSummaryEndDate">End Date</label>
-                                    <input type="date" id="financialSummaryEndDate" onchange="renderOfficerFinancialSummary()">
+                                    <label for="financialSummaryDateFilterBtn">Date Range</label>
+                                    <button id="financialSummaryDateFilterBtn" class="printing-history-filter-btn" type="button" onclick="openOfficerFinancialDateFilterModal()">
+                                        <span id="financialSummaryDateFilterLabel">Today</span>
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </button>
                                 </div>
                                 <div class="form-group">
                                     <label for="financialSummaryPaymentFilter">Payment</label>
@@ -454,22 +453,6 @@
                                         <p>Average Paid Value</p>
                                     </div>
                                     <div class="stat-icon"><i class="fa-solid fa-chart-simple"></i></div>
-                                </div>
-                                <div class="stat-card financial-stat-card">
-                                    <div class="stat-info">
-                                        <h3 id="financialSummaryHighestValue">P0.00</h3>
-                                        <p>Highest Transaction</p>
-                                        <small id="financialSummaryHighestMeta" class="financial-stat-meta"></small>
-                                    </div>
-                                    <div class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
-                                </div>
-                                <div class="stat-card financial-stat-card">
-                                    <div class="stat-info">
-                                        <h3 id="financialSummaryLowestValue">P0.00</h3>
-                                        <p>Lowest Transaction</p>
-                                        <small id="financialSummaryLowestMeta" class="financial-stat-meta"></small>
-                                    </div>
-                                    <div class="stat-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
                                 </div>
                             </div>
 
@@ -962,6 +945,63 @@
                     <div class="modal-footer">
                         <button type="button" class="btn-cancel" onclick="closeOfficerPrintingDateFilterModal()">Cancel</button>
                         <button type="button" class="btn-submit" onclick="applyOfficerPrintingDateFilter()">Apply Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerFinancialDateFilterModal" class="modal-overlay">
+            <div class="modal-content printing-history-date-filter-modal-content">
+                <div class="modal-header">
+                    <h3>Filter Financial Summary by Date</h3>
+                    <button class="close-modal" type="button" onclick="closeOfficerFinancialDateFilterModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="date-filter-presets">
+                        <button class="preset-btn" type="button" onclick="applyOfficerFinancialDatePreset('today')">Today</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerFinancialDatePreset('week')">This Week</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerFinancialDatePreset('month')">This Month</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerFinancialDatePreset('all')">All Time</button>
+                    </div>
+
+                    <div class="calendar-picker-container">
+                        <div class="calendar-header">
+                            <button class="calendar-nav-btn" type="button" onclick="navigateOfficerFinancialCalendarMonth(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <span class="calendar-month-year" id="officerFinancialFilterCalendarMonthYear">January 2026</span>
+                            <button class="calendar-nav-btn" type="button" onclick="navigateOfficerFinancialCalendarMonth(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <div class="calendar-weekday">Sun</div>
+                            <div class="calendar-weekday">Mon</div>
+                            <div class="calendar-weekday">Tue</div>
+                            <div class="calendar-weekday">Wed</div>
+                            <div class="calendar-weekday">Thu</div>
+                            <div class="calendar-weekday">Fri</div>
+                            <div class="calendar-weekday">Sat</div>
+                        </div>
+
+                        <div class="calendar-days" id="officerFinancialFilterCalendarDays"></div>
+
+                        <div class="calendar-selected-range">
+                            <div class="selected-date-display">
+                                <strong>From:</strong> <span id="officerFinancialSelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="selected-date-display">
+                                <strong>To:</strong> <span id="officerFinancialSelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeOfficerFinancialDateFilterModal()">Cancel</button>
+                        <button type="button" class="btn-submit" onclick="applyOfficerFinancialDateFilter()">Apply Filter</button>
                     </div>
                 </div>
             </div>
