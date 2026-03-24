@@ -56,10 +56,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         </ul>
                     </li>
 
-                    <li class="nav-item">
-                        <a class="nav-link" href="financial-summary.php">Financial Summary</a>
-                    </li>
-
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="databaseDropdown" role="button"
                             data-bs-toggle="dropdown" aria-expanded="false">
@@ -357,4 +353,3 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 </body>
 
 </html>
-

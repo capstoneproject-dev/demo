@@ -57,10 +57,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         </ul>
                     </li>
 
-                    <li class="nav-item">
-                        <a class="nav-link" href="financial-summary.php">Financial Summary</a>
-                    </li>
-
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="databaseDropdown" role="button"
                             data-bs-toggle="dropdown" aria-expanded="false">
@@ -104,14 +100,11 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             <div class="card-header">
                 <div class="d-flex align-items-center flex-wrap gap-2">
                     <div class="d-flex align-items-center">
-                        <label for="historyDateFilter" class="form-label mb-0 me-2">Filter by Date:</label>
-                        <input type="date" id="historyDateFilter" class="form-control form-control-sm"
-                            style="max-width:200px;display:inline-block;">
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <label for="historyMonthFilter" class="form-label mb-0 me-2">Filter by Month:</label>
-                        <input type="month" id="historyMonthFilter" class="form-control form-control-sm"
-                            style="max-width:200px;display:inline-block;">
+                        <label for="historyFilterBtn" class="form-label mb-0 me-2">Filter by Date / Month:</label>
+                        <button id="historyFilterBtn" class="rental-history-filter-btn" type="button">
+                            <span id="historyFilterLabel">All Dates</span>
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
                     </div>
                     <button id="showAllDatesBtn" class="btn btn-info btn-sm">Show All Dates</button>
                 </div>
@@ -176,6 +169,76 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             </div>
         </div>
     </div>
+
+    <div id="rentalHistoryFilterModal" class="igp-filter-modal-overlay">
+        <div class="igp-filter-modal-content">
+            <div class="igp-filter-modal-header">
+                <h5>Filter Rental History</h5>
+                <button id="rentalHistoryFilterCloseBtn" class="igp-filter-close-btn" type="button">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="igp-filter-modal-body">
+                <div id="rentalHistoryDateFilterSection">
+                    <div class="igp-date-filter-presets">
+                        <button id="rentalHistoryDatePresetTodayBtn" class="igp-preset-btn" type="button">Today</button>
+                        <button id="rentalHistoryDatePresetWeekBtn" class="igp-preset-btn" type="button">This Week</button>
+                        <button id="rentalHistoryDatePresetMonthBtn" class="igp-preset-btn" type="button">This Month</button>
+                        <button id="rentalHistoryDatePresetAllBtn" class="igp-preset-btn" type="button">All Time</button>
+                    </div>
+
+                    <div class="igp-calendar-picker-container">
+                        <div class="igp-calendar-header">
+                            <button id="rentalHistoryCalendarPrevBtn" class="igp-calendar-nav-btn" type="button">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="igp-calendar-header-picker-group">
+                                <select
+                                    id="rentalHistoryCalendarMonthSelect"
+                                    class="igp-calendar-header-select"
+                                    aria-label="Select month">
+                                </select>
+                                <select
+                                    id="rentalHistoryCalendarYearSelect"
+                                    class="igp-calendar-header-select igp-calendar-header-year-select"
+                                    aria-label="Select year">
+                                </select>
+                            </div>
+                            <button id="rentalHistoryCalendarNextBtn" class="igp-calendar-nav-btn" type="button">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="igp-calendar-weekdays">
+                            <div>Sun</div>
+                            <div>Mon</div>
+                            <div>Tue</div>
+                            <div>Wed</div>
+                            <div>Thu</div>
+                            <div>Fri</div>
+                            <div>Sat</div>
+                        </div>
+
+                        <div class="igp-calendar-days" id="rentalHistoryCalendarDays"></div>
+
+                        <div class="igp-calendar-selected-range">
+                            <div class="igp-selected-date-display">
+                                <strong>From:</strong> <span id="rentalHistorySelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="igp-selected-date-display">
+                                <strong>To:</strong> <span id="rentalHistorySelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="igp-filter-modal-footer">
+                <button id="rentalHistoryFilterCancelBtn" type="button" class="igp-btn-cancel">Cancel</button>
+                <button id="rentalHistoryFilterApplyBtn" type="button" class="igp-btn-submit">Apply Filter</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Individual Delete Confirmation Modal -->
     <div class="modal fade" id="deleteRecordModal" tabindex="-1" aria-labelledby="deleteRecordModalLabel"
         aria-hidden="true">
