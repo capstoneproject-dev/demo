@@ -16,6 +16,13 @@ if (!defined('ANALYTICS_AI_GEMINI_MODEL')) {
     define('ANALYTICS_AI_GEMINI_MODEL', getenv('ANALYTICS_AI_GEMINI_MODEL') ?: 'gemini-2.5-flash');
 }
 
+if (!defined('ANALYTICS_AI_GEMINI_MODELS')) {
+    define(
+        'ANALYTICS_AI_GEMINI_MODELS',
+        getenv('ANALYTICS_AI_GEMINI_MODELS') ?: 'gemini-3-flash,gemini-2.5-flash,gemini-2.5-flash-lite,gemini-3.1-flash-lite'
+    );
+}
+
 if (!defined('ANALYTICS_AI_LLAMA_ENABLED')) {
     define('ANALYTICS_AI_LLAMA_ENABLED', true);
 }
