@@ -58,6 +58,18 @@ function isOfficerAnalyticsDateMatch(date, filters) {
     if (filters.yearRange.start && date < filters.yearRange.start) return false;
     if (filters.yearRange.end && date > filters.yearRange.end) return false;
 
+    if (filters.exportRange && (filters.exportRange.startDate || filters.exportRange.endDate)) {
+        if (filters.exportRange.startDate) {
+            const start = new Date(`${filters.exportRange.startDate}T00:00:00`);
+            if (date < start) return false;
+        }
+        if (filters.exportRange.endDate) {
+            const end = new Date(`${filters.exportRange.endDate}T23:59:59.999`);
+            if (date > end) return false;
+        }
+        return true;
+    }
+
     if (filters.mode.type === 'day') {
         const dayKey = typeof formatLocalDateKey === 'function'
             ? formatLocalDateKey(date)
@@ -77,12 +89,18 @@ function isOfficerAnalyticsDateMatch(date, filters) {
     return true;
 }
 
-function getOfficerAnalyticsFilters() {
-    const academicYear = document.getElementById('filter-year')?.value || getOfficerAnalyticsDefaultAcademicYear();
+function getOfficerAnalyticsFilters(overrides = {}) {
+    const academicYear = overrides.academicYear
+        || document.getElementById('filter-year')?.value
+        || getOfficerAnalyticsDefaultAcademicYear();
+    const exportRange = overrides.exportRange || null;
     return {
         academicYear,
-        yearRange: getOfficerAnalyticsAcademicYearRange(academicYear),
+        yearRange: exportRange
+            ? { start: null, end: null }
+            : getOfficerAnalyticsAcademicYearRange(academicYear),
         mode: getOfficerAnalyticsDateMode(),
+        exportRange,
     };
 }
 
@@ -234,8 +252,8 @@ function getOfficerAnalyticsComparisonRevenue(financialRows, filters) {
     return { total, label };
 }
 
-function getOfficerAnalyticsSnapshot() {
-    const filters = getOfficerAnalyticsFilters();
+function getOfficerAnalyticsSnapshot(overrides = {}) {
+    const filters = getOfficerAnalyticsFilters(overrides);
     const source = getOfficerAnalyticsSourceData();
 
     const filteredFinancial = source.financial.filter((item) => {
@@ -546,7 +564,10 @@ function refreshAnalyticsCharts() {
     renderOfficerAnalyticsCharts(snapshot);
 }
 
-function getOfficerAnalyticsReportData() {
+function getOfficerAnalyticsReportData(overrides = {}) {
+    if (overrides && Object.keys(overrides).length > 0) {
+        return getOfficerAnalyticsSnapshot(overrides);
+    }
     if (!officerAnalyticsState.snapshot) {
         refreshAnalyticsCharts();
     }

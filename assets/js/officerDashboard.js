@@ -391,6 +391,11 @@ let officerFinancialSummaryFilters = { startDate: null, endDate: null };
 let officerFinancialCalendarCurrentDate = new Date();
 let officerFinancialCalendarSelectedStart = null;
 let officerFinancialCalendarSelectedEnd = null;
+let analyticsExportRequestedFormat = null;
+let analyticsExportFilters = { startDate: null, endDate: null };
+let analyticsExportCalendarCurrentDate = new Date();
+let analyticsExportCalendarSelectedStart = null;
+let analyticsExportCalendarSelectedEnd = null;
 const OFFICER_FINANCIAL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
 let officerLockerBoard = [];
@@ -1010,6 +1015,230 @@ function applyOfficerFinancialDateFilter() {
     renderOfficerFinancialSummary();
 }
 
+function openAnalyticsExportDateFilterModal(format) {
+    analyticsExportRequestedFormat = format;
+
+    const exportDropdown = document.getElementById('export-dropdown');
+    if (exportDropdown) exportDropdown.classList.remove('show');
+
+    const modal = document.getElementById('analyticsExportDateFilterModal');
+    if (!modal) return;
+    modal.classList.add('show');
+
+    if (analyticsExportFilters.startDate) {
+        analyticsExportCalendarSelectedStart = new Date(`${analyticsExportFilters.startDate}T00:00:00`);
+    } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        analyticsExportCalendarSelectedStart = new Date(today);
+    }
+    if (analyticsExportFilters.endDate) {
+        analyticsExportCalendarSelectedEnd = new Date(`${analyticsExportFilters.endDate}T00:00:00`);
+    } else {
+        analyticsExportCalendarSelectedEnd = null;
+    }
+
+    analyticsExportCalendarCurrentDate = analyticsExportCalendarSelectedStart
+        ? new Date(analyticsExportCalendarSelectedStart)
+        : new Date();
+
+    renderAnalyticsExportDateCalendar();
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAnalyticsExportDateFilterModal() {
+    const modal = document.getElementById('analyticsExportDateFilterModal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function navigateAnalyticsExportCalendarMonth(offset) {
+    analyticsExportCalendarCurrentDate.setMonth(analyticsExportCalendarCurrentDate.getMonth() + offset);
+    renderAnalyticsExportDateCalendar();
+}
+
+function syncAnalyticsExportCalendarSelectors() {
+    const monthSelect = document.getElementById('analyticsExportCalendarMonthSelect');
+    const yearSelect = document.getElementById('analyticsExportCalendarYearSelect');
+    const selectedYear = analyticsExportCalendarCurrentDate.getFullYear();
+    const currentYear = new Date().getFullYear();
+
+    if (monthSelect && monthSelect.options.length === 0) {
+        monthSelect.innerHTML = OFFICER_FINANCIAL_MONTH_NAMES.map((monthName, index) => `
+            <option value="${index}">${monthName}</option>
+        `).join('');
+    }
+
+    if (yearSelect) {
+        const startYear = 2000;
+        const endYear = Math.max(currentYear + 10, selectedYear + 1);
+        yearSelect.innerHTML = '';
+        for (let year = endYear; year >= startYear; year--) {
+            const option = document.createElement('option');
+            option.value = String(year);
+            option.textContent = String(year);
+            yearSelect.appendChild(option);
+        }
+        yearSelect.value = String(selectedYear);
+    }
+
+    if (monthSelect) {
+        monthSelect.value = String(analyticsExportCalendarCurrentDate.getMonth());
+    }
+}
+
+function selectEntireAnalyticsExportMonth(year = analyticsExportCalendarCurrentDate.getFullYear(), month = analyticsExportCalendarCurrentDate.getMonth()) {
+    analyticsExportCalendarSelectedStart = new Date(year, month, 1);
+    analyticsExportCalendarSelectedStart.setHours(0, 0, 0, 0);
+    analyticsExportCalendarSelectedEnd = new Date(year, month + 1, 0);
+    analyticsExportCalendarSelectedEnd.setHours(0, 0, 0, 0);
+}
+
+function setAnalyticsExportCalendarMonth(month) {
+    const parsedMonth = Number(month);
+    if (Number.isNaN(parsedMonth)) return;
+    analyticsExportCalendarCurrentDate.setMonth(parsedMonth);
+    selectEntireAnalyticsExportMonth(analyticsExportCalendarCurrentDate.getFullYear(), parsedMonth);
+    renderAnalyticsExportDateCalendar();
+}
+
+function setAnalyticsExportCalendarYear(year) {
+    const parsedYear = Number(year);
+    if (Number.isNaN(parsedYear)) return;
+    analyticsExportCalendarCurrentDate.setFullYear(parsedYear);
+    selectEntireAnalyticsExportMonth(parsedYear, analyticsExportCalendarCurrentDate.getMonth());
+    renderAnalyticsExportDateCalendar();
+}
+
+function renderAnalyticsExportDateCalendar() {
+    const year = analyticsExportCalendarCurrentDate.getFullYear();
+    const month = analyticsExportCalendarCurrentDate.getMonth();
+    syncAnalyticsExportCalendarSelectors();
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const calendarDays = document.getElementById('analyticsExportCalendarDays');
+    if (!calendarDays) return;
+    calendarDays.innerHTML = '';
+
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarDays.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, month, day);
+        dateObj.setHours(0, 0, 0, 0);
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.textContent = day;
+
+        if (dateObj.getTime() === today.getTime()) dayCell.classList.add('today');
+        if (analyticsExportCalendarSelectedStart && dateObj.getTime() === analyticsExportCalendarSelectedStart.getTime()) dayCell.classList.add('selected');
+        if (analyticsExportCalendarSelectedEnd && dateObj.getTime() === analyticsExportCalendarSelectedEnd.getTime()) dayCell.classList.add('selected');
+        if (analyticsExportCalendarSelectedStart && analyticsExportCalendarSelectedEnd) {
+            if (dateObj >= analyticsExportCalendarSelectedStart && dateObj <= analyticsExportCalendarSelectedEnd) {
+                dayCell.classList.add('in-range');
+            }
+        }
+
+        dayCell.addEventListener('click', () => selectAnalyticsExportCalendarDate(dateObj));
+        calendarDays.appendChild(dayCell);
+    }
+
+    updateAnalyticsExportSelectedRangeDisplay();
+}
+
+function selectAnalyticsExportCalendarDate(date) {
+    if (!analyticsExportCalendarSelectedStart || (analyticsExportCalendarSelectedStart && analyticsExportCalendarSelectedEnd)) {
+        analyticsExportCalendarSelectedStart = date;
+        analyticsExportCalendarSelectedEnd = null;
+    } else if (date < analyticsExportCalendarSelectedStart) {
+        analyticsExportCalendarSelectedEnd = analyticsExportCalendarSelectedStart;
+        analyticsExportCalendarSelectedStart = date;
+    } else {
+        analyticsExportCalendarSelectedEnd = date;
+    }
+
+    renderAnalyticsExportDateCalendar();
+}
+
+function updateAnalyticsExportSelectedRangeDisplay() {
+    const startDisplay = document.getElementById('analyticsExportSelectedStartDate');
+    const endDisplay = document.getElementById('analyticsExportSelectedEndDate');
+
+    if (startDisplay) {
+        startDisplay.textContent = analyticsExportCalendarSelectedStart
+            ? analyticsExportCalendarSelectedStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Not selected';
+    }
+
+    if (endDisplay) {
+        endDisplay.textContent = analyticsExportCalendarSelectedEnd
+            ? analyticsExportCalendarSelectedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Not selected';
+    }
+}
+
+function applyAnalyticsExportDatePreset(preset) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    analyticsExportCalendarCurrentDate = new Date(today);
+
+    let startDate;
+    let endDate;
+
+    switch (preset) {
+        case 'today':
+            startDate = new Date(today);
+            endDate = null;
+            break;
+        case 'week':
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - 7);
+            endDate = new Date(today);
+            break;
+        case 'month':
+            startDate = new Date(today);
+            startDate.setMonth(today.getMonth() - 1);
+            endDate = new Date(today);
+            break;
+        case 'all':
+        default:
+            startDate = null;
+            endDate = null;
+            break;
+    }
+
+    analyticsExportCalendarSelectedStart = startDate;
+    analyticsExportCalendarSelectedEnd = endDate;
+    updateAnalyticsExportSelectedRangeDisplay();
+    renderAnalyticsExportDateCalendar();
+}
+
+function applyAnalyticsExportDateFilter() {
+    analyticsExportFilters.startDate = analyticsExportCalendarSelectedStart
+        ? formatLocalDateKey(analyticsExportCalendarSelectedStart)
+        : null;
+    analyticsExportFilters.endDate = analyticsExportCalendarSelectedEnd
+        ? formatLocalDateKey(analyticsExportCalendarSelectedEnd)
+        : null;
+
+    closeAnalyticsExportDateFilterModal();
+
+    if (analyticsExportRequestedFormat === 'csv') {
+        exportCSV({ exportRange: { ...analyticsExportFilters } });
+        return;
+    }
+    if (analyticsExportRequestedFormat === 'pdf') {
+        exportPDF({ exportRange: { ...analyticsExportFilters } });
+    }
+}
+
 async function loadOfficerFinancialSummary(force = false) {
     try {
         const data = await window.igpApi.getFinancialSummary({});
@@ -1521,6 +1750,10 @@ document.addEventListener('click', (e) => {
     const financialDateModal = document.getElementById('officerFinancialDateFilterModal');
     if (financialDateModal && e.target === financialDateModal) {
         closeOfficerFinancialDateFilterModal();
+    }
+    const analyticsExportDateModal = document.getElementById('analyticsExportDateFilterModal');
+    if (analyticsExportDateModal && e.target === analyticsExportDateModal) {
+        closeAnalyticsExportDateFilterModal();
     }
     const lockerModal = document.getElementById('lockerDetailModal');
     if (lockerModal && e.target === lockerModal) {
@@ -3565,10 +3798,35 @@ function exportPDF() {
     doc.save(`OrgReport_Full_${meta.monthInput || 'Summary'}.pdf`);
 }
 
-function getReportMetadata() {
+function formatAnalyticsExportDateLabel(exportRange, fallbackLabel) {
+    if (!exportRange || (!exportRange.startDate && !exportRange.endDate)) {
+        return fallbackLabel;
+    }
+
+    if (exportRange.startDate && !exportRange.endDate) {
+        const todayKey = formatLocalDateKey(new Date());
+        if (exportRange.startDate === todayKey) return 'Today';
+        return new Date(`${exportRange.startDate}T00:00:00`).toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    }
+
+    const start = exportRange.startDate
+        ? new Date(`${exportRange.startDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '...';
+    const end = exportRange.endDate
+        ? new Date(`${exportRange.endDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '...';
+    return `${start} - ${end}`;
+}
+
+function getReportMetadata(options = {}) {
     const filterYear = document.getElementById('filter-year');
     const analyticsDate = document.getElementById('analytics-date');
     const filterMonth = document.getElementById('filter-month');
+    const exportRange = options.exportRange || null;
 
     const year = filterYear ? filterYear.value : 'Unknown Year';
     const dayInput = analyticsDate ? analyticsDate.value : '';
@@ -3590,13 +3848,17 @@ function getReportMetadata() {
         year,
         dayInput,
         monthInput,
-        dateLabel,
+        dateLabel: formatAnalyticsExportDateLabel(exportRange, dateLabel),
+        exportRange,
         organization: typeof getActiveOfficerOrgName === 'function' ? getActiveOfficerOrgName() : 'Organization'
     };
 }
 
 function getAnalyticsExportFileStem(meta) {
-    const scope = meta.dayInput || meta.monthInput || meta.year || 'summary';
+    const rangeScope = meta.exportRange && (meta.exportRange.startDate || meta.exportRange.endDate)
+        ? `${meta.exportRange.startDate || 'start'}_${meta.exportRange.endDate || 'end'}`
+        : null;
+    const scope = rangeScope || meta.dayInput || meta.monthInput || meta.year || 'summary';
     const safeOrg = String(meta.organization || 'Organization').replace(/[^a-z0-9]+/gi, '_');
     const safeScope = String(scope).replace(/[^a-z0-9]+/gi, '_');
     return `${safeOrg}_Analytics_${safeScope}`;
@@ -3701,9 +3963,11 @@ function buildAnalyticsCsvRows(meta, report) {
     return rows;
 }
 
-function exportCSV() {
-    const meta = getReportMetadata();
-    const report = typeof getOfficerAnalyticsReportData === 'function' ? getOfficerAnalyticsReportData() : null;
+function exportCSV(options = {}) {
+    const meta = getReportMetadata(options);
+    const report = typeof getOfficerAnalyticsReportData === 'function'
+        ? getOfficerAnalyticsReportData({ exportRange: meta.exportRange })
+        : null;
     if (!report) {
         alert('Analytics data is not ready yet.');
         return;
@@ -3722,14 +3986,16 @@ function exportCSV() {
     URL.revokeObjectURL(url);
 }
 
-function exportPDF() {
+function exportPDF(options = {}) {
     if (!window.jspdf || !window.jspdf.jsPDF) {
         alert('PDF export library is unavailable.');
         return;
     }
 
-    const meta = getReportMetadata();
-    const report = typeof getOfficerAnalyticsReportData === 'function' ? getOfficerAnalyticsReportData() : null;
+    const meta = getReportMetadata(options);
+    const report = typeof getOfficerAnalyticsReportData === 'function'
+        ? getOfficerAnalyticsReportData({ exportRange: meta.exportRange })
+        : null;
     if (!report) {
         alert('Analytics data is not ready yet.');
         return;

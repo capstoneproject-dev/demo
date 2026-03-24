@@ -1038,6 +1038,76 @@
             </div>
         </div>
 
+        <div id="analyticsExportDateFilterModal" class="modal-overlay">
+            <div class="modal-content printing-history-date-filter-modal-content">
+                <div class="modal-header">
+                    <h3>Export Analytics by Date Range</h3>
+                    <button class="close-modal" type="button" onclick="closeAnalyticsExportDateFilterModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="date-filter-presets">
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsExportDatePreset('today')">Today</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsExportDatePreset('week')">This Week</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsExportDatePreset('month')">This Month</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsExportDatePreset('all')">All Time</button>
+                    </div>
+
+                    <div class="calendar-picker-container">
+                        <div class="calendar-header">
+                            <button class="calendar-nav-btn" type="button" onclick="navigateAnalyticsExportCalendarMonth(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="calendar-header-picker-group">
+                                <select
+                                    id="analyticsExportCalendarMonthSelect"
+                                    class="calendar-header-select"
+                                    aria-label="Select month"
+                                    onchange="setAnalyticsExportCalendarMonth(this.value)">
+                                </select>
+                                <select
+                                    id="analyticsExportCalendarYearSelect"
+                                    class="calendar-header-select calendar-header-year-select"
+                                    aria-label="Select year"
+                                    onchange="setAnalyticsExportCalendarYear(this.value)">
+                                </select>
+                            </div>
+                            <button class="calendar-nav-btn" type="button" onclick="navigateAnalyticsExportCalendarMonth(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <div class="calendar-weekday">Sun</div>
+                            <div class="calendar-weekday">Mon</div>
+                            <div class="calendar-weekday">Tue</div>
+                            <div class="calendar-weekday">Wed</div>
+                            <div class="calendar-weekday">Thu</div>
+                            <div class="calendar-weekday">Fri</div>
+                            <div class="calendar-weekday">Sat</div>
+                        </div>
+
+                        <div class="calendar-days" id="analyticsExportCalendarDays"></div>
+
+                        <div class="calendar-selected-range">
+                            <div class="selected-date-display">
+                                <strong>From:</strong> <span id="analyticsExportSelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="selected-date-display">
+                                <strong>To:</strong> <span id="analyticsExportSelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeAnalyticsExportDateFilterModal()">Cancel</button>
+                        <button type="button" class="btn-submit" onclick="applyAnalyticsExportDateFilter()">Export</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- DOCUMENTS VIEW -->
         <div id="documents" class="section-view">
             <div class="sub-view-nav">
@@ -1200,10 +1270,10 @@
                         <i class="fa-solid fa-download"></i> Export Report <i class="fa-solid fa-caret-down ms-2"></i>
                     </button>
                     <div class="export-dropdown" id="export-dropdown">
-                        <div class="export-item" onclick="exportCSV()">
+                        <div class="export-item" onclick="openAnalyticsExportDateFilterModal('csv')">
                             <i class="fa-solid fa-file-csv"></i> Download CSV
                         </div>
-                        <div class="export-item" onclick="exportPDF()">
+                        <div class="export-item" onclick="openAnalyticsExportDateFilterModal('pdf')">
                             <i class="fa-solid fa-file-pdf"></i> Download PDF
                         </div>
                     </div>
