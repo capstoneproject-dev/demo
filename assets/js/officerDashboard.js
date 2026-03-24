@@ -4108,7 +4108,23 @@ function escapeCsvValue(value) {
     return stringValue;
 }
 
-function buildAnalyticsCsvRows(meta, report) {
+function addAnalyticsPdfSectionDescription(doc, title, description, startY) {
+    doc.setFontSize(12);
+    doc.setTextColor(0, 33, 71);
+    doc.text(title, 14, startY);
+    const bodyLines = doc.splitTextToSize(description || 'No descriptive analysis available.', 180);
+    doc.setFontSize(9);
+    doc.setTextColor(60);
+    doc.text(bodyLines, 14, startY + 6);
+    let nextY = startY + 10 + (bodyLines.length * 4);
+    if (nextY > 240) {
+        doc.addPage();
+        nextY = 20;
+    }
+    return nextY;
+}
+
+function buildAnalyticsCsvRows(meta, report, insights = null) {
     const rows = [
         ['ORGANIZATION ANALYTICS REPORT'],
         ['Organization', meta.organization],
@@ -4128,7 +4144,16 @@ function buildAnalyticsCsvRows(meta, report) {
         ['Pending Documents', report.counts.docs.pending, 'Document workflow'],
         ['Rejected Documents', report.counts.docs.rejected, 'Document workflow'],
         [],
+        ['AI / DESCRIPTIVE INSIGHTS'],
+        ['Provider', insights?.provider || 'rule-based'],
+        ['Financial Insight', insights?.chartSummaries?.financial || '-'],
+        ['Participation Insight', insights?.chartSummaries?.participation || '-'],
+        ['Inventory Insight', insights?.chartSummaries?.inventory || '-'],
+        ['Document Insight', insights?.chartSummaries?.documents || '-'],
+        ['Export Summary', insights?.exportSummary || '-'],
+        [],
         ['REVENUE SERIES'],
+        ['Description', insights?.exportSections?.revenueSeries || '-'],
         ['Period', 'Revenue'],
     ];
 
@@ -4142,6 +4167,7 @@ function buildAnalyticsCsvRows(meta, report) {
 
     rows.push([]);
     rows.push(['EVENT PARTICIPATION']);
+    rows.push(['Description', insights?.exportSections?.eventParticipation || '-']);
     rows.push(['Event', 'Date', 'Participants', 'Venue']);
     if (report.events.length) {
         report.events.forEach((event) => {
@@ -4158,6 +4184,7 @@ function buildAnalyticsCsvRows(meta, report) {
 
     rows.push([]);
     rows.push(['FINANCIAL TRANSACTIONS']);
+    rows.push(['Description', insights?.exportSections?.financialTransactions || '-']);
     rows.push(['Date', 'Service', 'Item', 'Customer', 'Total', 'Payment']);
     if (report.financial.length) {
         report.financial.forEach((item) => {
@@ -4176,6 +4203,7 @@ function buildAnalyticsCsvRows(meta, report) {
 
     rows.push([]);
     rows.push(['RENTAL RECORDS']);
+    rows.push(['Description', insights?.exportSections?.rentalRecords || '-']);
     rows.push(['Item', 'Borrower', 'Due Date', 'Status']);
     if (report.rentals.length) {
         report.rentals.forEach((item) => {
@@ -4187,6 +4215,7 @@ function buildAnalyticsCsvRows(meta, report) {
 
     rows.push([]);
     rows.push(['DOCUMENT WORKFLOW']);
+    rows.push(['Description', insights?.exportSections?.documentWorkflow || '-']);
     rows.push(['Title', 'Type', 'Submitted', 'Status']);
     if (report.docs.length) {
         report.docs.forEach((item) => {
@@ -4199,7 +4228,7 @@ function buildAnalyticsCsvRows(meta, report) {
     return rows;
 }
 
-function exportCSV(options = {}) {
+async function exportCSV(options = {}) {
     const meta = getReportMetadata(options);
     const report = typeof getOfficerAnalyticsReportData === 'function'
         ? getOfficerAnalyticsReportData({ exportRange: meta.exportRange })
@@ -4209,7 +4238,10 @@ function exportCSV(options = {}) {
         return;
     }
 
-    const csvRows = buildAnalyticsCsvRows(meta, report);
+    const insights = typeof getOfficerAnalyticsInsightsData === 'function'
+        ? await getOfficerAnalyticsInsightsData({ snapshot: report, render: false })
+        : null;
+    const csvRows = buildAnalyticsCsvRows(meta, report, insights);
     const csvContent = csvRows.map((row) => row.map(escapeCsvValue).join(',')).join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -4222,7 +4254,7 @@ function exportCSV(options = {}) {
     URL.revokeObjectURL(url);
 }
 
-function exportPDF(options = {}) {
+async function exportPDF(options = {}) {
     if (!window.jspdf || !window.jspdf.jsPDF) {
         alert('PDF export library is unavailable.');
         return;
@@ -4236,6 +4268,10 @@ function exportPDF(options = {}) {
         alert('Analytics data is not ready yet.');
         return;
     }
+
+    const insights = typeof getOfficerAnalyticsInsightsData === 'function'
+        ? await getOfficerAnalyticsInsightsData({ snapshot: report, render: false })
+        : null;
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -4272,7 +4308,24 @@ function exportPDF(options = {}) {
     let currentY = (doc.lastAutoTable?.finalY || 46) + 10;
     doc.setFontSize(12);
     doc.setTextColor(0, 33, 71);
-    doc.text('Revenue Series', 14, currentY);
+    doc.text('Descriptive Insights', 14, currentY);
+    const providerLine = `Provider: ${insights?.fallbackUsed ? `${insights?.provider || 'rule-based'} fallback` : (insights?.provider || 'rule-based')}`;
+    const insightText = doc.splitTextToSize(`${providerLine}\n\n${insights?.exportSummary || 'No descriptive insight available.'}`, 180);
+    doc.setFontSize(9);
+    doc.setTextColor(60);
+    doc.text(insightText, 14, currentY + 6);
+
+    currentY += 10 + (insightText.length * 4);
+    if (currentY > 240) {
+        doc.addPage();
+        currentY = 20;
+    }
+    currentY = addAnalyticsPdfSectionDescription(
+        doc,
+        'Revenue Series',
+        insights?.exportSections?.revenueSeries || 'No descriptive analysis available.',
+        currentY
+    );
     doc.autoTable({
         startY: currentY + 4,
         head: [['Period', 'Revenue']],
@@ -4285,7 +4338,12 @@ function exportPDF(options = {}) {
     });
 
     currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
-    doc.text('Event Participation', 14, currentY);
+    currentY = addAnalyticsPdfSectionDescription(
+        doc,
+        'Event Participation',
+        insights?.exportSections?.eventParticipation || 'No descriptive analysis available.',
+        currentY
+    );
     doc.autoTable({
         startY: currentY + 4,
         head: [['Event', 'Date', 'Participants', 'Venue']],
@@ -4303,7 +4361,12 @@ function exportPDF(options = {}) {
     });
 
     currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
-    doc.text('Financial Transactions', 14, currentY);
+    currentY = addAnalyticsPdfSectionDescription(
+        doc,
+        'Financial Transactions',
+        insights?.exportSections?.financialTransactions || 'No descriptive analysis available.',
+        currentY
+    );
     doc.autoTable({
         startY: currentY + 4,
         head: [['Date', 'Service', 'Item', 'Customer', 'Total', 'Payment']],
@@ -4323,7 +4386,12 @@ function exportPDF(options = {}) {
     });
 
     currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
-    doc.text('Rental Records', 14, currentY);
+    currentY = addAnalyticsPdfSectionDescription(
+        doc,
+        'Rental Records',
+        insights?.exportSections?.rentalRecords || 'No descriptive analysis available.',
+        currentY
+    );
     doc.autoTable({
         startY: currentY + 4,
         head: [['Item', 'Borrower', 'Due Date', 'Status']],
@@ -4336,7 +4404,12 @@ function exportPDF(options = {}) {
     });
 
     currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
-    doc.text('Document Workflow', 14, currentY);
+    currentY = addAnalyticsPdfSectionDescription(
+        doc,
+        'Document Workflow',
+        insights?.exportSections?.documentWorkflow || 'No descriptive analysis available.',
+        currentY
+    );
     doc.autoTable({
         startY: currentY + 4,
         head: [['Title', 'Type', 'Submitted', 'Status']],

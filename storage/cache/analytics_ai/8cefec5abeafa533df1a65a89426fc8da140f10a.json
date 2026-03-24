@@ -1,0 +1,19 @@
+{
+    "chartSummaries": {
+        "financial": "The revenue chart displays monthly revenue totaling 9945 for the academic year 2025-2026, with a peak of 2856 in Nov 2025 and a low of 248 in Feb 2026.",
+        "participation": "The participation chart shows event attendance for 9 events, with a total of 809 participants and an average of 90. Cultural Night 1 had the highest participation with 150 attendees.",
+        "inventory": "The rental status chart indicates 15 active rentals, 5 pending, and 5 overdue items.",
+        "documents": "The document workflow chart shows 2 approved documents, 9 pending, and 0 rejected documents."
+    },
+    "exportSections": {
+        "revenueSeries": "Monthly revenue figures from Aug 2025 to Mar 2026, totaling 9945.",
+        "eventParticipation": "Detailed list of events including titles, dates, venues, and participant counts for 9 events, with a total of 809 participants.",
+        "financialTransactions": "Overview of financial data, including total revenue of 9945 and growth trends.",
+        "rentalRecords": "Summary of rental statuses: 15 active, 5 pending, and 5 overdue rentals.",
+        "documentWorkflow": "Summary of document statuses: 2 approved, 9 pending, and 0 rejected documents."
+    },
+    "exportSummary": "Showing all available analytics for academic year 2025-2026, including financial performance, event participation, rental statuses, and document workflow.",
+    "provider": "gemini",
+    "fallbackUsed": false,
+    "generatedAt": "2026-03-24T12:52:17+00:00"
+}

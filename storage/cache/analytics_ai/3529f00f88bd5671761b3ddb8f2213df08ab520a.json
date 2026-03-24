@@ -1,0 +1,19 @@
+{
+    "chartSummaries": {
+        "financial": "Total revenue for Aug 2025 - Mar 2026 is $9,945, peaking at $2,856 in Nov 2025 and lowest at $248 in Feb 2026.",
+        "participation": "Total participation is 809 across 9 events, averaging 90 participants. Cultural Night 1 had the highest (150) and Volunteer Drive 1 the lowest (51).",
+        "inventory": "Rental inventory shows 15 active, 5 pending, and 5 overdue items.",
+        "documents": "Document workflow indicates 2 approved, 9 pending, and 0 rejected documents."
+    },
+    "exportSections": {
+        "revenueSeries": "Monthly revenue figures from Aug 2025 to Mar 2026, totaling $9,945.",
+        "eventParticipation": "Detailed participation data for 9 events, totaling 809 participants with an average of 90.",
+        "financialTransactions": "Financial overview showing $9,945 total revenue, with growth of +121.4% vs last week, +446.9% vs last month, and +100.0% vs last year.",
+        "rentalRecords": "Current rental records: 15 active, 5 pending, and 5 overdue.",
+        "documentWorkflow": "Document workflow statuses: 2 approved, 9 pending, and 0 rejected."
+    },
+    "exportSummary": "Analytics for academic year 2025-2026: Total revenue $9,945, 809 event participants, 15 active rentals, and 9 pending documents.",
+    "provider": "gemini",
+    "fallbackUsed": false,
+    "generatedAt": "2026-03-24T12:51:54+00:00"
+}
