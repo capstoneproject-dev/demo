@@ -9,7 +9,7 @@ if (!defined('ANALYTICS_AI_GEMINI_ENABLED')) {
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_API_KEY')) {
-    define('ANALYTICS_AI_GEMINI_API_KEY', getenv('ANALYTICS_AI_GEMINI_API_KEY') ?: 'AIzaSyC_6U60_2LludK2d75L5p1j6dheLPz5WkI');
+    define('ANALYTICS_AI_GEMINI_API_KEY', getenv('ANALYTICS_AI_GEMINI_API_KEY') ?: 'AIzaSyAJH7pfsBqjrT1AjpK0r4beVJbWPvjXgDg');
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_MODEL')) {
@@ -19,7 +19,7 @@ if (!defined('ANALYTICS_AI_GEMINI_MODEL')) {
 if (!defined('ANALYTICS_AI_GEMINI_MODELS')) {
     define(
         'ANALYTICS_AI_GEMINI_MODELS',
-        getenv('ANALYTICS_AI_GEMINI_MODELS') ?: 'gemini-3-flash,gemini-2.5-flash,gemini-2.5-flash-lite,gemini-3.1-flash-lite'
+        getenv('ANALYTICS_AI_GEMINI_MODELS') ?: 'gemini-2.5-flash,gemini-2.5-flash-lite'
     );
 }
 
