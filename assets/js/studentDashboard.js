@@ -449,8 +449,9 @@ function ensureMyOrgOfficersLoaded(viewModel) {
     myOrgOfficersState.loaded = false;
     myOrgOfficersState.error = '';
     myOrgOfficersState.items = [];
+    const officersUrl = `../api/student/organizations/officers.php?org_name=${encodeURIComponent(viewModel.organization.name)}`;
 
-    fetch('../api/student/organizations/officers.php', { credentials: 'same-origin' })
+    fetch(officersUrl, { credentials: 'same-origin' })
         .then(async (response) => {
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.ok) {
