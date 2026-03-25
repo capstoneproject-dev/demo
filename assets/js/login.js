@@ -640,6 +640,13 @@ const forgotOtpState = {
   sentToStudentNumber: '',
   verified: false
 };
+const registrationOtpState = {
+  generatedOtp: '',
+  pendingAction: null,
+  pendingEmail: '',
+  pendingLabel: '',
+  isSubmitting: false
+};
 
 function getForgotOtpInputs() {
   return Array.from(document.querySelectorAll('#forgotOtpInputs .otp-char'));
@@ -915,6 +922,169 @@ function toggleForgot() {
   clearForgotOtpFeedback();
   const studentInput = document.getElementById('forgotStudentNumber');
   if (studentInput) studentInput.focus();
+}
+
+function getRegistrationOtpInputs() {
+  return Array.from(document.querySelectorAll('#registrationOtpInputs .otp-char'));
+}
+
+function clearRegistrationOtpFeedback() {
+  const feedback = document.getElementById('registrationOtpFeedback');
+  if (!feedback) return;
+  feedback.textContent = '';
+  feedback.classList.remove('success');
+}
+
+function setRegistrationOtpFeedback(message, isSuccess) {
+  const feedback = document.getElementById('registrationOtpFeedback');
+  if (!feedback) return;
+  feedback.textContent = message || '';
+  feedback.classList.toggle('success', !!isSuccess);
+}
+
+function resetRegistrationOtpInputs() {
+  getRegistrationOtpInputs().forEach((input) => { input.value = ''; });
+}
+
+function focusRegistrationOtpInput(index) {
+  const inputs = getRegistrationOtpInputs();
+  if (!inputs[index]) return;
+  inputs[index].focus();
+  inputs[index].select();
+}
+
+function getRegistrationOtpValue() {
+  return getRegistrationOtpInputs().map((input) => String(input.value || '').trim().toUpperCase()).join('');
+}
+
+function openRegistrationOtpModal() {
+  const modal = document.getElementById('registrationOtpModal');
+  if (modal) modal.classList.add('open');
+}
+
+function closeRegistrationOtpModal() {
+  const modal = document.getElementById('registrationOtpModal');
+  if (modal) modal.classList.remove('open');
+  registrationOtpState.pendingAction = null;
+  registrationOtpState.pendingEmail = '';
+  registrationOtpState.pendingLabel = '';
+  registrationOtpState.generatedOtp = '';
+  registrationOtpState.isSubmitting = false;
+  const note = document.getElementById('registrationOtpSimulationNote');
+  const status = document.getElementById('registrationOtpStatus');
+  if (note) note.textContent = '';
+  if (status) status.textContent = 'Enter the 6-character OTP to continue registration.';
+  clearRegistrationOtpFeedback();
+  resetRegistrationOtpInputs();
+}
+
+function sendRegistrationOtpSimulation() {
+  if (!registrationOtpState.pendingAction) return;
+  registrationOtpState.generatedOtp = generateSimulatedOtp();
+  registrationOtpState.isSubmitting = false;
+  const note = document.getElementById('registrationOtpSimulationNote');
+  const status = document.getElementById('registrationOtpStatus');
+  if (status) {
+    status.textContent = registrationOtpState.pendingEmail
+      ? 'Enter the 6-character OTP sent to ' + registrationOtpState.pendingEmail + '.'
+      : 'Enter the 6-character OTP to continue ' + registrationOtpState.pendingLabel + ' registration.';
+  }
+  if (note) note.textContent = 'Simulation mode OTP: ' + registrationOtpState.generatedOtp;
+  clearRegistrationOtpFeedback();
+  resetRegistrationOtpInputs();
+  openRegistrationOtpModal();
+  focusRegistrationOtpInput(0);
+}
+
+async function verifyRegistrationOtpSimulation() {
+  const enteredOtp = getRegistrationOtpValue();
+  if (!registrationOtpState.generatedOtp) {
+    setRegistrationOtpFeedback('Send an OTP first.', false);
+    return;
+  }
+  if (enteredOtp.length !== 6) {
+    setRegistrationOtpFeedback('Enter the complete 6-character OTP.', false);
+    return;
+  }
+  if (enteredOtp !== registrationOtpState.generatedOtp) {
+    setRegistrationOtpFeedback('Invalid OTP. Check the code and try again.', false);
+    return;
+  }
+  if (!registrationOtpState.pendingAction || registrationOtpState.isSubmitting) return;
+
+  registrationOtpState.isSubmitting = true;
+  setRegistrationOtpFeedback('OTP verified. Creating account...', true);
+
+  try {
+    await registrationOtpState.pendingAction();
+    closeRegistrationOtpModal();
+  } catch (error) {
+    registrationOtpState.isSubmitting = false;
+    console.error('[verifyRegistrationOtpSimulation] error:', error);
+    setRegistrationOtpFeedback('OTP verified, but the registration could not be completed.', false);
+  }
+}
+
+function setupRegistrationOtpInputs() {
+  const inputs = getRegistrationOtpInputs();
+  if (inputs.length === 0) return;
+
+  inputs.forEach((input, index) => {
+    input.addEventListener('input', (event) => {
+      const clean = String(event.target.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-1);
+      event.target.value = clean;
+      clearRegistrationOtpFeedback();
+      if (clean && index < inputs.length - 1) focusRegistrationOtpInput(index + 1);
+    });
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Backspace' && !input.value && index > 0) {
+        focusRegistrationOtpInput(index - 1);
+        return;
+      }
+      if (event.key === 'ArrowLeft' && index > 0) {
+        event.preventDefault();
+        focusRegistrationOtpInput(index - 1);
+      }
+      if (event.key === 'ArrowRight' && index < inputs.length - 1) {
+        event.preventDefault();
+        focusRegistrationOtpInput(index + 1);
+      }
+    });
+
+    input.addEventListener('paste', (event) => {
+      event.preventDefault();
+      const pasted = (event.clipboardData || window.clipboardData).getData('text');
+      const chars = String(pasted || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6).split('');
+      if (chars.length === 0) return;
+      inputs.forEach((field, idx) => { field.value = chars[idx] || ''; });
+      clearRegistrationOtpFeedback();
+      focusRegistrationOtpInput(Math.min(chars.length, 6) - 1);
+    });
+  });
+}
+
+function startRegistrationOtpFlow(label, email, action) {
+  registrationOtpState.pendingAction = action;
+  registrationOtpState.pendingEmail = String(email || '').trim();
+  registrationOtpState.pendingLabel = label;
+  sendRegistrationOtpSimulation();
+}
+
+function setupRegistrationOtpFlow() {
+  const modal = document.getElementById('registrationOtpModal');
+  const verifyBtn = document.getElementById('registrationOtpVerifyBtn');
+  const resendBtn = document.getElementById('registrationOtpResendBtn');
+
+  setupRegistrationOtpInputs();
+
+  if (modal) {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) closeRegistrationOtpModal();
+    });
+  }
+  if (verifyBtn) verifyBtn.addEventListener('click', verifyRegistrationOtpSimulation);
+  if (resendBtn) resendBtn.addEventListener('click', sendRegistrationOtpSimulation);
 }
 
 /* =====================
@@ -1291,26 +1461,28 @@ async function registerStudent() {
   }
   if (!hasPrivacyConsent('student-privacy-consent')) return;
 
-  const submitted = await submitPendingRegistration({
-    studentId: studentNumber,
-    name: fullName,
-    email,
-    phone,
-    password,
-    course: normalizeCourse(course),
-    yearSection: section,
-    section: `${normalizeCourse(course)} ${section}`.trim(),
-    requestedRole: 'student',
-    requestedOrg: ''
+  startRegistrationOtpFlow('student', email, async () => {
+    const submitted = await submitPendingRegistration({
+      studentId: studentNumber,
+      name: fullName,
+      email,
+      phone,
+      password,
+      course: normalizeCourse(course),
+      yearSection: section,
+      section: `${normalizeCourse(course)} ${section}`.trim(),
+      requestedRole: 'student',
+      requestedOrg: ''
+    });
+
+    if (!submitted.ok) {
+      alert(submitted.message);
+      throw new Error(submitted.message);
+    }
+
+    alert('Registration submitted. Please wait for account approval in Accounts page.');
+    toggleSlide();
   });
-
-  if (!submitted.ok) {
-    alert(submitted.message);
-    return;
-  }
-
-  alert('Registration submitted. Please wait for account approval in Accounts page.');
-  toggleSlide();
 }
 
 async function registerOrgOfficer() {
@@ -1345,27 +1517,29 @@ async function registerOrgOfficer() {
   }
   if (!hasPrivacyConsent('org-privacy-consent')) return;
 
-  const submitted = await submitPendingRegistration({
-    studentId: studentNumber,
-    name: fullName,
-    email,
-    phone,
-    password,
-    course: normalizeCourse(course),
-    yearSection: section,
-    section: `${normalizeCourse(course)} ${section}`.trim(),
-    requestedRole: 'org_officer',
-    requestedOrg: orgName,
-    requestedPosition: positionTitle
+  startRegistrationOtpFlow('organization', email, async () => {
+    const submitted = await submitPendingRegistration({
+      studentId: studentNumber,
+      name: fullName,
+      email,
+      phone,
+      password,
+      course: normalizeCourse(course),
+      yearSection: section,
+      section: `${normalizeCourse(course)} ${section}`.trim(),
+      requestedRole: 'org_officer',
+      requestedOrg: orgName,
+      requestedPosition: positionTitle
+    });
+
+    if (!submitted.ok) {
+      alert(submitted.message);
+      throw new Error(submitted.message);
+    }
+
+    alert('Officer registration submitted. Approve it first in Accounts page.');
+    toggleSlide();
   });
-
-  if (!submitted.ok) {
-    alert(submitted.message);
-    return;
-  }
-
-  alert('Officer registration submitted. Approve it first in Accounts page.');
-  toggleSlide();
 }
 
 async function registerOsa() {
@@ -1390,52 +1564,58 @@ async function registerOsa() {
   }
   if (!hasPrivacyConsent('osa-privacy-consent')) return;
 
-  const parsedName = splitName(fullName);
-  const btn = document.getElementById('osaRegisterBtn');
-  if (btn) btn.disabled = true;
+  startRegistrationOtpFlow('OSA', email, async () => {
+    const parsedName = splitName(fullName);
+    const btn = document.getElementById('osaRegisterBtn');
+    if (btn) btn.disabled = true;
 
-  try {
-    const resp = await fetch('../api/auth/register-osa.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        employee_number: employeeNumber,
-        first_name: parsedName.first_name,
-        last_name: parsedName.last_name,
-        email,
-        phone,
-        password,
-        confirm_password: confirmPassword
-      })
-    });
-    const data = await resp.json();
-    if (!data.ok) { alert(data.error || 'Registration failed.'); return; }
+    try {
+      const resp = await fetch('../api/auth/register-osa.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_number: employeeNumber,
+          first_name: parsedName.first_name,
+          last_name: parsedName.last_name,
+          email,
+          phone,
+          password,
+          confirm_password: confirmPassword
+        })
+      });
+      const data = await resp.json();
+      if (!data.ok) {
+        alert(data.error || 'Registration failed.');
+        throw new Error(data.error || 'Registration failed.');
+      }
 
-    const { user, memberships } = data;
-    const session = {
-      user_id: user.user_id,
-      account_type: 'osa_staff',
-      display_name: `${user.first_name} ${user.last_name}`.trim(),
-      email: user.email,
-      student_number: null,
-      employee_number: user.employee_number,
-      phone: user.phone || null,
-      profile_photo: user.profile_photo || null,
-      authenticated_at: new Date().toISOString(),
-      officer_memberships: memberships || [],
-      login_role: 'osa',
-      active_org_id: null,
-      active_org_name: 'Office of Student Affairs',
-      active_role_name: 'osa_staff'
-    };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-    window.location.href = 'osaDashboard.html';
-  } catch (err) {
-    console.error('[registerOsa] error:', err);
-    alert('Could not connect to the server. Please try again.');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
+      const { user, memberships } = data;
+      const session = {
+        user_id: user.user_id,
+        account_type: 'osa_staff',
+        display_name: `${user.first_name} ${user.last_name}`.trim(),
+        email: user.email,
+        student_number: null,
+        employee_number: user.employee_number,
+        phone: user.phone || null,
+        profile_photo: user.profile_photo || null,
+        authenticated_at: new Date().toISOString(),
+        officer_memberships: memberships || [],
+        login_role: 'osa',
+        active_org_id: null,
+        active_org_name: 'Office of Student Affairs',
+        active_role_name: 'osa_staff'
+      };
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      window.location.href = 'osaDashboard.html';
+    } catch (err) {
+      console.error('[registerOsa] error:', err);
+      alert('Could not connect to the server. Please try again.');
+      throw err;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
 }
 
 /* =====================
@@ -1544,6 +1724,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupOrganizationRegistrationLookup();
   resetOrgRegistrationState();
   setupForgotPasswordFlow();
+  setupRegistrationOtpFlow();
 
   const studentRegisterBtn = document.getElementById('studentRegisterBtn');
   const orgRegisterBtn = document.getElementById('orgRegisterBtn');

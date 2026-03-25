@@ -311,6 +311,32 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="registrationOtpModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Verify Registration</h3>
+        <button class="close-modal" onclick="closeRegistrationOtpModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="otp-helper" id="registrationOtpStatus">Enter the 6-character OTP to continue registration.</p>
+        <div class="otp-input-group" id="registrationOtpInputs">
+          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+        </div>
+        <p class="simulation-note" id="registrationOtpSimulationNote" aria-live="polite"></p>
+        <p class="otp-feedback" id="registrationOtpFeedback" aria-live="polite"></p>
+        <div class="otp-actions">
+          <button type="button" id="registrationOtpVerifyBtn">VERIFY OTP</button>
+          <button type="button" id="registrationOtpResendBtn" class="secondary-btn">RESEND OTP</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 
   <!-- DASHBOARD CHOICE MODAL (LOGIN FLOW) -->
   <div class="modal-overlay" id="dashboardChoiceModal">
