@@ -144,7 +144,7 @@
 
                 <!-- User Profile -->
                 <a href="#" class="user-profile" onclick="navigate('profile'); return false;">
-                    <img src="https://picsum.photos/seed/officer1/100/100" alt="Officer" class="avatar">
+                    <img id="officerHeaderAvatar" src="https://picsum.photos/seed/officer1/100/100" alt="Officer" class="avatar">
                     <div class="user-info">
                         <span>Admin Officer</span>
                         <small>Head of Operations</small>
@@ -1612,9 +1612,10 @@
                 <div class="card profile-card">
                     <div class="profile-header-center">
                         <div class="profile-avatar-wrapper">
-                            <img src="https://picsum.photos/seed/officer1/150/150" alt="Profile"
+                            <img id="officerProfileAvatar" src="https://picsum.photos/seed/officer1/150/150" alt="Profile"
                                 class="profile-avatar-lg">
-                            <button class="btn-icon-only edit-avatar-btn" title="Change Photo">
+                            <input id="officerProfilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                            <button id="officerProfilePhotoBtn" class="btn-icon-only edit-avatar-btn" title="Change Photo" type="button">
                                 <i class="fa-solid fa-camera"></i>
                             </button>
                         </div>
