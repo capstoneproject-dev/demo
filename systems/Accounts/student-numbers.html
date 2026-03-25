@@ -4,26 +4,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Student Numbers Management</title>
     <link href="lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260325a">
 </head>
 
 <body>
     <div class="container iframe-view">
-        <div class="d-flex justify-content-end align-items-center mb-4">
-            <div>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentNumberModal">Add
-                    Student Number</button>
-                <button class="btn btn-outline-success" onclick="importStudentNumbers()">Import XLSX</button>
-                <button class="btn btn-outline-info" onclick="exportStudentNumbers()">Export XLSX</button>
-            </div>
-        </div>
 
-        <!-- Current Status Display -->
-        <div class="alert alert-info mb-4" id="currentStatusDisplay">
-            System Status: <span id="statusDisplay">Ready</span> |
-            Total Student Numbers: <span id="totalStudentCount">0</span>
+        <!-- Toolbar -->
+        <div class="card mb-3">
+            <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                <h2 class="h5 mb-0">Account Management</h2>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="index.html" class="btn btn-outline-secondary btn-sm">Back to Accounts</a>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="importStudentNumbers()">Import XLSX</button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="exportStudentNumbers()">Export XLSX</button>
+                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#addStudentNumberModal">
+                        + Add Student Number
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Student Numbers Management Section -->
@@ -230,8 +234,8 @@
     <!-- Scripts -->
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/bootstrap.bundle.min.js"></script>
-    <script src="accounts-api.js"></script>
-    <script src="student-numbers.js"></script>
+    <script src="accounts-api.js?v=20260325a"></script>
+    <script src="student-numbers.js?v=20260325a"></script>
 </body>
 
 </html>
