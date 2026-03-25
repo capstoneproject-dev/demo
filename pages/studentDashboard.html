@@ -10,8 +10,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- STYLESHEET REFERENCE -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260324-1">
-    <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260324-1">
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260325-4">
+    <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260325-4">
 </head>
 
 <body>
@@ -88,7 +88,7 @@
                 <!-- User Profile -->
                 <div class="user-profile" onclick="navigate('profile')">
                     <div class="user-profile-box">
-                        <img src="https://picsum.photos/seed/student1/100/100" alt="Student" class="avatar">
+                        <img id="studentHeaderAvatar" src="https://picsum.photos/seed/student1/100/100" alt="Student" class="avatar">
                         <div class="user-info">
                             <span id="studentHeaderName">Juan Dela Cruz</span>
                             <small id="studentHeaderCourse">BSCS - Year 3</small>
@@ -597,54 +597,110 @@
             </div>
         </div>
 
+        </div>
+
+        <!-- PROFILE VIEW -->
+
         <!-- PROFILE VIEW -->
         <div id="profile" class="section-view">
-            <div class="card" style="margin-bottom: 24px;">
-                <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-                    <img src="https://picsum.photos/seed/student1/150/150" alt="Profile"
-                        style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid var(--primary);">
-                    <div>
-                        <h2 id="studentProfileName" style="margin-bottom: 5px;">Juan Dela Cruz</h2>
-                        <p id="studentProfileStudentId" style="color: var(--muted);">Student ID: 2021-12345</p>
-                        <p id="studentProfileCourse" style="color: var(--muted);">Course: BS Computer Science</p>
-                        <p id="studentProfileEmail" style="color: var(--muted);">Email: -</p>
-                        <div style="margin-top: 10px; display: flex; gap: 10px;">
-                            <button
-                                style="padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;">Edit
-                                Profile</button>
-                            <button
-                                style="padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer;">Change
-                                Password</button>
+            <div class="split-view-grid profile-layout">
+
+                <div class="card profile-card">
+                    <div class="profile-header-center">
+                        <div class="profile-avatar-wrapper">
+                            <img id="studentProfileAvatar" src="https://picsum.photos/seed/student1/150/150" alt="Profile"
+                                class="profile-avatar-lg">
+                            <input id="studentProfilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                            <button id="studentProfilePhotoBtn" class="btn-icon-only edit-avatar-btn" title="Change Photo" type="button">
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
+                        </div>
+                        <h3 id="studentProfileName" class="profile-name">Juan Dela Cruz</h3>
+                        <span id="studentProfileRole" class="profile-role">Student • Student Organization Member</span>
+                        <span class="status-badge status-completed" style="margin-top: 12px;">Active Status</span>
+                    </div>
+
+                    <hr style="border:0; border-top:1px solid var(--border); width:100%; margin: 24px 0;">
+
+                    <div class="profile-stats-row">
+                        <div class="p-stat">
+                            <strong id="studentProfileYearStat">3</strong>
+                            <span>Year Level</span>
+                        </div>
+                        <div class="profile-divider-vert"></div>
+                        <div class="p-stat">
+                            <strong id="studentProfileTransactionStat">0</strong>
+                            <span>Transactions</span>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <div id="profileLockerSection" class="card profile-locker-section" style="display:none; margin-bottom:24px;">
-                <div class="card-header">
-                    <div class="card-title">Current Locker</div>
+                    <div style="margin-top: 24px; width: 100%;">
+                        <label style="margin-bottom: 8px;">Bio / Note</label>
+                        <textarea id="studentProfileBioInput" rows="3" readonly>Actively participating in student services, events, and organization initiatives.</textarea>
+                    </div>
                 </div>
-                <div id="profileLockerContent" class="profile-locker-content"></div>
-            </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Overall Transaction History</div>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Service/Item</th>
-                                <th>Organization</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="transaction-table">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
+                <div class="profile-details-stack">
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Personal Information</div>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <button id="studentProfileCancelBtn" class="btn btn-sm btn-outline" type="button" hidden>
+                                    Cancel
+                                </button>
+                                <button id="studentProfileEditBtn" class="btn btn-sm btn-outline" type="button">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                                </button>
+                            </div>
+                        </div>
+                        <div class="profile-form-grid">
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input id="studentProfileFullNameInput" type="text" value="Juan Dela Cruz" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Student Number</label>
+                                <input id="studentProfileStudentNumberInput" type="text" value="2021-12345" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input id="studentProfileEmailInput" type="email" value="juan.delacruz@student.philsca.edu.ph" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Organization</label>
+                                <input id="studentProfileOrganizationInput" type="text" value="Supreme Student Council" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input id="studentProfilePhoneInput" type="text" value="+63 912 345 6789" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Course & Year</label>
+                                <input id="studentProfileCourseYearInput" type="text" value="BS Aeronautical Engineering - 3A" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Security</div>
+                        </div>
+                        <form id="studentPasswordForm">
+                            <div class="form-group">
+                                <label>Change Password</label>
+                                <input id="studentCurrentPasswordInput" type="password" placeholder="Current Password" required>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                    <input id="studentNewPasswordInput" type="password" placeholder="New Password" required>
+                                    <input id="studentConfirmPasswordInput" type="password" placeholder="Confirm New Password" required>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                                <button id="studentPasswordSubmitBtn" type="submit" class="btn btn-primary">Update Password</button>
+                            </div>
+                        </form>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -904,8 +960,8 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
     <!-- Org-specific data config â€” must load before studentDashboard.js -->
-    <script src="../data/orgData.js?v=20260324-1"></script>
-    <script src="../assets/js/studentDashboard.js?v=20260324-1"></script>
+    <script src="../data/orgData.js?v=20260325-4"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260325-4"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">
@@ -984,3 +1040,6 @@
 </body>
 
 </html>
+
+
+
