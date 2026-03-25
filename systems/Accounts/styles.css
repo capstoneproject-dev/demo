@@ -34,6 +34,7 @@ body {
     background-color: var(--bg);
     color: var(--text);
     font-family: var(--font);
+    margin: 0;
 }
 
 /* --- CARD STYLING --- */
@@ -72,6 +73,21 @@ body {
 
 .card-body {
     padding: 24px;
+}
+
+.toolbar-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    padding: 14px 24px 18px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+.toolbar-status strong {
+    color: var(--text);
+    font-weight: 600;
 }
 
 /* --- BUTTON STYLING --- */
@@ -130,14 +146,14 @@ body {
 }
 
 .btn-outline-secondary {
-    color: var(--muted);
+    color: #000000;
     border-color: var(--border);
-    background: transparent;
+    background: #ffffff;
 }
 
 .btn-outline-secondary:hover {
     background-color: var(--panel-2);
-    color: var(--text);
+    color: #000000;
 }
 
 /* --- TABLE STYLING --- */
@@ -145,6 +161,14 @@ body {
     color: var(--text);
     border-color: var(--border);
     margin-bottom: 0;
+}
+
+.table-responsive {
+    background: #ffffff;
+}
+
+.tab-content.border {
+    background: #ffffff;
 }
 
 .table th {
@@ -222,8 +246,22 @@ body {
 
 /* --- IFRAME VIEW ADJUSTMENTS --- */
 .iframe-view {
-    margin-top: 20px;
-    padding-bottom: 40px;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: none;
+}
+
+.container.iframe-view,
+.container-fluid.iframe-view {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: none;
+}
+
+.iframe-view > :last-child {
+    margin-bottom: 0;
 }
 
 /* QR Scanner placeholders */
