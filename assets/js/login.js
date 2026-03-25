@@ -1140,6 +1140,7 @@ async function registerOsa() {
       email: user.email,
       student_number: null,
       employee_number: user.employee_number,
+      phone: user.phone || null,
       authenticated_at: new Date().toISOString(),
       officer_memberships: memberships || [],
       login_role: 'osa',
@@ -1196,6 +1197,7 @@ async function handleLogin() {
       email: user.email,
       student_number: user.student_number || null,
       employee_number: user.employee_number || null,
+      phone: user.phone || null,
       authenticated_at: new Date().toISOString(),
       officer_memberships: memberships || [],
       // Extra fields used by studentDashboard.js buildCurrentStudentProfile
