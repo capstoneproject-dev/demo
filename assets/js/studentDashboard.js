@@ -71,6 +71,8 @@ const organizationData = [
 const extendedEvents = Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
     d.events.map(e => ({ ...e, org: orgKey }))
 );
+const STUDENT_EVENTS_API = '../api/student/events/list.php';
+let databaseEvents = [];
 
 // Helper to determine event status relative to "Today" (Feb 7, 2026)
 function getEventStatus(dateStr) {
@@ -261,6 +263,7 @@ function readAuthSession() {
 const DEFAULT_STUDENT_AVATAR = "https://picsum.photos/seed/student1/150/150";
 let studentProfileEditMode = false;
 let studentProfileSnapshot = null;
+let registrationPrefill = null;
 
 function buildCurrentStudentProfile() {
     const fallbackProfile = {
@@ -362,8 +365,12 @@ function studentCanAccessOrg(orgText) {
     );
 }
 
+function getAllOrganizationEvents() {
+    return databaseEvents.length ? databaseEvents : extendedEvents;
+}
+
 function getStudentScopedExtendedEvents() {
-    return extendedEvents.filter(event => studentCanAccessOrg(event.org));
+    return getAllOrganizationEvents().filter(event => studentCanAccessOrg(event.org));
 }
 
 function getStudentScopedAnnouncements() {
@@ -376,6 +383,77 @@ function getStudentScopedTransactions() {
 
 function getStudentScopedServices() {
     return servicesData;
+}
+
+function formatStudentEventDateLabel(dateValue) {
+    if (!dateValue) return '';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return '';
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const day = date.toLocaleString('en-US', { day: '2-digit' });
+    const year = date.toLocaleString('en-US', { year: 'numeric' });
+    return `${month}. ${day}, ${year}`;
+}
+
+function formatStudentEventTimeLabel(dateValue) {
+    if (!dateValue) return 'TBA';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return 'TBA';
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function getOrganizationVisual(orgName) {
+    const normalizedTarget = normalizeOrgName(orgName);
+    return organizationData.find((org) => normalizeOrgName(org.name) === normalizedTarget) || null;
+}
+
+function mapDatabaseEvent(item) {
+    const orgName = normalizeOrgName(item.org_name || item.org_code || '');
+    const orgVisual = getOrganizationVisual(orgName);
+    const dateValue = item.event_datetime || item.event_date || item.created_at || '';
+    const image = orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/event_${item.event_id}/800/450`;
+
+    return {
+        id: Number(item.event_id),
+        title: item.event_name || 'Untitled Event',
+        date: formatStudentEventDateLabel(dateValue),
+        dateRaw: dateValue,
+        org: orgName || 'General',
+        desc: item.description || '',
+        description: item.description || '',
+        time: formatStudentEventTimeLabel(dateValue),
+        venue: item.location || 'TBA',
+        location: item.location || 'TBA',
+        participants: Number(item.attendance_count || 0),
+        img: image,
+        gallery: [image],
+        isPublished: Number(item.is_published || 0) === 1
+    };
+}
+
+async function loadStudentEventsFromApi() {
+    try {
+        const response = await fetch(STUDENT_EVENTS_API, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load events.');
+        }
+        databaseEvents = (Array.isArray(data.items) ? data.items : []).map(mapDatabaseEvent);
+        renderDashboard();
+        const activeOrgTab = document.querySelector('.tab-btn.active[onclick*="switchOrgTab(\'events\'"]');
+        if (activeOrgTab) {
+            switchOrgTab('events', activeOrgTab);
+        }
+    } catch (error) {
+        console.error('[loadStudentEventsFromApi]', error);
+        databaseEvents = [];
+    }
 }
 
 function getStudentYearLevel(sectionText) {
@@ -1101,10 +1179,11 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
     const heroBackgroundImage = targetOrgName === "AISERS"
         ? "../assets/photos/studentDashboard/Organizations Gallery/AISERS GROUP PHOTO.png"
         : organization.banner;
-    const relevantEvents = extendedEvents.filter(event => normalizeOrgName(event.org) === targetOrgName);
+    const allEvents = getAllOrganizationEvents();
+    const relevantEvents = allEvents.filter(event => normalizeOrgName(event.org) === targetOrgName);
     const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
-    const announcementEvents = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 2);
-    const recentActivities = (relevantEvents.length ? relevantEvents : extendedEvents).slice(0, 3);
+    const announcementEvents = (relevantEvents.length ? relevantEvents : allEvents).slice(0, 2);
+    const recentActivities = (relevantEvents.length ? relevantEvents : allEvents).slice(0, 3);
     // fullName and motto come from ORG_DATA (data/orgData.js) — edit there, not here.
     const orgEntry = (typeof ORG_DATA !== 'undefined' && ORG_DATA[targetOrgName]) || {};
     const fullOrgName = orgEntry.fullName || organization.name;
@@ -1770,16 +1849,16 @@ function switchOrgTab(tabName, btn) {
                     <div class="event-card-footer">
                         <div class="event-stat"><i class="fa-regular fa-heart"></i> ${Math.floor(Math.random() * 50) + 10}</div>
                         <div class="event-actions">
-                            <button class="btn-share" onclick="shareEvent('${ev.title}')" title="Share">
+                            <button class="btn-share" onclick="event.stopPropagation(); shareEvent('${ev.title}')" title="Share">
                                 <i class="fa-solid fa-share-nodes"></i>
                             </button>
                             
-                            <button class="btn-view-details" onclick="openDetailsModal('${ev.title}')" title="Details">
+                            <button class="btn-view-details" onclick="event.stopPropagation(); openDetailsModal('${ev.title}')" title="Details">
                                 <i class="fa-solid fa-circle-info"></i>
                             </button>
                             
                             <button class="btn-register-card ${isRegistered ? 'registered' : ''}" 
-                                    onclick="openRegistrationModal('${ev.title}')" 
+                                    onclick="event.stopPropagation(); openRegistrationModal('${ev.title}')" 
                                     ${isRegistered ? 'disabled style="cursor: not-allowed;"' : ''}>
                                 ${isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Join'}
                             </button>
@@ -2328,6 +2407,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     syncStudentIdentity();
     setDate();
     renderDashboard();
+    loadStudentEventsFromApi().catch((error) => console.error(error));
     try {
         await loadStudentServicesTracker();
         await loadStudentServiceCatalog();
@@ -2344,6 +2424,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     setupStudentProfileEditor();
     setupStudentPasswordForm();
     setupStudentProfilePhotoUploader();
+    updateEventRegistrationModalFields();
+    loadRegistrationPrefill().catch((error) => console.error(error));
     hideOrganizationsMembershipTab();
     switchOrgTab('about', document.querySelector('.tab-btn'));
 
@@ -2376,6 +2458,7 @@ function openRegistrationModal(eventTitle) {
     const titleEl = document.getElementById('modalEventTitle');
 
     if (modal && titleEl) {
+        applyEventRegistrationPrefill();
         titleEl.innerText = 'Registering for: ' + eventTitle;
         // Store the event title in modal for later use
         modal.setAttribute('data-event-title', eventTitle);
@@ -2424,6 +2507,74 @@ function updateEventButton(eventTitle) {
             btn.style.cursor = 'not-allowed';
         }
     });
+}
+
+function updateEventRegistrationModalFields() {
+    const form = document.getElementById('registrationForm');
+    if (!form) return;
+
+    const groups = form.querySelectorAll('.form-group');
+    if (groups.length < 4) return;
+
+    const yearSectionGroup = groups[2];
+    const extraGroup = groups[3];
+
+    const yearSectionLabel = yearSectionGroup.querySelector('label');
+    const yearSectionInput = yearSectionGroup.querySelector('input');
+    if (yearSectionLabel) yearSectionLabel.textContent = 'Year & Section';
+    if (yearSectionInput) {
+        yearSectionInput.type = 'text';
+        yearSectionInput.placeholder = 'e.g. 3A';
+    }
+
+    extraGroup.style.display = 'none';
+    const extraInput = extraGroup.querySelector('input');
+    if (extraInput) {
+        extraInput.required = false;
+        extraInput.disabled = true;
+    }
+}
+
+function applyEventRegistrationPrefill() {
+    const form = document.getElementById('registrationForm');
+    if (!form) return;
+
+    const inputs = form.querySelectorAll('input');
+    if (inputs.length < 3) return;
+
+    const fullNameInput = inputs[0];
+    const studentNumberInput = inputs[1];
+    const yearSectionInput = inputs[2];
+
+    if (fullNameInput) {
+        fullNameInput.value = String(registrationPrefill?.full_name || currentStudentProfile.fullName || '').trim();
+    }
+    if (studentNumberInput) {
+        studentNumberInput.value = String(registrationPrefill?.student_number || currentStudentProfile.studentNumber || '').trim();
+    }
+    if (yearSectionInput) {
+        const combinedYearSection = String(registrationPrefill?.year_section || currentStudentProfile.section || '').trim();
+        yearSectionInput.value = combinedYearSection;
+    }
+}
+
+async function loadRegistrationPrefill() {
+    try {
+        const response = await fetch('../api/student/profile/registration-prefill.php', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load registration profile.');
+        }
+        registrationPrefill = data.item || null;
+    } catch (error) {
+        console.error('[loadRegistrationPrefill]', error);
+        registrationPrefill = null;
+    }
+
+    applyEventRegistrationPrefill();
 }
 
 // Close modal when clicking outside
