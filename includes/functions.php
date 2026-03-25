@@ -130,6 +130,7 @@ function buildSessionPayload(
         'account_type'        => $user['account_type'],
         'display_name'        => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
         'email'               => $user['email'],
+        'phone'               => $user['phone'] ?? null,
         'student_number'      => $user['student_number'] ?? null,
         'employee_number'     => $user['employee_number'] ?? null,
         'authenticated_at'    => date('c'),

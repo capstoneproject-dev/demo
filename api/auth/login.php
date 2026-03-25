@@ -88,6 +88,7 @@ jsonOk([
         'first_name'      => $user['first_name'],
         'last_name'       => $user['last_name'],
         'email'           => $user['email'],
+        'phone'           => $user['phone'] ?? null,
         'student_number'  => $user['student_number'],
         'employee_number' => $user['employee_number'],
         'program_code'    => $user['program_code'] ?? null,

@@ -50,6 +50,205 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
+let officerProfileEditMode = false;
+let officerProfileSnapshot = null;
+
+function updateOfficerProfileView(session = readAuthSession()) {
+    const fullName = session.display_name || 'Organization Officer';
+    const roleLabel = session.active_role_name || 'officer';
+    const orgLabel = session.active_org_name || 'Organization';
+    const studentNumber = session.student_number || session.employee_number || 'N/A';
+    const email = session.email || '';
+    const phone = session.phone || 'N/A';
+    const courseYear = [session.program_code, session.section].filter(Boolean).join(' - ') || 'N/A';
+
+    const headerName = document.querySelector('.user-info span');
+    const headerRole = document.querySelector('.user-info small');
+    if (headerName) headerName.innerText = fullName;
+    if (headerRole) headerRole.innerText = `${roleLabel} - ${orgLabel}`;
+
+    const profileName = document.querySelector('.profile-name');
+    const profileRole = document.querySelector('.profile-role');
+    if (profileName) profileName.innerText = fullName;
+    if (profileRole) profileRole.innerText = `${roleLabel} - ${orgLabel}`;
+
+    const profileNameInput = document.getElementById('officerProfileFullNameInput');
+    const profileStudentNumberInput = document.getElementById('officerProfileStudentNumberInput');
+    const profileEmailInput = document.getElementById('officerProfileEmailInput');
+    const profileOrganizationInput = document.getElementById('officerProfileOrganizationInput');
+    const profilePhoneInput = document.getElementById('officerProfilePhoneInput');
+    const profileCourseYearInput = document.getElementById('officerProfileCourseYearInput');
+    if (profileNameInput) profileNameInput.value = fullName;
+    if (profileStudentNumberInput) profileStudentNumberInput.value = studentNumber;
+    if (profileEmailInput) profileEmailInput.value = email;
+    if (profileOrganizationInput) profileOrganizationInput.value = orgLabel;
+    if (profilePhoneInput) profilePhoneInput.value = phone;
+    if (profileCourseYearInput) profileCourseYearInput.value = courseYear;
+
+    document.title = `${orgLabel} Officer Dashboard`;
+}
+
+function setOfficerProfileEditMode(isEditing) {
+    officerProfileEditMode = isEditing;
+    const editBtn = document.getElementById('officerProfileEditBtn');
+    const cancelBtn = document.getElementById('officerProfileCancelBtn');
+    const editableInputs = document.querySelectorAll('#profile [data-editable="true"]');
+
+    editableInputs.forEach((input) => {
+        input.readOnly = !isEditing;
+    });
+
+    if (editBtn) {
+        editBtn.innerHTML = isEditing
+            ? '<i class="fa-solid fa-floppy-disk"></i> Save Details'
+            : '<i class="fa-solid fa-pen-to-square"></i> Edit Details';
+    }
+    if (cancelBtn) cancelBtn.hidden = !isEditing;
+}
+
+function snapshotOfficerProfileValues() {
+    officerProfileSnapshot = {
+        full_name: (document.getElementById('officerProfileFullNameInput') || {}).value || '',
+        email: (document.getElementById('officerProfileEmailInput') || {}).value || '',
+        phone: (document.getElementById('officerProfilePhoneInput') || {}).value || '',
+    };
+}
+
+function restoreOfficerProfileSnapshot() {
+    if (!officerProfileSnapshot) return;
+    const nameInput = document.getElementById('officerProfileFullNameInput');
+    const emailInput = document.getElementById('officerProfileEmailInput');
+    const phoneInput = document.getElementById('officerProfilePhoneInput');
+    if (nameInput) nameInput.value = officerProfileSnapshot.full_name;
+    if (emailInput) emailInput.value = officerProfileSnapshot.email;
+    if (phoneInput) phoneInput.value = officerProfileSnapshot.phone;
+}
+
+async function saveOfficerProfileDetails() {
+    const fullName = (document.getElementById('officerProfileFullNameInput') || {}).value?.trim() || '';
+    const email = (document.getElementById('officerProfileEmailInput') || {}).value?.trim() || '';
+    const phone = (document.getElementById('officerProfilePhoneInput') || {}).value?.trim() || '';
+
+    if (!fullName || !email) {
+        showToast('Full name and email are required.', 'error');
+        return;
+    }
+
+    const editBtn = document.getElementById('officerProfileEditBtn');
+    if (editBtn) editBtn.disabled = true;
+
+    try {
+        const resp = await fetch('../api/officer/profile/update.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                full_name: fullName,
+                email,
+                phone,
+            }),
+        });
+        const data = await resp.json();
+        if (!data.ok) {
+            showToast(data.error || 'Could not update profile.', 'error');
+            return;
+        }
+
+        if (data.session) {
+            localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+            updateOfficerProfileView(data.session);
+        }
+        officerProfileSnapshot = null;
+        setOfficerProfileEditMode(false);
+        showToast('Profile updated successfully.', 'success');
+    } catch (error) {
+        console.error('[saveOfficerProfileDetails] error:', error);
+        showToast('Could not connect to the server.', 'error');
+    } finally {
+        if (editBtn) editBtn.disabled = false;
+    }
+}
+
+function setupOfficerProfileEditor() {
+    const editBtn = document.getElementById('officerProfileEditBtn');
+    const cancelBtn = document.getElementById('officerProfileCancelBtn');
+
+    if (editBtn) {
+        editBtn.addEventListener('click', async () => {
+            if (!officerProfileEditMode) {
+                snapshotOfficerProfileValues();
+                setOfficerProfileEditMode(true);
+                const firstEditableInput = document.querySelector('#profile [data-editable="true"]');
+                if (firstEditableInput) firstEditableInput.focus();
+                return;
+            }
+            await saveOfficerProfileDetails();
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            restoreOfficerProfileSnapshot();
+            setOfficerProfileEditMode(false);
+        });
+    }
+
+    setOfficerProfileEditMode(false);
+}
+
+function setupOfficerPasswordForm() {
+    const passwordForm = document.getElementById('officerPasswordForm');
+    if (!passwordForm) return;
+
+    passwordForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const currentPassword = (document.getElementById('officerCurrentPasswordInput') || {}).value || '';
+        const newPassword = (document.getElementById('officerNewPasswordInput') || {}).value || '';
+        const confirmPassword = (document.getElementById('officerConfirmPasswordInput') || {}).value || '';
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            showToast('All password fields are required.', 'error');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showToast('New passwords do not match.', 'error');
+            return;
+        }
+
+        const submitBtn = document.getElementById('officerPasswordSubmitBtn');
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+            const resp = await fetch('../api/officer/profile/update-password.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmPassword,
+                }),
+            });
+            const data = await resp.json();
+
+            if (!data.ok) {
+                showToast(data.error || 'Could not update password.', 'error');
+                return;
+            }
+
+            passwordForm.reset();
+            showToast(data.message || 'Password updated successfully.', 'success');
+        } catch (error) {
+            console.error('[setupOfficerPasswordForm] error:', error);
+            showToast('Could not connect to the server.', 'error');
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    });
+}
+
 /**
  * Non-blocking PHP session check.
  * Runs asynchronously after localStorage guard — redirects if server session expired.
@@ -98,39 +297,7 @@ function initOfficerAuthContext() {
         return;
     }
 
-    const fullName = session.display_name || 'Organization Officer';
-    const roleLabel = session.active_role_name || 'officer';
-    const orgLabel = session.active_org_name || 'Organization';
-    const studentNumber = session.student_number || session.employee_number || 'N/A';
-    const email = session.email || '';
-    const courseYear = [session.program_code, session.section].filter(Boolean).join(' - ') || 'N/A';
-
-    const headerName = document.querySelector('.user-info span');
-    const headerRole = document.querySelector('.user-info small');
-    if (headerName) headerName.innerText = fullName;
-    if (headerRole) headerRole.innerText = `${roleLabel} - ${orgLabel}`;
-
-    const profileName = document.querySelector('.profile-name');
-    const profileRole = document.querySelector('.profile-role');
-    if (profileName) profileName.innerText = fullName;
-    if (profileRole) profileRole.innerText = `${roleLabel} - ${orgLabel}`;
-
-    const profileNameInput = document.getElementById('officerProfileFullNameInput');
-    const profileStudentNumberInput = document.getElementById('officerProfileStudentNumberInput');
-    const profileEmailInput = document.getElementById('officerProfileEmailInput');
-    const profileOrganizationInput = document.getElementById('officerProfileOrganizationInput');
-    const profilePhoneInput = document.getElementById('officerProfilePhoneInput');
-    const profileCourseYearInput = document.getElementById('officerProfileCourseYearInput');
-    if (profileNameInput) profileNameInput.value = fullName;
-    if (profileStudentNumberInput) profileStudentNumberInput.value = studentNumber;
-    if (profileEmailInput) profileEmailInput.value = email;
-    if (profileOrganizationInput) profileOrganizationInput.value = orgLabel;
-    if (profilePhoneInput) profilePhoneInput.value = profilePhoneInput.value && profilePhoneInput.value !== '+63 912 345 6789'
-        ? profilePhoneInput.value
-        : 'N/A';
-    if (profileCourseYearInput) profileCourseYearInput.value = courseYear;
-
-    document.title = `${orgLabel} Officer Dashboard`;
+    updateOfficerProfileView(session);
 
     // Validate PHP session in the background (catches server-side expiry)
     validatePhpSession();
@@ -292,6 +459,8 @@ function toggleThemeMobile() {
 // Initialize Theme on Load
 document.addEventListener('DOMContentLoaded', () => {
     initOfficerAuthContext();
+    setupOfficerProfileEditor();
+    setupOfficerPasswordForm();
     setOfficerTrackerPrintingAccess(false);
 
     // Check if user previously selected dark mode
