@@ -1,0 +1,103 @@
+
+        <div id="profile" class="section-view">
+            <div class="split-view-grid profile-layout">
+
+                <div class="card profile-card">
+                    <div class="profile-header-center">
+                        <div class="profile-avatar-wrapper">
+                            <img id="osaProfileAvatar" src="https://picsum.photos/seed/osaadmin/150/150" alt="Profile"
+                                class="profile-avatar-lg">
+                            <input id="osaProfilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                            <button id="osaProfilePhotoBtn" class="btn-icon-only edit-avatar-btn" title="Change Photo" type="button">
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
+                        </div>
+                        <h3 class="profile-name">Dir. Maria Santos</h3>
+                        <span class="profile-role">OSA Head Director</span>
+                        <span class="status-badge status-completed" style="margin-top: 12px;">Active Status</span>
+                    </div>
+
+                    <hr style="border:0; border-top:1px solid var(--border); width:100%; margin: 24px 0;">
+
+                    <div class="profile-stats-row">
+                        <div class="p-stat">
+                            <strong>5</strong>
+                            <span>Years Active</span>
+                        </div>
+                        <div class="profile-divider-vert"></div>
+                        <div class="p-stat">
+                            <strong>124</strong>
+                            <span>Actions Taken</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 24px; width: 100%;">
+                        <label style="margin-bottom: 8px;">Bio / Note</label>
+                        <textarea rows="3" placeholder="Add a note..." readonly>Dedicated to student welfare and organizational excellence.</textarea>
+                    </div>
+                </div>
+
+                <div class="profile-details-stack">
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Personal Information</div>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <button id="osaProfileCancelBtn" class="btn btn-sm btn-outline" type="button" hidden>
+                                    Cancel
+                                </button>
+                                <button id="osaProfileEditBtn" class="btn btn-sm btn-outline" type="button">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                                </button>
+                            </div>
+                        </div>
+                        <div class="profile-form-grid">
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input id="osaProfileFullNameInput" type="text" value="Maria Santos" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Employee ID</label>
+                                <input id="osaProfileEmployeeNumberInput" type="text" value="OSA-2019-001" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input id="osaProfileEmailInput" type="email" value="maria.santos@philsca.edu.ph" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Department</label>
+                                <input id="osaProfileDepartmentInput" type="text" value="Office of Student Affairs" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input id="osaProfilePhoneInput" type="text" value="+63 912 345 6789" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Date Joined</label>
+                                <input id="osaProfileDateJoinedInput" type="text" value="August 15, 2019" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Security & Preferences</div>
+                        </div>
+                        <form id="osaPasswordForm">
+                            <div class="form-group">
+                                <label>Change Password</label>
+                                <input id="osaCurrentPasswordInput" type="password" placeholder="Current Password" required>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                    <input id="osaNewPasswordInput" type="password" placeholder="New Password" required>
+                                    <input id="osaConfirmPasswordInput" type="password" placeholder="Confirm New Password" required>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                                <button id="osaPasswordSubmitBtn" type="submit" class="btn btn-primary">Update Password</button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+        </div>

@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- CSS Reference -->
-    <link rel="stylesheet" href="../assets/css/osaDashboard.css">
+    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260325-2">
 
     <!-- PDF.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -112,7 +112,7 @@
 
                 <!-- User Profile -->
                 <a href="#" class="user-profile" onclick="navigate('profile'); return false;">
-                    <img src="https://picsum.photos/seed/osaadmin/100/100" alt="Student" class="avatar">
+                    <img id="osaHeaderAvatar" src="https://picsum.photos/seed/osaadmin/100/100" alt="Student" class="avatar">
                     <div class="user-info">
                         <span style="display: block; font-size: 0.85rem; font-weight: 600;">Dir. Maria Santos</span>
                         <small style="color: var(--muted); font-size: 0.75rem;">OSA Head</small>
@@ -552,15 +552,17 @@
         </div>
 
 
+
         <div id="profile" class="section-view">
             <div class="split-view-grid profile-layout">
 
                 <div class="card profile-card">
                     <div class="profile-header-center">
                         <div class="profile-avatar-wrapper">
-                            <img src="https://picsum.photos/seed/osaadmin/150/150" alt="Profile"
+                            <img id="osaProfileAvatar" src="https://picsum.photos/seed/osaadmin/150/150" alt="Profile"
                                 class="profile-avatar-lg">
-                            <button class="btn-icon-only edit-avatar-btn" title="Change Photo">
+                            <input id="osaProfilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                            <button id="osaProfilePhotoBtn" class="btn-icon-only edit-avatar-btn" title="Change Photo" type="button">
                                 <i class="fa-solid fa-camera"></i>
                             </button>
                         </div>
@@ -585,8 +587,7 @@
 
                     <div style="margin-top: 24px; width: 100%;">
                         <label style="margin-bottom: 8px;">Bio / Note</label>
-                        <textarea rows="3" placeholder="Add a note..."
-                            readonly>Dedicated to student welfare and organizational excellence.</textarea>
+                        <textarea rows="3" placeholder="Add a note..." readonly>Dedicated to student welfare and organizational excellence.</textarea>
                     </div>
                 </div>
 
@@ -595,34 +596,39 @@
                     <div class="card">
                         <div class="card-header">
                             <div class="card-title">Personal Information</div>
-                            <button class="btn btn-sm btn-outline">
-                                <i class="fa-solid fa-pen-to-square"></i> Edit Details
-                            </button>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <button id="osaProfileCancelBtn" class="btn btn-sm btn-outline" type="button" hidden>
+                                    Cancel
+                                </button>
+                                <button id="osaProfileEditBtn" class="btn btn-sm btn-outline" type="button">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                                </button>
+                            </div>
                         </div>
                         <div class="profile-form-grid">
                             <div class="form-group">
                                 <label>Full Name</label>
-                                <input type="text" value="Maria Santos" readonly>
+                                <input id="osaProfileFullNameInput" type="text" value="Maria Santos" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Employee ID</label>
-                                <input type="text" value="OSA-2019-001" readonly>
+                                <input id="osaProfileEmployeeNumberInput" type="text" value="OSA-2019-001" readonly>
                             </div>
                             <div class="form-group">
                                 <label>Email Address</label>
-                                <input type="email" value="maria.santos@philsca.edu.ph" readonly>
+                                <input id="osaProfileEmailInput" type="email" value="maria.santos@philsca.edu.ph" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Department</label>
-                                <input type="text" value="Office of Student Affairs" readonly>
+                                <input id="osaProfileDepartmentInput" type="text" value="Office of Student Affairs" readonly>
                             </div>
                             <div class="form-group">
                                 <label>Phone Number</label>
-                                <input type="text" value="+63 912 345 6789" readonly>
+                                <input id="osaProfilePhoneInput" type="text" value="+63 912 345 6789" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Date Joined</label>
-                                <input type="text" value="August 15, 2019" readonly>
+                                <input id="osaProfileDateJoinedInput" type="text" value="August 15, 2019" readonly>
                             </div>
                         </div>
                     </div>
@@ -631,18 +637,17 @@
                         <div class="card-header">
                             <div class="card-title">Security & Preferences</div>
                         </div>
-                        <form onsubmit="event.preventDefault(); showToast('Password updated successfully', 'success');">
+                        <form id="osaPasswordForm">
                             <div class="form-group">
                                 <label>Change Password</label>
-                                <input type="password" placeholder="Current Password">
-                                <div
-                                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                                    <input type="password" placeholder="New Password">
-                                    <input type="password" placeholder="Confirm New Password">
+                                <input id="osaCurrentPasswordInput" type="password" placeholder="Current Password" required>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                    <input id="osaNewPasswordInput" type="password" placeholder="New Password" required>
+                                    <input id="osaConfirmPasswordInput" type="password" placeholder="Confirm New Password" required>
                                 </div>
                             </div>
                             <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
-                                <button type="submit" class="btn btn-primary">Update Password</button>
+                                <button id="osaPasswordSubmitBtn" type="submit" class="btn btn-primary">Update Password</button>
                             </div>
                         </form>
                     </div>
@@ -862,8 +867,11 @@
 
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
-    <script src="../assets/js/osaDashboard.js"></script>
+    <script src="../assets/js/osaDashboard.js?v=20260325-2"></script>
     <script src="../assets/js/pdfViewer.js"></script>
 </body>
 
 </html>
+
+
+
