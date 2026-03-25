@@ -1,0 +1,19 @@
+{
+    "chartSummaries": {
+        "financial": "Revenue data is currently unavailable, showing no trends or growth compared to previous periods. This lack of data prevents any analysis of financial performance or identification of potential revenue streams.",
+        "participation": "Participation is currently low, with no events recorded for the academic year. This indicates a potential lack of engagement or opportunities for members to get involved, which could impact organizational activity and community building.",
+        "inventory": "There are no active or overdue rentals, but one rental is pending. This suggests that current rental operations are minimal, with a potential bottleneck in processing the single pending request which could delay resource availability.",
+        "documents": "No documents have been approved or rejected, with one document pending review. This indicates a backlog in the document processing workflow, potentially delaying important organizational processes and requiring immediate attention to clear the pending item."
+    },
+    "exportSections": {
+        "revenueSeries": "The revenue series shows no data for the current academic year, indicating a complete absence of financial inflows. This lack of information prevents any assessment of the organization's financial health or the effectiveness of any revenue-generating activities.",
+        "eventParticipation": "Event participation is currently low, with no events listed and no data to analyze engagement levels. This suggests a critical need to plan and promote upcoming events to foster member involvement and organizational vibrancy.",
+        "financialTransactions": "There are no financial transactions to report, reflecting zero revenue for the academic year. This absence of financial activity necessitates a review of revenue-generating strategies and potential sources of funding.",
+        "rentalRecords": "Rental records indicate one pending rental and no active or overdue items. This suggests a minimal rental demand or a bottleneck in the approval process, requiring an investigation into the pending rental to ensure timely resource allocation.",
+        "documentWorkflow": "The document workflow shows one pending document with no approved or rejected items. This highlights a significant backlog, potentially hindering operational progress and requiring immediate attention to process the pending document and clear the workflow."
+    },
+    "exportSummary": "The organization's analytics for the 2025-2026 academic year reveal a critical lack of activity across all key areas. There is no revenue data, indicating a complete absence of financial inflows. Event participation is low, with no events recorded, suggesting a need for increased engagement initiatives. Rental and document workflows show backlogs, with one pending item in each category, highlighting potential operational inefficiencies that require immediate attention to ensure smooth functioning.",
+    "provider": "gemini:gemini-2.5-flash-lite",
+    "fallbackUsed": false,
+    "generatedAt": "2026-03-25T18:17:55+00:00"
+}

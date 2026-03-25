@@ -1379,6 +1379,14 @@ function switchServiceTab(tabName, btn) {
 
 // --- ORGANIZATION TABS LOGIC ---
 function switchOrgTab(tabName, btn) {
+    if (tabName === 'membership') {
+        const fallbackBtn = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'about\'"]');
+        if (fallbackBtn) {
+            switchOrgTab('about', fallbackBtn);
+        }
+        return;
+    }
+
     // Update Buttons
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -1837,6 +1845,21 @@ function switchOrgTab(tabName, btn) {
     contentDiv.style.animation = 'none';
     contentDiv.offsetHeight; /* trigger reflow */
     contentDiv.style.animation = 'fadeIn 0.4s ease';
+}
+
+function hideOrganizationsMembershipTab() {
+    const membershipBtn = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'membership\'"]');
+    if (!membershipBtn) return;
+
+    const wasActive = membershipBtn.classList.contains('active');
+    membershipBtn.style.display = 'none';
+
+    if (wasActive) {
+        const fallbackBtn = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'about\'"]');
+        if (fallbackBtn) {
+            switchOrgTab('about', fallbackBtn);
+        }
+    }
 }
 
 
@@ -2321,6 +2344,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     setupStudentProfileEditor();
     setupStudentPasswordForm();
     setupStudentProfilePhotoUploader();
+    hideOrganizationsMembershipTab();
     switchOrgTab('about', document.querySelector('.tab-btn'));
 
     // Initialize Dashboard Carousel for the new layout
