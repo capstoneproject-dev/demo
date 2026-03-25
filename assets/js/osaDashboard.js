@@ -610,7 +610,7 @@ function buildMonitoringActivities(org) {
         .slice(0, 10);
 }
 
-const requests = [
+let requests = [
     { id: 101, type: "Event Proposal", org: "AISERS", sender: "Pres. Alano", title: "AIS-AHAN: Constituency Check", date: "Oct 24, 2023", status: "Pending" },
     { id: 102, type: "Posting", org: "Supreme Student Council", sender: "VPI Flores", title: "Love Surge", date: "Oct 24, 2023", status: "Pending" },
     { id: 103, type: "Document", org: "AERO-ATSO", sender: "Tres. Beltrano", title: "Semestral Financial Report", date: "Oct 23, 2023", status: "Pending" },
@@ -645,6 +645,77 @@ const dashboardRequestsMock = [
     { type: "Event Proposal", org: "RCYC", title: "Blood Drive", status: "Pending" }
 ];
 
+function mapSubmissionStatusToRequestStatus(status) {
+    const normalized = String(status || '').trim().toLowerCase();
+    if (normalized === 'approved') return 'Approved';
+    if (normalized === 'rejected') return 'Rejected';
+    return 'Pending';
+}
+
+function mapDocumentTypeToRequestType(documentType) {
+    const normalized = String(documentType || '').trim().toLowerCase();
+    if (normalized.includes('posting') || normalized.includes('poster') || normalized.includes('pubmat')) {
+        return 'Posting';
+    }
+    if (normalized.includes('proposal')) {
+        return 'Event Proposal';
+    }
+    return 'Document';
+}
+
+function buildRequestSenderLabel(item) {
+    const fullName = [item.submitted_by_first_name, item.submitted_by_last_name]
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join(' ');
+    return fullName || 'Unknown Sender';
+}
+
+async function loadRequestsFromApi() {
+    try {
+        const response = await fetch(`${DOCUMENTS_API_BASE}/requests-overview.php`, {
+            credentials: 'same-origin'
+        });
+        const data = await response.json();
+        if (!data.ok) return;
+
+        requests = (data.items || []).map((item) => {
+            const viewerId = `submission_${item.submission_id}`;
+            const fileUrl = resolvePdfUrl(item.file_url);
+            if (typeof PDFViewer !== 'undefined' && fileUrl) {
+                PDFViewer.registerRemote(viewerId, item.title, fileUrl, { submissionId: item.submission_id });
+            }
+
+            return {
+                id: item.submission_id,
+                submissionId: item.submission_id,
+                repoId: item.repo_id || null,
+                type: mapDocumentTypeToRequestType(item.document_type),
+                documentType: item.document_type || 'Document',
+                org: item.org_name || '',
+                sender: buildRequestSenderLabel(item),
+                title: item.title || 'Untitled Document',
+                date: fmtDateShort(item.submitted_at),
+                submittedAt: item.submitted_at || null,
+                reviewedAt: item.reviewed_at || null,
+                approvedAt: item.approved_at || null,
+                status: mapSubmissionStatusToRequestStatus(item.status),
+                rawStatus: item.status || 'pending',
+                annotationCount: Number(item.annotation_count || 0),
+                latestAnnotationAt: item.latest_annotation_at || null,
+                reviewerNotes: item.reviewer_notes || '',
+                fileUrl,
+                viewerId,
+            };
+        });
+
+        renderDashboardPreview();
+        renderRequests();
+    } catch (error) {
+        console.error('loadRequestsFromApi failed', error);
+    }
+}
+
 function renderRecentActivities() {
     const container = document.getElementById('activity-feed');
     if (!container) return;
@@ -670,13 +741,13 @@ function renderDashboardPreview() {
     const tbody = document.getElementById('dashboard-requests-preview');
     if (!tbody) return;
 
-    // Use the mock data for visualization
-    tbody.innerHTML = dashboardRequestsMock.map(req => `
+    const previewItems = (requests.length ? requests : dashboardRequestsMock).slice(0, 4);
+    tbody.innerHTML = previewItems.map(req => `
         <tr>
             <td><span class="status-badge status-submitted">${req.type}</span></td>
             <td style="font-weight:600;">${req.org}</td>
             <td>${req.title}</td>
-            <td><span class="status-badge status-pending">${req.status}</span></td>
+            <td><span class="status-badge status-${String(req.status || 'Pending').toLowerCase()}">${req.status}</span></td>
         </tr>
     `).join('');
 }
@@ -926,7 +997,7 @@ function renderRequests() {
         // Date range filtering
         let matchesDate = true;
         if (reqDateFilter.from && reqDateFilter.to) {
-            const reqDate = new Date(req.date);
+            const reqDate = req.submittedAt ? new Date(req.submittedAt) : new Date(req.date);
             matchesDate = reqDate >= reqDateFilter.from && reqDate <= reqDateFilter.to;
         }
 
@@ -944,7 +1015,7 @@ function renderRequests() {
         // New: View Button (Always available)
         // Uses the existing btn-outline class to differentiate from the main actions
         const viewBtn = `
-            <button class="btn btn-sm btn-outline" onclick="openPdfViewer('req_doc_${req.id}')" title="View Document">
+            <button class="btn btn-sm btn-outline" onclick="openPdfViewer('${req.viewerId || ('submission_' + req.id)}')" title="View Document">
                 <i class="fa-solid fa-eye"></i>
             </button>
         `;
@@ -973,9 +1044,10 @@ function renderRequests() {
         }
 
         // Split sender name and position for styling (assumes format: "Pos. Name")
-        const senderParts = (req.sender || 'TBD User').split(' ');
-        const position = senderParts[0];
-        const name = senderParts.slice(1).join(' ');
+        const senderText = String(req.sender || 'Unknown Sender').trim();
+        const senderParts = senderText.split(' ');
+        const position = senderParts.length > 1 ? senderParts[0] : '';
+        const name = senderParts.length > 1 ? senderParts.slice(1).join(' ') : senderText;
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -984,7 +1056,7 @@ function renderRequests() {
             <td>
                 <div class="sender-info">
                     <span class="sender-name">${name}</span>
-                    <span class="sender-position">${position}</span>
+                    <span class="sender-position">${position || req.documentType || 'Document Submitter'}</span>
                 </div>
             </td>
             <td>${req.title || req.name}</td>
@@ -1434,15 +1506,18 @@ function confirmRequestAction() {
 
     // Process the action
     const { id, action } = pendingRequestAction;
-    const index = requests.findIndex(r => r.id === id);
-    if (index > -1) {
-        const req = requests[index];
-        req.status = action;
-        showToast(`Request "${req.title}" has been ${action}`, action === 'Approved' ? 'success' : 'error');
-        renderRequests();
-    }
-
+    const req = requests.find(r => r.id === id);
     closeRequestActionModal();
+    if (!req) return;
+
+    submitReviewDecision(
+        req.submissionId || req.id,
+        action === 'Approved' ? 'approved' : 'rejected',
+        ''
+    ).then(() => {
+        showToast(`Request "${req.title}" has been ${action}`, action === 'Approved' ? 'success' : 'error');
+        loadRequestsFromApi();
+    });
 }
 
 // --- DATE PICKER CALENDAR FUNCTIONS ---
@@ -1736,6 +1811,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Initialize Requests
     initReqOrgFilter();
     renderRequests();
+    loadRequestsFromApi();
     renderOrgs();
     loadServiceAuthorizations().catch((error) => console.error(error));
 
