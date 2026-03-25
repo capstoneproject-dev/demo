@@ -25,6 +25,7 @@
         <div id="panel-login">
           <h1>LOGIN</h1>
           <p class="subtitle">NAAP ORG - SYSTEM Organization Management System</p>
+          <p id="loginStatusMessage" class="login-status hidden" aria-live="polite"></p>
 
           <form id="loginForm">
             <input type="text" id="loginIdentifier" placeholder="Email / Student Number / Employee Number" />
@@ -43,15 +44,37 @@
         <!-- FORGOT PASSWORD PANEL -->
         <div id="panel-forgot">
           <h1>FORGOT PASSWORD</h1>
-          <p class="subtitle">Enter your details to reset your password</p>
+          <p class="subtitle">Enter your student number and email to receive a simulated 6-character OTP.</p>
 
-          <form>
-            <input type="text" placeholder="Student Number" />
-            <input type="email" placeholder="Email" />
-            <button type="button">SEND LINK</button>
+          <form id="forgotPasswordForm" class="forgot-password-form">
+            <input type="text" id="forgotStudentNumber" placeholder="Student Number" autocomplete="off" />
+            <input type="email" id="forgotEmail" placeholder="Email" autocomplete="off" />
+            <div class="forgot-reset-fields">
+              <input type="password" id="forgotNewPassword" placeholder="New Password" autocomplete="new-password" />
+              <input type="password" id="forgotConfirmPassword" placeholder="Confirm New Password" autocomplete="new-password" />
+            </div>
+            <p class="forgot-form-feedback hidden" id="forgotFormFeedback" aria-live="polite"></p>
+            <button type="button" id="forgotSendOtpBtn">SEND OTP</button>
+
+            <div id="forgotOtpSection" class="forgot-otp-section hidden">
+              <p class="otp-helper" id="forgotOtpStatus">A 6-character OTP was sent to your email.</p>
+              <div class="otp-input-group" id="forgotOtpInputs">
+                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+              </div>
+              <p class="simulation-note" id="forgotOtpSimulationNote" aria-live="polite"></p>
+              <p class="otp-feedback" id="forgotOtpFeedback" aria-live="polite"></p>
+              <div class="otp-actions">
+                <button type="button" id="forgotVerifyOtpBtn">VERIFY OTP</button>
+                <button type="button" id="forgotResendOtpBtn" class="secondary-btn">RESEND OTP</button>
+              </div>
+            </div>
           </form>
 
-          <!-- Back link to return to Login -->
           <a class="back-link" onclick="toggleForgot(); return false;">Back to Login</a>
 
           <p class="mobile-toggle" onclick="toggleSlide()">Don't have an account? Register</p>
