@@ -9,7 +9,7 @@ if (!defined('ANALYTICS_AI_GEMINI_ENABLED')) {
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_API_KEY')) {
-    define('ANALYTICS_AI_GEMINI_API_KEY', getenv('ANALYTICS_AI_GEMINI_API_KEY') ?: 'AIzaSyAJH7pfsBqjrT1AjpK0r4beVJbWPvjXgDg');
+    define('ANALYTICS_AI_GEMINI_API_KEY', getenv('ANALYTICS_AI_GEMINI_API_KEY') ?: 'AIzaSyBxmOs9DabVwiHkxJ4C865317b2mBHPO1A');
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_MODEL')) {

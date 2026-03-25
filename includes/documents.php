@@ -261,6 +261,85 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
     return $rows;
 }
 
+function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
+{
+    $where = [];
+    $params = [];
+
+    if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        $where[] = 'ds.status = :status';
+        $params[':status'] = $filters['status'];
+    }
+
+    if (!empty($filters['q'])) {
+        $where[] = '(ds.title LIKE :q OR ds.document_type LIKE :q OR o.org_name LIKE :q)';
+        $params[':q'] = '%' . trim((string)$filters['q']) . '%';
+    }
+
+    if (!empty($filters['from'])) {
+        $where[] = 'ds.submitted_at >= :from';
+        $params[':from'] = $filters['from'];
+    }
+
+    if (!empty($filters['to'])) {
+        $where[] = 'ds.submitted_at <= :to';
+        $params[':to'] = $filters['to'];
+    }
+
+    $sql = "SELECT ds.submission_id,
+                   ds.org_id,
+                   ds.submitted_by_user_id,
+                   ds.reviewed_by_user_id,
+                   ds.title,
+                   ds.description,
+                   ds.document_type,
+                   ds.file_url,
+                   ds.recipient,
+                   ds.status,
+                   ds.reviewer_notes,
+                   ds.semester,
+                   ds.academic_year,
+                   ds.submitted_at,
+                   ds.reviewed_at,
+                   ds.created_at,
+                   ds.updated_at,
+                   o.org_name,
+                   u.first_name AS submitted_by_first_name,
+                   u.last_name AS submitted_by_last_name,
+                   da.repo_id,
+                   da.approved_at,
+                   COALESCE(ann.annotation_count, 0) AS annotation_count,
+                   ann.latest_annotation_at
+            FROM document_submissions ds
+            JOIN organizations o ON o.org_id = ds.org_id
+            LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
+            LEFT JOIN documents_approved da ON da.submission_id = ds.submission_id
+            LEFT JOIN (
+                SELECT submission_id,
+                       COUNT(*) AS annotation_count,
+                       MAX(created_at) AS latest_annotation_at
+                FROM document_annotations
+                GROUP BY submission_id
+            ) ann ON ann.submission_id = ds.submission_id
+            " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
+            ORDER BY ds.submitted_at DESC, ds.submission_id DESC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+
+    foreach ($rows as &$row) {
+        $row['submission_id'] = (int)$row['submission_id'];
+        $row['org_id'] = (int)$row['org_id'];
+        $row['submitted_by_user_id'] = (int)$row['submitted_by_user_id'];
+        $row['reviewed_by_user_id'] = $row['reviewed_by_user_id'] !== null ? (int)$row['reviewed_by_user_id'] : null;
+        $row['repo_id'] = $row['repo_id'] !== null ? (int)$row['repo_id'] : null;
+        $row['annotation_count'] = (int)$row['annotation_count'];
+    }
+
+    return $rows;
+}
+
 function docResolveSubmissionAccess(PDO $pdo, int $submissionId, array $session): ?array
 {
     $stmt = $pdo->prepare(
