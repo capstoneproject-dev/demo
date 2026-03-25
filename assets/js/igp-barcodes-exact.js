@@ -269,6 +269,93 @@
         });
     }
 
+    function sanitizeDownloadName(value) {
+        return String(value || '')
+            .trim()
+            .replace(/[\\/:*?"<>|]+/g, '_')
+            .replace(/\s+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '') || 'barcode';
+    }
+
+    function svgToPngData(svg) {
+        return new Promise((resolve, reject) => {
+            if (!svg) {
+                reject(new Error('Barcode image not found.'));
+                return;
+            }
+
+            const sourceWidth = Number(svg.getAttribute('width')) || svg.viewBox.baseVal.width || svg.getBoundingClientRect().width || 300;
+            const sourceHeight = Number(svg.getAttribute('height')) || svg.viewBox.baseVal.height || svg.getBoundingClientRect().height || 150;
+            const svgMarkup = new XMLSerializer().serializeToString(svg);
+            const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+            const objectUrl = URL.createObjectURL(svgBlob);
+            const img = new Image();
+
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.ceil(sourceWidth);
+                canvas.height = Math.ceil(sourceHeight);
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    URL.revokeObjectURL(objectUrl);
+                    reject(new Error('Unable to prepare PNG export.'));
+                    return;
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const pngData = canvas.toDataURL('image/png').split(',')[1];
+                URL.revokeObjectURL(objectUrl);
+                resolve(pngData);
+            };
+
+            img.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('Unable to convert barcode to PNG.'));
+            };
+
+            img.src = objectUrl;
+        });
+    }
+
+    async function downloadAllBarcodes() {
+        if (!window.JSZip) {
+            alert('ZIP export is not available right now.');
+            return;
+        }
+        if (!inventory.length) {
+            alert('There are no barcodes to download.');
+            return;
+        }
+
+        const zip = new window.JSZip();
+
+        for (const item of inventory) {
+            const svg = document.getElementById(`bc_${item.item_id}`);
+            if (!svg) continue;
+            const pngData = await svgToPngData(svg);
+            const filename = `${sanitizeDownloadName(item.item_name)}_${item.item_id}_barcode.png`;
+            zip.file(filename, pngData, { base64: true });
+        }
+
+        const content = await zip.generateAsync({ type: 'blob' });
+        const downloadLink = document.createElement('a');
+        const objectUrl = URL.createObjectURL(content);
+        downloadLink.href = objectUrl;
+        downloadLink.download = 'inventory_barcodes.zip';
+        downloadLink.style.display = 'none';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        window.setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+            if (downloadLink.parentNode) {
+                downloadLink.parentNode.removeChild(downloadLink);
+            }
+        }, 1000);
+    }
+
     async function refresh() {
         const [inventoryRes, categoryRes, itemNameRes] = await Promise.all([
             window.igpApi.getInventory({}),
@@ -484,7 +571,13 @@
             XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
             XLSX.writeFile(wb, 'inventory.xlsx');
         });
-        if ($('downloadAll')) $('downloadAll').addEventListener('click', () => window.print());
+        if ($('downloadAll')) $('downloadAll').addEventListener('click', async () => {
+            try {
+                await downloadAllBarcodes();
+            } catch (err) {
+                alert(err.message || 'Unable to download barcodes.');
+            }
+        });
         if ($('itemImage')) {
             $('itemImage').addEventListener('change', (e) => {
                 const file = e.target.files && e.target.files[0];
