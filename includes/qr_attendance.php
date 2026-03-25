@@ -110,6 +110,60 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
     return $rows;
 }
 
+function qrListPublishedEventsForStudents(PDO $pdo, array $filters = []): array
+{
+    $where = [
+        'e.is_published = 1',
+        'e.event_photo IS NOT NULL',
+        'OCTET_LENGTH(e.event_photo) > 0',
+    ];
+    $params = [];
+
+    $q = trim((string)($filters['q'] ?? ''));
+    if ($q !== '') {
+        $where[] = "(e.event_name LIKE :q_name OR e.description LIKE :q_desc OR e.location LIKE :q_loc OR o.org_name LIKE :q_org)";
+        $qLike = '%' . $q . '%';
+        $params[':q_name'] = $qLike;
+        $params[':q_desc'] = $qLike;
+        $params[':q_loc'] = $qLike;
+        $params[':q_org'] = $qLike;
+    }
+
+    $sql = "
+        SELECT e.event_id,
+               e.org_id,
+               e.created_by_user_id,
+               e.event_name,
+               e.description,
+               e.location,
+               e.event_datetime,
+               e.event_datetime AS event_date,
+               e.is_published,
+               e.created_at,
+               e.updated_at,
+               o.org_name,
+               o.org_code,
+               COUNT(ar.record_id) AS attendance_count
+        FROM events e
+        JOIN organizations o ON o.org_id = e.org_id
+        LEFT JOIN attendance_records ar ON ar.event_id = e.event_id
+        WHERE " . implode(' AND ', $where) . "
+        GROUP BY e.event_id, o.org_name, o.org_code
+        ORDER BY e.event_datetime ASC, e.event_id ASC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    foreach ($rows as &$row) {
+        $row['event_id'] = (int)$row['event_id'];
+        $row['org_id'] = (int)$row['org_id'];
+        $row['created_by_user_id'] = (int)$row['created_by_user_id'];
+        $row['is_published'] = (int)$row['is_published'];
+        $row['attendance_count'] = (int)$row['attendance_count'];
+    }
+    return $rows;
+}
+
 function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
 {
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
