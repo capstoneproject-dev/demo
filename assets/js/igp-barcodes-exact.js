@@ -278,6 +278,119 @@
             .replace(/^_+|_+$/g, '') || 'barcode';
     }
 
+    function normalizeHeader(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ');
+    }
+
+    function findHeaderIndex(headers, names) {
+        return headers.findIndex((header) => names.includes(header));
+    }
+
+    function readCell(row, index) {
+        if (index < 0) return '';
+        return row[index];
+    }
+
+    function parseOptionalNumber(value) {
+        if (value === null || value === undefined || String(value).trim() === '') return null;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : NaN;
+    }
+
+    function findInventoryByBarcode(barcode) {
+        const key = String(barcode || '').trim().toLowerCase();
+        if (!key) return null;
+        return inventory.find((item) => String(item.barcode || '').trim().toLowerCase() === key) || null;
+    }
+
+    async function importInventoryWorkbook(file) {
+        if (!window.XLSX) {
+            throw new Error('Excel import is not available right now.');
+        }
+
+        const buffer = await file.arrayBuffer();
+        const workbook = window.XLSX.read(buffer, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        if (!sheet) {
+            throw new Error('The selected Excel file has no sheets to import.');
+        }
+
+        const rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        if (!rows.length) {
+            throw new Error('The selected Excel file is empty.');
+        }
+
+        const headers = rows[0].map(normalizeHeader);
+        const nameIndex = findHeaderIndex(headers, ['name', 'item name', 'itemname']);
+        const barcodeIndex = findHeaderIndex(headers, ['barcode', 'barcode id']);
+        const categoryIndex = findHeaderIndex(headers, ['category', 'category name', 'item type', 'type']);
+        const statusIndex = findHeaderIndex(headers, ['status']);
+        const rateIndex = findHeaderIndex(headers, ['price per hour', 'price/hour', 'hourly rate', 'price']);
+        const overtimeIntervalIndex = findHeaderIndex(headers, ['overtime interval (mins)', 'overtime interval', 'overtime every (mins)']);
+        const overtimeRateIndex = findHeaderIndex(headers, ['overtime rate (php)', 'overtime rate', 'overtime price']);
+
+        if (nameIndex === -1 || barcodeIndex === -1) {
+            throw new Error('Excel file must include Name and Barcode columns.');
+        }
+
+        const payloads = [];
+        for (let i = 1; i < rows.length; i += 1) {
+            const row = rows[i];
+            if (!Array.isArray(row) || row.every((cell) => String(cell || '').trim() === '')) continue;
+
+            const itemName = String(readCell(row, nameIndex) || '').trim();
+            const barcode = String(readCell(row, barcodeIndex) || '').trim();
+            if (!itemName || !barcode) continue;
+
+            const existing = findInventoryByBarcode(barcode);
+            const categoryName = String(readCell(row, categoryIndex) || existing?.category_name || '').trim();
+            if (!categoryName) {
+                throw new Error(`Row ${i + 1}: Category is required for new items.`);
+            }
+
+            const rateRaw = parseOptionalNumber(readCell(row, rateIndex));
+            if (Number.isNaN(rateRaw) || (rateRaw !== null && rateRaw < 0)) {
+                throw new Error(`Row ${i + 1}: Price per hour must be a non-negative number.`);
+            }
+
+            const intervalRaw = parseOptionalNumber(readCell(row, overtimeIntervalIndex));
+            if (Number.isNaN(intervalRaw) || (intervalRaw !== null && intervalRaw <= 0)) {
+                throw new Error(`Row ${i + 1}: Overtime interval must be greater than zero.`);
+            }
+
+            const overtimeRateRaw = parseOptionalNumber(readCell(row, overtimeRateIndex));
+            if (Number.isNaN(overtimeRateRaw) || (overtimeRateRaw !== null && overtimeRateRaw < 0)) {
+                throw new Error(`Row ${i + 1}: Overtime rate must be a non-negative number.`);
+            }
+
+            payloads.push({
+                item_id: existing ? existing.item_id : 0,
+                item_name: itemName,
+                barcode,
+                category_name: categoryName,
+                hourly_rate: rateRaw !== null ? rateRaw : Number(existing?.hourly_rate || 0),
+                overtime_interval_minutes: intervalRaw !== null ? Math.trunc(intervalRaw) : (existing?.overtime_interval_minutes ?? null),
+                overtime_rate_per_block: overtimeRateRaw !== null ? overtimeRateRaw : (existing?.overtime_rate_per_block ?? null),
+                status: String(readCell(row, statusIndex) || existing?.status || 'available').trim() || 'available',
+                image_path: existing?.image_path || '',
+            });
+        }
+
+        if (!payloads.length) {
+            throw new Error('No valid inventory rows were found in the Excel file.');
+        }
+
+        for (const payload of payloads) {
+            await window.igpApi.saveInventory(payload);
+        }
+
+        return payloads.length;
+    }
+
     function svgToPngData(svg) {
         return new Promise((resolve, reject) => {
             if (!svg) {
@@ -554,17 +667,32 @@
 
         if ($('deleteAll')) $('deleteAll').addEventListener('click', () => alert('Delete-all is disabled in DB mode.'));
         if ($('confirmDeleteAll')) $('confirmDeleteAll').addEventListener('click', () => {});
-        if ($('importExcel')) $('importExcel').addEventListener('click', () => alert('Excel import is disabled in DB mode.'));
+        if ($('importExcel')) $('importExcel').addEventListener('click', () => {
+            if ($('excelInput')) $('excelInput').click();
+        });
+        if ($('excelInput')) $('excelInput').addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            try {
+                const count = await importInventoryWorkbook(file);
+                await refresh();
+                alert(`Successfully imported ${count} item(s) to the database.`);
+            } catch (err) {
+                alert(err.message || 'Unable to import the Excel file.');
+            } finally {
+                e.target.value = '';
+            }
+        });
         if ($('exportExcel')) $('exportExcel').addEventListener('click', () => {
             if (!window.XLSX) return;
             const rows = inventory.map((it) => ({
-                item_id: it.item_id,
-                item_name: it.item_name,
-                barcode: it.barcode,
-                hourly_rate: it.hourly_rate,
-                overtime_interval_minutes: it.overtime_interval_minutes,
-                overtime_rate_per_block: it.overtime_rate_per_block,
-                status: it.status
+                'Category': it.category_name,
+                'Name': it.item_name,
+                'Barcode': it.barcode,
+                'Status': it.status,
+                'Price Per Hour': it.hourly_rate,
+                'Overtime Interval (mins)': it.overtime_interval_minutes ?? '',
+                'Overtime Rate (PHP)': it.overtime_rate_per_block ?? ''
             }));
             const ws = XLSX.utils.json_to_sheet(rows);
             const wb = XLSX.utils.book_new();
