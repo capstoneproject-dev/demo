@@ -10,6 +10,10 @@
     let lastSelectedItemName = '';
     let deletingId = 0;
 
+    function isLockerCategory(categoryName) {
+        return String(categoryName || '').trim().toLowerCase() === 'locker';
+    }
+
     function fmtRate(v) {
         const n = Number(v || 0);
         return Number.isInteger(n) ? String(n) : n.toFixed(2);
@@ -42,8 +46,12 @@
 
     function getAvailableTypes() {
         return [...new Set([
-            ...sharedCategories.map((category) => String(category.category_name || '').trim()),
-            ...inventory.map((it) => String(it.category_name || '').trim()),
+            ...sharedCategories
+                .map((category) => String(category.category_name || '').trim())
+                .filter((category) => !isLockerCategory(category)),
+            ...inventory
+                .map((it) => String(it.category_name || '').trim())
+                .filter((category) => !isLockerCategory(category)),
         ].filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
     }
@@ -94,6 +102,7 @@
             const name = String(item.item_name || '').trim();
             const itemCategory = String(item.category_name || '').trim().toLowerCase();
             if (!name) return;
+            if (itemCategory === 'locker') return;
             if (category && itemCategory && itemCategory !== category) return;
             const key = name.toLowerCase();
             if (!seen.has(key)) {
