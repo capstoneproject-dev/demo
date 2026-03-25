@@ -414,7 +414,10 @@ function mapDatabaseEvent(item) {
     const orgName = normalizeOrgName(item.org_name || item.org_code || '');
     const orgVisual = getOrganizationVisual(orgName);
     const dateValue = item.event_datetime || item.event_date || item.created_at || '';
-    const image = orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/event_${item.event_id}/800/450`;
+    const rawPhoto = String(item.event_photo || '').trim();
+    const image = rawPhoto
+        ? (/^(https?:)?\/\//i.test(rawPhoto) || rawPhoto.startsWith('/') ? rawPhoto : `../${rawPhoto.replace(/^\/+/, '')}`)
+        : (orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/event_${item.event_id}/800/450`);
 
     return {
         id: Number(item.event_id),
