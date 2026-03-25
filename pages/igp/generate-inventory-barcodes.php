@@ -235,7 +235,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </nav>
     <div class="container main-content">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <a href="welcome.html" class="btn btn-secondary">â† Back</a>
+            <a href="index.php" class="btn btn-secondary">Back</a>
             <div>
                 <button id="downloadAll" class="btn btn-primary me-2">Download All Barcodes</button>
                 <button id="importExcel" class="btn btn-info me-2">Import Excel</button>
