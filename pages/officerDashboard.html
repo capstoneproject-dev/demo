@@ -1649,14 +1649,19 @@
                     <div class="card">
                         <div class="card-header">
                             <div class="card-title">Personal Information</div>
-                            <button class="btn btn-sm btn-outline">
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <button id="officerProfileCancelBtn" class="btn btn-sm btn-outline" type="button" hidden>
+                                    Cancel
+                                </button>
+                                <button id="officerProfileEditBtn" class="btn btn-sm btn-outline" type="button">
                                 <i class="fa-solid fa-pen-to-square"></i> Edit Details
-                            </button>
+                                </button>
+                            </div>
                         </div>
                         <div class="profile-form-grid">
                             <div class="form-group">
                                 <label>Full Name</label>
-                                <input id="officerProfileFullNameInput" type="text" value="Juan Dela Cruz" readonly>
+                                <input id="officerProfileFullNameInput" type="text" value="Juan Dela Cruz" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Student Number</label>
@@ -1664,7 +1669,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Email Address</label>
-                                <input id="officerProfileEmailInput" type="email" value="juan.delacruz@student.philsca.edu.ph" readonly>
+                                <input id="officerProfileEmailInput" type="email" value="juan.delacruz@student.philsca.edu.ph" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Organization</label>
@@ -1672,7 +1677,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Phone Number</label>
-                                <input id="officerProfilePhoneInput" type="text" value="+63 912 345 6789" readonly>
+                                <input id="officerProfilePhoneInput" type="text" value="+63 912 345 6789" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Course & Year</label>
@@ -1683,20 +1688,20 @@
 
                     <div class="card">
                         <div class="card-header">
-                            <div class="card-title">Security & Preferences</div>
+                            <div class="card-title">Security</div>
                         </div>
-                        <form onsubmit="event.preventDefault(); alert('Password updated successfully');">
+                        <form id="officerPasswordForm">
                             <div class="form-group">
                                 <label>Change Password</label>
-                                <input type="password" placeholder="Current Password">
+                                <input id="officerCurrentPasswordInput" type="password" placeholder="Current Password" required>
                                 <div
                                     style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                                    <input type="password" placeholder="New Password">
-                                    <input type="password" placeholder="Confirm New Password">
+                                    <input id="officerNewPasswordInput" type="password" placeholder="New Password" required>
+                                    <input id="officerConfirmPasswordInput" type="password" placeholder="Confirm New Password" required>
                                 </div>
                             </div>
                             <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
-                                <button type="submit" class="btn btn-primary">Update Password</button>
+                                <button id="officerPasswordSubmitBtn" type="submit" class="btn btn-primary">Update Password</button>
                             </div>
                         </form>
                     </div>
