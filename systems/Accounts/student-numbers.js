@@ -156,8 +156,6 @@ async function handleAddStudentNumber(e) {
     var institute   = document.getElementById('newInstitute').value;
     var programCode = document.getElementById('newProgram').value;
     var yearSection = document.getElementById('newYearSection').value.trim();
-    var email       = document.getElementById('newEmail').value.trim();
-    var phone       = document.getElementById('newPhone').value.trim();
 
     if (!studentId || !studentName) {
         showToast('Error', 'Student Number and Name are required.', 'error'); return;
@@ -173,8 +171,6 @@ async function handleAddStudentNumber(e) {
         institute: institute || '',
         programCode: programCode || '',
         yearSection: yearSection || '',
-        email: email,
-        phone: phone,
         hasUnpaidDebt: false,
         isActive: true,
         addedAt: new Date().toISOString(),
@@ -465,4 +461,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
     updateStudentNumbersTable();
     updateTotalCount();
+    ensureNewPhonePrefix();
 });
+
+
+
+
+
