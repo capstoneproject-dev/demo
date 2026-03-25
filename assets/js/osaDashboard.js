@@ -8,6 +8,255 @@ function readAuthSession() {
     }
 }
 
+const DEFAULT_OSA_AVATAR = 'https://picsum.photos/seed/osaadmin/150/150';
+let osaProfileEditMode = false;
+let osaProfileSnapshot = null;
+
+function updateOsaProfileView(session = readAuthSession()) {
+    const fullName = session.display_name || 'OSA Staff';
+    const roleLabel = session.active_role_name || 'osa_staff';
+    const employeeNumber = session.employee_number || 'N/A';
+    const email = session.email || '';
+    const phone = session.phone || 'N/A';
+    const joined = session.authenticated_at ? new Date(session.authenticated_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
+    const profilePhoto = session.profile_photo || DEFAULT_OSA_AVATAR;
+
+    const headerName = document.querySelector('.user-info span');
+    const headerRole = document.querySelector('.user-info small');
+    const headerAvatar = document.getElementById('osaHeaderAvatar');
+    if (headerName) headerName.innerText = fullName;
+    if (headerRole) headerRole.innerText = String(roleLabel).replace('_', ' ').toUpperCase();
+    if (headerAvatar) headerAvatar.src = profilePhoto;
+
+    const profileName = document.querySelector('.profile-name');
+    const profileRole = document.querySelector('.profile-role');
+    const profileAvatar = document.getElementById('osaProfileAvatar');
+    if (profileName) profileName.innerText = fullName;
+    if (profileRole) profileRole.innerText = String(roleLabel).replace('_', ' ').toUpperCase();
+    if (profileAvatar) profileAvatar.src = profilePhoto;
+
+    const fullNameInput = document.getElementById('osaProfileFullNameInput');
+    const employeeNumberInput = document.getElementById('osaProfileEmployeeNumberInput');
+    const emailInput = document.getElementById('osaProfileEmailInput');
+    const departmentInput = document.getElementById('osaProfileDepartmentInput');
+    const phoneInput = document.getElementById('osaProfilePhoneInput');
+    const dateJoinedInput = document.getElementById('osaProfileDateJoinedInput');
+    if (fullNameInput) fullNameInput.value = fullName;
+    if (employeeNumberInput) employeeNumberInput.value = employeeNumber;
+    if (emailInput) emailInput.value = email;
+    if (departmentInput) departmentInput.value = 'Office of Student Affairs';
+    if (phoneInput) phoneInput.value = phone;
+    if (dateJoinedInput) dateJoinedInput.value = joined;
+}
+
+function setOsaProfileEditMode(isEditing) {
+    osaProfileEditMode = isEditing;
+    const editBtn = document.getElementById('osaProfileEditBtn');
+    const cancelBtn = document.getElementById('osaProfileCancelBtn');
+    const editableInputs = document.querySelectorAll('#profile [data-editable="true"]');
+
+    editableInputs.forEach((input) => {
+        input.readOnly = !isEditing;
+    });
+
+    if (editBtn) {
+        editBtn.innerHTML = isEditing
+            ? '<i class="fa-solid fa-floppy-disk"></i> Save Details'
+            : '<i class="fa-solid fa-pen-to-square"></i> Edit Details';
+    }
+    if (cancelBtn) cancelBtn.hidden = !isEditing;
+}
+
+function snapshotOsaProfileValues() {
+    osaProfileSnapshot = {
+        full_name: (document.getElementById('osaProfileFullNameInput') || {}).value || '',
+        email: (document.getElementById('osaProfileEmailInput') || {}).value || '',
+        phone: (document.getElementById('osaProfilePhoneInput') || {}).value || '',
+    };
+}
+
+function restoreOsaProfileSnapshot() {
+    if (!osaProfileSnapshot) return;
+    const nameInput = document.getElementById('osaProfileFullNameInput');
+    const emailInput = document.getElementById('osaProfileEmailInput');
+    const phoneInput = document.getElementById('osaProfilePhoneInput');
+    if (nameInput) nameInput.value = osaProfileSnapshot.full_name;
+    if (emailInput) emailInput.value = osaProfileSnapshot.email;
+    if (phoneInput) phoneInput.value = osaProfileSnapshot.phone;
+}
+
+async function saveOsaProfileDetails() {
+    const fullName = (document.getElementById('osaProfileFullNameInput') || {}).value?.trim() || '';
+    const email = (document.getElementById('osaProfileEmailInput') || {}).value?.trim() || '';
+    const phone = (document.getElementById('osaProfilePhoneInput') || {}).value?.trim() || '';
+
+    if (!fullName || !email) {
+        showToast('Full name and email are required.', 'error');
+        return;
+    }
+
+    const editBtn = document.getElementById('osaProfileEditBtn');
+    if (editBtn) editBtn.disabled = true;
+
+    try {
+        const resp = await fetch('../api/osa/profile/update.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ full_name: fullName, email, phone }),
+        });
+        const data = await resp.json();
+        if (!data.ok) {
+            showToast(data.error || 'Could not update profile.', 'error');
+            return;
+        }
+
+        if (data.session) {
+            localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+            updateOsaProfileView(data.session);
+        }
+        osaProfileSnapshot = null;
+        setOsaProfileEditMode(false);
+        showToast('Profile updated successfully.', 'success');
+    } catch (error) {
+        console.error('[saveOsaProfileDetails] error:', error);
+        showToast('Could not connect to the server.', 'error');
+    } finally {
+        if (editBtn) editBtn.disabled = false;
+    }
+}
+
+function setupOsaProfileEditor() {
+    const editBtn = document.getElementById('osaProfileEditBtn');
+    const cancelBtn = document.getElementById('osaProfileCancelBtn');
+
+    if (editBtn) {
+        editBtn.addEventListener('click', async () => {
+            if (!osaProfileEditMode) {
+                snapshotOsaProfileValues();
+                setOsaProfileEditMode(true);
+                const firstEditableInput = document.querySelector('#profile [data-editable="true"]');
+                if (firstEditableInput) firstEditableInput.focus();
+                return;
+            }
+            await saveOsaProfileDetails();
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            restoreOsaProfileSnapshot();
+            setOsaProfileEditMode(false);
+        });
+    }
+
+    setOsaProfileEditMode(false);
+}
+
+function setupOsaPasswordForm() {
+    const passwordForm = document.getElementById('osaPasswordForm');
+    if (!passwordForm) return;
+
+    passwordForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const currentPassword = (document.getElementById('osaCurrentPasswordInput') || {}).value || '';
+        const newPassword = (document.getElementById('osaNewPasswordInput') || {}).value || '';
+        const confirmPassword = (document.getElementById('osaConfirmPasswordInput') || {}).value || '';
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            showToast('All password fields are required.', 'error');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showToast('New passwords do not match.', 'error');
+            return;
+        }
+
+        const submitBtn = document.getElementById('osaPasswordSubmitBtn');
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+            const resp = await fetch('../api/osa/profile/update-password.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmPassword,
+                }),
+            });
+            const data = await resp.json();
+
+            if (!data.ok) {
+                showToast(data.error || 'Could not update password.', 'error');
+                return;
+            }
+
+            passwordForm.reset();
+            showToast(data.message || 'Password updated successfully.', 'success');
+        } catch (error) {
+            console.error('[setupOsaPasswordForm] error:', error);
+            showToast('Could not connect to the server.', 'error');
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    });
+}
+
+function setupOsaProfilePhotoUploader() {
+    const photoBtn = document.getElementById('osaProfilePhotoBtn');
+    const photoInput = document.getElementById('osaProfilePhotoInput');
+    if (!photoBtn || !photoInput) return;
+
+    photoBtn.addEventListener('click', () => {
+        photoInput.click();
+    });
+
+    photoInput.addEventListener('change', async () => {
+        const file = photoInput.files && photoInput.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('profile_photo', file);
+        photoBtn.disabled = true;
+
+        try {
+            const resp = await fetch('../api/osa/profile/upload-photo.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData,
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                showToast(data.error || 'Could not update profile photo.', 'error');
+                return;
+            }
+
+            if (data.session) {
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+                updateOsaProfileView(data.session);
+            } else if (data.photo_url) {
+                const session = readAuthSession();
+                session.profile_photo = data.photo_url;
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+                updateOsaProfileView(session);
+            }
+
+            showToast('Profile photo updated successfully.', 'success');
+        } catch (error) {
+            console.error('[setupOsaProfilePhotoUploader] error:', error);
+            showToast('Could not connect to the server.', 'error');
+        } finally {
+            photoInput.value = '';
+            photoBtn.disabled = false;
+        }
+    });
+}
+
+
 function initOsaAuthContext() {
     const session = readAuthSession();
     const isOsaSession = session && (session.login_role === 'osa' || session.account_type === 'osa_staff') && session.user_id;
@@ -16,18 +265,7 @@ function initOsaAuthContext() {
         return;
     }
 
-    const fullName = session.display_name || 'OSA Staff';
-    const roleLabel = session.active_role_name || 'osa_staff';
-
-    const headerName = document.querySelector('.user-info span');
-    const headerRole = document.querySelector('.user-info small');
-    if (headerName) headerName.innerText = fullName;
-    if (headerRole) headerRole.innerText = String(roleLabel).replace('_', ' ').toUpperCase();
-
-    const profileName = document.querySelector('.profile-name');
-    const profileRole = document.querySelector('.profile-role');
-    if (profileName) profileName.innerText = fullName;
-    if (profileRole) profileRole.innerText = String(roleLabel).replace('_', ' ').toUpperCase();
+    updateOsaProfileView(session);
 }
 
 const DOCUMENTS_API_BASE = '../api/documents';
@@ -193,6 +431,9 @@ function handleLogout(e) {
 document.addEventListener('DOMContentLoaded', () => {
     initOsaAuthContext();
 
+    setupOsaProfileEditor();
+    setupOsaPasswordForm();
+    setupOsaProfilePhotoUploader();
     // Check if user previously selected dark mode
     if (localStorage.getItem('theme') === 'dark') {
         document.body.classList.add('dark');
