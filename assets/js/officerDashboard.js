@@ -1,5 +1,6 @@
 const AUTH_SESSION_KEY = 'naapAuthSession';
 let officerOrgSyncPromise = Promise.resolve();
+const DEFAULT_OFFICER_AVATAR = 'https://picsum.photos/seed/officer1/150/150';
 
 function readAuthSession() {
     try {
@@ -61,11 +62,16 @@ function updateOfficerProfileView(session = readAuthSession()) {
     const email = session.email || '';
     const phone = session.phone || 'N/A';
     const courseYear = [session.program_code, session.section].filter(Boolean).join(' - ') || 'N/A';
+    const profilePhoto = session.profile_photo || DEFAULT_OFFICER_AVATAR;
 
     const headerName = document.querySelector('.user-info span');
     const headerRole = document.querySelector('.user-info small');
+    const headerAvatar = document.getElementById('officerHeaderAvatar');
+    const profileAvatar = document.getElementById('officerProfileAvatar');
     if (headerName) headerName.innerText = fullName;
     if (headerRole) headerRole.innerText = `${roleLabel} - ${orgLabel}`;
+    if (headerAvatar) headerAvatar.src = profilePhoto;
+    if (profileAvatar) profileAvatar.src = profilePhoto;
 
     const profileName = document.querySelector('.profile-name');
     const profileRole = document.querySelector('.profile-role');
@@ -245,6 +251,56 @@ function setupOfficerPasswordForm() {
             showToast('Could not connect to the server.', 'error');
         } finally {
             if (submitBtn) submitBtn.disabled = false;
+        }
+    });
+}
+
+function setupOfficerProfilePhotoUploader() {
+    const photoBtn = document.getElementById('officerProfilePhotoBtn');
+    const photoInput = document.getElementById('officerProfilePhotoInput');
+    if (!photoBtn || !photoInput) return;
+
+    photoBtn.addEventListener('click', () => {
+        photoInput.click();
+    });
+
+    photoInput.addEventListener('change', async () => {
+        const file = photoInput.files && photoInput.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('profile_photo', file);
+        photoBtn.disabled = true;
+
+        try {
+            const resp = await fetch('../api/officer/profile/upload-photo.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData,
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                showToast(data.error || 'Could not update profile photo.', 'error');
+                return;
+            }
+
+            if (data.session) {
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+                updateOfficerProfileView(data.session);
+            } else if (data.photo_url) {
+                const session = readAuthSession();
+                session.profile_photo = data.photo_url;
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+                updateOfficerProfileView(session);
+            }
+
+            showToast('Profile photo updated successfully.', 'success');
+        } catch (error) {
+            console.error('[setupOfficerProfilePhotoUploader] error:', error);
+            showToast('Could not connect to the server.', 'error');
+        } finally {
+            photoInput.value = '';
+            photoBtn.disabled = false;
         }
     });
 }
@@ -461,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initOfficerAuthContext();
     setupOfficerProfileEditor();
     setupOfficerPasswordForm();
+    setupOfficerProfilePhotoUploader();
     setOfficerTrackerPrintingAccess(false);
 
     // Check if user previously selected dark mode
