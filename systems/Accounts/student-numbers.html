@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <title>Student Numbers Management</title>
     <link href="lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260325a">
+    <link rel="stylesheet" href="styles.css?v=20260325b">
 </head>
 
 <body>
@@ -18,13 +18,16 @@
         <!-- Toolbar -->
         <div class="card mb-3">
             <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
-                <h2 class="h5 mb-0">Account Management</h2>
+                <div></div>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="index.html" class="btn btn-outline-secondary btn-sm">Back to Accounts</a>
                     <button class="btn btn-outline-secondary btn-sm" onclick="importStudentNumbers()">Import XLSX</button>
                     <button class="btn btn-outline-secondary btn-sm" onclick="exportStudentNumbers()">Export XLSX</button>
                     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#addStudentNumberModal">
                         + Add Student Number
+                    </button>
+                    <button id="refreshData" class="btn btn-outline-secondary btn-sm" title="Refresh data" aria-label="Refresh data">
+                        &#8635;
                     </button>
                 </div>
             </div>
@@ -231,11 +234,13 @@
         </div>
     </div>
 
+    <div id="toastContainer" style="position:fixed;bottom:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;"></div>
+
     <!-- Scripts -->
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/bootstrap.bundle.min.js"></script>
-    <script src="accounts-api.js?v=20260325a"></script>
-    <script src="student-numbers.js?v=20260325a"></script>
+    <script src="accounts-api.js?v=20260325b"></script>
+    <script src="student-numbers.js?v=20260325b"></script>
 </body>
 
 </html>
