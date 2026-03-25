@@ -108,6 +108,7 @@ function igpGetInventoryCategories(PDO $pdo): array
          FROM inventory_categories
          WHERE is_active = 1
            AND TRIM(category_name) <> ''
+           AND LOWER(TRIM(category_name)) <> 'locker'
          GROUP BY LOWER(TRIM(category_name))
          ORDER BY category_name ASC"
     );
@@ -195,6 +196,7 @@ function igpGetInventoryItemNames(PDO $pdo, ?string $categoryName = null): array
     $where = [
         "TRIM(i.item_name) <> ''",
         "c.is_active = 1",
+        "LOWER(TRIM(c.category_name)) <> 'locker'",
         "o.status = 'active'",
         "i.status IN ('available', 'reserved', 'rented', 'maintenance')",
     ];
