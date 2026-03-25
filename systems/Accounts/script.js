@@ -689,21 +689,17 @@ async function exportData() {
 
         var studentsSheet = students.map(function(s) {
             return {
-                userId: s.userId || '',
                 studentId: s.studentId || '',
                 studentName: s.studentName || '',
                 institute: s.institute || '',
                 programCode: s.programCode || '',
                 yearSection: s.yearSection || '',
                 email: s.email || '',
-                phone: s.phone || '',
-                hasUnpaidDebt: s.hasUnpaidDebt ? 'yes' : 'no',
-                isActive: s.isActive ? 'yes' : 'no',
-                addedAt: s.addedAt || ''
+                phone: s.phone || ''
             };
         });
         var wsStudents = XLSX.utils.json_to_sheet(studentsSheet);
-        wsStudents['!cols'] = [10,14,28,40,16,14,30,18,14,10,22].map(function(w) { return { wch: w }; });
+        wsStudents['!cols'] = [14,28,40,16,14,30,18].map(function(w) { return { wch: w }; });
         XLSX.utils.book_append_sheet(wb, wsStudents, 'Students');
 
         var officersSheet = officers.map(function(o) {
@@ -744,7 +740,7 @@ async function exportData() {
         wsPending['!cols'] = [12,14,28,40,16,14,30,18,16,24,12,22].map(function(w) { return { wch: w }; });
         XLSX.utils.book_append_sheet(wb, wsPending, 'PendingRequests');
 
-        XLSX.writeFile(wb, 'student_numbers_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+        XLSX.writeFile(wb, 'users_' + new Date().toISOString().slice(0, 10) + '.xlsx');
         showToast('Export complete.', 'success');
     } catch (err) {
         showToast('Export failed: ' + err.message, 'danger');
@@ -938,5 +934,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     refreshAll();
     startPolling();
 });
+
 
 
