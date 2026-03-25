@@ -1,13 +1,13 @@
-﻿// Student Numbers Management System
-// Uses accountsLocalStorageService (local-storage-service.js) — no direct key access!
+// Student Numbers Management System
+// Uses accountsLocalStorageService (local-storage-service.js) � no direct key access!
 
 var studentNumbers = [];
 
 function getService() { return window.accountsLocalStorageService; }
 
 function formatDate(v) {
-    if (!v) return '—';
-    try { return new Date(v).toLocaleString(); } catch (_) { return '—'; }
+    if (!v) return '�';
+    try { return new Date(v).toLocaleString(); } catch (_) { return '�'; }
 }
 
 function generateId() {
@@ -40,7 +40,7 @@ function showToast(title, message, type) {
     setTimeout(function() { div.remove(); }, 3500);
 }
 
-// ── Institute/Program dropdowns ──
+// -- Institute/Program dropdowns --
 var INSTITUTE_LIST = Object.keys(INSTITUTE_PROGRAMS);
 
 function populateInstituteSelect(selectEl, currentValue) {
@@ -57,7 +57,7 @@ function populateProgramSelect(selectEl, institute, currentValue) {
     if (currentValue) selectEl.value = currentValue;
 }
 
-// ── Load / Save via service ──
+// -- Load / Save via service --
 async function loadStudentNumbers() {
     var svc = getService();
     if (svc) {
@@ -68,7 +68,7 @@ async function loadStudentNumbers() {
     }
 }
 
-// ── Render table ──
+// -- Render table --
 function updateStudentNumbersTable() {
     var tbody = document.getElementById('studentNumbersTable');
     if (!tbody) return;
@@ -99,9 +99,9 @@ function updateStudentNumbersTable() {
             '<td>' + (i+1) + '</td>' +
             '<td><strong>' + escHtml(s.studentId) + '</strong></td>' +
             '<td>' + escHtml(s.studentName) + '</td>' +
-            '<td><small>' + escHtml(s.institute || '—') + '</small></td>' +
-            '<td>' + escHtml(s.programCode || '—') + '</td>' +
-            '<td>' + escHtml(s.yearSection || '—') + '</td>' +
+            '<td><small>' + escHtml(s.institute || '�') + '</small></td>' +
+            '<td>' + escHtml(s.programCode || '�') + '</td>' +
+            '<td>' + escHtml(s.yearSection || '�') + '</td>' +
             '<td>' + formatDate(s.addedAt) + '</td>' +
             '<td>' +
                 '<button class="btn btn-sm btn-outline-primary" onclick="editStudentNumber(\'' + escHtml(s.studentId) + '\')">Edit</button> ' +
@@ -148,7 +148,7 @@ function onInstituteFilterChange() {
     updateStudentNumbersTable();
 }
 
-// ── Add ──
+// -- Add --
 async function handleAddStudentNumber(e) {
     e.preventDefault();
     var studentId   = document.getElementById('newStudentId').value.trim();
@@ -196,7 +196,7 @@ async function handleAddStudentNumber(e) {
     }
 }
 
-// ── Edit ──
+// -- Edit --
 function editStudentNumber(studentId) {
     var s = studentNumbers.find(function(s) { return s.studentId === studentId; });
     if (!s) return;
@@ -256,7 +256,7 @@ async function handleEditStudentNumber(e) {
     }
 }
 
-// ── Delete ──
+// -- Delete --
 async function deleteStudentNumber(studentId) {
     var s = studentNumbers.find(function(s) { return s.studentId === studentId; });
     if (!s) return;
@@ -272,7 +272,7 @@ async function deleteStudentNumber(studentId) {
     }
 }
 
-// ── Import XLSX ──
+// -- Import XLSX --
 function importStudentNumbers() {
     new bootstrap.Modal(document.getElementById('importCSVModal')).show();
 }
@@ -375,7 +375,7 @@ async function processXLSXImport() {
     }
 }
 
-// ── Export XLSX ──
+// -- Export XLSX --
 async function exportStudentNumbers() {
     await loadStudentNumbers();
     if (studentNumbers.length === 0) { showToast('Warning', 'No data to export.', 'warning'); return; }
@@ -388,14 +388,11 @@ async function exportStudentNumbers() {
                 programCode: s.programCode || '',
                 yearSection: s.yearSection || '',
                 email:       s.email       || '',
-                phone:       s.phone       || '',
-                hasUnpaidDebt: s.hasUnpaidDebt ? 'yes' : 'no',
-                isActive:    s.isActive    ? 'yes' : 'no',
-                addedAt:     s.addedAt     || ''
+                phone:       s.phone       || ''
             };
         });
         var ws = XLSX.utils.json_to_sheet(exportData);
-        ws['!cols'] = [14,30,40,12,14,14,30,16,10,12].map(function(w) { return { wch: w }; });
+        ws['!cols'] = [14,30,40,12,14,30,16].map(function(w) { return { wch: w }; });
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Student Numbers');
         XLSX.writeFile(wb, 'student_numbers_' + new Date().toISOString().slice(0,10) + '.xlsx');
@@ -405,7 +402,7 @@ async function exportStudentNumbers() {
     }
 }
 
-// ── Event listeners ──
+// -- Event listeners --
 function setupEventListeners() {
     var el;
 
@@ -440,9 +437,9 @@ function setupEventListeners() {
     });
 }
 
-// ── Bootstrap ──
+// -- Bootstrap --
 document.addEventListener('DOMContentLoaded', async function() {
-    // Validate PHP session – OSA staff only
+    // Validate PHP session � OSA staff only
     try {
         var res  = await fetch('../../api/auth/session.php', { credentials: 'include' });
         var json = await res.json();
