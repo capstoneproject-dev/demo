@@ -634,8 +634,287 @@ if (signInBtn) signInBtn.addEventListener('click', toggleSlide);
    LEFT PANEL INTERNAL TOGGLE (LOGIN <-> FORGOT)
    ===================== */
 const signInContainer = document.getElementById('signInContainer');
+const forgotOtpState = {
+  generatedOtp: '',
+  sentToEmail: '',
+  sentToStudentNumber: '',
+  verified: false
+};
+
+function getForgotOtpInputs() {
+  return Array.from(document.querySelectorAll('#forgotOtpInputs .otp-char'));
+}
+
+function setLoginStatusMessage(message, isSuccess) {
+  const status = document.getElementById('loginStatusMessage');
+  if (!status) return;
+  status.textContent = message || '';
+  status.classList.toggle('hidden', !message);
+  status.classList.toggle('success', !!isSuccess);
+}
+
+function setForgotFormFeedback(message, isSuccess) {
+  const feedback = document.getElementById('forgotFormFeedback');
+  if (!feedback) return;
+  feedback.textContent = message || '';
+  feedback.classList.toggle('hidden', !message);
+  feedback.classList.toggle('success', !!isSuccess);
+}
+
+function clearForgotOtpFeedback() {
+  const feedback = document.getElementById('forgotOtpFeedback');
+  if (!feedback) return;
+  feedback.textContent = '';
+  feedback.classList.remove('success');
+}
+
+function setForgotOtpFeedback(message, isSuccess) {
+  const feedback = document.getElementById('forgotOtpFeedback');
+  if (!feedback) return;
+  feedback.textContent = message || '';
+  feedback.classList.toggle('success', !!isSuccess);
+}
+
+function resetForgotOtpInputs() {
+  getForgotOtpInputs().forEach((input) => { input.value = ''; });
+}
+
+function focusForgotOtpInput(index) {
+  const inputs = getForgotOtpInputs();
+  if (!inputs[index]) return;
+  inputs[index].focus();
+  inputs[index].select();
+}
+
+function getForgotOtpValue() {
+  return getForgotOtpInputs().map((input) => String(input.value || '').trim().toUpperCase()).join('');
+}
+
+function generateSimulatedOtp() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let otp = '';
+  for (let i = 0; i < 6; i += 1) {
+    otp += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return otp;
+}
+
+function revealForgotOtpSection() {
+  const section = document.getElementById('forgotOtpSection');
+  if (section) section.classList.remove('hidden');
+}
+
+function resetForgotPasswordFlow(keepFields) {
+  forgotOtpState.generatedOtp = '';
+  forgotOtpState.sentToEmail = '';
+  forgotOtpState.sentToStudentNumber = '';
+  forgotOtpState.verified = false;
+
+  const section = document.getElementById('forgotOtpSection');
+  if (section) section.classList.add('hidden');
+
+  const status = document.getElementById('forgotOtpStatus');
+  if (status) status.textContent = 'A 6-character OTP was sent to your email.';
+
+  const note = document.getElementById('forgotOtpSimulationNote');
+  if (note) note.textContent = '';
+
+  clearForgotOtpFeedback();
+  resetForgotOtpInputs();
+  setForgotFormFeedback('', false);
+
+  if (!keepFields) {
+    const studentInput = document.getElementById('forgotStudentNumber');
+    const emailInput = document.getElementById('forgotEmail');
+    const newPasswordInput = document.getElementById('forgotNewPassword');
+    const confirmPasswordInput = document.getElementById('forgotConfirmPassword');
+    if (studentInput) studentInput.value = '';
+    if (emailInput) emailInput.value = '';
+    if (newPasswordInput) newPasswordInput.value = '';
+    if (confirmPasswordInput) confirmPasswordInput.value = '';
+  }
+}
+
+function sendForgotOtpSimulation() {
+  const studentInput = document.getElementById('forgotStudentNumber');
+  const emailInput = document.getElementById('forgotEmail');
+  const newPasswordInput = document.getElementById('forgotNewPassword');
+  const confirmPasswordInput = document.getElementById('forgotConfirmPassword');
+  const status = document.getElementById('forgotOtpStatus');
+  const note = document.getElementById('forgotOtpSimulationNote');
+
+  const studentNumber = String((studentInput && studentInput.value) || '').trim();
+  const email = String((emailInput && emailInput.value) || '').trim();
+  const newPassword = String((newPasswordInput && newPasswordInput.value) || '');
+  const confirmPassword = String((confirmPasswordInput && confirmPasswordInput.value) || '');
+
+  if (!newPassword || !confirmPassword) {
+    setForgotFormFeedback('Enter your new password and confirm it before sending the OTP.', false);
+    return;
+  }
+  if (newPassword.length < 8) {
+    setForgotFormFeedback('New password must be at least 8 characters.', false);
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setForgotFormFeedback('New passwords do not match.', false);
+    return;
+  }
+
+  forgotOtpState.generatedOtp = generateSimulatedOtp();
+  forgotOtpState.sentToEmail = email;
+  forgotOtpState.sentToStudentNumber = studentNumber;
+  forgotOtpState.verified = false;
+
+  revealForgotOtpSection();
+  resetForgotOtpInputs();
+  clearForgotOtpFeedback();
+  setForgotFormFeedback('', false);
+  setLoginStatusMessage('', false);
+
+  if (status) status.textContent = 'A 6-character OTP was generated for this simulation.';
+  if (note) note.textContent = 'Simulation mode OTP: ' + forgotOtpState.generatedOtp;
+
+  focusForgotOtpInput(0);
+}
+
+async function verifyForgotOtpSimulation() {
+  const enteredOtp = getForgotOtpValue();
+  const newPasswordInput = document.getElementById('forgotNewPassword');
+  const confirmPasswordInput = document.getElementById('forgotConfirmPassword');
+  const newPassword = String((newPasswordInput && newPasswordInput.value) || '');
+  const confirmPassword = String((confirmPasswordInput && confirmPasswordInput.value) || '');
+
+  if (!forgotOtpState.generatedOtp) {
+    setForgotOtpFeedback('Send an OTP first.', false);
+    return;
+  }
+  if (enteredOtp.length !== 6) {
+    setForgotOtpFeedback('Enter the complete 6-character OTP.', false);
+    return;
+  }
+  if (enteredOtp !== forgotOtpState.generatedOtp) {
+    setForgotOtpFeedback('Invalid OTP. Check the code and try again.', false);
+    return;
+  }
+  if (!newPassword || !confirmPassword) {
+    setForgotOtpFeedback('Enter your new password and confirm it.', false);
+    return;
+  }
+  if (newPassword.length < 8) {
+    setForgotOtpFeedback('New password must be at least 8 characters.', false);
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setForgotOtpFeedback('New passwords do not match.', false);
+    return;
+  }
+
+  const studentNumber = String(forgotOtpState.sentToStudentNumber || '').trim();
+  const email = String(forgotOtpState.sentToEmail || '').trim();
+
+  try {
+    const response = await fetch('../api/auth/forgot-password-reset.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        student_number: studentNumber,
+        email,
+        otp: enteredOtp,
+        new_password: newPassword
+      })
+    });
+    const data = await response.json();
+
+    forgotOtpState.verified = true;
+    setForgotOtpFeedback('OTP verified.', true);
+
+    setLoginStatusMessage('Password has been reset. Please log in again with your new password.', true);
+  } catch (error) {
+    console.error('[verifyForgotOtpSimulation] reset error:', error);
+    forgotOtpState.verified = true;
+    setForgotOtpFeedback('OTP verified.', true);
+    setLoginStatusMessage('OTP verified. Could not update the database right now.', true);
+  }
+
+  setTimeout(() => {
+    if (signInContainer && signInContainer.classList.contains('forgot-mode')) {
+      signInContainer.classList.remove('forgot-mode');
+    }
+    const loginIdentifier = document.getElementById('loginIdentifier');
+    const loginPassword = document.getElementById('loginPassword');
+    if (loginIdentifier) loginIdentifier.value = studentNumber;
+    if (loginPassword) loginPassword.value = newPassword;
+    resetForgotPasswordFlow(false);
+    if (loginPassword) loginPassword.focus();
+  }, 700);
+}
+
+function setupForgotOtpInputs() {
+  const inputs = getForgotOtpInputs();
+  if (inputs.length === 0) return;
+
+  inputs.forEach((input, index) => {
+    input.addEventListener('input', (event) => {
+      const clean = String(event.target.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-1);
+      event.target.value = clean;
+      clearForgotOtpFeedback();
+      if (clean && index < inputs.length - 1) focusForgotOtpInput(index + 1);
+    });
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Backspace' && !input.value && index > 0) {
+        focusForgotOtpInput(index - 1);
+        return;
+      }
+      if (event.key === 'ArrowLeft' && index > 0) {
+        event.preventDefault();
+        focusForgotOtpInput(index - 1);
+      }
+      if (event.key === 'ArrowRight' && index < inputs.length - 1) {
+        event.preventDefault();
+        focusForgotOtpInput(index + 1);
+      }
+    });
+
+    input.addEventListener('paste', (event) => {
+      event.preventDefault();
+      const pasted = (event.clipboardData || window.clipboardData).getData('text');
+      const chars = String(pasted || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6).split('');
+      if (chars.length === 0) return;
+      inputs.forEach((field, idx) => { field.value = chars[idx] || ''; });
+      clearForgotOtpFeedback();
+      focusForgotOtpInput(Math.min(chars.length, 6) - 1);
+    });
+  });
+}
+
+function setupForgotPasswordFlow() {
+  const sendBtn = document.getElementById('forgotSendOtpBtn');
+  const verifyBtn = document.getElementById('forgotVerifyOtpBtn');
+  const resendBtn = document.getElementById('forgotResendOtpBtn');
+  const form = document.getElementById('forgotPasswordForm');
+
+  setupForgotOtpInputs();
+  resetForgotPasswordFlow(false);
+
+  if (sendBtn) sendBtn.addEventListener('click', sendForgotOtpSimulation);
+  if (verifyBtn) verifyBtn.addEventListener('click', verifyForgotOtpSimulation);
+  if (resendBtn) resendBtn.addEventListener('click', sendForgotOtpSimulation);
+  if (form) form.addEventListener('submit', (event) => event.preventDefault());
+}
+
 function toggleForgot() {
-  if (signInContainer) signInContainer.classList.toggle('forgot-mode');
+  if (!signInContainer) return;
+  signInContainer.classList.toggle('forgot-mode');
+  if (!signInContainer.classList.contains('forgot-mode')) {
+    resetForgotPasswordFlow(false);
+    return;
+  }
+  setLoginStatusMessage('', false);
+  clearForgotOtpFeedback();
+  const studentInput = document.getElementById('forgotStudentNumber');
+  if (studentInput) studentInput.focus();
 }
 
 /* =====================
@@ -1264,6 +1543,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPhoneInput('osa-phone-input');
   setupOrganizationRegistrationLookup();
   resetOrgRegistrationState();
+  setupForgotPasswordFlow();
 
   const studentRegisterBtn = document.getElementById('studentRegisterBtn');
   const orgRegisterBtn = document.getElementById('orgRegisterBtn');
@@ -1295,3 +1575,4 @@ document.addEventListener('DOMContentLoaded', () => {
   enterSubmit(osaForm, registerOsa);
   enterSubmit(loginForm, handleLogin);
 });
+
