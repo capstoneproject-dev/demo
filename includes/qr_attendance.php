@@ -62,6 +62,51 @@ function qrSplitFullName(string $fullName): array
     return [$first, $last];
 }
 
+function qrSaveEventPhotoFromData(string $photoValue): string
+{
+    $raw = trim($photoValue);
+    if ($raw === '') {
+        return '';
+    }
+
+    if (!str_starts_with($raw, 'data:')) {
+        return $raw;
+    }
+
+    if (!preg_match('#^data:(image/(png|jpeg|jpg|webp|gif));base64,(.+)$#i', $raw, $matches)) {
+        throw new QrAttendanceValidationException('Invalid event photo data.');
+    }
+
+    $mime = strtolower($matches[1]);
+    $encoded = $matches[3];
+    $binary = base64_decode($encoded, true);
+    if ($binary === false) {
+        throw new QrAttendanceValidationException('Invalid event photo encoding.');
+    }
+
+    $extensionMap = [
+        'image/png' => 'png',
+        'image/jpeg' => 'jpg',
+        'image/jpg' => 'jpg',
+        'image/webp' => 'webp',
+        'image/gif' => 'gif',
+    ];
+    $extension = $extensionMap[$mime] ?? 'png';
+
+    $targetDir = dirname(__DIR__) . '/uploads/events';
+    if (!is_dir($targetDir) && !mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
+        throw new RuntimeException('Could not prepare event photo directory.');
+    }
+
+    $fileName = 'event_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+    $targetPath = $targetDir . '/' . $fileName;
+    if (file_put_contents($targetPath, $binary) === false) {
+        throw new RuntimeException('Could not save event photo.');
+    }
+
+    return 'uploads/events/' . $fileName;
+}
+
 function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
 {
     $where = ["e.org_id = :org"];
@@ -84,6 +129,7 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
                e.description,
                e.location,
                e.event_datetime,
+               e.event_photo,
                e.event_datetime AS event_date,
                e.is_published,
                e.created_at,
@@ -137,6 +183,7 @@ function qrListPublishedEventsForStudents(PDO $pdo, array $filters = []): array
                e.description,
                e.location,
                e.event_datetime,
+               e.event_photo,
                e.event_datetime AS event_date,
                e.is_published,
                e.created_at,
@@ -173,7 +220,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     $eventDate = trim((string)($data['event_datetime'] ?? $data['event_date'] ?? ''));
     $isPublished = !empty($data['is_published']) ? 1 : 0;
     $photoDataUrl = trim((string)($data['photo'] ?? ''));
-    $photoBlob = null;
+    $photoPath = '';
 
     if ($eventName === '') {
         throw new QrAttendanceValidationException('event_name is required.');
@@ -183,18 +230,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     }
 
     if ($photoDataUrl !== '') {
-        // Accept full data URLs or plain base64
-        $encoded = $photoDataUrl;
-        if (str_starts_with($photoDataUrl, 'data:')) {
-            $parts = explode(',', $photoDataUrl, 2);
-            if (count($parts) === 2) {
-                $encoded = $parts[1];
-            }
-        }
-        $photoBlob = base64_decode($encoded, true);
-        if ($photoBlob === false) {
-            throw new QrAttendanceValidationException('Invalid photo data.');
-        }
+        $photoPath = qrSaveEventPhotoFromData($photoDataUrl);
     }
 
     $tz = new DateTimeZone('Asia/Manila');
@@ -222,10 +258,14 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     if ($location === '') $location = 'TBA';
 
     if ($eventId > 0) {
-        $chk = $pdo->prepare("SELECT event_id FROM events WHERE event_id = :id AND org_id = :org LIMIT 1");
+        $chk = $pdo->prepare("SELECT event_id, event_photo FROM events WHERE event_id = :id AND org_id = :org LIMIT 1");
         $chk->execute([':id' => $eventId, ':org' => $orgId]);
-        if (!$chk->fetch()) {
+        $existing = $chk->fetch();
+        if (!$existing) {
             throw new QrAttendanceValidationException('Event not found for this organization.');
+        }
+        if ($photoPath === '') {
+            $photoPath = trim((string)($existing['event_photo'] ?? ''));
         }
 
         $upd = $pdo->prepare(
@@ -243,7 +283,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
             ':description' => $description !== '' ? $description : null,
             ':location' => $location,
             ':event_datetime' => $eventDate,
-            ':event_photo' => $photoBlob,
+            ':event_photo' => $photoPath !== '' ? $photoPath : null,
             ':is_published' => $isPublished,
             ':id' => $eventId,
             ':org' => $orgId,
@@ -264,7 +304,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         ':description' => $description !== '' ? $description : null,
         ':location' => $location,
         ':event_datetime' => $eventDate,
-        ':event_photo' => $photoBlob,
+        ':event_photo' => $photoPath !== '' ? $photoPath : null,
         ':is_published' => $isPublished,
     ]);
     return (int)$pdo->lastInsertId();
