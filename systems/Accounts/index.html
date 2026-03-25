@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -12,7 +12,7 @@
 <body>
 <div class="container iframe-view">
 
-    <!-- â”€â”€ Toolbar â”€â”€ -->
+    <!-- ── Toolbar ── -->
     <div class="card mb-3">
         <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <h2 class="h5 mb-0">Account Management</h2>
@@ -28,7 +28,7 @@
         </div>
     </div>
 
-    <!-- â”€â”€ Students / Officers top-level tabs â”€â”€ -->
+    <!-- ── Students / Officers top-level tabs ── -->
     <ul class="nav nav-tabs mb-0" id="mainTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="students-tab"
@@ -48,7 +48,7 @@
 
     <div class="tab-content border border-top-0 rounded-bottom p-3 mb-4" id="mainTabContent">
 
-        <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• STUDENTS PANEL â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+        <!-- ══════════════ STUDENTS PANEL ══════════════ -->
         <div class="tab-pane fade show active" id="studentsPanel" role="tabpanel">
             <!-- Filters -->
             <div class="row g-2 mb-3">
@@ -64,7 +64,7 @@
                 </div>
                 <div class="col-md-6">
                     <input type="text" id="studentSearch" class="form-control form-control-sm"
-                        placeholder="Search by student #, name, program, or year-sectionâ€¦">
+                        placeholder="Search by student #, name, program, or year-section…">
                 </div>
             </div>
             <!-- Table -->
@@ -90,7 +90,7 @@
             </div>
         </div>
 
-        <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â• OFFICERS PANEL â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+        <!-- ══════════════ OFFICERS PANEL ══════════════ -->
         <div class="tab-pane fade" id="officersPanel" role="tabpanel">
             <!-- Filters -->
             <div class="row g-2 mb-3">
@@ -106,7 +106,7 @@
                 </div>
                 <div class="col-md-6">
                     <input type="text" id="officerSearch" class="form-control form-control-sm"
-                        placeholder="Search by student #, name, org, or roleâ€¦">
+                        placeholder="Search by student #, name, org, or role…">
                 </div>
             </div>
             <!-- Table -->
@@ -133,7 +133,7 @@
         </div>
     </div>
 
-    <!-- â”€â”€ Account Requests â”€â”€ -->
+    <!-- ── Account Requests ── -->
     <div class="card mt-2">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h2 class="h5 mb-0">Account Requests</h2>
@@ -209,7 +209,7 @@
 
 </div><!-- /container -->
 
-<!-- â•â•â•â•â•â•â•â• ADD STUDENT MODAL â•â•â•â•â•â•â•â• -->
+<!-- ════════ ADD STUDENT MODAL ════════ -->
 <div class="modal fade" id="addStudentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -262,7 +262,7 @@
     </div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â• EDIT STUDENT MODAL â•â•â•â•â•â•â•â• -->
+<!-- ════════ EDIT STUDENT MODAL ════════ -->
 <div class="modal fade" id="editStudentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -316,7 +316,7 @@
     </div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â• ADD OFFICER MODAL â•â•â•â•â•â•â•â• -->
+<!-- ════════ ADD OFFICER MODAL ════════ -->
 <div class="modal fade" id="addOfficerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -370,7 +370,7 @@
     </div>
 </div>
 
-<!-- â•â•â•â•â•â•â•â• EDIT OFFICER MODAL â•â•â•â•â•â•â•â• -->
+<!-- ════════ EDIT OFFICER MODAL ════════ -->
 <div class="modal fade" id="editOfficerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -432,7 +432,7 @@
 <!-- Toast container -->
 <div id="toastContainer" style="position:fixed;bottom:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;"></div>
 
-<!-- ════════ IMPORT STUDENTS MODAL ════════ -->
+<!-- -------- IMPORT STUDENTS MODAL -------- -->
 <div class="modal fade" id="importStudentsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -448,7 +448,7 @@
                 <div class="alert alert-info mb-0">
                     <strong>Expected columns (first row = headers):</strong><br>
                     <code>studentId &nbsp;|&nbsp; studentName &nbsp;|&nbsp; institute &nbsp;|&nbsp; programCode &nbsp;|&nbsp; yearSection &nbsp;|&nbsp; email &nbsp;|&nbsp; phone</code><br>
-                    <small class="text-muted">All required for student account import. Duplicate studentIds are skipped.</small>
+                    <small class="text-muted">Internal fields like userId, hasUnpaidDebt, isActive, and addedAt are not needed. Duplicate studentIds are skipped.</small>
                 </div>
             </div>
             <div class="modal-footer">
@@ -467,3 +467,4 @@
 <script src="script.js"></script>
 </body>
 </html>
+
