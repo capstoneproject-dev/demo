@@ -987,6 +987,14 @@ if (goOfficerDashboardBtn) {
 /* =====================
    REGISTRATION HANDLERS
    ===================== */
+function hasPrivacyConsent(inputId) {
+  const checkbox = document.getElementById(inputId);
+  if (!checkbox || checkbox.checked) return true;
+  alert('Please acknowledge the Data Privacy Act notice before registering.');
+  checkbox.focus();
+  return false;
+}
+
 async function registerStudent() {
   const studentNumber = (document.getElementById('student-number-input') || {}).value?.trim() || '';
   const fullName = (document.getElementById('student-name-input') || {}).value?.trim() || '';
@@ -1009,6 +1017,7 @@ async function registerStudent() {
     alert('Passwords do not match.');
     return;
   }
+  if (!hasPrivacyConsent('student-privacy-consent')) return;
 
   const submitted = await submitPendingRegistration({
     studentId: studentNumber,
@@ -1062,6 +1071,7 @@ async function registerOrgOfficer() {
     alert('Passwords do not match.');
     return;
   }
+  if (!hasPrivacyConsent('org-privacy-consent')) return;
 
   const submitted = await submitPendingRegistration({
     studentId: studentNumber,
@@ -1106,6 +1116,7 @@ async function registerOsa() {
     alert('Passwords do not match.');
     return;
   }
+  if (!hasPrivacyConsent('osa-privacy-consent')) return;
 
   const parsedName = splitName(fullName);
   const btn = document.getElementById('osaRegisterBtn');

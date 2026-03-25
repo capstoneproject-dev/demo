@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Account Management System</title>
     <link href="lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260325a">
 </head>
 
 <body>
@@ -17,15 +17,11 @@
         <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <h2 class="h5 mb-0">Account Management</h2>
             <div class="d-flex flex-wrap gap-2">
-                <a href="student-numbers.html" class="btn btn-outline-secondary btn-sm">Student Database</a>
-                <button id="refreshData"  class="btn btn-success btn-sm">Refresh</button>
-                <button id="importData"   class="btn btn-outline-warning btn-sm"
+                <a href="student-numbers.html?v=20260325a" class="btn btn-outline-secondary btn-sm">Student Database</a>
+                <button id="refreshData"  class="btn btn-outline-secondary btn-sm">Refresh</button>
+                <button id="importData"   class="btn btn-outline-secondary btn-sm"
                     data-bs-toggle="modal" data-bs-target="#importStudentsModal">Import XLSX</button>
-                <button id="exportData"   class="btn btn-outline-primary btn-sm">Export</button>
-                <button id="addStudentBtn" class="btn btn-primary btn-sm"
-                    data-bs-toggle="modal" data-bs-target="#addStudentModal">+ Add Student</button>
-                <button id="addOfficerBtn" class="btn btn-warning btn-sm"
-                    data-bs-toggle="modal" data-bs-target="#addOfficerModal">+ Add Officer</button>
+                <button id="exportData"   class="btn btn-outline-secondary btn-sm">Export XLSX</button>
             </div>
         </div>
     </div>

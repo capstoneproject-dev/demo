@@ -312,6 +312,31 @@
     color: #b91c1c;
   }
 
+  .privacy-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: -2px;
+    color: #6b7280;
+    font-size: 11px;
+    line-height: 1.45;
+    text-align: left;
+  }
+
+  .privacy-consent input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    margin: 2px 0 0;
+    padding: 0;
+    accent-color: var(--primary);
+    cursor: pointer;
+  }
+
+  .privacy-consent span {
+    display: block;
+  }
+
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
