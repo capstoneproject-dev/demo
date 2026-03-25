@@ -235,7 +235,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </nav>
     <div class="container main-content">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <a href="welcome.html" class="btn btn-secondary">← Back</a>
+            <a href="welcome.html" class="btn btn-secondary">â† Back</a>
             <div>
                 <button id="downloadAll" class="btn btn-primary me-2">Download All Barcodes</button>
                 <button id="importExcel" class="btn btn-info me-2">Import Excel</button>
@@ -295,7 +295,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     <div class="col-md-6">
                         <div class="inventory-settings-stack">
                             <input type="number" class="form-control" id="overtimeInterval" placeholder="Overtime every (mins)" min="1" step="1" required>
-                            <input type="number" class="form-control" id="overtimeRate" placeholder="Overtime rate (PHP/block)" min="0" step="0.01" required>
+                            <input type="number" class="form-control" id="overtimeRate" placeholder="Overtime rate (price)" min="0" step="0.01" required>
                             <div class="inventory-settings-note">
                                 Overtime is charged every set number of minutes after the due time.
                             </div>
@@ -375,6 +375,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/JsBarcode.all.min.js"></script>
+    <script src="../../systems/IGPRentalSystem/lib/jszip.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../assets/js/igp-api.js"></script>
     <script src="../../assets/js/igp-barcodes-exact.js"></script>
