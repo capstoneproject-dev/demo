@@ -245,6 +245,7 @@ function validatePhpSession() {
         .catch(() => { /* silently ignore — XAMPP may be offline during dev */ });
 }
 
+
 function readJsonStorage(key, fallback) {
     try {
         return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
@@ -253,22 +254,34 @@ function readJsonStorage(key, fallback) {
     }
 }
 
+function readAuthSession() {
+    return readJsonStorage(AUTH_SESSION_KEY, {});
+}
+
+const DEFAULT_STUDENT_AVATAR = "https://picsum.photos/seed/student1/150/150";
+let studentProfileEditMode = false;
+let studentProfileSnapshot = null;
+
 function buildCurrentStudentProfile() {
     const fallbackProfile = {
         fullName: "Juan Dela Cruz",
         studentNumber: "2021-12345",
         course: "BSAIS",
         section: "3A",
-        email: ""
+        email: "",
+        phone: "",
+        profilePhoto: DEFAULT_STUDENT_AVATAR
     };
 
     const storedProfile = readJsonStorage("naapStudentProfile", {});
-    const authSession = readJsonStorage(AUTH_SESSION_KEY, {});
+    const authSession = readAuthSession();
     const authDb = readJsonStorage(AUTH_DB_KEY, {});
     const sessionBackedProfile = {
         fullName: authSession.display_name || "",
         studentNumber: authSession.student_number || "",
         email: authSession.email || "",
+        phone: authSession.phone || "",
+        profilePhoto: authSession.profile_photo || "",
         course: authSession.program_code || "",
         section: authSession.section || "",
         organization: authSession.active_org_name || authSession.mapped_org_name || ""
@@ -300,6 +313,8 @@ function buildCurrentStudentProfile() {
                 fullName: `${authUser.first_name || ""} ${authUser.last_name || ""}`.trim(),
                 studentNumber: authUser.student_number || "",
                 email: authUser.email || "",
+                phone: authUser.phone || "",
+                profilePhoto: authUser.profile_photo || "",
                 course: program ? program.program_code : "",
                 section: studentProfile ? studentProfile.section || "" : "",
                 organization: authSession.active_org_name || authSession.mapped_org_name || (mappedOrg ? mappedOrg.org_name : "")
@@ -315,17 +330,13 @@ function buildCurrentStudentProfile() {
     };
     const normalizedCourse = String(mergedProfile.course || "").toUpperCase().trim();
     const mappedOrg = authSession.mapped_org_name || mergedProfile.organization || courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
-
-    // For org-officer logins the session carries the correct active_org_name;
-    // for regular student logins active_org_name is null — always derive from course map.
-    const isOfficerLogin = authSession && authSession.login_role === 'org';
-    const resolvedOrg = isOfficerLogin
-        ? (mergedProfile.organization || mappedOrg)
-        : mappedOrg;
+    const isOfficerLogin = authSession && authSession.login_role === "org";
+    const resolvedOrg = isOfficerLogin ? (mergedProfile.organization || mappedOrg) : mappedOrg;
 
     return {
         ...mergedProfile,
         course: mergedProfile.course || fallbackProfile.course,
+        profilePhoto: mergedProfile.profilePhoto || DEFAULT_STUDENT_AVATAR,
         associatedOrg: normalizeOrgName(resolvedOrg)
     };
 }
@@ -367,25 +378,263 @@ function getStudentScopedServices() {
     return servicesData;
 }
 
-function syncStudentIdentity() {
+function getStudentYearLevel(sectionText) {
+    const match = String(sectionText || "").match(/\d+/);
+    return match ? match[0] : "-";
+}
+
+function updateStudentProfileView() {
+    const refreshedProfile = buildCurrentStudentProfile();
+    Object.assign(currentStudentProfile, refreshedProfile);
+
+    const courseLine = refreshedProfile.section
+        ? `${refreshedProfile.course} - ${refreshedProfile.section}`
+        : refreshedProfile.course;
+    const roleLabel = refreshedProfile.associatedOrg || "Student Organization Member";
+    const transactionsCount = getStudentScopedTransactions().length;
+
     const userNameEl = document.getElementById("studentHeaderName") || document.querySelector(".user-info span");
     const userCourseEl = document.getElementById("studentHeaderCourse") || document.querySelector(".user-info small");
-    const courseLine = currentStudentProfile.section
-        ? `${currentStudentProfile.course} - ${currentStudentProfile.section}`
-        : currentStudentProfile.course;
+    const headerAvatar = document.getElementById("studentHeaderAvatar");
+    const profileAvatar = document.getElementById("studentProfileAvatar");
+    const profileName = document.getElementById("studentProfileName");
+    const profileRole = document.getElementById("studentProfileRole");
+    const yearStat = document.getElementById("studentProfileYearStat");
+    const transactionStat = document.getElementById("studentProfileTransactionStat");
 
-    if (userNameEl) userNameEl.innerText = currentStudentProfile.fullName;
-    if (userCourseEl) userCourseEl.innerText = courseLine;
+    if (userNameEl) userNameEl.innerText = refreshedProfile.fullName;
+    if (userCourseEl) userCourseEl.innerText = courseLine || "-";
+    if (headerAvatar) headerAvatar.src = refreshedProfile.profilePhoto;
+    if (profileAvatar) profileAvatar.src = refreshedProfile.profilePhoto;
+    if (profileName) profileName.innerText = refreshedProfile.fullName;
+    if (profileRole) profileRole.innerText = `Student - ${roleLabel}`;
+    if (yearStat) yearStat.innerText = getStudentYearLevel(refreshedProfile.section);
+    if (transactionStat) transactionStat.innerText = String(transactionsCount);
 
-    const profileHeaderName = document.getElementById("studentProfileName") || document.querySelector("#profile h2");
-    const profileStudentId = document.getElementById("studentProfileStudentId");
-    const profileCourse = document.getElementById("studentProfileCourse");
-    const profileEmail = document.getElementById("studentProfileEmail");
+    const profileNameInput = document.getElementById("studentProfileFullNameInput");
+    const profileStudentNumberInput = document.getElementById("studentProfileStudentNumberInput");
+    const profileEmailInput = document.getElementById("studentProfileEmailInput");
+    const profileOrganizationInput = document.getElementById("studentProfileOrganizationInput");
+    const profilePhoneInput = document.getElementById("studentProfilePhoneInput");
+    const profileCourseYearInput = document.getElementById("studentProfileCourseYearInput");
+    if (profileNameInput) profileNameInput.value = refreshedProfile.fullName;
+    if (profileStudentNumberInput) profileStudentNumberInput.value = refreshedProfile.studentNumber || "N/A";
+    if (profileEmailInput) profileEmailInput.value = refreshedProfile.email || "";
+    if (profileOrganizationInput) profileOrganizationInput.value = refreshedProfile.associatedOrg || "N/A";
+    if (profilePhoneInput) profilePhoneInput.value = refreshedProfile.phone || "N/A";
+    if (profileCourseYearInput) profileCourseYearInput.value = courseLine || "N/A";
 
-    if (profileHeaderName) profileHeaderName.innerText = currentStudentProfile.fullName;
-    if (profileStudentId) profileStudentId.innerText = `Student ID: ${currentStudentProfile.studentNumber || "-"}`;
-    if (profileCourse) profileCourse.innerText = `Course: ${courseLine || "-"}`;
-    if (profileEmail) profileEmail.innerText = `Email: ${currentStudentProfile.email || "-"}`;
+    document.title = "Student Organization Dashboard";
+}
+
+function setStudentProfileEditMode(isEditing) {
+    studentProfileEditMode = isEditing;
+    const editBtn = document.getElementById("studentProfileEditBtn");
+    const cancelBtn = document.getElementById("studentProfileCancelBtn");
+    const editableInputs = document.querySelectorAll("#profile [data-editable=\"true\"]");
+
+    editableInputs.forEach((input) => {
+        input.readOnly = !isEditing;
+    });
+
+    if (editBtn) {
+        editBtn.innerHTML = isEditing
+            ? "<i class=\"fa-solid fa-floppy-disk\"></i> Save Details"
+            : "<i class=\"fa-solid fa-pen-to-square\"></i> Edit Details";
+    }
+    if (cancelBtn) cancelBtn.hidden = !isEditing;
+}
+
+function snapshotStudentProfileValues() {
+    studentProfileSnapshot = {
+        full_name: (document.getElementById("studentProfileFullNameInput") || {}).value || "",
+        email: (document.getElementById("studentProfileEmailInput") || {}).value || "",
+        phone: (document.getElementById("studentProfilePhoneInput") || {}).value || "",
+    };
+}
+
+function restoreStudentProfileSnapshot() {
+    if (!studentProfileSnapshot) return;
+    const nameInput = document.getElementById("studentProfileFullNameInput");
+    const emailInput = document.getElementById("studentProfileEmailInput");
+    const phoneInput = document.getElementById("studentProfilePhoneInput");
+    if (nameInput) nameInput.value = studentProfileSnapshot.full_name;
+    if (emailInput) emailInput.value = studentProfileSnapshot.email;
+    if (phoneInput) phoneInput.value = studentProfileSnapshot.phone;
+}
+
+async function saveStudentProfileDetails() {
+    const fullName = (document.getElementById("studentProfileFullNameInput") || {}).value?.trim() || "";
+    const email = (document.getElementById("studentProfileEmailInput") || {}).value?.trim() || "";
+    const phone = (document.getElementById("studentProfilePhoneInput") || {}).value?.trim() || "";
+
+    if (!fullName || !email) {
+        showToast("Full name and email are required.", "error");
+        return;
+    }
+
+    const editBtn = document.getElementById("studentProfileEditBtn");
+    if (editBtn) editBtn.disabled = true;
+
+    try {
+        const resp = await fetch("../api/student/profile/update.php", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ full_name: fullName, email, phone }),
+        });
+        const data = await resp.json();
+        if (!data.ok) {
+            showToast(data.error || "Could not update profile.", "error");
+            return;
+        }
+
+        if (data.session) {
+            localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+        }
+        studentProfileSnapshot = null;
+        setStudentProfileEditMode(false);
+        updateStudentProfileView();
+        showToast("Profile updated successfully.", "success");
+    } catch (error) {
+        console.error("[saveStudentProfileDetails] error:", error);
+        showToast("Could not connect to the server.", "error");
+    } finally {
+        if (editBtn) editBtn.disabled = false;
+    }
+}
+
+function setupStudentProfileEditor() {
+    const editBtn = document.getElementById("studentProfileEditBtn");
+    const cancelBtn = document.getElementById("studentProfileCancelBtn");
+
+    if (editBtn) {
+        editBtn.addEventListener("click", async () => {
+            if (!studentProfileEditMode) {
+                snapshotStudentProfileValues();
+                setStudentProfileEditMode(true);
+                const firstEditableInput = document.querySelector("#profile [data-editable=\"true\"]");
+                if (firstEditableInput) firstEditableInput.focus();
+                return;
+            }
+            await saveStudentProfileDetails();
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener("click", () => {
+            restoreStudentProfileSnapshot();
+            setStudentProfileEditMode(false);
+        });
+    }
+
+    setStudentProfileEditMode(false);
+}
+
+function setupStudentPasswordForm() {
+    const passwordForm = document.getElementById("studentPasswordForm");
+    if (!passwordForm) return;
+
+    passwordForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const currentPassword = (document.getElementById("studentCurrentPasswordInput") || {}).value || "";
+        const newPassword = (document.getElementById("studentNewPasswordInput") || {}).value || "";
+        const confirmPassword = (document.getElementById("studentConfirmPasswordInput") || {}).value || "";
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            showToast("All password fields are required.", "error");
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showToast("New passwords do not match.", "error");
+            return;
+        }
+
+        const submitBtn = document.getElementById("studentPasswordSubmitBtn");
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+            const resp = await fetch("../api/student/profile/update-password.php", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmPassword,
+                }),
+            });
+            const data = await resp.json();
+
+            if (!data.ok) {
+                showToast(data.error || "Could not update password.", "error");
+                return;
+            }
+
+            passwordForm.reset();
+            showToast(data.message || "Password updated successfully.", "success");
+        } catch (error) {
+            console.error("[setupStudentPasswordForm] error:", error);
+            showToast("Could not connect to the server.", "error");
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    });
+}
+
+function setupStudentProfilePhotoUploader() {
+    const photoBtn = document.getElementById("studentProfilePhotoBtn");
+    const photoInput = document.getElementById("studentProfilePhotoInput");
+    if (!photoBtn || !photoInput) return;
+
+    photoBtn.addEventListener("click", () => {
+        photoInput.click();
+    });
+
+    photoInput.addEventListener("change", async () => {
+        const file = photoInput.files && photoInput.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("profile_photo", file);
+        photoBtn.disabled = true;
+
+        try {
+            const resp = await fetch("../api/student/profile/upload-photo.php", {
+                method: "POST",
+                credentials: "same-origin",
+                body: formData,
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                showToast(data.error || "Could not update profile photo.", "error");
+                return;
+            }
+
+            if (data.session) {
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+            } else if (data.photo_url) {
+                const session = readAuthSession();
+                session.profile_photo = data.photo_url;
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+            }
+
+            updateStudentProfileView();
+            showToast("Profile photo updated successfully.", "success");
+        } catch (error) {
+            console.error("[setupStudentProfilePhotoUploader] error:", error);
+            showToast("Could not connect to the server.", "error");
+        } finally {
+            photoInput.value = "";
+            photoBtn.disabled = false;
+        }
+    });
+}
+
+function syncStudentIdentity() {
+    updateStudentProfileView();
 }
 
 let activeMyOrgSection = 'home';
@@ -1874,20 +2123,9 @@ function renderDashboard() {
 }
 
 function renderProfile() {
-    const tableBody = document.getElementById('transaction-table');
-    tableBody.innerHTML = getStudentScopedTransactions().map(t => {
-        let statusClass = t.status === 'Completed' ? 'status-completed' : (t.status === 'Returned' ? 'status-completed' : 'status-pending');
-        return `
-            <tr>
-                <td>${t.date}</td>
-                <td>${t.item}</td>
-                <td>${t.org}</td>
-                <td><span class="status-badge ${statusClass}">${t.status}</span></td>
-            </tr>
-        `;
-    }).join('');
-    renderStudentLockerProfile();
+    updateStudentProfileView();
 }
+
 
 function filterServices() {
     const input = document.getElementById('serviceSearch');
@@ -2080,6 +2318,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadStudentPrintJobs().catch((error) => console.error(error));
     loadStudentLockers().catch((error) => console.error(error));
     renderProfile();
+    setupStudentProfileEditor();
+    setupStudentPasswordForm();
+    setupStudentProfilePhotoUploader();
     switchOrgTab('about', document.querySelector('.tab-btn'));
 
     // Initialize Dashboard Carousel for the new layout
@@ -4187,17 +4428,31 @@ async function confirmRental() {
     }
 }
 
-function showToast(message) {
+function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     const msgSpan = document.getElementById('toastMessage');
+    const icon = toast ? toast.querySelector('.toast-icon') : null;
+    if (!toast || !msgSpan) return;
 
+    toast.classList.remove('success', 'error', 'info');
+    toast.classList.add(type || 'success');
     msgSpan.textContent = message;
+
+    if (icon) {
+        icon.className = 'fa-solid toast-icon ';
+        if (type === 'error') icon.classList.add('fa-circle-exclamation');
+        else if (type === 'info') icon.classList.add('fa-circle-info');
+        else icon.classList.add('fa-circle-check');
+    }
+
     toast.classList.add('show');
 
-    setTimeout(() => {
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => {
         toast.classList.remove('show');
     }, 3000);
 }
+
 
 // --- ACCESSIBILITY: FOCUS TRAP ---
 function trapFocus(element) {
