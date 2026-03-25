@@ -156,6 +156,13 @@ body {
     color: #000000;
 }
 
+.btn.btn-sm.btn-outline-primary.py-0.px-1,
+.btn.btn-sm.btn-outline-danger.py-0.px-1 {
+    padding: 0.3rem 0.55rem !important;
+    line-height: 1.25;
+    border-radius: 10px;
+}
+
 /* --- TABLE STYLING --- */
 .table {
     color: var(--text);

@@ -908,7 +908,6 @@ function setupOrganizationRegistrationLookup() {
 const dashboardChoiceModal = document.getElementById('dashboardChoiceModal');
 const goStudentDashboardBtn = document.getElementById('goStudentDashboardBtn');
 const goOfficerDashboardBtn = document.getElementById('goOfficerDashboardBtn');
-const orgDashboardSelect = document.getElementById('orgDashboardSelect');
 let pendingOrgLogin = null;
 
 function openDashboardChoiceModal() {
@@ -918,7 +917,6 @@ function openDashboardChoiceModal() {
 function closeDashboardChoiceModal() {
   if (dashboardChoiceModal) dashboardChoiceModal.classList.remove('open');
   pendingOrgLogin = null;
-  if (orgDashboardSelect) orgDashboardSelect.innerHTML = '<option value="">Select Organization Dashboard</option>';
 }
 
 if (dashboardChoiceModal) {
@@ -946,13 +944,8 @@ if (goStudentDashboardBtn) {
 if (goOfficerDashboardBtn) {
   goOfficerDashboardBtn.addEventListener('click', async () => {
     if (!pendingOrgLogin) return;
-    const selectedOrgId = orgDashboardSelect ? Number(orgDashboardSelect.value || 0) : 0;
-    if (!selectedOrgId) {
-      alert('Select an organization dashboard first.');
-      return;
-    }
     const { memberships, baseSession } = pendingOrgLogin;
-    const selectedMembership = memberships.find((m) => Number(m.org_id) === selectedOrgId);
+    const selectedMembership = memberships && memberships.length > 0 ? memberships[0] : null;
     if (!selectedMembership) { alert('Invalid organization selection.'); return; }
     const session = {
       ...baseSession,
@@ -1246,17 +1239,6 @@ async function handleLogin() {
 
     // Has officer memberships — show the dashboard choice modal
     pendingOrgLogin = { user, memberships, baseSession };
-
-    if (orgDashboardSelect) {
-      orgDashboardSelect.innerHTML = '<option value="">Select Organization Dashboard</option>';
-      memberships.forEach((m, idx) => {
-        const opt = document.createElement('option');
-        opt.value = m.org_id;
-        opt.textContent = `${m.org_name} (${m.role_name})`;
-        if (idx === 0) opt.selected = true;
-        orgDashboardSelect.appendChild(opt);
-      });
-    }
 
     openDashboardChoiceModal();
 

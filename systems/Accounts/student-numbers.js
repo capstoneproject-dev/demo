@@ -22,13 +22,22 @@ function escHtml(str) {
 function showToast(title, message, type) {
     var container = document.getElementById('toastContainer');
     if (!container) return;
+
+    if (type == null && (message === 'success' || message === 'info' || message === 'warning' || message === 'error' || message === 'danger')) {
+        type = message;
+        message = '';
+    }
+
     var div = document.createElement('div');
-    div.className = 'toast-notification toast-' + (type || 'success');
-    div.innerHTML = '<span class="toast-title">' + escHtml(title) + '</span> ' + escHtml(message || '');
+    var mappedType = 'success';
+    if (type === 'error') mappedType = 'danger';
+    else if (type === 'warning') mappedType = 'warning';
+    else if (type === 'info') mappedType = 'info';
+    div.className = 'alert alert-' + mappedType + ' py-2 px-3 mb-0 shadow-sm';
+    div.style.minWidth = '220px';
+    div.textContent = [title, message].filter(Boolean).join(' ');
     container.appendChild(div);
-    requestAnimationFrame(function() { div.classList.add('show'); });
-    var remove = function() { div.classList.remove('show'); setTimeout(function() { div.remove(); }, 180); };
-    setTimeout(remove, 3000);
+    setTimeout(function() { div.remove(); }, 3500);
 }
 
 // ── Institute/Program dropdowns ──
@@ -105,6 +114,18 @@ function updateStudentNumbersTable() {
 function updateTotalCount() {
     var el = document.getElementById('totalStudentCount');
     if (el) el.textContent = studentNumbers.length;
+}
+
+async function refreshStudentNumbers() {
+    try {
+        await loadStudentNumbers();
+        updateStudentNumbersTable();
+        updateTotalCount();
+        showToast('Data refreshed.');
+    } catch (err) {
+        console.error('Refresh failed:', err);
+        showToast('Error', 'Failed to refresh student numbers.', 'error');
+    }
 }
 
 function clearFilters() {
@@ -402,6 +423,9 @@ function setupEventListeners() {
 
     el = document.getElementById('programFilter');
     if (el) el.addEventListener('change', updateStudentNumbersTable);
+
+    el = document.getElementById('refreshData');
+    if (el) el.addEventListener('click', refreshStudentNumbers);
 
     // Add modal: institute cascade
     el = document.getElementById('newInstitute');
