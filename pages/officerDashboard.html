@@ -1539,6 +1539,29 @@
                         <label>Content</label>
                         <textarea id="ann-content" rows="4" placeholder="Type details here..." required></textarea>
 
+                        <label>Announcement Photos (optional)</label>
+                        <input type="file" id="announcement-photos" accept="image/*" multiple>
+                        <div id="announcement-photo-carousel" class="announcement-photo-carousel" hidden>
+                            <button type="button" class="announcement-photo-nav announcement-photo-prev" aria-label="Previous photo">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="announcement-photo-stage">
+                                <img id="announcement-photo-preview-img" src="" alt="Selected announcement photo preview">
+                            </div>
+                            <button type="button" class="announcement-photo-nav announcement-photo-next" aria-label="Next photo">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                            <div class="announcement-photo-actions">
+                                <button type="button" class="btn btn-outline btn-sm" id="announcement-photo-add">
+                                    <i class="fa-solid fa-plus"></i> Add
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" id="announcement-photo-remove">
+                                    <i class="fa-regular fa-trash-can"></i> Remove
+                                </button>
+                            </div>
+                            <div class="announcement-photo-count" id="announcement-photo-count">0 / 0</div>
+                        </div>
+
                         <div class="sync-option">
                             <label>
                                 <input type="checkbox" id="sync-event" onclick="toggleEventSyncFields()">
@@ -1567,10 +1590,6 @@
                                 <div>
                                     <label style="margin-bottom:4px;">Location</label>
                                     <input type="text" id="event-location" placeholder="e.g., Auditorium A">
-                                </div>
-                                <div>
-                                    <label style="margin-bottom:4px;">Event Photo (optional)</label>
-                                    <input type="file" id="event-photo" accept="image/*">
                                 </div>
                             </div>
                         </div>

@@ -3552,6 +3552,114 @@ function readFileAsDataUrl(file) {
     });
 }
 
+function readFilesAsDataUrls(files) {
+    return Promise.all(Array.from(files || []).map(readFileAsDataUrl));
+}
+
+const announcementPhotoPreviewState = {
+    files: [],
+    urls: [],
+    index: 0
+};
+
+function syncAnnouncementPhotoInputFiles() {
+    const input = document.getElementById('announcement-photos');
+    if (!input) return;
+
+    const transfer = new DataTransfer();
+    announcementPhotoPreviewState.files.forEach(file => transfer.items.add(file));
+    input.files = transfer.files;
+}
+
+function clearAnnouncementPhotoPreview() {
+    announcementPhotoPreviewState.urls.forEach(url => URL.revokeObjectURL(url));
+    announcementPhotoPreviewState.files = [];
+    announcementPhotoPreviewState.urls = [];
+    announcementPhotoPreviewState.index = 0;
+
+    const carousel = document.getElementById('announcement-photo-carousel');
+    const image = document.getElementById('announcement-photo-preview-img');
+    const counter = document.getElementById('announcement-photo-count');
+
+    if (image) image.removeAttribute('src');
+    if (counter) counter.textContent = '0 / 0';
+    if (carousel) carousel.hidden = true;
+    syncAnnouncementPhotoInputFiles();
+}
+
+function renderAnnouncementPhotoPreview() {
+    const carousel = document.getElementById('announcement-photo-carousel');
+    const image = document.getElementById('announcement-photo-preview-img');
+    const counter = document.getElementById('announcement-photo-count');
+    const prevButton = document.querySelector('.announcement-photo-prev');
+    const nextButton = document.querySelector('.announcement-photo-next');
+    const removeButton = document.getElementById('announcement-photo-remove');
+    const total = announcementPhotoPreviewState.urls.length;
+
+    if (!carousel || !image || !counter) return;
+    if (!total) {
+        clearAnnouncementPhotoPreview();
+        return;
+    }
+
+    const currentIndex = Math.min(announcementPhotoPreviewState.index, total - 1);
+    announcementPhotoPreviewState.index = currentIndex;
+    image.src = announcementPhotoPreviewState.urls[currentIndex];
+    counter.textContent = `${currentIndex + 1} / ${total}`;
+    carousel.hidden = false;
+
+    const hasMultiplePhotos = total > 1;
+    if (prevButton) prevButton.disabled = !hasMultiplePhotos;
+    if (nextButton) nextButton.disabled = !hasMultiplePhotos;
+    if (removeButton) removeButton.disabled = total === 0;
+}
+
+function moveAnnouncementPhotoPreview(direction) {
+    const total = announcementPhotoPreviewState.urls.length;
+    if (!total) return;
+    announcementPhotoPreviewState.index = (announcementPhotoPreviewState.index + direction + total) % total;
+    renderAnnouncementPhotoPreview();
+}
+
+function addAnnouncementPhotoFiles(files) {
+    const imageFiles = Array.from(files || []).filter(file => file.type.startsWith('image/'));
+    if (!imageFiles.length) return;
+
+    announcementPhotoPreviewState.files.push(...imageFiles);
+    announcementPhotoPreviewState.urls.push(...imageFiles.map(file => URL.createObjectURL(file)));
+    announcementPhotoPreviewState.index = announcementPhotoPreviewState.urls.length - imageFiles.length;
+    syncAnnouncementPhotoInputFiles();
+    renderAnnouncementPhotoPreview();
+}
+
+function removeCurrentAnnouncementPhoto() {
+    const total = announcementPhotoPreviewState.urls.length;
+    if (!total) return;
+
+    const removeIndex = announcementPhotoPreviewState.index;
+    URL.revokeObjectURL(announcementPhotoPreviewState.urls[removeIndex]);
+    announcementPhotoPreviewState.urls.splice(removeIndex, 1);
+    announcementPhotoPreviewState.files.splice(removeIndex, 1);
+    announcementPhotoPreviewState.index = Math.min(removeIndex, announcementPhotoPreviewState.urls.length - 1);
+    syncAnnouncementPhotoInputFiles();
+    renderAnnouncementPhotoPreview();
+}
+
+function setupAnnouncementPhotoPreviewCarousel() {
+    const input = document.getElementById('announcement-photos');
+    if (!input) return;
+
+    input.addEventListener('change', () => {
+        addAnnouncementPhotoFiles(input.files);
+        syncAnnouncementPhotoInputFiles();
+    });
+
+    document.getElementById('announcement-photo-add')?.addEventListener('click', () => input.click());
+    document.getElementById('announcement-photo-remove')?.addEventListener('click', removeCurrentAnnouncementPhoto);
+    document.querySelector('.announcement-photo-prev')?.addEventListener('click', () => moveAnnouncementPhotoPreview(-1));
+    document.querySelector('.announcement-photo-next')?.addEventListener('click', () => moveAnnouncementPhotoPreview(1));
+}
+
 async function fetchAnnouncementsFromApi() {
     try {
         const res = await fetch('../api/announcements/list.php', { credentials: 'same-origin' });
@@ -3562,6 +3670,7 @@ async function fetchAnnouncementsFromApi() {
             title: item.title,
             content: item.content,
             audience_type: item.audience_type,
+            announcement_photo: item.announcement_photo || '',
             date: item.published_at || item.created_at,
             org: getActiveOfficerOrgName(),
             org_id: item.org_id
@@ -3689,22 +3798,23 @@ async function postAnnouncement(e) {
     const eventTimeEnd   = (document.getElementById('event-time-end')?.value || '').trim();
     const eventTimeRange = formatTimeRange(eventTimeStart, eventTimeEnd);
     const eventLocation = document.getElementById('event-location')?.value || '';
-    const eventPhotoFile = document.getElementById('event-photo')?.files?.[0];
-    let eventPhotoDataUrl = '';
+    const announcementPhotoFiles = document.getElementById('announcement-photos')?.files || [];
+    let announcementPhotoDataUrls = [];
 
     if (syncEvent) {
         if (!eventDate || !eventTimeStart || !eventTimeEnd) {
             alert('Please select Event Date, Start Time, and End Time.');
             return;
         }
-        if (eventPhotoFile) {
-            try {
-                eventPhotoDataUrl = await readFileAsDataUrl(eventPhotoFile);
-            } catch (err) {
-                console.error('Failed to read event photo', err);
-                alert('Could not read the event photo. Please try another image.');
-                return;
-            }
+    }
+
+    if (announcementPhotoFiles.length) {
+        try {
+            announcementPhotoDataUrls = await readFilesAsDataUrls(announcementPhotoFiles);
+        } catch (err) {
+            console.error('Failed to read announcement photos', err);
+            alert('Could not read one of the announcement photos. Please try another image.');
+            return;
         }
     }
 
@@ -3717,6 +3827,7 @@ async function postAnnouncement(e) {
                 title,
                 content,
                 audience_type: audience,
+                announcement_photos: announcementPhotoDataUrls,
                 publish: true
             })
         });
@@ -3731,6 +3842,7 @@ async function postAnnouncement(e) {
             title: item.title || title,
             content: item.content || content,
             audience_type: item.audience_type || audience,
+            announcement_photo: item.announcement_photo || '',
             date: item.published_at || item.created_at || new Date().toISOString(),
             org: getActiveOfficerOrgName(),
             org_id: item.org_id || (readAuthSession().active_org_id || 0)
@@ -3746,8 +3858,7 @@ async function postAnnouncement(e) {
                 description: content,
                 date: eventDate || new Date().toISOString().split('T')[0],
                 time: eventTimeRange || eventTimeStart,
-                location: eventLocation || 'TBA',
-                photo: eventPhotoDataUrl
+                location: eventLocation || 'TBA'
             };
 
             const sendToEventsFrame = () => {
@@ -3783,6 +3894,7 @@ async function postAnnouncement(e) {
     }
 
     e.target.reset();
+    clearAnnouncementPhotoPreview();
 }
 
 function returnItem(index) {
@@ -4729,6 +4841,7 @@ if (themeBtn) {
 // Init
 window.addEventListener('DOMContentLoaded', () => {
     setDate();
+    setupAnnouncementPhotoPreviewCarousel();
     initTrackerSidebarBehavior();
     initializeOfficerFinancialSummaryDefaultDate();
     initializeOfficerPrintingHistoryDefaultDate();
