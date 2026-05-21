@@ -75,6 +75,7 @@ CREATE TABLE `announcements` (
   `created_by_user_id` int(11) NOT NULL,
   `title` varchar(255) NOT NULL,
   `content` text NOT NULL,
+  `announcement_photo` longtext DEFAULT NULL,
   `audience_type` varchar(20) NOT NULL DEFAULT 'all_students',
   `is_published` tinyint(1) NOT NULL DEFAULT 0,
   `published_at` datetime DEFAULT NULL,

@@ -56,7 +56,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
         <!-- Back to Home Button -->
         <div class="mb-4">
-            <a href="index.php" class="btn btn-secondary">Ã¢â€ Â Back to Home</a>
+            <a href="index.php" class="btn btn-secondary">Back to Home</a>
         </div>
 
         <!-- Bulk Upload Section -->

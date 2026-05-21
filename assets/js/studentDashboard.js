@@ -410,14 +410,36 @@ function getOrganizationVisual(orgName) {
     return organizationData.find((org) => normalizeOrgName(org.name) === normalizedTarget) || null;
 }
 
+function resolveEventPhotoPath(photoPath) {
+    const rawPath = String(photoPath || '').trim();
+    if (!rawPath) return '';
+    return /^(https?:)?\/\//i.test(rawPath) || rawPath.startsWith('/')
+        ? rawPath
+        : `../${rawPath.replace(/^\/+/, '')}`;
+}
+
+function parseEventPhotoGallery(rawPhotoValue) {
+    const rawPhoto = String(rawPhotoValue || '').trim();
+    if (!rawPhoto) return [];
+
+    try {
+        const parsed = JSON.parse(rawPhoto);
+        if (Array.isArray(parsed)) {
+            return parsed.map(resolveEventPhotoPath).filter(Boolean);
+        }
+    } catch (_error) {
+        // Older rows store a single path or blob value instead of a JSON photo list.
+    }
+
+    return [resolveEventPhotoPath(rawPhoto)].filter(Boolean);
+}
+
 function mapDatabaseEvent(item) {
     const orgName = normalizeOrgName(item.org_name || item.org_code || '');
     const orgVisual = getOrganizationVisual(orgName);
     const dateValue = item.event_datetime || item.event_date || item.created_at || '';
-    const rawPhoto = String(item.event_photo || '').trim();
-    const image = rawPhoto
-        ? (/^(https?:)?\/\//i.test(rawPhoto) || rawPhoto.startsWith('/') ? rawPhoto : `../${rawPhoto.replace(/^\/+/, '')}`)
-        : (orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/event_${item.event_id}/800/450`);
+    const gallery = parseEventPhotoGallery(item.event_photo);
+    const image = gallery[0] || orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/event_${item.event_id}/800/450`;
 
     return {
         id: Number(item.event_id),
@@ -432,7 +454,7 @@ function mapDatabaseEvent(item) {
         location: item.location || 'TBA',
         participants: Number(item.attendance_count || 0),
         img: image,
-        gallery: [image],
+        gallery: gallery.length ? gallery : [image],
         isPublished: Number(item.is_published || 0) === 1
     };
 }
