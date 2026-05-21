@@ -2008,6 +2008,10 @@ document.addEventListener('click', (e) => {
     if (addLockerModal && e.target === addLockerModal) {
         closeAddLockerModal();
     }
+    const announcementDetailModal = document.getElementById('announcementDetailModal');
+    if (announcementDetailModal && e.target === announcementDetailModal) {
+        closeAnnouncementDetailModal();
+    }
 });
 
 document.addEventListener('keydown', (e) => {
@@ -2033,6 +2037,10 @@ document.addEventListener('keydown', (e) => {
         const addLockerModal = document.getElementById('addLockerModal');
         if (addLockerModal && addLockerModal.classList.contains('show')) {
             closeAddLockerModal();
+        }
+        const announcementDetailModal = document.getElementById('announcementDetailModal');
+        if (announcementDetailModal && announcementDetailModal.classList.contains('show')) {
+            closeAnnouncementDetailModal();
         }
     }
 });
@@ -3521,19 +3529,175 @@ function formatAnnouncementDate(dateString) {
 function renderAnnouncements() {
     const feed = document.getElementById('announcement-feed');
     if (!feed) return;
-    if (!announcementsData.length) {
+    const scopedAnnouncements = getOfficerScopedAnnouncements();
+    if (!scopedAnnouncements.length) {
         feed.innerHTML = `<div style="padding: 12px; color: var(--muted);">No announcements yet.</div>`;
         return;
     }
-    feed.innerHTML = getOfficerScopedAnnouncements().map(ann => `
+    feed.innerHTML = scopedAnnouncements.map((ann, index) => `
         <div class="announcement-card">
             <div class="announcement-meta">
-                <strong>${ann.title}</strong>
-                <span>${formatAnnouncementDate(ann.date)}</span>
+                <strong>${escapeHtml(ann.title)}</strong>
+                <div class="announcement-meta-actions">
+                    <span>${formatAnnouncementDate(ann.date)}</span>
+                    <button type="button" class="announcement-view-btn" onclick="openAnnouncementDetailModal(${index})" aria-label="View announcement details">
+                        <i class="fa-regular fa-eye"></i>
+                    </button>
+                </div>
             </div>
-            <p style="font-size: 0.9rem;">${ann.content}</p>
+            <p style="font-size: 0.9rem;">${escapeHtml(ann.content)}</p>
         </div>
     `).join('');
+}
+
+function parseAnnouncementPhotoGallery(rawPhotoValue) {
+    const rawPhoto = String(rawPhotoValue || '').trim();
+    if (!rawPhoto) return [];
+
+    try {
+        const parsed = JSON.parse(rawPhoto);
+        if (Array.isArray(parsed)) {
+            return parsed.map(resolveAnnouncementPhotoPath).filter(Boolean);
+        }
+    } catch (_error) {
+        // Older rows can store one path instead of a JSON photo list.
+    }
+
+    return [resolveAnnouncementPhotoPath(rawPhoto)].filter(Boolean);
+}
+
+function resolveAnnouncementPhotoPath(photoPath) {
+    const rawPath = String(photoPath || '').trim();
+    if (!rawPath) return '';
+    return /^(https?:)?\/\//i.test(rawPath) || rawPath.startsWith('/')
+        ? rawPath
+        : `../${rawPath.replace(/^\/+/, '')}`;
+}
+
+function formatAnnouncementAudienceLabel(audience) {
+    const labels = {
+        all_students: 'All Students',
+        org_members: 'Org Members Only',
+        officers: 'Officers'
+    };
+    return labels[audience] || audience || 'All Students';
+}
+
+const announcementDetailCarouselState = {
+    photos: [],
+    index: 0
+};
+
+function renderAnnouncementDetailCarousel() {
+    const image = document.getElementById('announcement-detail-hero-img');
+    const dots = document.getElementById('announcement-detail-dots');
+    const prevButton = document.querySelector('.announcement-detail-prev');
+    const nextButton = document.querySelector('.announcement-detail-next');
+    const { photos, index } = announcementDetailCarouselState;
+
+    if (!image || !dots || !photos.length) return;
+
+    image.src = photos[index];
+    image.alt = `Announcement photo ${index + 1}`;
+    dots.innerHTML = photos.map((_, dotIndex) => `
+        <button type="button" class="${dotIndex === index ? 'active' : ''}" onclick="setAnnouncementDetailPhoto(${dotIndex})" aria-label="Show photo ${dotIndex + 1}"></button>
+    `).join('');
+
+    const hasMultiplePhotos = photos.length > 1;
+    if (prevButton) prevButton.hidden = !hasMultiplePhotos;
+    if (nextButton) nextButton.hidden = !hasMultiplePhotos;
+}
+
+function moveAnnouncementDetailPhoto(direction) {
+    const total = announcementDetailCarouselState.photos.length;
+    if (!total) return;
+    announcementDetailCarouselState.index = (announcementDetailCarouselState.index + direction + total) % total;
+    renderAnnouncementDetailCarousel();
+}
+
+function setAnnouncementDetailPhoto(index) {
+    const total = announcementDetailCarouselState.photos.length;
+    if (index < 0 || index >= total) return;
+    announcementDetailCarouselState.index = index;
+    renderAnnouncementDetailCarousel();
+}
+
+function openAnnouncementDetailModal(index) {
+    const announcement = getOfficerScopedAnnouncements()[index];
+    const modal = document.getElementById('announcementDetailModal');
+    const content = document.getElementById('announcement-detail-content');
+    const title = document.getElementById('announcement-detail-title');
+    if (!announcement || !modal || !content) return;
+
+    const photos = parseAnnouncementPhotoGallery(announcement.announcement_photo);
+    announcementDetailCarouselState.photos = photos;
+    announcementDetailCarouselState.index = 0;
+    if (title) title.textContent = announcement.title || 'Untitled Announcement';
+
+    const heroMarkup = photos.length
+        ? `<div class="announcement-detail-hero">
+                <img id="announcement-detail-hero-img" src="${escapeHtml(photos[0])}" alt="Announcement photo 1">
+                <button type="button" class="announcement-detail-arrow announcement-detail-prev" onclick="moveAnnouncementDetailPhoto(-1)" aria-label="Previous photo">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <button type="button" class="announcement-detail-arrow announcement-detail-next" onclick="moveAnnouncementDetailPhoto(1)" aria-label="Next photo">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <div class="announcement-detail-dots" id="announcement-detail-dots"></div>
+            </div>`
+        : `<div class="announcement-detail-hero announcement-detail-hero-empty">
+                <i class="fa-regular fa-image"></i>
+            </div>`;
+
+    content.innerHTML = `
+        ${heroMarkup}
+        <div class="announcement-detail-info-grid">
+            <div class="announcement-detail-info-item">
+                <i class="fa-regular fa-calendar"></i>
+                <div>
+                    <span>Date</span>
+                    <strong>${escapeHtml(formatAnnouncementDate(announcement.date))}</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-regular fa-clock"></i>
+                <div>
+                    <span>Status</span>
+                    <strong>Published</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-solid fa-users"></i>
+                <div>
+                    <span>Audience</span>
+                    <strong>${escapeHtml(formatAnnouncementAudienceLabel(announcement.audience_type))}</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-solid fa-sitemap"></i>
+                <div>
+                    <span>Organization</span>
+                    <strong>${escapeHtml(announcement.org || getActiveOfficerOrgName() || 'Organization')}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="announcement-detail-about">
+            <h4>About this Announcement</h4>
+            <p>${escapeHtml(announcement.content || '')}</p>
+        </div>
+        <div class="announcement-detail-photo-summary">
+            ${photos.length ? `${photos.length} photo${photos.length === 1 ? '' : 's'} attached` : 'No photos attached'}
+        </div>
+    `;
+    renderAnnouncementDetailCarousel();
+    modal.classList.add('show');
+}
+
+function closeAnnouncementDetailModal() {
+    const modal = document.getElementById('announcementDetailModal');
+    if (modal) modal.classList.remove('show');
+    announcementDetailCarouselState.photos = [];
+    announcementDetailCarouselState.index = 0;
 }
 
 function toggleEventSyncFields() {
