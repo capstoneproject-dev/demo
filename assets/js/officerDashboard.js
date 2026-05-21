@@ -3514,10 +3514,13 @@ function filterDocs(filter, btnElement) {
 
 function formatAnnouncementDate(dateString) {
     if (!dateString) return 'Just now';
-    const date = new Date(dateString);
+    const rawDate = String(dateString).trim();
+    const date = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(rawDate)
+        ? new Date(rawDate.replace(' ', 'T') + '+08:00')
+        : new Date(rawDate);
     if (Number.isNaN(date.getTime())) return dateString;
     const now = new Date();
-    const diffMs = now - date;
+    const diffMs = Math.max(0, now - date);
     const diffMinutes = Math.floor(diffMs / 60000);
     if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
@@ -3835,7 +3838,7 @@ async function fetchAnnouncementsFromApi() {
             content: item.content,
             audience_type: item.audience_type,
             announcement_photo: item.announcement_photo || '',
-            date: item.published_at || item.created_at,
+            date: item.created_at || item.published_at,
             org: getActiveOfficerOrgName(),
             org_id: item.org_id
         }));
@@ -4007,7 +4010,7 @@ async function postAnnouncement(e) {
             content: item.content || content,
             audience_type: item.audience_type || audience,
             announcement_photo: item.announcement_photo || '',
-            date: item.published_at || item.created_at || new Date().toISOString(),
+            date: item.created_at || item.published_at || new Date().toISOString(),
             org: getActiveOfficerOrgName(),
             org_id: item.org_id || (readAuthSession().active_org_id || 0)
         });
