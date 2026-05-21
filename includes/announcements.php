@@ -164,7 +164,9 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
     }
 
     $announcementPhoto = annSaveAnnouncementPhotoValue($data);
-    $publishedAt = $publish ? date('Y-m-d H:i:s') : null;
+    $publishedAt = $publish
+        ? (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s')
+        : null;
 
     $insert = $pdo->prepare(
         "INSERT INTO announcements (org_id, created_by_user_id, title, content, announcement_photo, audience_type, is_published, published_at)
