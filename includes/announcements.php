@@ -10,6 +10,70 @@ require_once __DIR__ . '/../config/db.php';
 class AnnouncementValidationException extends RuntimeException {}
 class AnnouncementAuthorizationException extends RuntimeException {}
 
+function annSaveAnnouncementPhotoFromData(string $photoValue): string
+{
+    $raw = trim($photoValue);
+    if ($raw === '') {
+        return '';
+    }
+
+    if (!str_starts_with($raw, 'data:')) {
+        return $raw;
+    }
+
+    if (!preg_match('#^data:(image/(png|jpeg|jpg|webp|gif));base64,(.+)$#i', $raw, $matches)) {
+        throw new AnnouncementValidationException('Invalid announcement photo data.');
+    }
+
+    $mime = strtolower($matches[1]);
+    $binary = base64_decode($matches[3], true);
+    if ($binary === false) {
+        throw new AnnouncementValidationException('Invalid announcement photo encoding.');
+    }
+
+    $extensionMap = [
+        'image/png' => 'png',
+        'image/jpeg' => 'jpg',
+        'image/jpg' => 'jpg',
+        'image/webp' => 'webp',
+        'image/gif' => 'gif',
+    ];
+    $extension = $extensionMap[$mime] ?? 'png';
+
+    $targetDir = dirname(__DIR__) . '/uploads/announcements';
+    if (!is_dir($targetDir) && !mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
+        throw new RuntimeException('Could not prepare announcement photo directory.');
+    }
+
+    $fileName = 'announcement_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+    $targetPath = $targetDir . '/' . $fileName;
+    if (file_put_contents($targetPath, $binary) === false) {
+        throw new RuntimeException('Could not save announcement photo.');
+    }
+
+    return 'uploads/announcements/' . $fileName;
+}
+
+function annSaveAnnouncementPhotoValue(array $data): string
+{
+    $photos = $data['announcement_photos'] ?? $data['photos'] ?? null;
+    if (is_array($photos)) {
+        $paths = [];
+        foreach ($photos as $photo) {
+            $path = annSaveAnnouncementPhotoFromData((string)$photo);
+            if ($path !== '') {
+                $paths[] = $path;
+            }
+        }
+        if ($paths) {
+            return json_encode($paths, JSON_UNESCAPED_SLASHES);
+        }
+    }
+
+    $photoDataUrl = trim((string)($data['announcement_photo'] ?? ''));
+    return $photoDataUrl !== '' ? annSaveAnnouncementPhotoFromData($photoDataUrl) : '';
+}
+
 function annRequireOfficerOrgContext(): array
 {
     $session = getPhpSession();
@@ -53,6 +117,7 @@ function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
                a.created_by_user_id,
                a.title,
                a.content,
+               a.announcement_photo,
                a.audience_type,
                a.is_published,
                a.published_at,
@@ -98,17 +163,19 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
         $audience = 'all_students';
     }
 
+    $announcementPhoto = annSaveAnnouncementPhotoValue($data);
     $publishedAt = $publish ? date('Y-m-d H:i:s') : null;
 
     $insert = $pdo->prepare(
-        "INSERT INTO announcements (org_id, created_by_user_id, title, content, audience_type, is_published, published_at)
-         VALUES (:org, :uid, :title, :content, :audience, :published, :published_at)"
+        "INSERT INTO announcements (org_id, created_by_user_id, title, content, announcement_photo, audience_type, is_published, published_at)
+         VALUES (:org, :uid, :title, :content, :announcement_photo, :audience, :published, :published_at)"
     );
     $insert->execute([
         ':org'          => $orgId,
         ':uid'          => $userId,
         ':title'        => $title,
         ':content'      => $content,
+        ':announcement_photo' => $announcementPhoto !== '' ? $announcementPhoto : null,
         ':audience'     => $audience,
         ':published'    => $publish ? 1 : 0,
         ':published_at' => $publishedAt,
@@ -122,6 +189,7 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
                 created_by_user_id,
                 title,
                 content,
+                announcement_photo,
                 audience_type,
                 is_published,
                 published_at,
