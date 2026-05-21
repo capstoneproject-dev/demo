@@ -1051,7 +1051,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         body: JSON.stringify({
                             event_name: normalizedEventName,
                             description: '',
-                            location: 'TBA',
+                            location: null,
+                            event_datetime: null,
                             is_published: 1
                         })
                     });

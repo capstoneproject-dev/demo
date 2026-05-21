@@ -216,8 +216,15 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
     $eventName = trim((string)($data['event_name'] ?? $data['name'] ?? ''));
     $description = trim((string)($data['description'] ?? ''));
-    $location = trim((string)($data['location'] ?? ''));
-    $eventDate = trim((string)($data['event_datetime'] ?? $data['event_date'] ?? ''));
+    $locationProvided = array_key_exists('location', $data);
+    $location = $locationProvided && $data['location'] === null
+        ? null
+        : trim((string)($data['location'] ?? ''));
+    $eventDateProvided = array_key_exists('event_datetime', $data) || array_key_exists('event_date', $data);
+    $eventDateValue = array_key_exists('event_datetime', $data) ? $data['event_datetime'] : ($data['event_date'] ?? '');
+    $eventDate = $eventDateProvided && $eventDateValue === null
+        ? null
+        : trim((string)$eventDateValue);
     $isPublished = !empty($data['is_published']) ? 1 : 0;
     $photoDataUrl = trim((string)($data['photo'] ?? ''));
     $photoPath = '';
@@ -235,7 +242,9 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
 
     $tz = new DateTimeZone('Asia/Manila');
     $now = new DateTimeImmutable('now', $tz);
-    if ($eventDate === '') {
+    if ($eventDate === null) {
+        // Keep explicit nulls from simple event creation instead of inventing a date.
+    } elseif ($eventDate === '') {
         $eventDate = $now->format('Y-m-d H:i:s');
     } else {
         // Accept "YYYY-MM-DD", "YYYY-MM-DD HH:MM", or ISO "YYYY-MM-DDTHH:MM"
