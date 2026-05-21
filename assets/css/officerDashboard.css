@@ -1629,6 +1629,15 @@ body.dark .sub-nav-btn.active {
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
+.announcement-card-general {
+    border-left-color: var(--primary);
+}
+
+.announcement-card-event {
+    border-left-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel-2) 88%);
+}
+
 .announcement-meta {
     display: flex;
     justify-content: space-between;
@@ -1643,6 +1652,23 @@ body.dark .sub-nav-btn.active {
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+}
+
+.announcement-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 10%, var(--panel) 90%);
+    color: var(--primary);
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.announcement-card-event .announcement-type-badge {
+    background: color-mix(in srgb, var(--accent) 28%, var(--panel) 72%);
+    color: #5a4100;
 }
 
 .announcement-view-btn {
