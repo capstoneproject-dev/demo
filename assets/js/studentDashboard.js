@@ -970,7 +970,7 @@ function renderMyOrgEventsSection(viewModel) {
                     <p>${event.description || 'No event description available yet.'}</p>
                     <div class="my-org-event-footer">
                         <span class="my-org-stat-chip"><i class="fa-solid fa-users"></i> ${event.participants || 0} participants</span>
-                        <button type="button" class="my-org-ref-pill-btn" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}')">Register</button>
+                        <button type="button" class="my-org-ref-pill-btn" data-registration-title="${escapeHtml(event.title)}" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}', '${escapeHtml(event.id ?? '').replace(/'/g, "\\'")}')">Register</button>
                     </div>
                 </div>
             </article>
@@ -1884,7 +1884,8 @@ function switchOrgTab(tabName, btn) {
                             </button>
                             
                             <button class="btn-register-card ${isRegistered ? 'registered' : ''}" 
-                                    onclick="event.stopPropagation(); openRegistrationModal('${ev.title}')" 
+                                    data-registration-title="${escapeHtml(ev.title)}"
+                                    onclick="event.stopPropagation(); openRegistrationModal('${ev.title}', '${ev.id ?? ''}')" 
                                     ${isRegistered ? 'disabled style="cursor: not-allowed;"' : ''}>
                                 ${isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Join'}
                             </button>
@@ -2479,7 +2480,9 @@ function isEventRegistered(eventTitle) {
     return getRegisteredEvents().includes(eventTitle);
 }
 
-function openRegistrationModal(eventTitle) {
+function openRegistrationModal(eventTitle, eventId = '') {
+    const eventObj = getStudentScopedExtendedEvents().find(e => String(e.id ?? '') === String(eventId ?? ''))
+        || getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
     const modal = document.getElementById('eventRegistrationModal');
     const titleEl = document.getElementById('modalEventTitle');
 
@@ -2488,6 +2491,7 @@ function openRegistrationModal(eventTitle) {
         titleEl.innerText = 'Registering for: ' + eventTitle;
         // Store the event title in modal for later use
         modal.setAttribute('data-event-title', eventTitle);
+        modal.setAttribute('data-event-id', eventObj?.id ?? eventId ?? '');
         modal.classList.add('open');
         document.body.style.overflow = 'hidden'; // Prevent background scrolling
     }
@@ -2503,29 +2507,68 @@ function closeRegistrationModal() {
     document.getElementById('registrationForm').reset();
 }
 
-function handleRegistrationSubmit(e) {
+async function handleRegistrationSubmit(e) {
     e.preventDefault();
 
     // Get the event title from the modal
     const modal = document.getElementById('eventRegistrationModal');
-    const eventTitle = modal.getAttribute('data-event-title');
+    const form = document.getElementById('registrationForm');
+    const submitButton = form?.querySelector('button[type="submit"]');
+    const eventTitle = modal?.getAttribute('data-event-title') || '';
+    const eventId = modal?.getAttribute('data-event-id') || '';
+    const inputs = form ? form.querySelectorAll('input') : [];
 
-    // Here you would normally gather data and send to backend
-    // For now, we'll just mark it as registered
-    addRegisteredEvent(eventTitle);
+    if (!eventId || Number(eventId) <= 0) {
+        alert('This event needs to be saved in the database before students can register.');
+        return;
+    }
 
-    alert('Registration Submitted Successfully!');
-    closeRegistrationModal();
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Submitting...';
+    }
 
-    // Update the button for this event
-    updateEventButton(eventTitle);
+    try {
+        const response = await fetch('../api/student/events/register.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                event_id: Number(eventId),
+                student_name: inputs[0]?.value?.trim() || '',
+                student_number: inputs[1]?.value?.trim() || '',
+                section: inputs[2]?.value?.trim() || ''
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Registration failed. Please try again.');
+        }
+
+        addRegisteredEvent(eventTitle);
+        alert(data.already_registered ? 'You are already registered for this event.' : 'Registration Submitted Successfully!');
+        closeRegistrationModal();
+
+        // Update the button for this event
+        updateEventButton(eventTitle);
+    } catch (error) {
+        console.error('[handleRegistrationSubmit]', error);
+        alert(error.message || 'Registration failed. Please try again.');
+    } finally {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Pre-Register';
+        }
+    }
 }
 
 function updateEventButton(eventTitle) {
     // Find all buttons with this event title and update them
-    const buttons = document.querySelectorAll('.btn-register-card');
+    const buttons = document.querySelectorAll('[data-registration-title]');
     buttons.forEach(btn => {
-        const btnEventTitle = btn.getAttribute('onclick').match(/openRegistrationModal\('(.+?)'\)/)?.[1];
+        const btnEventTitle = btn.dataset.registrationTitle;
         if (btnEventTitle === eventTitle) {
             btn.classList.add('registered');
             btn.innerHTML = 'Registered <i class="fa-solid fa-check"></i>';
