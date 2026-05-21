@@ -953,7 +953,9 @@ function renderMyOrgHomeSection(viewModel) {
 
 function renderMyOrgEventsSection(viewModel) {
     const eventsMarkup = viewModel.relevantEvents.length
-        ? viewModel.relevantEvents.map((event, index) => `
+        ? viewModel.relevantEvents.map((event, index) => {
+            const isRegistered = isEventRegistered(event.title);
+            return `
             <article class="my-org-spa-card my-org-event-card">
                 <button type="button" class="my-org-event-media" data-event-id="${escapeHtml(event.id ?? '')}" data-event-title="${escapeHtml(event.title)}" aria-label="View photos for ${escapeHtml(event.title)}">
                     <img src="${escapeHtml(event.img)}" alt="${escapeHtml(event.title)}">
@@ -969,12 +971,13 @@ function renderMyOrgEventsSection(viewModel) {
                     <h3>${event.title}</h3>
                     <p>${event.description || 'No event description available yet.'}</p>
                     <div class="my-org-event-footer">
-                        <span class="my-org-stat-chip"><i class="fa-solid fa-users"></i> ${event.participants || 0} participants</span>
-                        <button type="button" class="my-org-ref-pill-btn" data-registration-title="${escapeHtml(event.title)}" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}', '${escapeHtml(event.id ?? '').replace(/'/g, "\\'")}')">Register</button>
+                        <span class="my-org-stat-chip" style="color: #000;"><i class="fa-solid fa-users"></i> ${event.participants || 0} participants</span>
+                        <button type="button" class="my-org-ref-pill-btn ${isRegistered ? 'registered' : ''}" data-registration-title="${escapeHtml(event.title)}" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}', '${escapeHtml(event.id ?? '').replace(/'/g, "\\'")}')" ${isRegistered ? 'disabled style="background: #16a34a; border-color: #16a34a; color: #fff; cursor: not-allowed;"' : ''}>${isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}</button>
                     </div>
                 </div>
             </article>
-        `).join('')
+        `;
+        }).join('')
         : `
             <div class="my-org-spa-empty">
                 <i class="fa-regular fa-calendar-xmark"></i>
@@ -2571,9 +2574,12 @@ function updateEventButton(eventTitle) {
         const btnEventTitle = btn.dataset.registrationTitle;
         if (btnEventTitle === eventTitle) {
             btn.classList.add('registered');
-            btn.innerHTML = 'Registered <i class="fa-solid fa-check"></i>';
+            btn.innerHTML = 'Joined <i class="fa-solid fa-check"></i>';
             btn.disabled = true;
             btn.style.cursor = 'not-allowed';
+            btn.style.background = '#16a34a';
+            btn.style.borderColor = '#16a34a';
+            btn.style.color = '#fff';
         }
     });
 }

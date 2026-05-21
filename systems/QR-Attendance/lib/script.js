@@ -34,6 +34,9 @@ function normalizeAttendanceFromApi(rows) {
     return (rows || []).map((row) => {
         const timeInRaw = row.time_in || '';
         const timeOutRaw = row.time_out || '';
+        const status = String(row.attendance_status || '').trim();
+        const isRegistered = status === 'registered' || (!timeInRaw && !timeOutRaw);
+        const displayDateRaw = timeInRaw || row.attendance_date || row.created_at || '';
         return {
             recordId: Number(row.record_id || 0),
             eventId: Number(row.event_id || 0),
@@ -41,9 +44,11 @@ function normalizeAttendanceFromApi(rows) {
             studentName: String(row.student_name || '').trim(),
             section: String(row.section || '').trim(),
             event: String(row.event_name || '').trim(),
-            date: formatDateForUi(timeInRaw),
+            date: formatDateForUi(displayDateRaw),
             timeIn: formatTimeForUi(timeInRaw),
             timeOut: formatTimeForUi(timeOutRaw),
+            status,
+            isRegistered,
             checkInMs: timeInRaw ? new Date(String(timeInRaw).replace(' ', 'T')).getTime() : 0,
             lastUpdateMs: timeOutRaw ? new Date(String(timeOutRaw).replace(' ', 'T')).getTime() : 0,
             createdAt: row.created_at || null,
@@ -648,21 +653,24 @@ function updateAttendanceTable() {
     sortedRecords.forEach((record, idx) => {
         const key = `${record.studentId}-${record.section}-${record.event}-${record.date}`;
         const row = document.createElement('tr');
-        if (recentTimedOutKey && key === recentTimedOutKey) {
+        if (record.isRegistered) {
+            row.classList.add('table-primary');
+        } else if (recentTimedOutKey && key === recentTimedOutKey) {
             row.style.backgroundColor = '#fff3cd'; // Bootstrap warning highlight
         }
-        const disableCheckout = !!record.timeOut;
-        row.innerHTML = `
-            <td>
-                <button type="button" class="btn btn-danger btn-sm py-0 px-2 text-nowrap attendance-checkout-btn"
+        const disableCheckout = !!record.timeOut || record.isRegistered;
+        const actionMarkup = record.isRegistered
+            ? '<span class="badge bg-primary">Registered</span>'
+            : `<button type="button" class="btn btn-danger btn-sm py-0 px-2 text-nowrap attendance-checkout-btn"
                     data-student-id="${record.studentId}"
                     data-section="${record.section}"
                     data-event="${record.event || ''}"
                     data-date="${record.date}"
                     ${disableCheckout ? 'disabled' : ''}>
                     Check-Out
-                </button>
-            </td>
+                </button>`;
+        row.innerHTML = `
+            <td>${actionMarkup}</td>
             <td>${idx + 1}</td>
             <td>${record.studentId}</td>
             <td>${record.studentName}</td>
