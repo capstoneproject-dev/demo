@@ -395,12 +395,12 @@ function qrListAttendance(PDO $pdo, int $orgId, array $filters = []): array
 
     $dateFrom = trim((string)($filters['date_from'] ?? ''));
     if ($dateFrom !== '') {
-        $where[] = "DATE(ar.time_in) >= :date_from";
+        $where[] = "COALESCE(DATE(ar.time_in), DATE(ar.created_at)) >= :date_from";
         $params[':date_from'] = $dateFrom;
     }
     $dateTo = trim((string)($filters['date_to'] ?? ''));
     if ($dateTo !== '') {
-        $where[] = "DATE(ar.time_in) <= :date_to";
+        $where[] = "COALESCE(DATE(ar.time_in), DATE(ar.created_at)) <= :date_to";
         $params[':date_to'] = $dateTo;
     }
 
@@ -429,11 +429,17 @@ function qrListAttendance(PDO $pdo, int $orgId, array $filters = []): array
                ar.created_at,
                ar.updated_at,
                e.event_name,
-               DATE(ar.time_in) AS attendance_date
+               COALESCE(DATE(ar.time_in), DATE(ar.created_at)) AS attendance_date,
+               CASE
+                   WHEN ar.time_in IS NULL AND ar.time_out IS NULL THEN 'registered'
+                   WHEN ar.time_in IS NOT NULL AND ar.time_out IS NULL THEN 'checked_in'
+                   WHEN ar.time_out IS NOT NULL THEN 'checked_out'
+                   ELSE 'pending'
+               END AS attendance_status
         FROM attendance_records ar
         JOIN events e ON e.event_id = ar.event_id
         WHERE " . implode(' AND ', $where) . "
-        ORDER BY ar.time_in DESC
+        ORDER BY COALESCE(ar.time_out, ar.time_in, ar.created_at) DESC
         LIMIT " . (int)$limit;
 
     $stmt = $pdo->prepare($sql);
