@@ -260,7 +260,7 @@ CREATE TABLE attendance_records (
     student_number VARCHAR(20) NULL,               -- barcode value scanned (preserved even for registered users)
     student_name VARCHAR(200) NULL,                -- stored at scan time
     section VARCHAR(30) NULL,
-    time_in DATETIME NOT NULL,
+    time_in DATETIME NULL,
     time_out DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

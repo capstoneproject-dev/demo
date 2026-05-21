@@ -117,7 +117,7 @@ CREATE TABLE `attendance_records` (
   `student_number` varchar(20) DEFAULT NULL,
   `student_name` varchar(200) DEFAULT NULL,
   `section` varchar(30) DEFAULT NULL,
-  `time_in` datetime NOT NULL,
+  `time_in` datetime DEFAULT NULL,
   `time_out` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
