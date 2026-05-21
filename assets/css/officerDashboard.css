@@ -1804,6 +1804,17 @@ body.dark .sub-nav-btn.active {
     padding-bottom: 4px;
 }
 
+.announcement-detail-event {
+    margin-top: 20px;
+}
+
+.announcement-detail-event h4 {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0 0 12px;
+}
+
 .announcement-detail-about h4 {
     color: var(--text);
     font-size: 1rem;

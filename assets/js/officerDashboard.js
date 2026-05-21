@@ -3529,6 +3529,38 @@ function formatAnnouncementDate(dateString) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function parseOfficerSqlDateTime(dateString) {
+    if (!dateString) return null;
+    const rawDate = String(dateString).trim();
+    const date = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(rawDate)
+        ? new Date(rawDate.replace(' ', 'T') + '+08:00')
+        : new Date(rawDate);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatAnnouncementEventDate(dateString) {
+    const date = parseOfficerSqlDateTime(dateString);
+    if (!date) return 'TBA';
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const day = date.toLocaleString('en-US', { day: '2-digit' });
+    const year = date.toLocaleString('en-US', { year: 'numeric' });
+    return `${month}. ${day}, ${year}`;
+}
+
+function formatAnnouncementEventTime(dateString) {
+    const date = parseOfficerSqlDateTime(dateString);
+    if (!date) return 'TBA';
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function getTemporaryAnnouncementParticipants(announcement) {
+    const seed = Number(announcement?.id || announcement?.announcement_id || 0);
+    return 80 + ((seed * 37) % 171);
+}
+
 function renderAnnouncements() {
     const feed = document.getElementById('announcement-feed');
     if (!feed) return;
@@ -3636,6 +3668,43 @@ function openAnnouncementDetailModal(index) {
     announcementDetailCarouselState.photos = photos;
     announcementDetailCarouselState.index = 0;
     if (title) title.textContent = announcement.title || 'Untitled Announcement';
+    const participantCount = getTemporaryAnnouncementParticipants(announcement);
+    const hasSyncedEvent = Boolean(announcement.event_datetime || announcement.event_location);
+    const eventDetailsMarkup = hasSyncedEvent ? `
+        <div class="announcement-detail-event">
+            <h4>Event Details</h4>
+            <div class="announcement-detail-info-grid">
+                <div class="announcement-detail-info-item">
+                    <i class="fa-regular fa-calendar"></i>
+                    <div>
+                        <span>Date</span>
+                        <strong>${escapeHtml(formatAnnouncementEventDate(announcement.event_datetime))}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-regular fa-clock"></i>
+                    <div>
+                        <span>Time</span>
+                        <strong>${escapeHtml(formatAnnouncementEventTime(announcement.event_datetime))}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <div>
+                        <span>Venue</span>
+                        <strong>${escapeHtml(announcement.event_location || 'TBA')}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-solid fa-users"></i>
+                    <div>
+                        <span>Participants</span>
+                        <strong>${participantCount} Registered</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    ` : '';
 
     const heroMarkup = photos.length
         ? `<div class="announcement-detail-hero">
@@ -3658,12 +3727,12 @@ function openAnnouncementDetailModal(index) {
             <div class="announcement-detail-info-item">
                 <i class="fa-regular fa-calendar"></i>
                 <div>
-                    <span>Date</span>
+                    <span>Published</span>
                     <strong>${escapeHtml(formatAnnouncementDate(announcement.date))}</strong>
                 </div>
             </div>
             <div class="announcement-detail-info-item">
-                <i class="fa-regular fa-clock"></i>
+                <i class="fa-solid fa-bullhorn"></i>
                 <div>
                     <span>Status</span>
                     <strong>Published</strong>
@@ -3688,6 +3757,7 @@ function openAnnouncementDetailModal(index) {
             <h4>About this Announcement</h4>
             <p>${escapeHtml(announcement.content || '')}</p>
         </div>
+        ${eventDetailsMarkup}
         <div class="announcement-detail-photo-summary">
             ${photos.length ? `${photos.length} photo${photos.length === 1 ? '' : 's'} attached` : 'No photos attached'}
         </div>
@@ -3838,6 +3908,8 @@ async function fetchAnnouncementsFromApi() {
             content: item.content,
             audience_type: item.audience_type,
             announcement_photo: item.announcement_photo || '',
+            event_datetime: item.event_datetime || '',
+            event_location: item.event_location || '',
             date: item.created_at || item.published_at,
             org: getActiveOfficerOrgName(),
             org_id: item.org_id
@@ -4010,6 +4082,8 @@ async function postAnnouncement(e) {
             content: item.content || content,
             audience_type: item.audience_type || audience,
             announcement_photo: item.announcement_photo || '',
+            event_datetime: item.event_datetime || '',
+            event_location: item.event_location || '',
             date: item.created_at || item.published_at || new Date().toISOString(),
             org: getActiveOfficerOrgName(),
             org_id: item.org_id || (readAuthSession().active_org_id || 0)
@@ -4025,7 +4099,8 @@ async function postAnnouncement(e) {
                 description: content,
                 date: eventDate || new Date().toISOString().split('T')[0],
                 time: eventTimeRange || eventTimeStart,
-                location: eventLocation || 'TBA'
+                location: eventLocation || 'TBA',
+                photo: announcementPhotoDataUrls[0] || ''
             };
 
             const sendToEventsFrame = () => {

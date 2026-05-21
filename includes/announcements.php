@@ -122,7 +122,23 @@ function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
                a.is_published,
                a.published_at,
                a.created_at,
-               a.updated_at
+               a.updated_at,
+               (
+                   SELECT e.event_datetime
+                   FROM events e
+                   WHERE e.org_id = a.org_id
+                     AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                   ORDER BY e.event_id DESC
+                   LIMIT 1
+               ) AS event_datetime,
+               (
+                   SELECT e.location
+                   FROM events e
+                   WHERE e.org_id = a.org_id
+                     AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                   ORDER BY e.event_id DESC
+                   LIMIT 1
+               ) AS event_location
         FROM announcements a
         WHERE " . implode(' AND ', $where) . "
         ORDER BY COALESCE(a.published_at, a.created_at) DESC, a.announcement_id DESC";
@@ -196,7 +212,23 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
                 is_published,
                 published_at,
                 created_at,
-                updated_at
+                updated_at,
+                (
+                    SELECT e.event_datetime
+                    FROM events e
+                    WHERE e.org_id = announcements.org_id
+                      AND e.event_name COLLATE utf8mb4_unicode_ci = announcements.title COLLATE utf8mb4_unicode_ci
+                    ORDER BY e.event_id DESC
+                    LIMIT 1
+                ) AS event_datetime,
+                (
+                    SELECT e.location
+                    FROM events e
+                    WHERE e.org_id = announcements.org_id
+                      AND e.event_name COLLATE utf8mb4_unicode_ci = announcements.title COLLATE utf8mb4_unicode_ci
+                    ORDER BY e.event_id DESC
+                    LIMIT 1
+                ) AS event_location
          FROM announcements
          WHERE announcement_id = :id
          LIMIT 1"
