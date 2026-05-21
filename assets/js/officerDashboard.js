@@ -3569,11 +3569,17 @@ function renderAnnouncements() {
         feed.innerHTML = `<div style="padding: 12px; color: var(--muted);">No announcements yet.</div>`;
         return;
     }
-    feed.innerHTML = scopedAnnouncements.map((ann, index) => `
-        <div class="announcement-card">
+    feed.innerHTML = scopedAnnouncements.map((ann, index) => {
+        const hasSyncedEvent = Boolean(ann.event_datetime || ann.event_location);
+        return `
+        <div class="announcement-card ${hasSyncedEvent ? 'announcement-card-event' : 'announcement-card-general'}">
             <div class="announcement-meta">
                 <strong>${escapeHtml(ann.title)}</strong>
                 <div class="announcement-meta-actions">
+                    <span class="announcement-type-badge">
+                        <i class="fa-solid ${hasSyncedEvent ? 'fa-calendar-days' : 'fa-bullhorn'}"></i>
+                        ${hasSyncedEvent ? 'Event' : 'Announcement'}
+                    </span>
                     <span>${formatAnnouncementDate(ann.date)}</span>
                     <button type="button" class="announcement-view-btn" onclick="openAnnouncementDetailModal(${index})" aria-label="View announcement details">
                         <i class="fa-regular fa-eye"></i>
@@ -3582,7 +3588,8 @@ function renderAnnouncements() {
             </div>
             <p style="font-size: 0.9rem;">${escapeHtml(ann.content)}</p>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function parseAnnouncementPhotoGallery(rawPhotoValue) {
