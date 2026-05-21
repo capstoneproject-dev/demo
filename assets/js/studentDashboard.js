@@ -69,7 +69,7 @@ const organizationData = [
 
 // Extended Events Data (for Events Tab) — built from ORG_DATA, each event tagged with its org key.
 const extendedEvents = Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
-    d.events.map(e => ({ ...e, org: orgKey }))
+    d.events.map((e, index) => ({ id: e.id || `${orgKey}-${index + 1}`, ...e, org: orgKey }))
 );
 const STUDENT_EVENTS_API = '../api/student/events/list.php';
 let databaseEvents = [];
@@ -955,10 +955,11 @@ function renderMyOrgEventsSection(viewModel) {
     const eventsMarkup = viewModel.relevantEvents.length
         ? viewModel.relevantEvents.map((event, index) => `
             <article class="my-org-spa-card my-org-event-card">
-                <div class="my-org-event-media">
-                    <img src="${event.img}" alt="${event.title}">
+                <button type="button" class="my-org-event-media" data-event-id="${escapeHtml(event.id ?? '')}" data-event-title="${escapeHtml(event.title)}" aria-label="View photos for ${escapeHtml(event.title)}">
+                    <img src="${escapeHtml(event.img)}" alt="${escapeHtml(event.title)}">
                     <span class="my-org-event-index">Event ${String(index + 1).padStart(2, '0')}</span>
-                </div>
+                    <span class="my-org-event-view-chip"><i class="fa-regular fa-images"></i> View Photos</span>
+                </button>
                 <div class="my-org-event-content">
                     <div class="my-org-event-meta">
                         <span><i class="fa-regular fa-calendar"></i> ${event.date}</span>
@@ -2647,12 +2648,11 @@ function shareEvent(eventTitle) {
     }
 }
 
-function openDetailsModal(eventTitle) {
-    // Find event object
-    const eventObj = getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
+function openEventDetailsModal(eventObj) {
     if (!eventObj) return;
 
     const modal = document.getElementById('eventDetailsModal');
+    if (!modal) return;
 
     // Populate Details
     document.getElementById('detailsEventTitle').innerText = eventObj.title;
@@ -2660,16 +2660,28 @@ function openDetailsModal(eventTitle) {
     document.getElementById('detailsTime').innerText = eventObj.time || "TBA";
     document.getElementById('detailsVenue').innerText = eventObj.venue || "TBA";
     document.getElementById('detailsParticipants').innerText = eventObj.participants + " Registered";
-    document.getElementById('detailsDesc').innerText = eventObj.description;
+    document.getElementById('detailsDesc').innerText = eventObj.description || eventObj.desc || "No event description available yet.";
 
     // Setup Carousel
-    currentEventGallery = eventObj.gallery || [eventObj.img];
+    currentEventGallery = (eventObj.gallery && eventObj.gallery.length ? eventObj.gallery : [eventObj.img]).filter(Boolean);
     currentSlide = 0;
     renderCarousel();
 
     // Show Modal
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';
+}
+
+function openDetailsModal(eventTitle) {
+    // Find event object
+    const eventObj = getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
+    openEventDetailsModal(eventObj);
+}
+
+function openMyOrgEventGallery(eventId, eventTitle) {
+    const eventObj = getStudentScopedExtendedEvents().find(e => String(e.id ?? '') === String(eventId ?? ''))
+        || getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
+    openEventDetailsModal(eventObj);
 }
 
 function closeDetailsModal() {
@@ -2681,7 +2693,10 @@ function closeDetailsModal() {
 function renderCarousel() {
     const track = document.getElementById('carouselTrack');
     const indicators = document.getElementById('carouselIndicators');
+    const prevButton = document.querySelector('.carousel-prev');
+    const nextButton = document.querySelector('.carousel-next');
 
+    if (!track || !indicators) return;
     track.innerHTML = '';
     indicators.innerHTML = '';
 
@@ -2689,12 +2704,17 @@ function renderCarousel() {
     currentEventGallery.forEach((imgSrc, index) => {
         const slide = document.createElement('div');
         slide.className = 'carousel-slide';
-        slide.innerHTML = `<img src="${imgSrc}" alt="Gallery Image">`;
+        const image = document.createElement('img');
+        image.src = imgSrc;
+        image.alt = `Event gallery image ${index + 1}`;
+        slide.appendChild(image);
         track.appendChild(slide);
 
         // Create Indicator Dot
-        const dot = document.createElement('div');
+        const dot = document.createElement('button');
+        dot.type = 'button';
         dot.className = `indicator ${index === 0 ? 'active' : ''}`;
+        dot.setAttribute('aria-label', `Show image ${index + 1}`);
         dot.onclick = () => {
             currentSlide = index;
             updateCarousel();
@@ -2702,12 +2722,17 @@ function renderCarousel() {
         indicators.appendChild(dot);
     });
 
+    const hasMultipleSlides = currentEventGallery.length > 1;
+    if (prevButton) prevButton.hidden = !hasMultipleSlides;
+    if (nextButton) nextButton.hidden = !hasMultipleSlides;
+
     updateCarousel();
 }
 
 function updateCarousel() {
     const track = document.getElementById('carouselTrack');
     const dots = document.querySelectorAll('.indicator');
+    if (!track) return;
 
     const translateValue = -(currentSlide * 100);
     track.style.transform = `translateX(${translateValue}%)`;
@@ -2720,9 +2745,16 @@ function updateCarousel() {
 
 function moveSlide(direction) {
     const totalSlides = currentEventGallery.length;
+    if (!totalSlides) return;
     currentSlide = (currentSlide + direction + totalSlides) % totalSlides;
     updateCarousel();
 }
+
+document.addEventListener('click', (event) => {
+    const mediaButton = event.target.closest('.my-org-event-media');
+    if (!mediaButton) return;
+    openMyOrgEventGallery(mediaButton.dataset.eventId, mediaButton.dataset.eventTitle);
+});
 
 let studentServiceCatalog = [];
 let studentServiceCatalogPromise = null;
