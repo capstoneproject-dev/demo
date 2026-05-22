@@ -3042,7 +3042,8 @@ function renderPrintingProviderOptions() {
     const heroSelect = document.getElementById('uploadPrintProvider');
     const summary = document.getElementById('printingProvidersSummary');
     const text = document.getElementById('printingAvailabilityText');
-    const selectedProviderId = String(heroSelect?.value || select?.value || '').trim();
+    const selectedProviderId = String(select?.value || '').trim();
+    const selectedHeroProviderId = String(heroSelect?.value || '').trim();
     const providers = getAuthorizedPrintingProviders();
 
     if (select) {
@@ -3093,11 +3094,9 @@ function renderPrintingProviderOptions() {
     }
 
     if (heroSelect) {
-        const matched = providers.some((provider) => String(provider.org_id) === selectedProviderId);
+        const matched = providers.some((provider) => String(provider.org_id) === selectedHeroProviderId);
         if (matched) {
-            heroSelect.value = selectedProviderId;
-        } else if (providers.length === 1) {
-            heroSelect.value = String(providers[0].org_id);
+            heroSelect.value = selectedHeroProviderId;
         }
     }
 }
@@ -3502,6 +3501,7 @@ function renderStudentPrintJobCards(jobs, options = {}) {
     const { showCancelButton = false } = options;
     return jobs.map((job) => {
         const status = String(job.status || '').toLowerCase();
+        const providerWasAutoAssigned = Number(job.provider_auto_assigned || 0) === 1;
         const queueText = status === 'queued' && Number(job.queue_position || 0) > 0
             ? `Queue #${job.queue_position}`
             : (status === 'processing' ? 'In progress' : (status === 'ready_to_claim' ? 'Ready now' : 'Completed'));
@@ -3514,7 +3514,10 @@ function renderStudentPrintJobCards(jobs, options = {}) {
                 <div class="printing-job-header">
                     <div>
                         <h4>${escapeStudentHtml(job.file_name || 'Untitled PDF')}</h4>
-                        <p>${escapeStudentHtml(job.org_name || 'Unknown Organization')}${job.org_code ? ` (${escapeStudentHtml(job.org_code)})` : ''}</p>
+                        <p>${providerWasAutoAssigned
+                            ? 'Waiting for a printing provider to accept your request'
+                            : `${escapeStudentHtml(job.org_name || 'Unknown Organization')}${job.org_code ? ` (${escapeStudentHtml(job.org_code)})` : ''}`
+                        }</p>
                     </div>
                     <span class="printing-job-status status-${status}">${getPrintingJobStatusLabel(status)}</span>
                 </div>
@@ -4045,13 +4048,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedPrintFiles.length) {
             const provider = document.getElementById('uploadPrintProvider');
             const orgId = String(provider?.value || '').trim();
-            if (!orgId) {
-                alert('Select a printing provider first.');
-                return;
-            }
 
             const payload = new FormData();
-            payload.append('org_id', orgId);
+            if (orgId) {
+                payload.append('org_id', orgId);
+            }
             selectedPrintFiles.forEach((entry) => {
                 payload.append('files[]', entry.file);
                 payload.append('notes[]', String(entry.note || '').trim());

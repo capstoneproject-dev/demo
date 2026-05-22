@@ -144,6 +144,7 @@ function stEnsureSchema(PDO $pdo): void
             print_job_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
             org_id INT NOT NULL,
             user_id INT NOT NULL,
+            provider_auto_assigned TINYINT(1) NOT NULL DEFAULT 0,
             file_name VARCHAR(255) NOT NULL,
             file_url VARCHAR(255) NOT NULL,
             notes TEXT NULL,
@@ -164,6 +165,11 @@ function stEnsureSchema(PDO $pdo): void
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
                 ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+
+    $pdo->exec(
+        "ALTER TABLE print_jobs
+         ADD COLUMN IF NOT EXISTS provider_auto_assigned TINYINT(1) NOT NULL DEFAULT 0"
     );
 
     $done = true;
@@ -667,6 +673,7 @@ function stAttachQueuePositions(PDO $pdo, array $rows): array
         $row['org_id'] = (int)$row['org_id'];
         $row['user_id'] = (int)$row['user_id'];
         $row['queue_order'] = (int)$row['queue_order'];
+        $row['provider_auto_assigned'] = (int)($row['provider_auto_assigned'] ?? 0);
         $row['queue_position'] = strtolower((string)$row['status']) === 'queued'
             ? (int)($positionMap[(int)$row['print_job_id']] ?? 0)
             : null;
@@ -684,10 +691,35 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
 
     $orgRef = $data['org_id'] ?? ($data['org_code'] ?? ($data['org_name'] ?? ''));
     $notes = trim((string)($data['notes'] ?? ''));
+
+    $autoAssigned = 0;
     $org = stResolveOrganizationByRef($pdo, $orgRef);
     if (!$org) {
-        throw new ServiceTrackerValidationException('Selected printing provider was not found.');
+        $autoAssigned = 1;
+        $authorized = stListAuthorizedOrganizations($pdo, 'printing');
+        if (!$authorized) {
+            throw new ServiceTrackerValidationException('No organizations are currently authorized to offer printing services.');
+        }
+
+        $fallback = null;
+        foreach ($authorized as $candidate) {
+            if (strtoupper(trim((string)($candidate['org_code'] ?? ''))) === 'SSC') {
+                $fallback = $candidate;
+                break;
+            }
+        }
+        if ($fallback === null) {
+            $fallback = $authorized[0];
+        }
+
+        $org = [
+            'org_id' => (int)$fallback['org_id'],
+            'org_name' => (string)$fallback['org_name'],
+            'org_code' => (string)($fallback['org_code'] ?? ''),
+            'status' => 'active',
+        ];
     }
+
     $orgId = (int)$org['org_id'];
 
     if (!stServiceEnabledForOrg($pdo, $orgId, 'printing')) {
@@ -701,13 +733,14 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
         $queueOrder = stGetNextQueueOrder($pdo, $orgId);
         $insert = $pdo->prepare(
             "INSERT INTO print_jobs
-                (org_id, user_id, file_name, file_url, notes, status, queue_order, last_updated_by_user_id)
+                (org_id, user_id, provider_auto_assigned, file_name, file_url, notes, status, queue_order, last_updated_by_user_id)
              VALUES
-                (:org_id, :user_id, :file_name, :file_url, :notes, 'queued', :queue_order, :updated_by)"
+                (:org_id, :user_id, :provider_auto_assigned, :file_name, :file_url, :notes, 'queued', :queue_order, :updated_by)"
         );
         $insert->execute([
             ':org_id' => $orgId,
             ':user_id' => $userId,
+            ':provider_auto_assigned' => $autoAssigned,
             ':file_name' => $storedFile['file_name'],
             ':file_url' => $storedFile['file_url'],
             ':notes' => $notes !== '' ? $notes : null,
