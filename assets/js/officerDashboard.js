@@ -612,6 +612,7 @@ function navigate(viewId, element) {
 
 let currentTrackerSubView = 'rentals';
 let officerPrintingQueue = [];
+let officerPendingPrintRequests = [];
 let officerPrintingHistoryFilters = { startDate: null, endDate: null, search: '' };
 let currentPrintingPanelView = 'queue';
 let officerPrintingCalendarCurrentDate = new Date();
@@ -1550,10 +1551,16 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
     const historyBody = document.getElementById('officerPrintingHistoryTable');
     const disabledMessage = document.getElementById('officerPrintingDisabledMessage');
     const tableWrap = document.getElementById('officerPrintingQueueTableWrap');
+    const pendingPanel = document.getElementById('officerPendingPrintRequestsPanel');
+    const pendingWrap = document.getElementById('officerPendingPrintRequestsTableWrap');
     if (!tableBody || !disabledMessage || !tableWrap) return;
 
     disabledMessage.style.display = printingEnabled ? 'none' : 'block';
     tableWrap.style.display = printingEnabled ? 'block' : 'none';
+    if (pendingPanel) pendingPanel.style.display = printingEnabled ? 'block' : 'none';
+    if (pendingWrap) pendingWrap.style.display = printingEnabled ? 'block' : 'none';
+
+    renderOfficerPendingPrintRequests(printingEnabled);
 
     if (!printingEnabled) {
         showOfficerPrintingQueueView();
@@ -1639,6 +1646,58 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
     } else {
         showOfficerPrintingQueueView();
     }
+}
+
+function renderOfficerPendingPrintRequests(printingEnabled = true) {
+    const tableBody = document.getElementById('officerPendingPrintRequestsTable');
+    const wrap = document.getElementById('officerPendingPrintRequestsTableWrap');
+    const panel = document.getElementById('officerPendingPrintRequestsPanel');
+    if (!tableBody || !wrap || !panel) {
+        return;
+    }
+
+    if (!printingEnabled || !officerPendingPrintRequests.length) {
+        panel.style.display = 'none';
+        wrap.style.display = 'none';
+        tableBody.innerHTML = '';
+        return;
+    }
+
+    panel.style.display = 'block';
+    wrap.style.display = 'block';
+
+    tableBody.innerHTML = officerPendingPrintRequests.map((job) => {
+        const jobUrl = resolvePdfUrl(job.file_url);
+        const submittedAt = job.submitted_at ? new Date(job.submitted_at) : null;
+        const timeLabel = submittedAt && !Number.isNaN(submittedAt.getTime())
+            ? submittedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+            : '';
+
+        return `
+            <tr>
+                <td>
+                    <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
+                    ${job.notes ? `<div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.notes)}</div>` : ''}
+                </td>
+                <td>
+                    <strong>${escapeHtml(job.student_name || 'Unknown Student')}</strong>
+                    <div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.student_number || '-')} ${job.section ? `• ${escapeHtml(job.section)}` : ''}</div>
+                </td>
+                <td>
+                    ${fmtDateShort(job.submitted_at)}
+                    ${timeLabel ? `<div style="color:var(--muted); font-size:0.8rem;">${timeLabel}</div>` : ''}
+                </td>
+                <td>
+                    <div class="printing-job-action-stack">
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" target="_blank" rel="noopener">View</a>` : ''}
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" download>Download</a>` : ''}
+                        <button class="btn btn-primary btn-sm" type="button" onclick="acceptOfficerPendingPrintRequest(${Number(job.print_job_id)})">Accept</button>
+                        <button class="btn btn-outline btn-sm" type="button" onclick="dismissOfficerPendingPrintRequest(${Number(job.print_job_id)})">No</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function filterOfficerPrintingHistory() {
@@ -2056,6 +2115,17 @@ async function loadOfficerPrintingQueue(force = false) {
             throw new Error(data.error || 'Could not load the printing queue.');
         }
         officerPrintingQueue = Array.isArray(data.items) ? data.items : [];
+
+        if (data.printing_enabled) {
+            try {
+                await loadOfficerPendingPrintRequests(force);
+            } catch (_error) {
+                officerPendingPrintRequests = [];
+            }
+        } else {
+            officerPendingPrintRequests = [];
+        }
+
         renderOfficerPrintingQueue(!!data.printing_enabled);
         return officerPrintingQueue;
     } catch (error) {
@@ -2063,9 +2133,60 @@ async function loadOfficerPrintingQueue(force = false) {
             console.error('[loadOfficerPrintingQueue]', error);
         }
         officerPrintingQueue = [];
+        officerPendingPrintRequests = [];
         setOfficerTrackerPrintingAccess(false);
         renderOfficerPrintingQueue(false);
         throw error;
+    }
+}
+
+async function loadOfficerPendingPrintRequests(force = false) {
+    try {
+        const response = await fetch('../api/printing/officer/pending.php', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load pending print requests.');
+        }
+        officerPendingPrintRequests = Array.isArray(data.items) ? data.items : [];
+        renderOfficerPendingPrintRequests(!!data.printing_enabled);
+        return officerPendingPrintRequests;
+    } catch (error) {
+        if (force) {
+            console.error('[loadOfficerPendingPrintRequests]', error);
+        }
+        officerPendingPrintRequests = [];
+        renderOfficerPendingPrintRequests(false);
+        throw error;
+    }
+}
+
+function dismissOfficerPendingPrintRequest(printJobId) {
+    const numericId = Number(printJobId);
+    officerPendingPrintRequests = officerPendingPrintRequests.filter((job) => Number(job.print_job_id) !== numericId);
+    renderOfficerPendingPrintRequests(true);
+}
+
+async function acceptOfficerPendingPrintRequest(printJobId) {
+    const numericId = Number(printJobId);
+    try {
+        const response = await fetch('../api/printing/officer/accept.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ print_job_id: numericId })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not accept the print request.');
+        }
+
+        await loadOfficerPrintingQueue(true);
+    } catch (error) {
+        alert(error.message || 'Could not accept the print request.');
+        await loadOfficerPendingPrintRequests(true).catch(() => {});
     }
 }
 

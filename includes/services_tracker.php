@@ -764,6 +764,10 @@ function stListPrintJobs(PDO $pdo, array $filters = [], ?int $userScope = null, 
     $where = [];
     $params = [];
 
+    if (!empty($filters['exclude_provider_auto_assigned'])) {
+        $where[] = 'COALESCE(pj.provider_auto_assigned, 0) = 0';
+    }
+
     if ($userScope !== null) {
         $where[] = 'pj.user_id = :user_id';
         $params[':user_id'] = $userScope;
@@ -808,6 +812,91 @@ function stListPrintJobs(PDO $pdo, array $filters = [], ?int $userScope = null, 
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
     return stAttachQueuePositions($pdo, $rows);
+}
+
+function stListPendingPrintJobs(PDO $pdo): array
+{
+    stEnsureSchema($pdo);
+    $stmt = $pdo->prepare(
+        "SELECT pj.*,
+                o.org_name,
+                o.org_code,
+                CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS student_name,
+                u.student_number,
+                NULL AS section
+         FROM print_jobs pj
+         JOIN organizations o ON o.org_id = pj.org_id
+         JOIN users u ON u.user_id = pj.user_id
+         WHERE COALESCE(pj.provider_auto_assigned, 0) = 1
+           AND pj.status = 'queued'
+         ORDER BY pj.submitted_at ASC, pj.print_job_id ASC"
+    );
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+    return stAttachQueuePositions($pdo, $rows);
+}
+
+function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $updatedByUserId): array
+{
+    stEnsureSchema($pdo);
+    if ($orgId <= 0) {
+        throw new ServiceTrackerValidationException('A valid organization is required.');
+    }
+    if ($printJobId <= 0) {
+        throw new ServiceTrackerValidationException('A valid print job is required.');
+    }
+
+    if (!stServiceEnabledForOrg($pdo, $orgId, 'printing')) {
+        throw new ServiceTrackerAuthorizationException('Your organization is not authorized for printing services.');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $lock = $pdo->prepare(
+            "SELECT provider_auto_assigned, status
+             FROM print_jobs
+             WHERE print_job_id = :print_job_id
+             FOR UPDATE"
+        );
+        $lock->execute([':print_job_id' => $printJobId]);
+        $current = $lock->fetch();
+        if (!$current) {
+            throw new ServiceTrackerValidationException('Print job not found.');
+        }
+
+        if ((int)($current['provider_auto_assigned'] ?? 0) !== 1 || strtolower((string)($current['status'] ?? '')) !== 'queued') {
+            throw new ServiceTrackerValidationException('This print request has already been accepted by another organization.');
+        }
+
+        $queueOrder = stGetNextQueueOrder($pdo, $orgId);
+        $update = $pdo->prepare(
+            "UPDATE print_jobs
+             SET org_id = :org_id,
+                 provider_auto_assigned = 0,
+                 queue_order = :queue_order,
+                 last_updated_by_user_id = :updated_by
+             WHERE print_job_id = :print_job_id
+               AND COALESCE(provider_auto_assigned, 0) = 1"
+        );
+        $update->execute([
+            ':org_id' => $orgId,
+            ':queue_order' => $queueOrder,
+            ':updated_by' => $updatedByUserId > 0 ? $updatedByUserId : null,
+            ':print_job_id' => $printJobId,
+        ]);
+
+        if ($update->rowCount() === 0) {
+            throw new ServiceTrackerValidationException('This print request has already been accepted by another organization.');
+        }
+
+        $pdo->commit();
+        return stFetchPrintJob($pdo, $printJobId);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }
 
 function stUpdatePrintJobStatus(PDO $pdo, int $orgId, int $printJobId, string $status, int $updatedByUserId): array

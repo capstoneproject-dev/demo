@@ -7,14 +7,23 @@ apiGuard();
 
 try {
     $ctx = stRequireOfficerContext();
-    $status = trim((string)($_GET['status'] ?? 'all'));
-    $items = stListPrintJobs(getPdo(), ['status' => $status, 'exclude_provider_auto_assigned' => true], null, (int)$ctx['org_id']);
+    $pdo = getPdo();
+    $printingEnabled = stServiceEnabledForOrg($pdo, (int)$ctx['org_id'], 'printing');
+
+    if (!$printingEnabled) {
+        jsonOk([
+            'items' => [],
+            'printing_enabled' => false,
+        ]);
+    }
+
+    $items = stListPendingPrintJobs($pdo);
     jsonOk([
         'items' => $items,
-        'printing_enabled' => stServiceEnabledForOrg(getPdo(), (int)$ctx['org_id'], 'printing'),
+        'printing_enabled' => true,
     ]);
 } catch (PDOException $e) {
-    error_log('[api/printing/officer/list] ' . $e->getMessage());
+    error_log('[api/printing/officer/pending] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {
     jsonError($e->getMessage(), 400);
