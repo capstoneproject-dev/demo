@@ -1449,6 +1449,9 @@ function navigate(viewId, element) {
             clearInterval(rentalTimerInterval);
             rentalTimerInterval = null;
         }
+        stopStudentPrintingAutoRefresh();
+    } else {
+        startStudentPrintingAutoRefresh();
     }
 
     // Scroll to top
@@ -1483,6 +1486,12 @@ function switchServiceTab(tabName, btn) {
     }
 
     syncStudentServicesPanels();
+
+    if (tabName === 'catalog') {
+        startStudentPrintingAutoRefresh();
+    } else {
+        stopStudentPrintingAutoRefresh();
+    }
 }
 
 // --- ORGANIZATION TABS LOGIC ---
@@ -2817,6 +2826,8 @@ let studentServicesTracker = {
 };
 let studentPrintingJobs = [];
 const studentCancellingPrintJobs = new Set();
+let studentPrintingAutoRefreshInterval = null;
+let studentPrintingAutoRefreshInFlight = false;
 let studentServicesTrackerPromise = null;
 let studentLockerState = {
     enabled: false,
@@ -2826,6 +2837,55 @@ let studentLockerState = {
     current_locker: null
 };
 let pendingStudentLockerSelection = null;
+
+function isStudentPrintingHeroAutoRefreshActive() {
+    const servicesView = document.getElementById('services');
+    if (!servicesView || !servicesView.classList.contains('active')) return false;
+
+    const catalogTab = document.getElementById('services-catalog-tab');
+    if (!catalogTab || !catalogTab.classList.contains('active')) return false;
+
+    const heroLive = document.getElementById('printingHeroLive');
+    if (!heroLive) return false;
+
+    return heroLive.offsetParent !== null;
+}
+
+function stopStudentPrintingAutoRefresh() {
+    if (studentPrintingAutoRefreshInterval) {
+        clearInterval(studentPrintingAutoRefreshInterval);
+        studentPrintingAutoRefreshInterval = null;
+    }
+    studentPrintingAutoRefreshInFlight = false;
+}
+
+function startStudentPrintingAutoRefresh() {
+    if (studentPrintingAutoRefreshInterval) return;
+    if (!isStudentPrintingHeroAutoRefreshActive()) return;
+
+    const tick = async () => {
+        if (document.hidden) return;
+        if (!isStudentPrintingHeroAutoRefreshActive()) {
+            stopStudentPrintingAutoRefresh();
+            return;
+        }
+        if (studentPrintingAutoRefreshInFlight) return;
+
+        studentPrintingAutoRefreshInFlight = true;
+        try {
+            await loadStudentPrintJobs(false);
+        } catch (_error) {
+            // Silent by design for polling
+        } finally {
+            studentPrintingAutoRefreshInFlight = false;
+        }
+    };
+
+    tick().catch(() => undefined);
+    studentPrintingAutoRefreshInterval = setInterval(() => {
+        tick().catch(() => undefined);
+    }, 3000);
+}
 
 function resolveStudentCatalogImage(path) {
     const raw = String(path || '').trim();
@@ -3546,7 +3606,18 @@ function hasStudentActivePrintJobs() {
 function updateStudentServicesOverviewLayout(hasSelectedFiles = false) {
     const studentServicesOverview = document.getElementById('studentServicesOverview');
     if (!studentServicesOverview) return;
-    studentServicesOverview.classList.toggle('is-stacked', Boolean(hasSelectedFiles || hasStudentActivePrintJobs()));
+
+    const fileSelectedState = document.getElementById('fileSelectedState');
+    const fileInput = document.getElementById('fileInput');
+    const hasLiveSelectedFiles = Boolean(
+        (fileSelectedState && fileSelectedState.style.display !== 'none')
+        || (fileInput && fileInput.files && fileInput.files.length)
+    );
+
+    studentServicesOverview.classList.toggle(
+        'is-stacked',
+        Boolean(hasSelectedFiles || hasLiveSelectedFiles || hasStudentActivePrintJobs())
+    );
 }
 
 function renderStudentPrintingJobs() {

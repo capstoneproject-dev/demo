@@ -608,6 +608,12 @@ function navigate(viewId, element) {
     if (viewId === 'analytics') {
         window.dispatchEvent(new Event('resize'));
     }
+
+    if (viewId !== 'tracker') {
+        stopOfficerPrintingAutoRefresh();
+    } else if (currentTrackerSubView === 'printing' && officerPrintingEnabled) {
+        startOfficerPrintingAutoRefresh();
+    }
 }
 
 let currentTrackerSubView = 'rentals';
@@ -640,6 +646,59 @@ let officerLockerBoard = [];
 let selectedLockerTile = null;
 let lockerAssignableStudents = [];
 let selectedLockerAssignStudent = null;
+
+let officerPrintingAutoRefreshTimer = null;
+let officerPrintingAutoRefreshInFlight = false;
+let officerPrintingAutoRefreshLastQueueRefresh = 0;
+
+function isOfficerPrintingQueueBeingEdited() {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return false;
+    const wrap = document.getElementById('officerPrintingQueueTableWrap');
+    if (!wrap || !wrap.contains(active)) return false;
+    const tag = String(active.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'select' || tag === 'textarea';
+}
+
+function stopOfficerPrintingAutoRefresh() {
+    if (officerPrintingAutoRefreshTimer) {
+        clearInterval(officerPrintingAutoRefreshTimer);
+        officerPrintingAutoRefreshTimer = null;
+    }
+    officerPrintingAutoRefreshInFlight = false;
+}
+
+function startOfficerPrintingAutoRefresh() {
+    stopOfficerPrintingAutoRefresh();
+
+    const pendingPollMs = 3000;
+    const queuePollMs = 15000;
+
+    officerPrintingAutoRefreshTimer = setInterval(async () => {
+        if (document.hidden) return;
+        if (!officerPrintingEnabled) return;
+        if (currentTrackerSubView !== 'printing') return;
+        const trackerSection = document.getElementById('tracker');
+        if (trackerSection && !trackerSection.classList.contains('active')) return;
+        if (officerPrintingAutoRefreshInFlight) return;
+        officerPrintingAutoRefreshInFlight = true;
+
+        try {
+            await loadOfficerPendingPrintRequests(false);
+
+            const now = Date.now();
+            const dueForQueueRefresh = now - Number(officerPrintingAutoRefreshLastQueueRefresh || 0) >= queuePollMs;
+            if (dueForQueueRefresh && !isOfficerPrintingQueueBeingEdited()) {
+                officerPrintingAutoRefreshLastQueueRefresh = now;
+                await loadOfficerPrintingQueue(false);
+            }
+        } catch (_error) {
+            // keep silent during auto-refresh
+        } finally {
+            officerPrintingAutoRefreshInFlight = false;
+        }
+    }, pendingPollMs);
+}
 
 function isOfficerLockerEnabled() {
     const session = readAuthSession();
@@ -677,6 +736,7 @@ function setOfficerTrackerPrintingAccess(printingEnabled) {
     }
 
     if (!officerPrintingEnabled && currentTrackerSubView === 'printing') {
+        stopOfficerPrintingAutoRefresh();
         currentTrackerSubView = 'rentals';
     }
     if (!officerLockerEnabled && currentTrackerSubView === 'lockers') {
@@ -700,6 +760,7 @@ function initTrackerSidebarBehavior() {
 }
 
 function switchTrackerSubView(viewId, button = null) {
+    const wasPrinting = currentTrackerSubView === 'printing';
     if (viewId === 'printing' && !officerPrintingEnabled) {
         return;
     }
@@ -717,8 +778,13 @@ function switchTrackerSubView(viewId, button = null) {
     if (target) {
         target.classList.add('active');
     }
+
+    if (wasPrinting && viewId !== 'printing') {
+        stopOfficerPrintingAutoRefresh();
+    }
     if (viewId === 'printing') {
         showOfficerPrintingQueueView();
+        startOfficerPrintingAutoRefresh();
         loadOfficerPrintingQueue().catch((error) => console.error(error));
     } else if (viewId === 'financial-summary') {
         loadOfficerFinancialSummary().catch((error) => console.error(error));
