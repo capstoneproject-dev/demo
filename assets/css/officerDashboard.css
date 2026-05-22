@@ -3160,6 +3160,24 @@ body.dark .btn-outline:hover {
     overflow-x: auto;
 }
 
+.printing-subpanel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--panel-2);
+    padding: 16px;
+}
+
+.printing-subpanel .card-header {
+    margin-bottom: 12px;
+}
+
+.printing-subpanel .table-container {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--panel);
+}
+
 .financial-summary-panel {
     width: 100%;
     min-height: 88vh;

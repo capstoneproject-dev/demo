@@ -548,6 +548,38 @@
                             </div>
 
                             <div id="officerPrintingQueueContent">
+                                <div id="officerPendingPrintRequestsPanel" class="printing-subpanel" style="margin-bottom: 18px;">
+                                    <div class="card-header">
+                                        <div>
+                                            <div class="card-title">Pending Print Requests</div>
+                                            <p style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">
+                                                Requests submitted without a selected provider. The first organization to accept will receive the job.
+                                            </p>
+                                        </div>
+                                        <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerPendingPrintRequests(true)">
+                                            <i class="fa-solid fa-rotate-right"></i> Refresh
+                                        </button>
+                                    </div>
+
+                                    <div class="table-container" id="officerPendingPrintRequestsTableWrap">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Document</th>
+                                                    <th>Student</th>
+                                                    <th>Submitted</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="officerPendingPrintRequestsTable">
+                                                <tr>
+                                                    <td colspan="4" style="text-align:center; padding:24px; color:var(--muted);">Loading pending requests...</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
                                 <div class="table-container" id="officerPrintingQueueTableWrap">
                                     <table>
                                         <thead>
