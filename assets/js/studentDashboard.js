@@ -75,11 +75,78 @@ const STUDENT_EVENTS_API = '../api/student/events/list.php';
 let databaseEvents = [];
 
 const ORG_BANNER_ASSET_VERSION = "20260527";
+const ORG_PROFILE_OVERRIDES_KEY = "naapOrgProfileOverrides";
 
 function versionOrgBannerUrl(url, version = ORG_BANNER_ASSET_VERSION) {
     if (!url) return "";
+    if (/^(data|blob):/i.test(String(url))) return String(url);
     const separator = String(url).includes("?") ? "&" : "?";
     return `${url}${separator}v=${encodeURIComponent(version)}`;
+}
+
+function readOrgProfileOverrides() {
+    try {
+        return JSON.parse(localStorage.getItem(ORG_PROFILE_OVERRIDES_KEY) || "{}");
+    } catch (_error) {
+        return {};
+    }
+}
+
+function getOrgProfileOverride(orgName) {
+    return readOrgProfileOverrides()[normalizeOrgName(orgName)] || {};
+}
+
+function saveOrgProfileOverride(orgName, data) {
+    const overrides = readOrgProfileOverrides();
+    const key = normalizeOrgName(orgName);
+    overrides[key] = {
+        ...overrides[key],
+        ...data,
+        contact: {
+            ...(overrides[key]?.contact || {}),
+            ...(data.contact || {})
+        },
+        updatedAt: new Date().toISOString()
+    };
+    localStorage.setItem(ORG_PROFILE_OVERRIDES_KEY, JSON.stringify(overrides));
+}
+
+function getOrganizationLogoImage(org) {
+    const savedProfile = getOrgProfileOverride(org?.name);
+    return savedProfile.logo || org?.image || "";
+}
+
+function isOrganizationPreviewModeFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "organizations" && params.get("preview") === "1";
+}
+
+function getOrganizationPreviewOrgFromUrl() {
+    if (!isOrganizationPreviewModeFromUrl()) {
+        return "";
+    }
+
+    const requestedOrg = new URLSearchParams(window.location.search).get("org");
+    const normalizedOrg = normalizeOrgName(requestedOrg);
+    const hasOrg = organizationData.some(item => normalizeOrgName(item.name) === normalizedOrg);
+    return hasOrg ? normalizedOrg : "";
+}
+
+function applyOrganizationPreviewModeChrome() {
+    if (!isOrganizationPreviewModeFromUrl()) {
+        return;
+    }
+
+    const profileNavLink = document.querySelector('.nav-link[onclick*="navigate(\'profile\'"]');
+    const profileNavItem = profileNavLink ? profileNavLink.closest('.nav-item') : null;
+    if (profileNavItem) {
+        profileNavItem.style.display = 'none';
+    }
+
+    const profileHeaderLink = document.querySelector('.user-profile[onclick*="navigate(\'profile\'"]');
+    if (profileHeaderLink) {
+        profileHeaderLink.style.display = 'none';
+    }
 }
 
 // Helper to determine event status relative to "Today" (Feb 7, 2026)
@@ -870,10 +937,11 @@ function renderMyOrgHomeSection(viewModel) {
         orgMotto,
         formattedDate
     } = viewModel;
+    const editPanelMarkup = viewModel.isOfficerEditMode ? renderOrgProfileEditor(viewModel) : '';
 
     const announcementMarkup = announcementEvents.map(event => `
         <div class="my-org-ref-ann-item">
-            <img src="${organization.image}" alt="${organization.name} logo" class="my-org-ref-ann-thumb">
+            <img src="${viewModel.logoImage}" alt="${organization.name} logo" class="my-org-ref-ann-thumb">
             <div>
                 <div class="my-org-ref-ann-title">Upcoming Event: ${event.title}</div>
                 <div class="my-org-ref-ann-date">${event.date}</div>
@@ -943,6 +1011,7 @@ function renderMyOrgHomeSection(viewModel) {
                 </article>
             </aside>
         </section>
+        ${editPanelMarkup}
 
         <section class="my-org-ref-bottom">
             <article class="my-org-ref-quickfacts">
@@ -1011,6 +1080,7 @@ function renderMyOrgEventsSection(viewModel) {
 }
 
 function renderMyOrgAboutSection(viewModel) {
+    const editPanelMarkup = viewModel.isOfficerEditMode ? renderOrgProfileEditor(viewModel) : '';
     const highlightsMarkup = (viewModel.profileConfig.highlights || []).map(item => `
         <li><i class="fa-solid fa-check"></i><span>${item}</span></li>
     `).join('');
@@ -1032,13 +1102,14 @@ function renderMyOrgAboutSection(viewModel) {
                     <p>${viewModel.orgMotto}</p>
                 </div>
             </div>
+            ${editPanelMarkup}
 
             <div class="my-org-about-grid">
                 <article class="my-org-spa-card my-org-about-story">
                     <h3>Who We Are</h3>
                     <p>${viewModel.profileConfig.about}</p>
                     <div class="my-org-about-banner">
-                        <img src="${viewModel.heroBackgroundImage}" alt="${viewModel.organization.name} banner">
+                        <img src="${viewModel.logoImage}" alt="${viewModel.organization.name} logo">
                     </div>
                 </article>
 
@@ -1152,6 +1223,8 @@ function renderMyOrgOfficersSection(viewModel) {
 }
 
 function renderMyOrgContactSection(viewModel) {
+    const editPanelMarkup = viewModel.isOfficerEditMode ? renderOrgProfileEditor(viewModel) : '';
+
     return `
         <section class="my-org-spa-section">
             <div class="my-org-spa-header">
@@ -1161,6 +1234,7 @@ function renderMyOrgContactSection(viewModel) {
                     <p>${viewModel.contactProfile.summary}</p>
                 </div>
             </div>
+            ${editPanelMarkup}
 
             <div class="my-org-contact-grid">
                 <article class="my-org-spa-card my-org-contact-card">
@@ -1187,6 +1261,142 @@ function renderMyOrgContactSection(viewModel) {
     `;
 }
 
+function renderOrgProfileEditor(viewModel) {
+    const contact = viewModel.contactProfile;
+    return `
+        <form class="my-org-editor-panel" onsubmit="saveOrganizationProfileEdits(event)">
+            <div class="my-org-editor-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Officer Edit Mode</p>
+                    <h3>Update Student-Facing Information</h3>
+                </div>
+                <button type="submit" class="my-org-editor-save">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>Save Changes</span>
+                </button>
+            </div>
+            <input type="hidden" name="orgName" value="${escapeHtml(viewModel.organization.name)}">
+            <div class="my-org-editor-grid">
+                <label>
+                    <span>Banner Image</span>
+                    <input name="bannerFile" type="file" accept="image/jpeg,image/png,image/webp">
+                </label>
+                <label>
+                    <span>Organization Logo</span>
+                    <input name="logoFile" type="file" accept="image/jpeg,image/png,image/webp">
+                </label>
+                <label>
+                    <span>Motto</span>
+                    <input name="motto" type="text" value="${escapeHtml(viewModel.orgMotto)}">
+                </label>
+                <label>
+                    <span>About</span>
+                    <textarea name="about" rows="4">${escapeHtml(viewModel.profileConfig.about)}</textarea>
+                </label>
+                <label>
+                    <span>Office</span>
+                    <input name="office" type="text" value="${escapeHtml(contact.office)}">
+                </label>
+                <label>
+                    <span>Office Hours</span>
+                    <input name="hours" type="text" value="${escapeHtml(contact.hours)}">
+                </label>
+                <label>
+                    <span>Email</span>
+                    <input name="email" type="email" value="${escapeHtml(contact.email)}">
+                </label>
+                <label>
+                    <span>Phone</span>
+                    <input name="phone" type="text" value="${escapeHtml(contact.phone)}">
+                </label>
+                <label>
+                    <span>Facebook</span>
+                    <input name="facebook" type="url" value="${escapeHtml(contact.facebook)}">
+                </label>
+                <label>
+                    <span>Instagram</span>
+                    <input name="instagram" type="url" value="${escapeHtml(contact.instagram)}">
+                </label>
+                <label>
+                    <span>X / Twitter</span>
+                    <input name="x" type="url" value="${escapeHtml(contact.x)}">
+                </label>
+                <label>
+                    <span>TikTok</span>
+                    <input name="tiktok" type="url" value="${escapeHtml(contact.tiktok)}">
+                </label>
+                <label class="my-org-editor-wide">
+                    <span>Contact Summary</span>
+                    <textarea name="summary" rows="3">${escapeHtml(contact.summary)}</textarea>
+                </label>
+            </div>
+        </form>
+    `;
+}
+
+function readOrgImageFileAsDataUrl(file) {
+    return new Promise((resolve) => {
+        if (!file || !file.size) {
+            resolve("");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result || "");
+        reader.onerror = () => resolve("");
+        reader.readAsDataURL(file);
+    });
+}
+
+function saveOrganizationProfileEdits(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const orgName = String(formData.get('orgName') || '').trim();
+    const bannerFile = formData.get('bannerFile');
+    const logoFile = formData.get('logoFile');
+
+    const saveProfile = (bannerValue, logoValue) => {
+        const currentProfile = getOrgProfileOverride(orgName);
+        saveOrgProfileOverride(orgName, {
+            ...(bannerValue ? { banner: String(bannerValue).trim() } : { banner: currentProfile.banner }),
+            ...(logoValue ? { logo: String(logoValue).trim() } : { logo: currentProfile.logo }),
+            motto: String(formData.get('motto') || '').trim(),
+            about: String(formData.get('about') || '').trim(),
+            contact: {
+                office: String(formData.get('office') || '').trim(),
+                hours: String(formData.get('hours') || '').trim(),
+                email: String(formData.get('email') || '').trim(),
+                phone: String(formData.get('phone') || '').trim(),
+                facebook: String(formData.get('facebook') || '').trim(),
+                instagram: String(formData.get('instagram') || '').trim(),
+                x: String(formData.get('x') || '').trim(),
+                tiktok: String(formData.get('tiktok') || '').trim(),
+                summary: String(formData.get('summary') || '').trim()
+            }
+        });
+
+        const normalizedOrg = normalizeOrgName(orgName);
+        const contentDiv = document.getElementById('tab-content');
+        if (contentDiv) {
+            if (organizationBrowseContext) {
+                organizationBrowseContext.editMode = false;
+            }
+            renderOrganizationProfileView(contentDiv, normalizedOrg, {
+                browseMode: false,
+                canEdit: true,
+                editMode: false
+            });
+        }
+        alert('Organization information updated in this browser preview.');
+    };
+
+    Promise.all([
+        readOrgImageFileAsDataUrl(bannerFile),
+        readOrgImageFileAsDataUrl(logoFile)
+    ]).then(([bannerValue, logoValue]) => saveProfile(bannerValue, logoValue));
+}
+
 function renderMyOrgActiveSection(viewModel) {
     if (activeMyOrgSection === 'events') return renderMyOrgEventsSection(viewModel);
     if (activeMyOrgSection === 'about') return renderMyOrgAboutSection(viewModel);
@@ -1211,29 +1421,45 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
         return;
     }
 
-    const profileConfig = orgProfileConfig[targetOrgName] || orgProfileConfig["Supreme Student Council"];
+    const savedProfile = getOrgProfileOverride(targetOrgName);
+    const profileConfig = {
+        ...(orgProfileConfig[targetOrgName] || orgProfileConfig["Supreme Student Council"]),
+        ...(savedProfile.about ? { about: savedProfile.about } : {}),
+        ...(savedProfile.motto ? { tagline: savedProfile.motto } : {})
+    };
     const orgThemeClass = orgThemeClassMap[targetOrgName] || "org-theme-ssc";
-    const rawHeroBackgroundImage = targetOrgName === "AISERS"
+    const rawHeroBackgroundImage = savedProfile.banner || (targetOrgName === "AISERS"
         ? "../assets/photos/studentDashboard/Organizations Gallery/AISERS GROUP PHOTO.png"
-        : organization.banner;
+        : organization.banner);
     const heroBackgroundImage = versionOrgBannerUrl(rawHeroBackgroundImage);
+    const logoImage = getOrganizationLogoImage(organization);
     const allEvents = getAllOrganizationEvents();
     const relevantEvents = allEvents.filter(event => normalizeOrgName(event.org) === targetOrgName);
     const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
     const announcementEvents = (relevantEvents.length ? relevantEvents : allEvents).slice(0, 2);
     const recentActivities = (relevantEvents.length ? relevantEvents : allEvents).slice(0, 3);
     // fullName and motto come from ORG_DATA (data/orgData.js) — edit there, not here.
-    const orgEntry = (typeof ORG_DATA !== 'undefined' && ORG_DATA[targetOrgName]) || {};
+    const orgEntry = {
+        ...((typeof ORG_DATA !== 'undefined' && ORG_DATA[targetOrgName]) || {}),
+        ...(savedProfile.motto ? { motto: savedProfile.motto } : {})
+    };
     const fullOrgName = orgEntry.fullName || organization.name;
     const orgMotto = orgEntry.motto || profileConfig.tagline || "";
     const formattedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const officers = parseOfficerEntries(profileConfig.officers);
-    const contactProfile = buildMyOrgContactProfile(targetOrgName, organization, orgEntry);
+    const contactProfile = {
+        ...buildMyOrgContactProfile(targetOrgName, organization, orgEntry),
+        ...(savedProfile.contact || {})
+    };
+    const canEditOrganization = Boolean(options.canEdit);
+    const isOfficerEditMode = Boolean(options.editMode);
     const viewModel = {
         organization,
         profileConfig,
         orgThemeClass,
         heroBackgroundImage,
+        rawHeroBackgroundImage,
+        logoImage,
         relevantEvents,
         relevantServices,
         announcementEvents,
@@ -1243,12 +1469,20 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
         orgMotto,
         formattedDate,
         officers,
-        contactProfile
+        contactProfile,
+        canEditOrganization,
+        isOfficerEditMode
     };
     const topbarLabel = options.browseMode ? 'Organization Directory' : 'My Organization';
     const topbarTitle = options.browseMode ? organization.name : buildMyOrgSectionLabel(activeMyOrgSection);
     const backButtonMarkup = options.browseMode
         ? `<button type="button" class="my-org-browse-back-btn" onclick="returnToOrganizationsAboutGrid()"><i class="fa-solid fa-arrow-left"></i> Back to Organizations</button>`
+        : '';
+    const editModeButtonMarkup = canEditOrganization
+        ? `<button type="button" class="my-org-editor-toggle" onclick="toggleOrganizationEditMode(${isOfficerEditMode ? 'false' : 'true'})">
+                <i class="fa-solid ${isOfficerEditMode ? 'fa-eye' : 'fa-pen-to-square'}"></i>
+                ${isOfficerEditMode ? 'Preview Mode' : 'Edit Mode'}
+           </button>`
         : '';
 
     contentDiv.innerHTML = `
@@ -1260,17 +1494,18 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
                 </div>
                 <div class="my-org-ref-top-actions">
                     ${backButtonMarkup}
+                    ${editModeButtonMarkup}
                     <div class="my-org-ref-search">
                         <i class="fa-solid fa-magnifying-glass"></i>
                         <input type="text" placeholder="Search ${buildMyOrgSectionLabel(activeMyOrgSection)}">
                     </div>
-                    <img src="${organization.image}" alt="${organization.name} logo" class="my-org-ref-top-logo">
+                    <img src="${logoImage}" alt="${organization.name} logo" class="my-org-ref-top-logo">
                 </div>
             </section>
 
             <section class="my-org-ref-orgbar">
                 <div class="my-org-ref-orgtitle">
-                    <img src="${organization.image}" alt="${organization.name} logo">
+                    <img src="${logoImage}" alt="${organization.name} logo">
                     <span>${fullOrgName}</span>
                 </div>
                 <nav class="my-org-ref-links">
@@ -1288,6 +1523,22 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
 }
 
 function renderMyOrganizationTab(contentDiv) {
+    const previewOrgName = getOrganizationPreviewOrgFromUrl();
+    if (previewOrgName) {
+        organizationBrowseContext = {
+            orgName: previewOrgName,
+            editAsMyOrganization: true,
+            canEdit: true,
+            editMode: Boolean(organizationBrowseContext?.editMode)
+        };
+        renderOrganizationProfileView(contentDiv, previewOrgName, {
+            browseMode: false,
+            canEdit: true,
+            editMode: organizationBrowseContext.editMode
+        });
+        return;
+    }
+
     organizationBrowseContext = null;
     renderOrganizationProfileView(contentDiv, currentStudentProfile.associatedOrg, { browseMode: false });
 }
@@ -1355,7 +1606,7 @@ function renderOrganizationsAboutTab(contentDiv) {
             card.addEventListener('click', () => openOrganizationPreview(normalizeOrgName(org.name)));
 
             const img = document.createElement('img');
-            img.src = org.image ? org.image : `https://picsum.photos/seed/${org.imgSeed}/400/225`;
+            img.src = getOrganizationLogoImage(org) || `https://picsum.photos/seed/${org.imgSeed}/400/225`;
             img.className = 'org-card-image';
             img.alt = org.name;
 
@@ -1399,6 +1650,7 @@ function openOrganizationPreviewFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const requestedView = params.get('view');
     const requestedOrg = params.get('org');
+    const canEdit = isOrganizationPreviewModeFromUrl();
 
     if (requestedView !== 'organizations' || !requestedOrg) {
         return;
@@ -1411,11 +1663,39 @@ function openOrganizationPreviewFromUrl() {
     }
 
     navigate('organizations');
-    const aboutTab = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'about\'"]');
-    if (aboutTab) {
-        switchOrgTab('about', aboutTab);
+    document.querySelectorAll('#organizations .tab-btn').forEach(button => button.classList.remove('active'));
+    const myOrganizationTab = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'my-organization\'"]');
+    if (myOrganizationTab) {
+        myOrganizationTab.classList.add('active');
     }
-    openOrganizationPreview(normalizedOrg);
+
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        activeMyOrgSection = 'home';
+        organizationBrowseContext = {
+            orgName: normalizedOrg,
+            editAsMyOrganization: true,
+            canEdit,
+            editMode: false
+        };
+        renderOrganizationProfileView(contentDiv, normalizedOrg, { browseMode: false, canEdit, editMode: false });
+    }
+}
+
+function toggleOrganizationEditMode(shouldEdit) {
+    if (!organizationBrowseContext?.orgName || !organizationBrowseContext.canEdit) {
+        return;
+    }
+
+    organizationBrowseContext.editMode = Boolean(shouldEdit);
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        renderOrganizationProfileView(contentDiv, organizationBrowseContext.orgName, {
+            browseMode: !organizationBrowseContext.editAsMyOrganization,
+            canEdit: true,
+            editMode: organizationBrowseContext.editMode
+        });
+    }
 }
 
 function returnToOrganizationsAboutGrid() {
@@ -1433,7 +1713,11 @@ function switchMyOrgSection(sectionName) {
     const contentDiv = document.getElementById('tab-content');
     if (contentDiv) {
         if (organizationBrowseContext?.orgName) {
-            renderOrganizationProfileView(contentDiv, organizationBrowseContext.orgName, { browseMode: true });
+            renderOrganizationProfileView(contentDiv, organizationBrowseContext.orgName, {
+                browseMode: !organizationBrowseContext.editAsMyOrganization,
+                canEdit: Boolean(organizationBrowseContext.canEdit),
+                editMode: Boolean(organizationBrowseContext.editMode)
+            });
         } else {
             renderMyOrganizationTab(contentDiv);
         }
@@ -1615,7 +1899,7 @@ function switchOrgTab(tabName, btn) {
 
                 // Image
                 const img = document.createElement('img');
-                img.src = org.image ? org.image : `https://picsum.photos/seed/${org.imgSeed}/400/225`;
+                img.src = getOrganizationLogoImage(org) || `https://picsum.photos/seed/${org.imgSeed}/400/225`;
                 img.className = 'org-card-image';
                 img.alt = org.name;
 
@@ -1764,7 +2048,7 @@ function switchOrgTab(tabName, btn) {
                 card.innerHTML = `
                 <div class="recruit-header" style="background: ${org.banner ? `url('${versionOrgBannerUrl(org.banner)}') center/cover no-repeat` : org.color}"></div>
                 <div class="recruit-body">
-                    <img src="${org.image || `https://picsum.photos/seed/${org.imgSeed}/100/100`}" class="recruit-logo">
+                    <img src="${getOrganizationLogoImage(org) || `https://picsum.photos/seed/${org.imgSeed}/100/100`}" class="recruit-logo">
                     <div class="recruit-info-group">
                         <h4>${org.name}</h4>
                         <span class="recruit-badge">Open for Officers</span>
@@ -2498,6 +2782,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     updateEventRegistrationModalFields();
     loadRegistrationPrefill().catch((error) => console.error(error));
     hideOrganizationsMembershipTab();
+    applyOrganizationPreviewModeChrome();
     switchOrgTab('about', document.querySelector('.tab-btn'));
     openOrganizationPreviewFromUrl();
 
