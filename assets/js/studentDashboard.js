@@ -74,6 +74,14 @@ const extendedEvents = Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
 const STUDENT_EVENTS_API = '../api/student/events/list.php';
 let databaseEvents = [];
 
+const ORG_BANNER_ASSET_VERSION = "20260527";
+
+function versionOrgBannerUrl(url, version = ORG_BANNER_ASSET_VERSION) {
+    if (!url) return "";
+    const separator = String(url).includes("?") ? "&" : "?";
+    return `${url}${separator}v=${encodeURIComponent(version)}`;
+}
+
 // Helper to determine event status relative to "Today" (Feb 7, 2026)
 function getEventStatus(dateStr) {
     const today = new Date(2026, 1, 7); // Month is 0-indexed: 1 = Feb. Day = 7.
@@ -1205,9 +1213,10 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
 
     const profileConfig = orgProfileConfig[targetOrgName] || orgProfileConfig["Supreme Student Council"];
     const orgThemeClass = orgThemeClassMap[targetOrgName] || "org-theme-ssc";
-    const heroBackgroundImage = targetOrgName === "AISERS"
+    const rawHeroBackgroundImage = targetOrgName === "AISERS"
         ? "../assets/photos/studentDashboard/Organizations Gallery/AISERS GROUP PHOTO.png"
         : organization.banner;
+    const heroBackgroundImage = versionOrgBannerUrl(rawHeroBackgroundImage);
     const allEvents = getAllOrganizationEvents();
     const relevantEvents = allEvents.filter(event => normalizeOrgName(event.org) === targetOrgName);
     const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
@@ -1384,6 +1393,29 @@ function openOrganizationPreview(orgName) {
     if (contentDiv) {
         renderOrganizationProfileView(contentDiv, orgName, { browseMode: true });
     }
+}
+
+function openOrganizationPreviewFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const requestedView = params.get('view');
+    const requestedOrg = params.get('org');
+
+    if (requestedView !== 'organizations' || !requestedOrg) {
+        return;
+    }
+
+    const normalizedOrg = normalizeOrgName(requestedOrg);
+    const hasOrg = organizationData.some(item => normalizeOrgName(item.name) === normalizedOrg);
+    if (!hasOrg) {
+        return;
+    }
+
+    navigate('organizations');
+    const aboutTab = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'about\'"]');
+    if (aboutTab) {
+        switchOrgTab('about', aboutTab);
+    }
+    openOrganizationPreview(normalizedOrg);
 }
 
 function returnToOrganizationsAboutGrid() {
@@ -1730,7 +1762,7 @@ function switchOrgTab(tabName, btn) {
                 card.id = `recruit-card-${index}`;
 
                 card.innerHTML = `
-                <div class="recruit-header" style="background: ${org.banner ? `url('${org.banner}') center/cover no-repeat` : org.color}"></div>
+                <div class="recruit-header" style="background: ${org.banner ? `url('${versionOrgBannerUrl(org.banner)}') center/cover no-repeat` : org.color}"></div>
                 <div class="recruit-body">
                     <img src="${org.image || `https://picsum.photos/seed/${org.imgSeed}/100/100`}" class="recruit-logo">
                     <div class="recruit-info-group">
@@ -2467,6 +2499,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadRegistrationPrefill().catch((error) => console.error(error));
     hideOrganizationsMembershipTab();
     switchOrgTab('about', document.querySelector('.tab-btn'));
+    openOrganizationPreviewFromUrl();
 
     // Initialize Dashboard Carousel for the new layout
     initDashboardCarousel();
@@ -4904,7 +4937,7 @@ function openMembershipModal(orgName, cardId) {
     if (modalHeader && orgData) {
         if (orgData.banner) {
             // Set the specific banner if available
-            modalHeader.style.backgroundImage = `url('${orgData.banner}')`;
+            modalHeader.style.backgroundImage = `url('${versionOrgBannerUrl(orgData.banner)}')`;
         } else {
             // Fallback: Clear image or set a default pattern/color
             modalHeader.style.backgroundImage = 'none';

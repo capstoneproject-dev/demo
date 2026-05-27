@@ -91,6 +91,15 @@ function updateOfficerProfileView(session = readAuthSession()) {
     if (profilePhoneInput) profilePhoneInput.value = phone;
     if (profileCourseYearInput) profileCourseYearInput.value = courseYear;
 
+    const studentPreviewLink = document.getElementById('officerStudentPreviewLink');
+    if (studentPreviewLink) {
+        const params = new URLSearchParams({
+            view: 'organizations',
+            org: orgLabel
+        });
+        studentPreviewLink.href = `studentDashboard.html?${params.toString()}`;
+    }
+
     document.title = `${orgLabel} Officer Dashboard`;
 }
 
