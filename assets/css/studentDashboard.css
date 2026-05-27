@@ -2210,6 +2210,40 @@ body.dark .tab-btn:hover {
     opacity: 0.72;
 }
 
+.my-org-banner-file-field {
+    align-content: start;
+}
+
+.my-org-banner-file-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.my-org-banner-file-row input {
+    min-width: 0;
+    flex: 1;
+}
+
+.my-org-banner-file-row button {
+    flex: 0 0 auto;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .my-org-banner-file-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
 .my-org-highlight-list {
     list-style: none;
     display: grid;
