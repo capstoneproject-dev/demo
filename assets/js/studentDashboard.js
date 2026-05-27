@@ -76,6 +76,9 @@ let databaseEvents = [];
 
 const ORG_BANNER_ASSET_VERSION = "20260527";
 const ORG_PROFILE_OVERRIDES_KEY = "naapOrgProfileOverrides";
+const ORG_PUBLIC_PROFILES_API = "../api/student/organizations/public-profiles.php";
+const ORG_PUBLIC_PROFILE_SAVE_API = "../api/officer/organizations/public-profile-save.php";
+let orgProfileOverridesFromApi = {};
 
 function versionOrgBannerUrl(url, version = ORG_BANNER_ASSET_VERSION) {
     if (!url) return "";
@@ -85,11 +88,13 @@ function versionOrgBannerUrl(url, version = ORG_BANNER_ASSET_VERSION) {
 }
 
 function readOrgProfileOverrides() {
+    let localOverrides = {};
     try {
-        return JSON.parse(localStorage.getItem(ORG_PROFILE_OVERRIDES_KEY) || "{}");
+        localOverrides = JSON.parse(localStorage.getItem(ORG_PROFILE_OVERRIDES_KEY) || "{}");
     } catch (_error) {
-        return {};
+        localOverrides = {};
     }
+    return { ...localOverrides, ...orgProfileOverridesFromApi };
 }
 
 function getOrgProfileOverride(orgName) {
@@ -109,6 +114,54 @@ function saveOrgProfileOverride(orgName, data) {
         updatedAt: new Date().toISOString()
     };
     localStorage.setItem(ORG_PROFILE_OVERRIDES_KEY, JSON.stringify(overrides));
+}
+
+function normalizeOrgProfileApiRow(row) {
+    const orgName = row?.org_name || row?.org_code || "";
+    const key = normalizeOrgName(orgName);
+    if (!key) return null;
+
+    return {
+        key,
+        data: {
+            banner: row.banner_url || "",
+            logo: row.logo_url || "",
+            motto: row.public_motto || "",
+            about: row.public_about || "",
+            contact: {
+                office: row.contact_office || "",
+                hours: row.contact_hours || "",
+                email: row.contact_email || "",
+                phone: row.contact_phone || "",
+                facebook: row.contact_facebook || "",
+                instagram: row.contact_instagram || "",
+                x: row.contact_x_url || "",
+                tiktok: row.contact_tiktok || "",
+                summary: row.contact_summary || ""
+            },
+            updatedAt: row.updated_at || ""
+        }
+    };
+}
+
+async function loadOrganizationPublicProfiles() {
+    try {
+        const response = await fetch(ORG_PUBLIC_PROFILES_API, { credentials: "same-origin" });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Could not load organization profiles.");
+        }
+
+        orgProfileOverridesFromApi = {};
+        (data.profiles || []).forEach((row) => {
+            const normalized = normalizeOrgProfileApiRow(row);
+            if (normalized) {
+                orgProfileOverridesFromApi[normalized.key] = normalized.data;
+            }
+        });
+    } catch (error) {
+        console.warn(error);
+    }
 }
 
 function getOrganizationLogoImage(org) {
@@ -1334,48 +1387,28 @@ function renderOrgProfileEditor(viewModel) {
     `;
 }
 
-function readOrgImageFileAsDataUrl(file) {
-    return new Promise((resolve) => {
-        if (!file || !file.size) {
-            resolve("");
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result || "");
-        reader.onerror = () => resolve("");
-        reader.readAsDataURL(file);
-    });
-}
-
-function saveOrganizationProfileEdits(event) {
+async function saveOrganizationProfileEdits(event) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
     const orgName = String(formData.get('orgName') || '').trim();
-    const bannerFile = formData.get('bannerFile');
-    const logoFile = formData.get('logoFile');
 
-    const saveProfile = (bannerValue, logoValue) => {
-        const currentProfile = getOrgProfileOverride(orgName);
-        saveOrgProfileOverride(orgName, {
-            ...(bannerValue ? { banner: String(bannerValue).trim() } : { banner: currentProfile.banner }),
-            ...(logoValue ? { logo: String(logoValue).trim() } : { logo: currentProfile.logo }),
-            motto: String(formData.get('motto') || '').trim(),
-            about: String(formData.get('about') || '').trim(),
-            contact: {
-                office: String(formData.get('office') || '').trim(),
-                hours: String(formData.get('hours') || '').trim(),
-                email: String(formData.get('email') || '').trim(),
-                phone: String(formData.get('phone') || '').trim(),
-                facebook: String(formData.get('facebook') || '').trim(),
-                instagram: String(formData.get('instagram') || '').trim(),
-                x: String(formData.get('x') || '').trim(),
-                tiktok: String(formData.get('tiktok') || '').trim(),
-                summary: String(formData.get('summary') || '').trim()
-            }
+    try {
+        const response = await fetch(ORG_PUBLIC_PROFILE_SAVE_API, {
+            method: "POST",
+            credentials: "same-origin",
+            body: formData
         });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Could not save organization profile.");
+        }
 
+        const normalizedProfile = normalizeOrgProfileApiRow(data.profile);
+        if (normalizedProfile) {
+            orgProfileOverridesFromApi[normalizedProfile.key] = normalizedProfile.data;
+            saveOrgProfileOverride(orgName, normalizedProfile.data);
+        }
         const normalizedOrg = normalizeOrgName(orgName);
         const contentDiv = document.getElementById('tab-content');
         if (contentDiv) {
@@ -1388,13 +1421,10 @@ function saveOrganizationProfileEdits(event) {
                 editMode: false
             });
         }
-        alert('Organization information updated in this browser preview.');
-    };
-
-    Promise.all([
-        readOrgImageFileAsDataUrl(bannerFile),
-        readOrgImageFileAsDataUrl(logoFile)
-    ]).then(([bannerValue, logoValue]) => saveProfile(bannerValue, logoValue));
+        alert('Organization information saved. Students will now see the updated data.');
+    } catch (error) {
+        alert(error.message || 'Could not save organization profile.');
+    }
 }
 
 function renderMyOrgActiveSection(viewModel) {
@@ -2761,6 +2791,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     validatePhpSession();   // guard: redirect to login if no valid session
     syncStudentIdentity();
     setDate();
+    await loadOrganizationPublicProfiles();
     renderDashboard();
     loadStudentEventsFromApi().catch((error) => console.error(error));
     try {
