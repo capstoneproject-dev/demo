@@ -1461,9 +1461,12 @@ function renderOrgProfileEditor(viewModel) {
             <input type="hidden" name="orgName" value="${escapeHtml(viewModel.organization.name)}">
             <input type="hidden" name="featuredImagesTouched" value="1">
             <div class="my-org-editor-grid">
-                <label>
+                <label class="my-org-banner-file-field">
                     <span>Banner Images</span>
-                    <input name="bannerFiles[]" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+                    <div class="my-org-banner-file-row">
+                        <input name="bannerFiles[]" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="handleBannerUploadPreview(this)">
+                        <button type="button" id="bannerUploadPreviewButton" onclick="openBannerUploadPreviewModal()" hidden>Preview Selected Photos</button>
+                    </div>
                 </label>
                 <label>
                     <span>Organization Logo</span>
@@ -1529,6 +1532,59 @@ function renderOrgProfileEditor(viewModel) {
             </section>
         </form>
     `;
+}
+
+let pendingBannerUploadPreviewUrls = [];
+
+function handleBannerUploadPreview(input) {
+    pendingBannerUploadPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+    pendingBannerUploadPreviewUrls = Array.from(input.files || [])
+        .filter(file => String(file.type || '').startsWith('image/'))
+        .map(file => URL.createObjectURL(file));
+
+    const button = document.getElementById('bannerUploadPreviewButton');
+    if (button) button.hidden = pendingBannerUploadPreviewUrls.length === 0;
+}
+
+function openBannerUploadPreviewModal() {
+    if (!pendingBannerUploadPreviewUrls.length) {
+        alert('Select banner images first.');
+        return;
+    }
+
+    const existing = document.getElementById('bannerUploadPreviewModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'bannerUploadPreviewModal';
+    modal.className = 'org-banner-gallery-modal';
+    modal.innerHTML = `
+        <div class="org-banner-gallery-dialog">
+            <div class="org-banner-gallery-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Upload Preview</p>
+                    <h3>Selected Banner Images</h3>
+                </div>
+                <button type="button" onclick="closeBannerUploadPreviewModal()" aria-label="Close preview">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="org-banner-gallery-grid">
+                ${pendingBannerUploadPreviewUrls.map((image, index) => `
+                    <img src="${image}" alt="Selected banner image ${index + 1}">
+                `).join('')}
+            </div>
+        </div>
+    `;
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeBannerUploadPreviewModal();
+    });
+    document.body.appendChild(modal);
+}
+
+function closeBannerUploadPreviewModal() {
+    const modal = document.getElementById('bannerUploadPreviewModal');
+    if (modal) modal.remove();
 }
 
 async function saveOrganizationProfileEdits(event) {
