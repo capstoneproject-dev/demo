@@ -1892,6 +1892,91 @@ body.dark .tab-btn:hover {
     display: block;
 }
 
+.my-org-editor-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    margin: 18px 0;
+    box-shadow: var(--shadow);
+}
+
+.my-org-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.my-org-editor-header h3 {
+    color: var(--text);
+    font-size: 1.05rem;
+    margin-top: 2px;
+}
+
+.my-org-editor-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.my-org-editor-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 9px 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.my-org-editor-toggle:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.my-org-editor-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.my-org-editor-grid label {
+    display: grid;
+    gap: 7px;
+    color: var(--text);
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.my-org-editor-grid input,
+.my-org-editor-grid textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-2);
+    color: var(--text);
+    padding: 10px 12px;
+    font: inherit;
+    resize: vertical;
+}
+
+.my-org-editor-wide {
+    grid-column: 1 / -1;
+}
+
 .my-org-highlight-list {
     list-style: none;
     display: grid;
@@ -2608,6 +2693,15 @@ body.dark .tab-btn:hover {
     .my-org-about-grid,
     .my-org-contact-grid {
         grid-template-columns: 1fr;
+    }
+
+    .my-org-editor-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .my-org-editor-header {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .my-org-event-content {

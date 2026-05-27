@@ -95,7 +95,8 @@ function updateOfficerProfileView(session = readAuthSession()) {
     if (studentPreviewLink) {
         const params = new URLSearchParams({
             view: 'organizations',
-            org: orgLabel
+            org: orgLabel,
+            preview: '1'
         });
         studentPreviewLink.href = `studentDashboard.html?${params.toString()}`;
     }
