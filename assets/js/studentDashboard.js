@@ -125,6 +125,7 @@ function normalizeOrgProfileApiRow(row) {
         key,
         data: {
             banner: row.banner_url || "",
+            bannerGallery: parseOrgBannerGallery(row.banner_gallery_json, row.banner_url),
             logo: row.logo_url || "",
             motto: row.public_motto || "",
             about: row.public_about || "",
@@ -141,6 +142,110 @@ function normalizeOrgProfileApiRow(row) {
             },
             updatedAt: row.updated_at || ""
         }
+    };
+}
+
+function parseOrgBannerGallery(value, fallbackBanner = "") {
+    let gallery = [];
+    if (Array.isArray(value)) {
+        gallery = value;
+    } else if (typeof value === "string" && value.trim()) {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) gallery = parsed;
+        } catch (_error) {
+            gallery = [];
+        }
+    }
+
+    gallery = gallery.map(item => String(item || "").trim()).filter(Boolean);
+    if (!gallery.length && fallbackBanner) {
+        gallery.push(fallbackBanner);
+    }
+    return [...new Set(gallery)];
+}
+
+function collectAnnouncementPhotos(announcement) {
+    const candidates = [
+        announcement?.img,
+        announcement?.image,
+        announcement?.photo,
+        announcement?.photo_url,
+        announcement?.image_url,
+        announcement?.banner
+    ];
+
+    let photos = candidates.map(item => String(item || "").trim()).filter(Boolean);
+    if (Array.isArray(announcement?.gallery)) {
+        photos = photos.concat(announcement.gallery.map(item => String(item || "").trim()).filter(Boolean));
+    }
+    if (Array.isArray(announcement?.photos)) {
+        photos = photos.concat(announcement.photos.map(item => String(item || "").trim()).filter(Boolean));
+    }
+
+    return photos;
+}
+
+function collectOrganizationMediaGallery(orgName, bannerGalleryImages, events = []) {
+    const normalizedOrgName = normalizeOrgName(orgName);
+    const eventImages = events
+        .filter(event => normalizeOrgName(event.org) === normalizedOrgName)
+        .flatMap(event => Array.isArray(event.gallery) && event.gallery.length ? event.gallery : [event.img])
+        .map(item => String(item || "").trim())
+        .filter(Boolean);
+
+    const announcementImages = announcementsData
+        .filter(announcement => normalizeOrgName(announcement.org) === normalizedOrgName)
+        .flatMap(collectAnnouncementPhotos)
+        .filter(Boolean);
+
+    return [...new Set([
+        ...(bannerGalleryImages || []),
+        ...eventImages,
+        ...announcementImages
+    ])];
+}
+
+function getOrganizationGalleryGroups(orgName) {
+    const org = organizationData.find(item => normalizeOrgName(item.name) === normalizeOrgName(orgName));
+    if (!org) {
+        return { featured: [], events: [], announcements: [], all: [] };
+    }
+
+    const savedProfile = getOrgProfileOverride(org.name);
+    const fallbackBanner = savedProfile.banner || org.banner || org.image;
+    const featured = parseOrgBannerGallery(savedProfile.bannerGallery, fallbackBanner);
+    const normalizedOrgName = normalizeOrgName(org.name);
+
+    const eventGroups = getAllOrganizationEvents()
+        .filter(event => normalizeOrgName(event.org) === normalizedOrgName)
+        .map(event => ({
+            title: event.title || 'Event Photos',
+            images: (Array.isArray(event.gallery) && event.gallery.length ? event.gallery : [event.img])
+                .map(item => String(item || "").trim())
+                .filter(Boolean)
+        }))
+        .filter(group => group.images.length);
+
+    const announcementGroups = announcementsData
+        .filter(announcement => normalizeOrgName(announcement.org) === normalizedOrgName)
+        .map(announcement => ({
+            title: announcement.title || 'Announcement Photos',
+            images: collectAnnouncementPhotos(announcement)
+        }))
+        .filter(group => group.images.length);
+
+    const all = [...new Set([
+        ...featured,
+        ...eventGroups.flatMap(group => group.images),
+        ...announcementGroups.flatMap(group => group.images)
+    ])];
+
+    return {
+        featured,
+        events: eventGroups,
+        announcements: announcementGroups,
+        all
     };
 }
 
@@ -991,6 +1096,12 @@ function renderMyOrgHomeSection(viewModel) {
         formattedDate
     } = viewModel;
     const editPanelMarkup = viewModel.isOfficerEditMode ? renderOrgProfileEditor(viewModel) : '';
+    const heroSlidesMarkup = viewModel.bannerGalleryImages.map((image, index) => `
+        <img src="${versionOrgBannerUrl(image)}" alt="${organization.name} banner ${index + 1}" class="my-org-ref-hero-slide ${index === 0 ? 'active' : ''}">
+    `).join('');
+    const galleryButtonMarkup = viewModel.bannerGalleryImages.length > 1
+        ? `<button type="button" onclick="openOrgBannerGallery('${encodeURIComponent(organization.name)}')"><i class="fa-regular fa-images"></i> Gallery</button>`
+        : '';
 
     const announcementMarkup = announcementEvents.map(event => `
         <div class="my-org-ref-ann-item">
@@ -1021,8 +1132,8 @@ function renderMyOrgHomeSection(viewModel) {
 
     return `
         <section class="my-org-ref-main">
-            <article class="my-org-ref-hero">
-                <img src="${heroBackgroundImage}" alt="${organization.name} banner">
+            <article class="my-org-ref-hero" data-org-hero-slideshow="true">
+                ${heroSlidesMarkup || `<img src="${heroBackgroundImage}" alt="${organization.name} banner" class="my-org-ref-hero-slide active">`}
                 <div class="my-org-ref-hero-overlay"></div>
                 <div class="my-org-ref-chip">${organization.category}</div>
                 <div class="my-org-ref-date">${formattedDate}</div>
@@ -1031,6 +1142,7 @@ function renderMyOrgHomeSection(viewModel) {
                     <p>"${orgMotto}"</p>
                 </div>
                 <div class="my-org-ref-hero-actions">
+                    ${galleryButtonMarkup}
                     <button type="button"><i class="fa-solid fa-user-plus"></i> Join</button>
                     <button type="button"><i class="fa-solid fa-link"></i> Share</button>
                 </div>
@@ -1316,6 +1428,24 @@ function renderMyOrgContactSection(viewModel) {
 
 function renderOrgProfileEditor(viewModel) {
     const contact = viewModel.contactProfile;
+    const galleryGroups = getOrganizationGalleryGroups(viewModel.organization.name);
+    const featuredSet = new Set(galleryGroups.featured);
+    const candidateCards = galleryGroups.all.map((image, index) => `
+        <article class="my-org-featured-card">
+            <label class="my-org-featured-check">
+                <input type="checkbox" name="featuredImages[]" value="${escapeHtml(image)}" ${featuredSet.has(image) ? 'checked' : ''}>
+                <span>${featuredSet.has(image) ? 'Featured' : 'Add to featured'}</span>
+            </label>
+            <img src="${versionOrgBannerUrl(image)}" alt="Featured option ${index + 1}">
+            ${featuredSet.has(image) ? `
+                <label class="my-org-featured-remove">
+                    <input type="checkbox" name="removeFeaturedImages[]" value="${escapeHtml(image)}">
+                    <span>Remove photo</span>
+                </label>
+            ` : ''}
+        </article>
+    `).join('');
+
     return `
         <form class="my-org-editor-panel" onsubmit="saveOrganizationProfileEdits(event)">
             <div class="my-org-editor-header">
@@ -1329,10 +1459,11 @@ function renderOrgProfileEditor(viewModel) {
                 </button>
             </div>
             <input type="hidden" name="orgName" value="${escapeHtml(viewModel.organization.name)}">
+            <input type="hidden" name="featuredImagesTouched" value="1">
             <div class="my-org-editor-grid">
                 <label>
-                    <span>Banner Image</span>
-                    <input name="bannerFile" type="file" accept="image/jpeg,image/png,image/webp">
+                    <span>Banner Images</span>
+                    <input name="bannerFiles[]" type="file" accept="image/jpeg,image/png,image/webp" multiple>
                 </label>
                 <label>
                     <span>Organization Logo</span>
@@ -1383,6 +1514,19 @@ function renderOrgProfileEditor(viewModel) {
                     <textarea name="summary" rows="3">${escapeHtml(contact.summary)}</textarea>
                 </label>
             </div>
+            <section class="my-org-featured-manager">
+                <div class="my-org-featured-manager-header">
+                    <div>
+                        <p class="my-org-spa-eyebrow">Featured Gallery</p>
+                        <h3>Choose up to 20 slideshow photos</h3>
+                    </div>
+                    <span>${galleryGroups.featured.length} selected</span>
+                </div>
+                <p class="my-org-featured-help">New banner uploads are automatically added to Featured. You can also feature event and announcement photos here.</p>
+                <div class="my-org-featured-grid">
+                    ${candidateCards || '<div class="org-banner-gallery-empty">Upload banner images or publish event photos to start building the featured gallery.</div>'}
+                </div>
+            </section>
         </form>
     `;
 }
@@ -1392,6 +1536,16 @@ async function saveOrganizationProfileEdits(event) {
     const form = event.currentTarget;
     const formData = new FormData(form);
     const orgName = String(formData.get('orgName') || '').trim();
+    const selectedFeatured = formData.getAll('featuredImages[]');
+    const removedFeatured = new Set(formData.getAll('removeFeaturedImages[]'));
+    const effectiveFeatured = selectedFeatured.filter(image => !removedFeatured.has(image));
+    formData.delete('featuredImages[]');
+    effectiveFeatured.forEach(image => formData.append('featuredImages[]', image));
+
+    if (effectiveFeatured.length > 20) {
+        alert('Choose up to 20 featured photos.');
+        return;
+    }
 
     try {
         const response = await fetch(ORG_PUBLIC_PROFILE_SAVE_API, {
@@ -1425,6 +1579,113 @@ async function saveOrganizationProfileEdits(event) {
     } catch (error) {
         alert(error.message || 'Could not save organization profile.');
     }
+}
+
+function initOrgHeroSlideshows(root = document) {
+    root.querySelectorAll('[data-org-hero-slideshow="true"]').forEach((hero) => {
+        if (hero.dataset.slideshowReady === 'true') return;
+        const slides = Array.from(hero.querySelectorAll('.my-org-ref-hero-slide'));
+        if (slides.length <= 1) return;
+
+        hero.dataset.slideshowReady = 'true';
+        let index = 0;
+        setInterval(() => {
+            slides[index].classList.remove('active');
+            index = (index + 1) % slides.length;
+            slides[index].classList.add('active');
+        }, 4000);
+    });
+}
+
+function openOrgBannerGallery(orgName) {
+    orgName = decodeURIComponent(String(orgName || ''));
+    const org = organizationData.find(item => normalizeOrgName(item.name) === normalizeOrgName(orgName));
+    if (!org) return;
+
+    const savedProfile = getOrgProfileOverride(org.name);
+    const fallbackBanner = savedProfile.banner || org.banner || org.image;
+    const galleryGroups = getOrganizationGalleryGroups(org.name);
+    if (!galleryGroups.all.length) return;
+
+    const existing = document.getElementById('orgBannerGalleryModal');
+    if (existing) existing.remove();
+
+    const renderImageGrid = (images, emptyText) => images.length
+        ? images.map((image, index) => `
+            <img src="${versionOrgBannerUrl(image)}" alt="${escapeHtml(org.name)} gallery image ${index + 1}">
+        `).join('')
+        : `<div class="org-banner-gallery-empty">${emptyText}</div>`;
+
+    const renderGroupedImages = (groups, emptyText) => groups.length
+        ? groups.map(group => `
+            <section class="org-banner-gallery-group">
+                <h4>${escapeHtml(group.title)}</h4>
+                <div class="org-banner-gallery-grid">
+                    ${renderImageGrid(group.images, 'No photos in this group.')}
+                </div>
+            </section>
+        `).join('')
+        : `<div class="org-banner-gallery-empty">${emptyText}</div>`;
+
+    const modal = document.createElement('div');
+    modal.id = 'orgBannerGalleryModal';
+    modal.className = 'org-banner-gallery-modal';
+    modal.innerHTML = `
+        <div class="org-banner-gallery-dialog">
+            <div class="org-banner-gallery-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Banner Gallery</p>
+                    <h3>${escapeHtml(org.name)}</h3>
+                </div>
+                <button type="button" onclick="closeOrgBannerGallery()" aria-label="Close gallery">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="org-banner-gallery-tabs">
+                <button type="button" class="active" onclick="switchOrgGalleryTab('featured', this)">Featured</button>
+                <button type="button" onclick="switchOrgGalleryTab('events', this)">Events</button>
+                <button type="button" onclick="switchOrgGalleryTab('announcements', this)">Announcements</button>
+                <button type="button" onclick="switchOrgGalleryTab('all', this)">All</button>
+            </div>
+            <div class="org-banner-gallery-panel active" data-gallery-panel="featured">
+                <div class="org-banner-gallery-grid">
+                    ${renderImageGrid(galleryGroups.featured, 'No featured banner images yet.')}
+                </div>
+            </div>
+            <div class="org-banner-gallery-panel" data-gallery-panel="events">
+                ${renderGroupedImages(galleryGroups.events, 'No event photos yet.')}
+            </div>
+            <div class="org-banner-gallery-panel" data-gallery-panel="announcements">
+                ${renderGroupedImages(galleryGroups.announcements, 'No announcement photos yet.')}
+            </div>
+            <div class="org-banner-gallery-panel" data-gallery-panel="all">
+                <div class="org-banner-gallery-grid">
+                    ${renderImageGrid(galleryGroups.all, 'No gallery images yet.')}
+                </div>
+            </div>
+        </div>
+    `;
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeOrgBannerGallery();
+    });
+    document.body.appendChild(modal);
+}
+
+function switchOrgGalleryTab(tabName, button) {
+    const modal = document.getElementById('orgBannerGalleryModal');
+    if (!modal) return;
+
+    modal.querySelectorAll('.org-banner-gallery-tabs button').forEach(tab => tab.classList.remove('active'));
+    if (button) button.classList.add('active');
+
+    modal.querySelectorAll('.org-banner-gallery-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.getAttribute('data-gallery-panel') === tabName);
+    });
+}
+
+function closeOrgBannerGallery() {
+    const modal = document.getElementById('orgBannerGalleryModal');
+    if (modal) modal.remove();
 }
 
 function renderMyOrgActiveSection(viewModel) {
@@ -1483,12 +1744,14 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
     };
     const canEditOrganization = Boolean(options.canEdit);
     const isOfficerEditMode = Boolean(options.editMode);
+    const bannerGalleryImages = parseOrgBannerGallery(savedProfile.bannerGallery, rawHeroBackgroundImage);
     const viewModel = {
         organization,
         profileConfig,
         orgThemeClass,
         heroBackgroundImage,
         rawHeroBackgroundImage,
+        bannerGalleryImages,
         logoImage,
         relevantEvents,
         relevantServices,
@@ -1550,6 +1813,7 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
             ${renderMyOrgActiveSection(viewModel)}
         </div>
     `;
+    initOrgHeroSlideshows(contentDiv);
 }
 
 function renderMyOrganizationTab(contentDiv) {
