@@ -485,6 +485,18 @@ CREATE TABLE `organizations` (
   `org_name` varchar(255) NOT NULL,
   `org_code` varchar(20) NOT NULL,
   `logo_url` varchar(500) DEFAULT NULL,
+  `banner_url` varchar(700) DEFAULT NULL,
+  `public_motto` varchar(255) DEFAULT NULL,
+  `public_about` text DEFAULT NULL,
+  `contact_office` varchar(255) DEFAULT NULL,
+  `contact_hours` varchar(255) DEFAULT NULL,
+  `contact_email` varchar(255) DEFAULT NULL,
+  `contact_phone` varchar(100) DEFAULT NULL,
+  `contact_facebook` varchar(500) DEFAULT NULL,
+  `contact_instagram` varchar(500) DEFAULT NULL,
+  `contact_x_url` varchar(500) DEFAULT NULL,
+  `contact_tiktok` varchar(500) DEFAULT NULL,
+  `contact_summary` text DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp(),
@@ -496,18 +508,18 @@ CREATE TABLE `organizations` (
 -- Dumping data for table `organizations`
 --
 
-INSERT INTO `organizations` (`org_id`, `org_name`, `org_code`, `logo_url`, `status`, `created_at`, `updated_at`, `can_offer_printing`, `can_offer_services`) VALUES
-(1, 'Supreme Student Council', 'SSC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 15:46:44', 1, 0),
-(2, 'Alliance in Information System Empowered Responsive Students', 'AISERS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 21:15:06', 0, 1),
-(3, 'Elite Technologist Society', 'ELITECH', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
-(4, 'Institute of Liberal Arts and Sciences Student Organization', 'ILASSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
-(5, 'Aeronautical Engineering Organization', 'AERO-ATSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
-(6, 'Aviation Electronics Technology Student Organization', 'AETSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 23:39:43', 1, 1),
-(7, 'Aircraft Maintenance Technology Student Organization', 'AMTSO', NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 23:39:35', 1, 1),
-(8, 'Red Cross Youth Council', 'RCYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
-(9, 'College Youth Club', 'CYC', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
-(10, 'Scholar\'s Guild', 'SCHOLARS', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
-(11, 'Aeronautica', 'AERONAUTICA', NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1);
+INSERT INTO `organizations` (`org_id`, `org_name`, `org_code`, `logo_url`, `banner_url`, `public_motto`, `public_about`, `contact_office`, `contact_hours`, `contact_email`, `contact_phone`, `contact_facebook`, `contact_instagram`, `contact_x_url`, `contact_tiktok`, `contact_summary`, `status`, `created_at`, `updated_at`, `can_offer_printing`, `can_offer_services`) VALUES
+(1, 'Supreme Student Council', 'SSC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 15:46:44', 1, 0),
+(2, 'Alliance in Information System Empowered Responsive Students', 'AISERS', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 21:15:06', 0, 1),
+(3, 'Elite Technologist Society', 'ELITECH', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(4, 'Institute of Liberal Arts and Sciences Student Organization', 'ILASSO', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(5, 'Aeronautical Engineering Organization', 'AERO-ATSO', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(6, 'Aviation Electronics Technology Student Organization', 'AETSO', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 23:39:43', 1, 1),
+(7, 'Aircraft Maintenance Technology Student Organization', 'AMTSO', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 23:39:35', 1, 1),
+(8, 'Red Cross Youth Council', 'RCYC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(9, 'College Youth Club', 'CYC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
+(10, 'Scholar\'s Guild', 'SCHOLARS', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(11, 'Aeronautica', 'AERONAUTICA', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1);
 
 --
 -- Triggers `organizations`
