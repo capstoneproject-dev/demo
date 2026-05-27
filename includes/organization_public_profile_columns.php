@@ -5,7 +5,8 @@ function orgPublicProfilesEnsureOrganizationColumns(PDO $pdo): void
 {
     $columns = [
         'banner_url' => "ALTER TABLE organizations ADD COLUMN banner_url VARCHAR(700) DEFAULT NULL AFTER logo_url",
-        'public_motto' => "ALTER TABLE organizations ADD COLUMN public_motto VARCHAR(255) DEFAULT NULL AFTER banner_url",
+        'banner_gallery_json' => "ALTER TABLE organizations ADD COLUMN banner_gallery_json LONGTEXT DEFAULT NULL AFTER banner_url",
+        'public_motto' => "ALTER TABLE organizations ADD COLUMN public_motto VARCHAR(255) DEFAULT NULL AFTER banner_gallery_json",
         'public_about' => "ALTER TABLE organizations ADD COLUMN public_about TEXT DEFAULT NULL AFTER public_motto",
         'contact_office' => "ALTER TABLE organizations ADD COLUMN contact_office VARCHAR(255) DEFAULT NULL AFTER public_about",
         'contact_hours' => "ALTER TABLE organizations ADD COLUMN contact_hours VARCHAR(255) DEFAULT NULL AFTER contact_office",

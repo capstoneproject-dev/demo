@@ -15,6 +15,7 @@ try {
                 org_code,
                 logo_url,
                 banner_url,
+                banner_gallery_json,
                 public_motto,
                 public_about,
                 contact_office,
