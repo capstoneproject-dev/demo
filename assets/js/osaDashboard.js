@@ -535,10 +535,517 @@ function formatDashboardActivityDate(value) {
     });
 }
 
+function formatOptionalDashboardActivityDate(value, fallback = 'N/A') {
+    if (!value) return fallback;
+    const parsed = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) return String(value || fallback);
+    return parsed.toLocaleString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
 function getDashboardActivityTime(value) {
     if (!value) return 0;
     const parsed = new Date(String(value).replace(' ', 'T'));
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function formatActivityDetailLines(details) {
+    const lines = String(details || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    if (!lines.length) {
+        return '<p style="color:var(--muted);">No additional details were recorded for this activity.</p>';
+    }
+
+    return lines.map((line) => {
+        const separatorIndex = line.indexOf(':');
+        if (separatorIndex === -1) {
+            return `<div class="activity-detail-line activity-detail-line-full">${escapeDashboardHtml(line)}</div>`;
+        }
+
+        const label = line.slice(0, separatorIndex).trim();
+        const value = line.slice(separatorIndex + 1).trim();
+        return `
+            <div class="activity-detail-line">
+                <span>${escapeDashboardHtml(label)}</span>
+                <strong>${escapeDashboardHtml(value || 'N/A')}</strong>
+            </div>
+        `;
+    }).join('');
+}
+
+function parseActivityDetailMap(details) {
+    return String(details || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .reduce((acc, line) => {
+            const separatorIndex = line.indexOf(':');
+            if (separatorIndex === -1) return acc;
+            const label = line.slice(0, separatorIndex).trim();
+            const value = line.slice(separatorIndex + 1).trim();
+            if (label) acc[label] = value;
+            return acc;
+        }, {});
+}
+
+function resolveActivityAssetPath(path) {
+    const rawPath = String(path || '').trim();
+    if (!rawPath) return '';
+    if (/^(https?:)?\/\//i.test(rawPath) || rawPath.startsWith('/') || rawPath.startsWith('data:')) {
+        return rawPath;
+    }
+    return `../${rawPath.replace(/^\/+/, '')}`;
+}
+
+function parseActivityMediaGallery(rawMediaValue) {
+    const rawMedia = String(rawMediaValue || '').trim();
+    if (!rawMedia) return [];
+
+    try {
+        const parsed = JSON.parse(rawMedia);
+        if (Array.isArray(parsed)) {
+            return parsed.map(resolveActivityAssetPath).filter(Boolean);
+        }
+    } catch (_error) {
+        // Some older rows store a single file path or data URL.
+    }
+
+    return [resolveActivityAssetPath(rawMedia)].filter(Boolean);
+}
+
+function formatActivityAudienceLabel(audience) {
+    const labels = {
+        all_students: 'All Students',
+        org_members: 'Org Members Only',
+        officers: 'Officers'
+    };
+    return labels[audience] || audience || 'All Students';
+}
+
+function formatActivityMoney(value) {
+    const amount = Number(value);
+    if (Number.isNaN(amount)) return value || 'N/A';
+    return `PHP ${amount.toFixed(2)}`;
+}
+
+function renderActivityHero(mediaValue, emptyIcon = 'fa-regular fa-image', label = 'Activity media') {
+    const photos = parseActivityMediaGallery(mediaValue);
+    if (!photos.length) {
+        return `
+            <div class="activity-object-hero activity-object-hero-empty">
+                <i class="${emptyIcon}"></i>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="activity-object-hero">
+            <img src="${escapeDashboardHtml(photos[0])}" alt="${escapeDashboardHtml(label)}">
+            ${photos.length > 1 ? `<span class="activity-object-photo-count">${photos.length} photos</span>` : ''}
+        </div>
+    `;
+}
+
+function renderActivityInfoGrid(items) {
+    return `
+        <div class="activity-object-grid">
+            ${items.map((item) => `
+                <div class="activity-object-info">
+                    <i class="${escapeDashboardHtml(item.icon || 'fa-regular fa-circle')}"></i>
+                    <div>
+                        <span>${escapeDashboardHtml(item.label)}</span>
+                        <strong>${escapeDashboardHtml(item.value || 'N/A')}</strong>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderActivityTextSection(title, content) {
+    return `
+        <div class="activity-detail-section">
+            <h4>${escapeDashboardHtml(title)}</h4>
+            <p>${escapeDashboardHtml(content || 'No details provided.')}</p>
+        </div>
+    `;
+}
+
+function renderActivityFileButton(fileUrl, label = 'Open File') {
+    const url = resolveActivityAssetPath(fileUrl);
+    if (!url) return '';
+
+    return `
+        <a class="btn btn-outline activity-object-file-btn" href="${escapeDashboardHtml(url)}" target="_blank" rel="noopener">
+            <i class="fa-regular fa-file-lines"></i>
+            ${escapeDashboardHtml(label)}
+        </a>
+    `;
+}
+
+function renderActivityDetailFallback(activity) {
+    return `
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Activity')}</span>
+            <span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status || 'Info')}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: activity.organization || 'N/A' },
+        { icon: 'fa-solid fa-hashtag', label: 'Record', value: activity.sourceId ? `${activity.sourceType || 'Source'} #${activity.sourceId}` : (activity.sourceType || 'Grouped activity') },
+        { icon: 'fa-regular fa-calendar', label: 'Date Recorded', value: formatDashboardActivityDate(activity.date) },
+    ])}
+        ${renderActivityTextSection('Summary', activity.details || 'No summary available.')}
+        <div class="activity-detail-section">
+            <h4>Full Details</h4>
+            <div class="activity-detail-lines">
+                ${formatActivityDetailLines(activity.fullDetails)}
+            </div>
+        </div>
+    `;
+}
+
+function renderAnnouncementActivityDetail(activity, payload, detailMap) {
+    return `
+        ${renderActivityHero(payload.media, 'fa-regular fa-image', `${payload.title || activity.title} announcement photo`)}
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Announcement')}</span>
+            <span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status || (payload.is_published ? 'Posted' : 'Draft'))}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-solid fa-users', label: 'Audience', value: formatActivityAudienceLabel(payload.audience_type || detailMap.Audience) },
+        { icon: 'fa-regular fa-calendar', label: 'Published', value: formatDashboardActivityDate(payload.published_at || activity.date) },
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.organization || activity.organization },
+        { icon: 'fa-solid fa-hashtag', label: 'Announcement ID', value: activity.sourceId ? `#${activity.sourceId}` : 'N/A' },
+    ])}
+        ${renderActivityTextSection('About this Announcement', payload.content || detailMap.Content || activity.details)}
+    `;
+}
+
+function renderEventActivityDetail(activity, payload, detailMap) {
+    return `
+        ${renderActivityHero(payload.media, 'fa-regular fa-calendar', `${payload.event_name || activity.title} event photo`)}
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Event')}</span>
+            <span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status || 'Info')}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-regular fa-calendar', label: 'Schedule', value: formatDashboardActivityDate(payload.event_datetime || detailMap['Event Schedule']) },
+        { icon: 'fa-solid fa-location-dot', label: 'Venue', value: payload.location || detailMap.Location || 'Venue TBA' },
+        { icon: 'fa-solid fa-bullhorn', label: 'Published', value: payload.is_published === 0 ? 'No' : (detailMap.Published || 'Yes') },
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.organization || activity.organization },
+    ])}
+        ${renderActivityTextSection('Event Description', payload.description || detailMap.Description || activity.details)}
+    `;
+}
+
+function renderAttendanceActivityDetail(activity, payload, detailMap) {
+    return `
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Event Attendance')}</span>
+            <span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status || 'Registered')}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-solid fa-user-check', label: 'Student', value: payload.student_name || detailMap.Student },
+        { icon: 'fa-regular fa-id-card', label: 'Student No.', value: payload.student_number || detailMap['Student No'] },
+        { icon: 'fa-solid fa-people-group', label: 'Section', value: payload.section || detailMap.Section },
+        { icon: 'fa-regular fa-calendar-check', label: 'Event', value: payload.event_name || detailMap.Event },
+    ])}
+        ${renderActivityInfoGrid([
+        { icon: 'fa-regular fa-clock', label: 'Time In', value: formatOptionalDashboardActivityDate(payload.time_in, detailMap['Time In'] || 'Not checked in') },
+        { icon: 'fa-solid fa-clock-rotate-left', label: 'Time Out', value: formatOptionalDashboardActivityDate(payload.time_out, detailMap['Time Out'] || 'Not checked out') },
+        { icon: 'fa-solid fa-location-dot', label: 'Venue', value: payload.location || 'Venue TBA' },
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.organization || activity.organization },
+    ])}
+    `;
+}
+
+function renderRentalInventoryActivityDetail(activity, detailMap) {
+    return `
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Rental Inventory')}</span>
+            <span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status || 'Updated')}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: activity.organization },
+        { icon: 'fa-solid fa-boxes-stacked', label: 'Status', value: detailMap.Status || activity.status },
+        { icon: 'fa-regular fa-calendar', label: 'Recorded', value: detailMap['Recorded At'] || formatDashboardActivityDate(activity.date) },
+    ])}
+        ${renderActivityTextSection('Listed or Updated Items', detailMap.Items || activity.details)}
+    `;
+}
+
+function renderRentalActivityDetail(activity, payload, detailMap) {
+    return `
+        ${renderActivityHero(payload.media, 'fa-solid fa-box-open', `${payload.items_label || activity.title} rental item`)}
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Rental')}</span>
+            <span class="status-badge status-${getActivityStatusClass(payload.status || activity.status)}">${escapeDashboardHtml(payload.status || activity.status || 'Active')}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-solid fa-user', label: 'Student', value: payload.student_name || detailMap.Student },
+        { icon: 'fa-regular fa-id-card', label: 'Student No.', value: payload.student_number || detailMap['Student No'] },
+        { icon: 'fa-solid fa-box-open', label: 'Items', value: payload.items_label || detailMap.Items },
+        { icon: 'fa-solid fa-peso-sign', label: 'Total Cost', value: formatActivityMoney(payload.total_cost || detailMap['Total Cost']) },
+    ])}
+        ${renderActivityInfoGrid([
+        { icon: 'fa-regular fa-clock', label: 'Rented At', value: formatOptionalDashboardActivityDate(payload.rent_time, detailMap['Rented At'] || 'N/A') },
+        { icon: 'fa-regular fa-calendar-xmark', label: 'Expected Return', value: formatOptionalDashboardActivityDate(payload.expected_return_time, detailMap['Expected Return'] || 'N/A') },
+        { icon: 'fa-solid fa-rotate-left', label: 'Returned At', value: formatOptionalDashboardActivityDate(payload.actual_return_time, detailMap['Returned At'] || 'Not returned') },
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.organization || activity.organization },
+    ])}
+    `;
+}
+
+function renderDocumentActivityDetail(activity, payload, detailMap, isRepository = false) {
+    return `
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Document')}</span>
+            <span class="status-badge status-${getActivityStatusClass(payload.status || activity.status)}">${escapeDashboardHtml(payload.status || activity.status || (isRepository ? 'Approved' : 'Pending'))}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-regular fa-file-lines', label: 'Document Type', value: payload.document_type || detailMap['Document Type'] },
+        { icon: 'fa-solid fa-user-pen', label: isRepository ? 'Repository ID' : 'Submitted By', value: isRepository ? `#${payload.repo_id || activity.sourceId}` : (payload.submitted_by || detailMap['Submitted By']) },
+        { icon: 'fa-regular fa-calendar', label: isRepository ? 'Approved At' : 'Submitted At', value: formatOptionalDashboardActivityDate(payload.approved_at || payload.submitted_at, detailMap[isRepository ? 'Approved At' : 'Submitted At'] || 'N/A') },
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.organization || activity.organization },
+    ])}
+        ${renderActivityTextSection('Document Description', payload.description || detailMap.Description || activity.details)}
+        ${renderActivityInfoGrid([
+        { icon: 'fa-solid fa-graduation-cap', label: 'Semester', value: payload.semester || detailMap.Semester || 'N/A' },
+        { icon: 'fa-regular fa-calendar-days', label: 'Academic Year', value: payload.academic_year || detailMap['Academic Year'] || 'N/A' },
+        { icon: 'fa-regular fa-comment-dots', label: 'Reviewer Notes', value: payload.reviewer_notes || detailMap['Reviewer Notes'] || 'None' },
+    ])}
+        ${renderActivityFileButton(payload.file_url, 'Open Document')}
+    `;
+}
+
+function renderOrganizationActivityDetail(activity, payload, detailMap) {
+    const gallery = parseActivityMediaGallery(payload.banner_gallery_json);
+    const media = payload.banner_url || gallery[0] || payload.logo_url;
+
+    return `
+        ${renderActivityHero(media, 'fa-solid fa-sitemap', `${payload.org_code || activity.organization} profile media`)}
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Organization')}</span>
+            <span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status || 'Updated')}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.org_code || detailMap.Code || activity.organization },
+        { icon: 'fa-solid fa-quote-left', label: 'Motto', value: payload.public_motto || detailMap.Motto || 'N/A' },
+        { icon: 'fa-regular fa-envelope', label: 'Email', value: payload.contact_email || detailMap['Contact Email'] || 'N/A' },
+        { icon: 'fa-regular fa-calendar', label: 'Updated', value: formatOptionalDashboardActivityDate(payload.updated_at, detailMap['Updated At'] || 'N/A') },
+    ])}
+        ${renderActivityTextSection('About the Organization', payload.public_about || detailMap.About || activity.details)}
+        ${renderActivityTextSection('Contact Details', [
+        payload.contact_office ? `Office: ${payload.contact_office}` : '',
+        payload.contact_hours ? `Hours: ${payload.contact_hours}` : '',
+        payload.contact_phone ? `Phone: ${payload.contact_phone}` : '',
+        payload.contact_facebook ? `Facebook: ${payload.contact_facebook}` : '',
+        payload.contact_instagram ? `Instagram: ${payload.contact_instagram}` : '',
+        payload.contact_tiktok ? `TikTok: ${payload.contact_tiktok}` : '',
+    ].filter(Boolean).join('\n') || payload.contact_summary || 'No contact details recorded.')}
+    `;
+}
+
+function renderServiceAccessActivityDetail(activity, payload, detailMap) {
+    return `
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Service Access')}</span>
+            <span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status || 'Active')}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.org_code || detailMap.Organization || activity.organization },
+        { icon: 'fa-solid fa-hand-holding-heart', label: 'Services', value: Number(payload.can_offer_services) === 1 ? 'Enabled' : 'Disabled' },
+        { icon: 'fa-solid fa-print', label: 'Printing', value: Number(payload.can_offer_printing) === 1 ? 'Enabled' : 'Disabled' },
+        { icon: 'fa-regular fa-calendar', label: 'Updated', value: formatOptionalDashboardActivityDate(payload.updated_at, detailMap['Updated At'] || 'N/A') },
+    ])}
+        ${renderActivityTextSection('Authorization Summary', activity.details || 'OSA service authorization changed.')}
+    `;
+}
+
+function renderPrintingActivityDetail(activity, payload, detailMap) {
+    return `
+        <div class="activity-detail-summary">
+            <span class="status-badge status-submitted">${escapeDashboardHtml(activity.type || 'Printing Request')}</span>
+            <span class="status-badge status-${getActivityStatusClass(payload.status || activity.status)}">${escapeDashboardHtml(payload.status || activity.status || 'Queued')}</span>
+        </div>
+        ${renderActivityInfoGrid([
+        { icon: 'fa-regular fa-file-lines', label: 'File', value: payload.file_name || detailMap.File },
+        { icon: 'fa-solid fa-user', label: 'Student', value: payload.student_name || detailMap.Student },
+        { icon: 'fa-regular fa-id-card', label: 'Student No.', value: payload.student_number || 'N/A' },
+        { icon: 'fa-solid fa-list-ol', label: 'Queue #', value: payload.queue_order || detailMap['Queue #'] },
+    ])}
+        ${renderActivityInfoGrid([
+        { icon: 'fa-regular fa-calendar', label: 'Submitted', value: formatOptionalDashboardActivityDate(payload.submitted_at, detailMap['Submitted At'] || 'N/A') },
+        { icon: 'fa-solid fa-print', label: 'Processing Started', value: formatOptionalDashboardActivityDate(payload.processing_started_at, 'Not started') },
+        { icon: 'fa-solid fa-circle-check', label: 'Ready', value: formatOptionalDashboardActivityDate(payload.ready_at, 'Not ready') },
+        { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.organization || activity.organization },
+    ])}
+        ${renderActivityTextSection('Notes', payload.notes || 'No notes provided.')}
+        ${renderActivityFileButton(payload.file_url, 'Open Print File')}
+    `;
+}
+
+function renderTypedActivityDetail(activity) {
+    const payload = activity.payload || {};
+    const detailMap = parseActivityDetailMap(activity.fullDetails);
+
+    switch (activity.sourceType) {
+        case 'announcement':
+            return renderAnnouncementActivityDetail(activity, payload, detailMap);
+        case 'event':
+            return renderEventActivityDetail(activity, payload, detailMap);
+        case 'event_attendance':
+            return renderAttendanceActivityDetail(activity, payload, detailMap);
+        case 'rental_inventory':
+            return renderRentalInventoryActivityDetail(activity, detailMap);
+        case 'rental':
+            return renderRentalActivityDetail(activity, payload, detailMap);
+        case 'document_submission':
+            return renderDocumentActivityDetail(activity, payload, detailMap, false);
+        case 'repository_update':
+            return renderDocumentActivityDetail(activity, payload, detailMap, true);
+        case 'organization_info':
+            return renderOrganizationActivityDetail(activity, payload, detailMap);
+        case 'service_access':
+            return renderServiceAccessActivityDetail(activity, payload, detailMap);
+        case 'printing_request':
+            return renderPrintingActivityDetail(activity, payload, detailMap);
+        default:
+            return renderActivityDetailFallback(activity);
+    }
+}
+
+function buildOfficerAnnouncementPreviewUrl(activity) {
+    if (activity?.sourceType !== 'announcement') return '';
+
+    const previewKey = `osaAnnouncementPreview_${Date.now()}_${activity.sourceId || 'activity'}`;
+    const payload = activity.payload || {};
+    const announcement = {
+        id: activity.sourceId || payload.announcement_id || null,
+        announcement_id: activity.sourceId || payload.announcement_id || null,
+        title: payload.title || activity.title || 'Untitled Announcement',
+        content: payload.content || '',
+        audience_type: payload.audience_type || 'all_students',
+        announcement_photo: payload.media || '',
+        date: payload.published_at || payload.created_at || activity.date || '',
+        org: payload.organization || activity.organization || 'Organization',
+        org_id: payload.org_id || null,
+        is_published: payload.is_published ?? 1,
+        event_datetime: payload.event_datetime || '',
+        event_location: payload.event_location || '',
+    };
+
+    try {
+        localStorage.setItem(previewKey, JSON.stringify(announcement));
+    } catch (error) {
+        console.warn('Could not store announcement preview payload.', error);
+    }
+
+    const params = new URLSearchParams({
+        preview: '1',
+        viewer: 'osa',
+        view: 'announcements',
+        target: 'announcement',
+        preview_key: previewKey,
+        cb: String(Date.now())
+    });
+    if (activity.sourceId) params.set('announcement_id', String(activity.sourceId));
+
+    return `../pages/officerDashboard.html?${params.toString()}`;
+}
+
+function buildStudentEventPreviewUrl(activity) {
+    if (!['event', 'event_attendance'].includes(activity?.sourceType)) return '';
+
+    const payload = activity.payload || {};
+    const eventTitle = payload.event_name || payload.title || activity.title || '';
+    const previewKey = `osaEventPreview_${Date.now()}_${activity.sourceId || 'activity'}`;
+    const eventPreview = {
+        id: activity.sourceType === 'event' ? (activity.sourceId || payload.event_id || null) : null,
+        event_id: activity.sourceType === 'event' ? (activity.sourceId || payload.event_id || null) : null,
+        title: eventTitle || 'Untitled Event',
+        event_name: eventTitle || 'Untitled Event',
+        description: payload.description || activity.details || '',
+        location: payload.location || 'TBA',
+        event_datetime: payload.event_datetime || activity.date || '',
+        media: payload.media || '',
+        event_photo: payload.media || '',
+        organization: payload.organization || activity.organization || '',
+        org: payload.organization || activity.organization || '',
+        participants: payload.attendance_count || 0
+    };
+
+    try {
+        localStorage.setItem(previewKey, JSON.stringify(eventPreview));
+    } catch (error) {
+        console.warn('Could not store event preview payload.', error);
+    }
+
+    const params = new URLSearchParams({
+        view: 'organizations',
+        preview: '1',
+        viewer: 'osa',
+        target: 'event',
+        preview_key: previewKey,
+        cb: String(Date.now())
+    });
+
+    if (eventPreview.organization) params.set('org', eventPreview.organization);
+    if (eventPreview.event_id) params.set('event_id', String(eventPreview.event_id));
+    if (eventPreview.title) params.set('event_title', eventPreview.title);
+
+    return `../pages/studentDashboard.html?${params.toString()}`;
+}
+
+function buildStudentActivityPreviewUrl(activity) {
+    const officerAnnouncementUrl = buildOfficerAnnouncementPreviewUrl(activity);
+    if (officerAnnouncementUrl) return officerAnnouncementUrl;
+
+    const studentEventUrl = buildStudentEventPreviewUrl(activity);
+    if (studentEventUrl) return studentEventUrl;
+
+    const org = activity?.payload?.organization || activity?.payload?.org_code || activity?.organization || '';
+    const params = new URLSearchParams({
+        view: 'organizations',
+        preview: '1',
+        viewer: 'osa',
+        cb: String(Date.now())
+    });
+
+    if (org) {
+        params.set('org', org);
+    }
+
+    if (['organization_info', 'service_access'].includes(activity.sourceType)) {
+        params.set('target', 'organization');
+        return `../pages/studentDashboard.html?${params.toString()}`;
+    }
+
+    return '';
+}
+
+function openActivityView(activityIndex) {
+    const activity = getFilteredActivityFeed()[activityIndex];
+    if (!activity) {
+        showToast('Activity details are no longer available.', 'error');
+        return;
+    }
+
+    const previewUrl = buildStudentActivityPreviewUrl(activity);
+    if (previewUrl) {
+        window.open(previewUrl, '_blank', 'noopener');
+        return;
+    }
+
+    openActivityDetailModal(activityIndex);
 }
 
 function buildMonitoringActivities(org) {
@@ -670,15 +1177,6 @@ const transactions = [
     { org: "AETSO", sender: "Emilio Aguinaldo", doc: "Flight Simulation Log", date: "Oct 23, 2023", status: "Approved" }
 ];
 
-// --- RECENT ACTIVITY DATA & RENDER ---
-const recentActivities = [
-    { type: 'upload', icon: 'fa-file-arrow-up', title: 'New Proposal Submitted', desc: 'Computer Science Society submitted "Tech Week 2026"', time: '10 mins ago' },
-    { type: 'user', icon: 'fa-user-plus', title: 'New Student Registration', desc: 'Mark Santos (2023-10023) verified enrollment', time: '25 mins ago' },
-    { type: 'success', icon: 'fa-check-double', title: 'Audit Approved', desc: 'JPIA Financial Report Q1 marked as Passed', time: '1 hour ago' },
-    { type: 'alert', icon: 'fa-triangle-exclamation', title: 'Late Submission Warning', desc: 'Sent automated reminder to Junior Marketing Assn', time: '2 hours ago' },
-    { type: 'upload', icon: 'fa-file-signature', title: 'Constitution Updated', desc: 'Supreme Student Council uploaded v2.0', time: 'Yesterday' }
-];
-
 function mapSubmissionStatusToRequestStatus(status) {
     const normalized = String(status || '').trim().toLowerCase();
     if (normalized === 'approved') return 'Approved';
@@ -748,26 +1246,6 @@ async function loadRequestsFromApi() {
     } catch (error) {
         console.error('loadRequestsFromApi failed', error);
     }
-}
-
-function renderRecentActivities() {
-    const container = document.getElementById('activity-feed');
-    if (!container) return;
-
-    container.innerHTML = recentActivities.map(act => `
-        <div class="activity-item">
-            <div class="activity-icon ${act.type}">
-                <i class="fa-solid ${act.icon}"></i>
-            </div>
-            <div class="activity-info">
-                <h5>${act.title}</h5>
-                <p>${act.desc}</p>
-                <div class="activity-meta">
-                    <i class="fa-regular fa-clock"></i> ${act.time}
-                </div>
-            </div>
-        </div>
-    `).join('');
 }
 
 // --- UPDATED DASHBOARD PREVIEW RENDER ---
@@ -880,7 +1358,7 @@ function renderDashboardPreview() {
     if (!previewItems.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" style="text-align:center; color:var(--muted); padding:24px;">
+                <td colspan="6" style="text-align:center; color:var(--muted); padding:24px;">
                     No organization activity matches the selected filters.
                 </td>
             </tr>
@@ -889,7 +1367,7 @@ function renderDashboardPreview() {
         return;
     }
 
-    tbody.innerHTML = previewItems.map(item => `
+    tbody.innerHTML = previewItems.map((item, index) => `
         <tr>
             <td style="font-weight:600;">${escapeDashboardHtml(item.organization)}</td>
             <td>
@@ -899,9 +1377,39 @@ function renderDashboardPreview() {
             <td>${escapeDashboardHtml(item.details)}</td>
             <td>${escapeDashboardHtml(formatDashboardActivityDate(item.date))}</td>
             <td><span class="status-badge status-${getActivityStatusClass(item.status)}">${escapeDashboardHtml(item.status)}</span></td>
+            <td class="text-right">
+                <button class="btn btn-sm btn-outline icon-only-btn" type="button" onclick="openActivityView(${startIndex + index})" title="View activity">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+            </td>
         </tr>
     `).join('');
     updateActivityRangeSummary(activityItems.length, previewItems.length);
+}
+
+function openActivityDetailModal(activityIndex) {
+    const activity = getFilteredActivityFeed()[activityIndex];
+    if (!activity) {
+        showToast('Activity details are no longer available.', 'error');
+        return;
+    }
+
+    const modal = document.getElementById('activity-detail-modal');
+    const title = document.getElementById('activity-detail-title');
+    const subtitle = document.getElementById('activity-detail-subtitle');
+    const body = document.getElementById('activity-detail-body');
+    if (!modal || !title || !subtitle || !body) return;
+
+    title.innerText = activity.title || 'Activity Details';
+    subtitle.innerText = `${activity.organization || 'Organization'} - ${activity.type || 'Activity'} - ${formatDashboardActivityDate(activity.date)}`;
+    body.innerHTML = renderTypedActivityDetail(activity);
+
+    modal.classList.add('active');
+}
+
+function closeActivityDetailModal() {
+    const modal = document.getElementById('activity-detail-modal');
+    if (modal) modal.classList.remove('active');
 }
 
 // --- PDF UPLOAD HANDLER (uses PDFViewer module) ---
@@ -1988,7 +2496,6 @@ window.addEventListener('DOMContentLoaded', () => {
     resetDateFilters(); // Reset date filters on load
 
     // Initialize Dashboard
-    renderRecentActivities();
     renderDashboardPreview();
     loadOsaActivityFeed();
 
@@ -2046,6 +2553,10 @@ window.addEventListener('click', function (event) {
     const modal = document.getElementById('approve-comment-modal');
     if (modal && event.target === modal) {
         closeApproveCommentModal();
+    }
+    const activityDetailModal = document.getElementById('activity-detail-modal');
+    if (activityDetailModal && event.target === activityDetailModal) {
+        closeActivityDetailModal();
     }
 });
 
