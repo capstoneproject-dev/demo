@@ -196,26 +196,56 @@
                 <div class="card">
                     <div class="card-header">
                         <div>
-                            <div class="card-title">Recent Requests</div>
+                            <div class="card-title">Organization Activity</div>
                             <p style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
-                                Awaiting Admin Action
+                                All organization updates and student interactions
                             </p>
                         </div>
-                        <button class="btn btn-outline btn-sm" onclick="navigate('requests')">View All</button>
+                        <div class="dashboard-activity-header-actions">
+                            <button class="date-range-btn" type="button" onclick="openDatePicker('activity')">
+                                <i class="fa-solid fa-calendar-days"></i>
+                                <span id="activity-date-range-label">Select Date Range</span>
+                            </button>
+                            <button class="btn btn-outline btn-sm" type="button" onclick="clearActivityDateFilter()">
+                                <i class="fa-solid fa-filter-circle-xmark"></i> Clear
+                            </button>
+                            <button class="btn btn-outline btn-sm" onclick="navigate('organizations')">Monitor Orgs</button>
+                        </div>
                     </div>
                     <div class="table-container">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Type</th>
                                     <th>Organization</th>
-                                    <th>Title</th>
+                                    <th>Activity</th>
+                                    <th>Details</th>
+                                    <th>Date</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="dashboard-requests-preview">
                             </tbody>
                         </table>
+                    </div>
+                    <div class="activity-range-controls">
+                        <div id="activity-range-summary" class="activity-range-summary">Showing 0 of 0</div>
+                        <div class="activity-range-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="moveActivityRange(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <label>
+                                From
+                                <input id="activity-range-start" type="number" min="1" value="1">
+                            </label>
+                            <label>
+                                To
+                                <input id="activity-range-end" type="number" min="1" value="10">
+                            </label>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="applyActivityRange()">Apply</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="moveActivityRange(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

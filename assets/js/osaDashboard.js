@@ -269,6 +269,7 @@ function initOsaAuthContext() {
 }
 
 const DOCUMENTS_API_BASE = '../api/documents';
+const OSA_ACTIVITY_FEED_API = '../api/osa/activity-feed.php';
 
 function fmtDateShort(iso) {
     if (!iso) return '';
@@ -316,6 +317,7 @@ async function loadDocsFromApi() {
         });
         renderDocs(currentDocFilter);
         renderRecentDocs();
+        loadOsaActivityFeed();
     } catch (error) {
         console.error('loadDocsFromApi failed', error);
     }
@@ -348,6 +350,7 @@ async function loadRepoFromApi() {
         });
         updateRepoCategoryDropdown();
         renderRepoTable();
+        loadOsaActivityFeed();
     } catch (error) {
         console.error('loadRepoFromApi failed', error);
     }
@@ -503,6 +506,41 @@ function formatActivityDate(value) {
     return parsed.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 }
 
+function escapeDashboardHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getActivityStatusClass(status) {
+    return String(status || 'info')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'info';
+}
+
+function formatDashboardActivityDate(value) {
+    if (!value) return 'Recent';
+    const parsed = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function getDashboardActivityTime(value) {
+    if (!value) return 0;
+    const parsed = new Date(String(value).replace(' ', 'T'));
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
 function buildMonitoringActivities(org) {
     const orgName = normalizeMonitoringOrgName(org?.name);
     const orgDataKey = typeof ORG_DATA !== 'undefined'
@@ -618,6 +656,10 @@ let requests = [
 ];
 
 let docsData = [];
+let osaActivityFeed = [];
+let activityRangeStart = 1;
+let activityRangeEnd = 10;
+let activityDateFilter = { from: null, to: null };
 
 const transactions = [
     { org: "Supreme Student Council", sender: "Juan Dela Cruz", doc: "Budget Proposal Q4", date: "Oct 25, 2023", status: "Pending" },
@@ -635,14 +677,6 @@ const recentActivities = [
     { type: 'success', icon: 'fa-check-double', title: 'Audit Approved', desc: 'JPIA Financial Report Q1 marked as Passed', time: '1 hour ago' },
     { type: 'alert', icon: 'fa-triangle-exclamation', title: 'Late Submission Warning', desc: 'Sent automated reminder to Junior Marketing Assn', time: '2 hours ago' },
     { type: 'upload', icon: 'fa-file-signature', title: 'Constitution Updated', desc: 'Supreme Student Council uploaded v2.0', time: 'Yesterday' }
-];
-
-// --- DASHBOARD MOCK DATA ---
-const dashboardRequestsMock = [
-    { type: "Event Proposal", org: "AISERS", title: "Tech Summit 2026", status: "Pending" },
-    { type: "Posting", org: "Supreme Student Council", title: "Election Guidelines", status: "Pending" },
-    { type: "Document", org: "ELITECH", title: "Constitution v2", status: "Pending" },
-    { type: "Event Proposal", org: "RCYC", title: "Blood Drive", status: "Pending" }
 ];
 
 function mapSubmissionStatusToRequestStatus(status) {
@@ -709,7 +743,7 @@ async function loadRequestsFromApi() {
             };
         });
 
-        renderDashboardPreview();
+        loadOsaActivityFeed();
         renderRequests();
     } catch (error) {
         console.error('loadRequestsFromApi failed', error);
@@ -737,19 +771,137 @@ function renderRecentActivities() {
 }
 
 // --- UPDATED DASHBOARD PREVIEW RENDER ---
+async function loadOsaActivityFeed() {
+    try {
+        const response = await fetch(`${OSA_ACTIVITY_FEED_API}?limit=100`, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load organization activity.');
+        }
+        osaActivityFeed = Array.isArray(data.items) ? data.items : [];
+        renderDashboardPreview();
+    } catch (error) {
+        console.error('[loadOsaActivityFeed]', error);
+        osaActivityFeed = [];
+        renderDashboardPreview();
+    }
+}
+
+function syncActivityRangeInputs() {
+    const startInput = document.getElementById('activity-range-start');
+    const endInput = document.getElementById('activity-range-end');
+    if (startInput) startInput.value = activityRangeStart;
+    if (endInput) endInput.value = activityRangeEnd;
+}
+
+function updateActivityRangeSummary(total, visibleCount) {
+    const summary = document.getElementById('activity-range-summary');
+    if (!summary) return;
+
+    if (!total) {
+        summary.innerText = 'Showing 0 of 0';
+        return;
+    }
+
+    const start = Math.min(activityRangeStart, total);
+    const end = Math.min(activityRangeEnd, total);
+    summary.innerText = `Showing ${start}-${end} of ${total} (${visibleCount} shown)`;
+}
+
+function getFilteredActivityFeed() {
+    const sortedItems = [...osaActivityFeed].sort((a, b) => (
+        getDashboardActivityTime(b.date) - getDashboardActivityTime(a.date)
+    ));
+
+    if (!activityDateFilter.from || !activityDateFilter.to) {
+        return sortedItems;
+    }
+
+    const fromTime = new Date(activityDateFilter.from);
+    const toTime = new Date(activityDateFilter.to);
+    fromTime.setHours(0, 0, 0, 0);
+    toTime.setHours(23, 59, 59, 999);
+
+    return sortedItems.filter((item) => {
+        const activityDate = new Date(item.date);
+        if (Number.isNaN(activityDate.getTime())) return false;
+        return activityDate >= fromTime && activityDate <= toTime;
+    });
+}
+
+function applyActivityRange() {
+    const startInput = document.getElementById('activity-range-start');
+    const endInput = document.getElementById('activity-range-end');
+    const total = getFilteredActivityFeed().length;
+    const requestedStart = Math.max(1, parseInt(startInput?.value || '1', 10) || 1);
+    const requestedEnd = Math.max(requestedStart, parseInt(endInput?.value || '10', 10) || 10);
+
+    activityRangeStart = total ? Math.min(requestedStart, total) : requestedStart;
+    activityRangeEnd = total ? Math.min(Math.max(activityRangeStart, requestedEnd), total) : requestedEnd;
+    syncActivityRangeInputs();
+    renderDashboardPreview();
+}
+
+function moveActivityRange(direction) {
+    const windowSize = Math.max(1, activityRangeEnd - activityRangeStart + 1);
+    const total = getFilteredActivityFeed().length;
+    if (!total) return;
+
+    if (direction < 0) {
+        activityRangeStart = Math.max(1, activityRangeStart - windowSize);
+    } else {
+        activityRangeStart = Math.min(Math.max(1, total - windowSize + 1), activityRangeStart + windowSize);
+    }
+
+    activityRangeEnd = Math.min(total, activityRangeStart + windowSize - 1);
+    syncActivityRangeInputs();
+    renderDashboardPreview();
+}
+
 function renderDashboardPreview() {
     const tbody = document.getElementById('dashboard-requests-preview');
     if (!tbody) return;
 
-    const previewItems = (requests.length ? requests : dashboardRequestsMock).slice(0, 4);
-    tbody.innerHTML = previewItems.map(req => `
+    const activityItems = getFilteredActivityFeed();
+    if (activityItems.length && activityRangeStart > activityItems.length) {
+        const windowSize = Math.max(1, activityRangeEnd - activityRangeStart + 1);
+        activityRangeStart = Math.max(1, activityItems.length - windowSize + 1);
+        activityRangeEnd = Math.min(activityItems.length, activityRangeStart + windowSize - 1);
+    }
+
+    syncActivityRangeInputs();
+
+    const startIndex = Math.max(0, activityRangeStart - 1);
+    const endIndex = Math.max(startIndex + 1, activityRangeEnd);
+    const previewItems = activityItems.slice(startIndex, endIndex);
+    if (!previewItems.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align:center; color:var(--muted); padding:24px;">
+                    No organization activity matches the selected filters.
+                </td>
+            </tr>
+        `;
+        updateActivityRangeSummary(activityItems.length, 0);
+        return;
+    }
+
+    tbody.innerHTML = previewItems.map(item => `
         <tr>
-            <td><span class="status-badge status-submitted">${req.type}</span></td>
-            <td style="font-weight:600;">${req.org}</td>
-            <td>${req.title}</td>
-            <td><span class="status-badge status-${String(req.status || 'Pending').toLowerCase()}">${req.status}</span></td>
+            <td style="font-weight:600;">${escapeDashboardHtml(item.organization)}</td>
+            <td>
+                <span class="status-badge status-submitted">${escapeDashboardHtml(item.type)}</span>
+                <div style="font-weight:600; margin-top:6px;">${escapeDashboardHtml(item.title)}</div>
+            </td>
+            <td>${escapeDashboardHtml(item.details)}</td>
+            <td>${escapeDashboardHtml(formatDashboardActivityDate(item.date))}</td>
+            <td><span class="status-badge status-${getActivityStatusClass(item.status)}">${escapeDashboardHtml(item.status)}</span></td>
         </tr>
     `).join('');
+    updateActivityRangeSummary(activityItems.length, previewItems.length);
 }
 
 // --- PDF UPLOAD HANDLER (uses PDFViewer module) ---
@@ -942,6 +1094,7 @@ async function saveMonitoringServiceAuthorizations() {
         }
         await loadServiceAuthorizations(true);
         renderMonitoringServiceAuthorizations(currentOrgId);
+        loadOsaActivityFeed();
         showToast('Organization service access updated.', 'success');
     } catch (error) {
         showToast(error.message || 'Could not save organization service access.', 'error');
@@ -1522,7 +1675,7 @@ function confirmRequestAction() {
 
 // --- DATE PICKER CALENDAR FUNCTIONS ---
 // Context-Aware Date Picker Logic
-let currentDateContext = 'requests'; // 'requests', 'docs', or 'repo'
+let currentDateContext = 'requests'; // 'requests', 'docs', 'repo', or 'activity'
 
 // Independent Date Filter States
 const reqDateFilter = { from: null, to: null };
@@ -1544,6 +1697,9 @@ function openDatePicker(context = 'requests') {
     } else if (context === 'repo') {
         selectedFromDate = repoDateFilter.from;
         selectedToDate = repoDateFilter.to;
+    } else if (context === 'activity') {
+        selectedFromDate = activityDateFilter.from;
+        selectedToDate = activityDateFilter.to;
     }
 
     updateDateRangeDisplay();
@@ -1724,6 +1880,18 @@ function applyDateRange() {
             if (dateBtn) dateBtn.classList.add('active');
 
             renderRepoTable();
+        } else if (currentDateContext === 'activity') {
+            activityDateFilter.from = selectedFromDate;
+            activityDateFilter.to = selectedToDate;
+            activityRangeStart = 1;
+            activityRangeEnd = 10;
+
+            const dateBtn = document.querySelector('.dashboard-activity-header-actions .date-range-btn');
+            const label = document.getElementById('activity-date-range-label');
+            if (label) label.innerText = labelText;
+            if (dateBtn) dateBtn.classList.add('active');
+
+            renderDashboardPreview();
         }
 
         closeDatePicker();
@@ -1731,6 +1899,27 @@ function applyDateRange() {
     } else {
         showToast('Please select both start and end dates', 'error');
     }
+}
+
+function clearActivityDateFilter() {
+    activityDateFilter.from = null;
+    activityDateFilter.to = null;
+    activityRangeStart = 1;
+    activityRangeEnd = 10;
+
+    if (currentDateContext === 'activity') {
+        selectedFromDate = null;
+        selectedToDate = null;
+    }
+
+    const dateBtn = document.querySelector('.dashboard-activity-header-actions .date-range-btn');
+    const label = document.getElementById('activity-date-range-label');
+    if (label) label.innerText = 'Select Date Range';
+    if (dateBtn) dateBtn.classList.remove('active');
+
+    syncActivityRangeInputs();
+    renderDashboardPreview();
+    showToast('Activity date filter cleared', 'success');
 }
 
 function clearRequestFilters() {
@@ -1801,6 +1990,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Initialize Dashboard
     renderRecentActivities();
     renderDashboardPreview();
+    loadOsaActivityFeed();
 
     // Initialize Documents Logic
     initDocOrgFilter(); // Initialize document organization filter
@@ -1813,7 +2003,9 @@ window.addEventListener('DOMContentLoaded', () => {
     renderRequests();
     loadRequestsFromApi();
     renderOrgs();
-    loadServiceAuthorizations().catch((error) => console.error(error));
+    loadServiceAuthorizations()
+        .then(() => loadOsaActivityFeed())
+        .catch((error) => console.error(error));
 
     // Initialize Date Picker defaults
     const today = new Date();
