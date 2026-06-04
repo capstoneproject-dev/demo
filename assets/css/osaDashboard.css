@@ -515,6 +515,93 @@ td {
     color: #2563eb;
 }
 
+.status-posted,
+.status-updated,
+.status-active,
+.status-available,
+.status-recorded,
+.status-started,
+.status-published,
+.status-checked-in,
+.status-checked-out,
+.status-registered,
+.status-claimed,
+.status-ready-to-claim {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+}
+
+.status-draft,
+.status-upcoming {
+    background: rgba(99, 102, 241, 0.1);
+    color: #4f46e5;
+}
+
+.status-borrowed,
+.status-rented,
+.status-reserved,
+.status-queued,
+.status-processing {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+
+.status-info {
+    background: rgba(100, 116, 139, 0.12);
+    color: #475569;
+}
+
+.activity-range-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.activity-range-summary {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.activity-range-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.activity-range-actions label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.activity-range-actions input {
+    width: 72px;
+    height: 34px;
+    margin: 0;
+    padding: 6px 8px;
+}
+
+.dashboard-activity-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.dashboard-activity-header-actions .btn {
+    height: 40px;
+}
+
 .status-verified {
     background: rgba(16, 185, 129, 0.1);
     color: #059669;
