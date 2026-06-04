@@ -1,6 +1,41 @@
 const AUTH_SESSION_KEY = 'naapAuthSession';
 let officerOrgSyncPromise = Promise.resolve();
 const DEFAULT_OFFICER_AVATAR = 'https://picsum.photos/seed/officer1/150/150';
+const OFFICER_ANNOUNCEMENT_PREVIEW_KEY_PREFIX = 'osaAnnouncementPreview_';
+let officerAnnouncementPreviewPayloadCache = undefined;
+
+function isOfficerAnnouncementPreviewMode() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('preview') === '1'
+        && params.get('view') === 'announcements'
+        && params.get('target') === 'announcement'
+        && (params.get('preview_key') || '').startsWith(OFFICER_ANNOUNCEMENT_PREVIEW_KEY_PREFIX);
+}
+
+function getOfficerAnnouncementPreviewPayload() {
+    if (officerAnnouncementPreviewPayloadCache !== undefined) {
+        return officerAnnouncementPreviewPayloadCache;
+    }
+
+    if (!isOfficerAnnouncementPreviewMode()) return null;
+
+    const params = new URLSearchParams(window.location.search);
+    const previewKey = params.get('preview_key') || '';
+    if (!previewKey.startsWith(OFFICER_ANNOUNCEMENT_PREVIEW_KEY_PREFIX)) {
+        officerAnnouncementPreviewPayloadCache = null;
+        return null;
+    }
+
+    try {
+        const payload = JSON.parse(localStorage.getItem(previewKey) || 'null');
+        localStorage.removeItem(previewKey);
+        officerAnnouncementPreviewPayloadCache = payload;
+        return payload;
+    } catch (_error) {
+        officerAnnouncementPreviewPayloadCache = null;
+        return null;
+    }
+}
 
 function readAuthSession() {
     try {
@@ -356,6 +391,23 @@ function syncActiveOrgToPhpSession() {
 }
 
 function initOfficerAuthContext() {
+    if (isOfficerAnnouncementPreviewMode()) {
+        const payload = getOfficerAnnouncementPreviewPayload();
+        const orgLabel = payload?.org || 'Organization';
+        const headerName = document.querySelector('.user-info span');
+        const headerRole = document.querySelector('.user-info small');
+        const profileLink = document.querySelector('.user-profile');
+        const pageTitle = document.getElementById('page-title');
+        const currentDate = document.getElementById('current-date');
+        if (headerName) headerName.textContent = orgLabel;
+        if (headerRole) headerRole.textContent = 'OSA Preview';
+        if (pageTitle) pageTitle.textContent = 'Announcement Preview';
+        if (currentDate) currentDate.textContent = 'View-only organization announcement';
+        if (profileLink) profileLink.style.pointerEvents = 'none';
+        document.title = `${orgLabel} Announcement Preview`;
+        return;
+    }
+
     const session = readAuthSession();
     const isOfficerSession = session && session.login_role === 'org' && session.user_id;
     if (!isOfficerSession) {
@@ -548,6 +600,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.location.hash === '#tracker-financial-summary') {
         navigate('tracker');
         switchTrackerSubView('financial-summary');
+    }
+
+    if (isOfficerAnnouncementPreviewMode()) {
+        setTimeout(openOfficerAnnouncementPreviewFromUrl, 0);
     }
 });
 
@@ -3862,7 +3918,10 @@ function setAnnouncementDetailPhoto(index) {
 }
 
 function openAnnouncementDetailModal(index) {
-    const announcement = getOfficerScopedAnnouncements()[index];
+    openAnnouncementDetailModalForAnnouncement(getOfficerScopedAnnouncements()[index]);
+}
+
+function openAnnouncementDetailModalForAnnouncement(announcement) {
     const modal = document.getElementById('announcementDetailModal');
     const content = document.getElementById('announcement-detail-content');
     const title = document.getElementById('announcement-detail-title');
@@ -3975,6 +4034,49 @@ function closeAnnouncementDetailModal() {
     if (modal) modal.classList.remove('show');
     announcementDetailCarouselState.photos = [];
     announcementDetailCarouselState.index = 0;
+
+    if (isOfficerAnnouncementPreviewMode()) {
+        window.close();
+        setTimeout(() => {
+            if (!window.closed) {
+                window.location.href = 'osaDashboard.html';
+            }
+        }, 150);
+    }
+}
+
+function openOfficerAnnouncementPreviewFromUrl() {
+    const announcement = getOfficerAnnouncementPreviewPayload();
+    if (!announcement) {
+        showToast('Announcement preview is no longer available. Please open it again from OSA.', 'error');
+        return;
+    }
+
+    navigate('announcements');
+
+    document.querySelectorAll('.sidebar .nav-link').forEach((link) => {
+        const isAnnouncementsLink = link.getAttribute('onclick')?.includes('announcements');
+        if (!isAnnouncementsLink) {
+            const item = link.closest('.nav-item') || link;
+            item.style.display = 'none';
+        }
+    });
+
+    const formCard = document.getElementById('announcement-form')?.closest('.card');
+    if (formCard) formCard.style.display = 'none';
+
+    const feed = document.getElementById('announcement-feed');
+    if (feed) {
+        feed.innerHTML = `
+            <div style="padding: 12px; color: var(--muted);">
+                Opened from OSA Organization Activity for view-only inspection.
+            </div>
+        `;
+    }
+
+    setTimeout(() => {
+        openAnnouncementDetailModalForAnnouncement(announcement);
+    }, 80);
 }
 
 function toggleEventSyncFields() {
@@ -5287,6 +5389,11 @@ if (themeBtn) {
 // Init
 window.addEventListener('DOMContentLoaded', () => {
     setDate();
+    if (isOfficerAnnouncementPreviewMode()) {
+        setupAnnouncementPhotoPreviewCarousel();
+        return;
+    }
+
     setupAnnouncementPhotoPreviewCarousel();
     initTrackerSidebarBehavior();
     initializeOfficerFinancialSummaryDefaultDate();

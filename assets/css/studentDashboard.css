@@ -1522,6 +1522,24 @@ body.dark .tab-btn:hover {
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
+.activity-preview-highlight {
+    animation: activityPreviewPulse 2.2s ease;
+}
+
+@keyframes activityPreviewPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(0, 45, 98, 0.32), 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    45% {
+        box-shadow: 0 0 0 8px rgba(0, 45, 98, 0.12), 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 45, 98, 0), 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+}
+
 .my-org-ref-contact {
     background: linear-gradient(135deg, var(--my-org-primary) 0%, var(--my-org-secondary) 55%, var(--my-org-gradient-end) 100%);
     position: relative;
