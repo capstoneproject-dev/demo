@@ -279,6 +279,13 @@ function isOrganizationPreviewModeFromUrl() {
     return params.get("view") === "organizations" && params.get("preview") === "1";
 }
 
+function isOsaStudentPreviewModeFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "organizations"
+        && params.get("preview") === "1"
+        && params.get("viewer") === "osa";
+}
+
 function getOrganizationPreviewOrgFromUrl() {
     if (!isOrganizationPreviewModeFromUrl()) {
         return "";
@@ -304,6 +311,19 @@ function applyOrganizationPreviewModeChrome() {
     const profileHeaderLink = document.querySelector('.user-profile[onclick*="navigate(\'profile\'"]');
     if (profileHeaderLink) {
         profileHeaderLink.style.display = 'none';
+    }
+
+    if (isOsaStudentPreviewModeFromUrl()) {
+        document.querySelectorAll('.sidebar .nav-link').forEach((link) => {
+            const isOrganizationsLink = link.getAttribute('onclick')?.includes('organizations');
+            if (!isOrganizationsLink) {
+                const item = link.closest('.nav-item') || link;
+                item.style.display = 'none';
+            }
+        });
+
+        const headerTitle = document.getElementById('page-title');
+        if (headerTitle) headerTitle.innerText = 'OSA Preview';
     }
 }
 
@@ -457,12 +477,18 @@ function normalizeOrgName(name) {
 
 const AUTH_DB_KEY = "naapAuthDB_v1";
 const AUTH_SESSION_KEY = "naapAuthSession";
+const OSA_EVENT_PREVIEW_KEY_PREFIX = "osaEventPreview_";
+let osaEventPreviewPayloadCache = undefined;
 
 /**
  * Non-blocking PHP session check.
  * Runs async after initial render — redirects to login if server session is gone.
  */
 function validatePhpSession() {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        return;
+    }
+
     const authSession = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || 'null');
     // Only check against server if we actually have a local session
     if (!authSession || !authSession.user_id) {
@@ -491,6 +517,34 @@ function readJsonStorage(key, fallback) {
 
 function readAuthSession() {
     return readJsonStorage(AUTH_SESSION_KEY, {});
+}
+
+function getOsaEventPreviewPayloadFromUrl() {
+    if (osaEventPreviewPayloadCache !== undefined) {
+        return osaEventPreviewPayloadCache;
+    }
+
+    if (!isOsaStudentPreviewModeFromUrl()) {
+        osaEventPreviewPayloadCache = null;
+        return null;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const previewKey = params.get('preview_key') || '';
+    if (!previewKey.startsWith(OSA_EVENT_PREVIEW_KEY_PREFIX)) {
+        osaEventPreviewPayloadCache = null;
+        return null;
+    }
+
+    try {
+        const payload = JSON.parse(localStorage.getItem(previewKey) || 'null');
+        localStorage.removeItem(previewKey);
+        osaEventPreviewPayloadCache = payload;
+        return payload;
+    } catch (_error) {
+        osaEventPreviewPayloadCache = null;
+        return null;
+    }
 }
 
 const DEFAULT_STUDENT_AVATAR = "https://picsum.photos/seed/student1/150/150";
@@ -689,6 +743,33 @@ function mapDatabaseEvent(item) {
         img: image,
         gallery: gallery.length ? gallery : [image],
         isPublished: Number(item.is_published || 0) === 1
+    };
+}
+
+function mapOsaEventPreviewPayload(payload) {
+    if (!payload) return null;
+
+    const orgName = normalizeOrgName(payload.organization || payload.org || '');
+    const orgVisual = getOrganizationVisual(orgName);
+    const dateValue = payload.event_datetime || payload.date || '';
+    const gallery = parseEventPhotoGallery(payload.event_photo || payload.media || '');
+    const image = gallery[0] || orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/osa_event_${payload.event_id || payload.id || payload.title || 'preview'}/800/450`;
+
+    return {
+        id: payload.event_id || payload.id || null,
+        title: payload.event_name || payload.title || 'Untitled Event',
+        date: formatStudentEventDateLabel(dateValue) || formatStudentEventDateLabel(new Date().toISOString()),
+        dateRaw: dateValue,
+        org: orgName || 'General',
+        desc: payload.description || '',
+        description: payload.description || '',
+        time: formatStudentEventTimeLabel(dateValue),
+        venue: payload.location || 'TBA',
+        location: payload.location || 'TBA',
+        participants: Number(payload.participants || payload.attendance_count || 0),
+        img: image,
+        gallery: gallery.length ? gallery : [image],
+        isPublished: true
     };
 }
 
@@ -2032,6 +2113,42 @@ function openOrganizationPreviewFromUrl() {
     }
 }
 
+function openStudentActivityPreviewFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('preview') !== '1' || params.get('view') !== 'organizations') {
+        return;
+    }
+
+    const target = params.get('target') || '';
+    if (target === 'event') {
+        const eventId = params.get('event_id');
+        const eventTitle = params.get('event_title');
+        const events = isOsaStudentPreviewModeFromUrl() ? getAllOrganizationEvents() : getStudentScopedExtendedEvents();
+        const eventObj = events.find((event) => String(event.id ?? '') === String(eventId || ''))
+            || events.find((event) => normalizeOrgName(event.title) === normalizeOrgName(eventTitle))
+            || events.find((event) => String(event.title || '').trim().toLowerCase() === String(eventTitle || '').trim().toLowerCase())
+            || mapOsaEventPreviewPayload(getOsaEventPreviewPayloadFromUrl());
+
+        if (eventObj) {
+            navigate('organizations');
+            openEventDetailsModal(eventObj);
+        } else if (isOsaStudentPreviewModeFromUrl()) {
+            showToast('Event preview is no longer available.', 'error');
+        }
+        return;
+    }
+
+    if (target === 'announcements') {
+        activeMyOrgSection = 'home';
+        const announcementPanel = document.querySelector('.my-org-ref-announcements');
+        if (announcementPanel) {
+            announcementPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            announcementPanel.classList.add('activity-preview-highlight');
+            setTimeout(() => announcementPanel.classList.remove('activity-preview-highlight'), 2200);
+        }
+    }
+}
+
 function toggleOrganizationEditMode(shouldEdit) {
     if (!organizationBrowseContext?.orgName || !organizationBrowseContext.canEdit) {
         return;
@@ -3117,34 +3234,44 @@ function moveDashboardSlide(direction) {
 
 // --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', async () => {
+    const isOsaPreview = isOsaStudentPreviewModeFromUrl();
     validatePhpSession();   // guard: redirect to login if no valid session
-    syncStudentIdentity();
+    if (!isOsaPreview) {
+        syncStudentIdentity();
+    }
     setDate();
     await loadOrganizationPublicProfiles();
     renderDashboard();
-    loadStudentEventsFromApi().catch((error) => console.error(error));
-    try {
-        await loadStudentServicesTracker();
-        await loadStudentServiceCatalog();
-    } catch (error) {
-        console.error(error);
+    const eventsLoadPromise = loadStudentEventsFromApi().catch((error) => console.error(error));
+
+    if (!isOsaPreview) {
+        try {
+            await loadStudentServicesTracker();
+            await loadStudentServiceCatalog();
+        } catch (error) {
+            console.error(error);
+        }
+        renderServices();
+        renderServicesModuleNav();
+        renderPrintingProviderOptions();
+        loadCurrentRentals().catch((error) => console.error(error));
+        loadStudentPrintJobs().catch((error) => console.error(error));
+        loadStudentLockers().catch((error) => console.error(error));
+        renderProfile();
+        setupStudentProfileEditor();
+        setupStudentPasswordForm();
+        setupStudentProfilePhotoUploader();
+        updateEventRegistrationModalFields();
+        loadRegistrationPrefill().catch((error) => console.error(error));
     }
-    renderServices();
-    renderServicesModuleNav();
-    renderPrintingProviderOptions();
-    loadCurrentRentals().catch((error) => console.error(error));
-    loadStudentPrintJobs().catch((error) => console.error(error));
-    loadStudentLockers().catch((error) => console.error(error));
-    renderProfile();
-    setupStudentProfileEditor();
-    setupStudentPasswordForm();
-    setupStudentProfilePhotoUploader();
-    updateEventRegistrationModalFields();
-    loadRegistrationPrefill().catch((error) => console.error(error));
+
     hideOrganizationsMembershipTab();
     applyOrganizationPreviewModeChrome();
     switchOrgTab('about', document.querySelector('.tab-btn'));
     openOrganizationPreviewFromUrl();
+    eventsLoadPromise.finally(() => {
+        openStudentActivityPreviewFromUrl();
+    });
 
     // Initialize Dashboard Carousel for the new layout
     initDashboardCarousel();
@@ -3424,6 +3551,16 @@ function closeDetailsModal() {
     const modal = document.getElementById('eventDetailsModal');
     modal.classList.remove('open');
     document.body.style.overflow = '';
+
+    const params = new URLSearchParams(window.location.search);
+    if (isOsaStudentPreviewModeFromUrl() && params.get('target') === 'event') {
+        window.close();
+        setTimeout(() => {
+            if (!window.closed) {
+                window.location.href = 'osaDashboard.html';
+            }
+        }, 150);
+    }
 }
 
 function renderCarousel() {
@@ -3611,6 +3748,11 @@ async function loadStudentServiceCatalog(force = false) {
 }
 
 async function loadStudentServicesTracker(force = false) {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        studentServicesTracker = { modules: [], printingProviders: [] };
+        return studentServicesTracker;
+    }
+
     if (studentServicesTrackerPromise && !force) {
         return studentServicesTrackerPromise;
     }
@@ -4169,6 +4311,17 @@ function renderStudentLockerProfile() {
 }
 
 async function loadStudentLockers(force = false) {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        studentLockerState = {
+            enabled: false,
+            org_name: '',
+            org_code: '',
+            lockers: [],
+            current_locker: null
+        };
+        return studentLockerState;
+    }
+
     try {
         const response = await fetch('../api/lockers/student/list.php', {
             method: 'GET',
@@ -4341,6 +4494,11 @@ function renderStudentPrintingJobs() {
 }
 
 async function loadStudentPrintJobs(force = false) {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        studentPrintingJobs = [];
+        return studentPrintingJobs;
+    }
+
     try {
         const response = await fetch('../api/printing/student/list.php?status=all', {
             method: 'GET',
@@ -5934,6 +6092,11 @@ function isStudentRentalNoShow(rental) {
 }
 
 async function loadCurrentRentals() {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        currentRentalsData = [];
+        return currentRentalsData;
+    }
+
     try {
         const response = await fetch('../api/student/rentals/my-rentals.php?status=open', {
             method: 'GET',

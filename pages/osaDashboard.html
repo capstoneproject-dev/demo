@@ -221,6 +221,7 @@
                                     <th>Details</th>
                                     <th>Date</th>
                                     <th>Status</th>
+                                    <th class="text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="dashboard-requests-preview">
@@ -249,31 +250,6 @@
                     </div>
                 </div>
 
-                <div style="display: flex; flex-direction: column; gap: 24px;">
-
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-title">Quick Actions</div>
-                        </div>
-                        <div class="quick-action-grid">
-                            <button class="btn btn-primary" onclick="navigate('requests')">
-                                <i class="fa-solid fa-list-check"></i> Review Requests
-                            </button>
-                            <button class="btn btn-outline" onclick="navigate('organizations')">
-                                <i class="fa-solid fa-users-viewfinder"></i> Monitor Orgs
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="card-title">Recent Activity</div>
-                        </div>
-                        <div id="activity-feed" class="activity-list">
-                        </div>
-                    </div>
-
-                </div>
             </div>
         </div>
 
@@ -686,6 +662,28 @@
             </div>
         </div>
     </main>
+
+
+    <!-- Organization Activity Detail Modal -->
+    <div id="activity-detail-modal" class="request-action-modal">
+        <div class="request-action-modal-content activity-detail-modal-content">
+            <div class="request-action-modal-header">
+                <div>
+                    <h3 id="activity-detail-title">Activity Details</h3>
+                    <p id="activity-detail-subtitle" class="activity-detail-subtitle"></p>
+                </div>
+                <button class="modal-close-btn" onclick="closeActivityDetailModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="request-action-modal-body">
+                <div id="activity-detail-body" class="activity-detail-body"></div>
+            </div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-outline" onclick="closeActivityDetailModal()">Close</button>
+            </div>
+        </div>
+    </div>
 
 
     <!-- Approve with Optional Comment Modal -->
