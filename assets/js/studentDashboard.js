@@ -2905,8 +2905,16 @@ function renderDashboard() {
             </div>`;
     } else {
         // Map to the Detailed Card HTML
-        eventContainer.innerHTML = upcomingEvents.map(ev => `
-            <div class="dashboard-event-preview-card" onclick="navigateToEventDetails('${ev.title}')" title="View Details">
+        eventContainer.innerHTML = upcomingEvents.map(ev => {
+            const previewBanner = (Array.isArray(ev.gallery) && ev.gallery.length ? ev.gallery[0] : ev.img) || '';
+            const escapedTitle = escapeHtml(ev.title);
+            const eventTitleArg = escapeHtml(JSON.stringify(ev.title));
+            const bannerStyle = previewBanner
+                ? ` style="background-image: linear-gradient(90deg, rgba(0, 20, 45, 0.82), rgba(0, 20, 45, 0.45)), url(${escapeHtml(JSON.stringify(previewBanner))});"`
+                : '';
+
+            return `
+            <div class="dashboard-event-preview-card ${previewBanner ? 'has-event-banner' : ''}" onclick="navigateToEventDetails(${eventTitleArg})" title="View Details"${bannerStyle}>
                 <div class="card-top-accent"></div>
                 <div class="card-content">
                     <div class="preview-date-badge">
@@ -2914,15 +2922,16 @@ function renderDashboard() {
                         <span class="p-day">${ev.date.split(' ')[1].replace(',', '')}</span>
                     </div>
                     <div class="preview-details">
-                        <h4 class="preview-title">${ev.title}</h4>
+                        <h4 class="preview-title">${escapedTitle}</h4>
                         <div class="preview-meta">
-                            <span class="preview-org"><i class="fa-solid fa-users"></i> ${ev.org}</span>
-                            ${ev.time ? `<span class="preview-time"><i class="fa-regular fa-clock"></i> ${ev.time.split(' - ')[0]}</span>` : ''}
+                            <span class="preview-org"><i class="fa-solid fa-users"></i> ${escapeHtml(ev.org)}</span>
+                            ${ev.time ? `<span class="preview-time"><i class="fa-regular fa-clock"></i> ${escapeHtml(ev.time.split(' - ')[0])}</span>` : ''}
                         </div>
                     </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     // 3. Render Calendar (Existing Logic)
