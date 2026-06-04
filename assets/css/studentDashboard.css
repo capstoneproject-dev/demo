@@ -6197,6 +6197,9 @@ body.dark #organizations .card .btn-share.active {
 /* --- CARD VISUAL DESIGN (Restored) --- */
 .dashboard-event-preview-card {
     background: var(--panel);
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
     border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
@@ -6207,6 +6210,11 @@ body.dark #organizations .card .btn-share.active {
     flex-direction: column;
     min-height: 90px;
     /* Ensure consistent height */
+}
+
+.dashboard-event-preview-card.has-event-banner {
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 10px 22px rgba(0, 20, 45, 0.18);
 }
 
 .dashboard-event-preview-card:hover {
@@ -6243,6 +6251,11 @@ body.dark #organizations .card .btn-share.active {
     height: 50px;
     border: 1px solid var(--border);
     flex-shrink: 0;
+}
+
+.dashboard-event-preview-card.has-event-banner .preview-date-badge {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(255, 255, 255, 0.7);
 }
 
 .p-month {
@@ -6291,6 +6304,14 @@ body.dark #organizations .card .btn-share.active {
     display: flex;
     align-items: center;
     gap: 5px;
+}
+
+.dashboard-event-preview-card.has-event-banner .preview-title,
+.dashboard-event-preview-card.has-event-banner .preview-org,
+.dashboard-event-preview-card.has-event-banner .preview-time,
+.dashboard-event-preview-card.has-event-banner i {
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
 /* Dark Mode Adjustment */
@@ -6358,18 +6379,18 @@ body.dark .dashboard-announcement-item:hover {
     /* Darker hover */
 }
 
-body.dark .dashboard-event-preview-card {
+body.dark .dashboard-event-preview-card:not(.has-event-banner) {
     background: #ffffff;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
     color: #000 !important;
 }
 
-body.dark .dashboard-event-preview-card .preview-title,
-body.dark .dashboard-event-preview-card .preview-org,
-body.dark .dashboard-event-preview-card .preview-time,
-body.dark .dashboard-event-preview-card .p-month,
-body.dark .dashboard-event-preview-card .p-day,
-body.dark .dashboard-event-preview-card i {
+body.dark .dashboard-event-preview-card:not(.has-event-banner) .preview-title,
+body.dark .dashboard-event-preview-card:not(.has-event-banner) .preview-org,
+body.dark .dashboard-event-preview-card:not(.has-event-banner) .preview-time,
+body.dark .dashboard-event-preview-card:not(.has-event-banner) .p-month,
+body.dark .dashboard-event-preview-card:not(.has-event-banner) .p-day,
+body.dark .dashboard-event-preview-card:not(.has-event-banner) i {
     color: #000 !important;
 }
 
