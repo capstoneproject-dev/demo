@@ -332,6 +332,15 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">Recent Activities</div>
+                        <div class="dashboard-activity-header-actions">
+                            <button class="date-range-btn" type="button" onclick="openDatePicker('monitoringActivity')">
+                                <i class="fa-solid fa-calendar-days"></i>
+                                <span id="monitoring-activity-date-range-label">Select Date Range</span>
+                            </button>
+                            <button class="btn btn-outline btn-sm" type="button" onclick="clearMonitoringActivityDateFilter()">
+                                <i class="fa-solid fa-filter-circle-xmark"></i> Clear
+                            </button>
+                        </div>
                     </div>
                     <div class="table-container">
                         <table>
@@ -346,6 +355,26 @@
                             <tbody id="monitoring-events-table">
                             </tbody>
                         </table>
+                    </div>
+                    <div class="activity-range-controls">
+                        <div id="monitoring-activity-range-summary" class="activity-range-summary">Showing 0 of 0</div>
+                        <div class="activity-range-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="moveMonitoringActivityRange(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <label>
+                                From
+                                <input id="monitoring-activity-range-start" type="number" min="1" value="1">
+                            </label>
+                            <label>
+                                To
+                                <input id="monitoring-activity-range-end" type="number" min="1" value="10">
+                            </label>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="applyMonitoringActivityRange()">Apply</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="moveMonitoringActivityRange(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

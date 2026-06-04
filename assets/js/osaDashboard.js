@@ -1050,109 +1050,122 @@ function openActivityView(activityIndex) {
 
 function buildMonitoringActivities(org) {
     const orgName = normalizeMonitoringOrgName(org?.name);
-    const orgDataKey = typeof ORG_DATA !== 'undefined'
-        ? Object.keys(ORG_DATA).find((key) => normalizeMonitoringOrgName(key) === orgName)
-        : null;
-    const orgConfig = orgDataKey && typeof ORG_DATA !== 'undefined' ? ORG_DATA[orgDataKey] : null;
-    const orgServices = getServiceAuthorizationOrg(org?.id);
-    const items = [];
+    return osaActivityFeed
+        .filter((activity) => normalizeMonitoringOrgName(activity.organization) === orgName)
+        .map((activity) => ({
+            title: activity.title || activity.details || 'Activity',
+            type: activity.type || 'Activity',
+            dateRaw: activity.date,
+            dateLabel: formatDashboardActivityDate(activity.date),
+            status: activity.status || 'Info'
+        }))
+        .sort((a, b) => getDashboardActivityTime(b.dateRaw) - getDashboardActivityTime(a.dateRaw));
+}
 
-    (orgConfig?.events || []).forEach((event) => {
-        items.push({
-            title: event.title,
-            type: 'Event',
-            dateRaw: event.date,
-            dateLabel: formatActivityDate(event.date),
-            status: parseActivityDate(event.date) && parseActivityDate(event.date) >= new Date() ? 'Upcoming' : 'Published'
-        });
+function getMonitoringFilteredActivities() {
+    const org = organizations.find(o => o.id === currentOrgId);
+    const items = org ? buildMonitoringActivities(org) : [];
+
+    if (!monitoringActivityDateFilter.from || !monitoringActivityDateFilter.to) {
+        return items;
+    }
+
+    const fromTime = new Date(monitoringActivityDateFilter.from);
+    const toTime = new Date(monitoringActivityDateFilter.to);
+    fromTime.setHours(0, 0, 0, 0);
+    toTime.setHours(23, 59, 59, 999);
+
+    return items.filter((activity) => {
+        const activityDate = new Date(activity.dateRaw);
+        if (Number.isNaN(activityDate.getTime())) return false;
+        return activityDate >= fromTime && activityDate <= toTime;
     });
+}
 
-    (orgConfig?.services || []).forEach((service) => {
-        items.push({
-            title: `${service.name} service available`,
-            type: 'Service',
-            dateRaw: new Date().toISOString(),
-            dateLabel: 'Active this term',
-            status: 'Available'
-        });
-    });
+function syncMonitoringActivityRangeInputs() {
+    const startInput = document.getElementById('monitoring-activity-range-start');
+    const endInput = document.getElementById('monitoring-activity-range-end');
+    if (startInput) startInput.value = monitoringActivityRangeStart;
+    if (endInput) endInput.value = monitoringActivityRangeEnd;
+}
 
-    requests
-        .filter((request) => normalizeMonitoringOrgName(request.org) === orgName)
-        .forEach((request) => {
-            items.push({
-                title: request.title,
-                type: request.type,
-                dateRaw: request.date,
-                dateLabel: request.date,
-                status: request.status
-            });
-        });
+function updateMonitoringActivityRangeSummary(total, visibleCount) {
+    const summary = document.getElementById('monitoring-activity-range-summary');
+    if (!summary) return;
 
-    docsData
-        .filter((doc) => normalizeMonitoringOrgName(doc.org) === orgName)
-        .forEach((doc) => {
-            items.push({
-                title: doc.title,
-                type: 'Document',
-                dateRaw: doc.submittedAt || doc.date,
-                dateLabel: doc.date || formatActivityDate(doc.submittedAt),
-                status: doc.status
-            });
-        });
-
-    transactions
-        .filter((transaction) => normalizeMonitoringOrgName(transaction.org) === orgName)
-        .forEach((transaction) => {
-            items.push({
-                title: transaction.doc,
-                type: 'Submission',
-                dateRaw: transaction.date,
-                dateLabel: transaction.date,
-                status: transaction.status
-            });
-        });
-
-    if (orgServices?.services?.printing) {
-        items.push({
-            title: 'Printing service access enabled',
-            type: 'Printing',
-            dateRaw: new Date().toISOString(),
-            dateLabel: 'Current access',
-            status: 'Active'
-        });
+    if (!total) {
+        summary.innerText = 'Showing 0 of 0';
+        return;
     }
 
-    if (orgServices?.services?.locker) {
-        items.push({
-            title: 'Locker service access enabled',
-            type: 'Locker',
-            dateRaw: new Date().toISOString(),
-            dateLabel: 'Current access',
-            status: 'Active'
-        });
+    const start = Math.min(monitoringActivityRangeStart, total);
+    const end = Math.min(monitoringActivityRangeEnd, total);
+    summary.innerText = `Showing ${start}-${end} of ${total} (${visibleCount} shown)`;
+}
+
+function renderMonitoringActivitiesTable() {
+    const eventTable = document.getElementById('monitoring-events-table');
+    if (!eventTable) return;
+
+    const org = organizations.find(o => o.id === currentOrgId);
+    const activityItems = getMonitoringFilteredActivities();
+    if (activityItems.length && monitoringActivityRangeStart > activityItems.length) {
+        const windowSize = Math.max(1, monitoringActivityRangeEnd - monitoringActivityRangeStart + 1);
+        monitoringActivityRangeStart = Math.max(1, activityItems.length - windowSize + 1);
+        monitoringActivityRangeEnd = Math.min(activityItems.length, monitoringActivityRangeStart + windowSize - 1);
     }
 
-    if (!items.length) {
-        items.push({
-            title: `${org?.name || 'Organization'} monitoring initialized`,
-            type: 'System',
-            dateRaw: new Date().toISOString(),
-            dateLabel: 'Today',
-            status: 'No recent records'
-        });
+    syncMonitoringActivityRangeInputs();
+
+    const startIndex = Math.max(0, monitoringActivityRangeStart - 1);
+    const endIndex = Math.max(startIndex + 1, monitoringActivityRangeEnd);
+    const visibleItems = activityItems.slice(startIndex, endIndex);
+
+    eventTable.innerHTML = visibleItems.length ? visibleItems.map((activity) => `
+        <tr>
+            <td>${escapeDashboardHtml(activity.title)}</td>
+            <td>${escapeDashboardHtml(activity.type)}</td>
+            <td>${escapeDashboardHtml(activity.dateLabel)}</td>
+            <td><span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status)}</span></td>
+        </tr>
+    `).join('') : `
+        <tr>
+            <td colspan="4" style="text-align:center; color:var(--muted); padding:24px;">
+                No recent activity has been recorded for ${escapeDashboardHtml(org?.name || 'this organization')}.
+            </td>
+        </tr>
+    `;
+
+    updateMonitoringActivityRangeSummary(activityItems.length, visibleItems.length);
+}
+
+function applyMonitoringActivityRange() {
+    const startInput = document.getElementById('monitoring-activity-range-start');
+    const endInput = document.getElementById('monitoring-activity-range-end');
+    const total = getMonitoringFilteredActivities().length;
+    const requestedStart = Math.max(1, parseInt(startInput?.value || '1', 10) || 1);
+    const requestedEnd = Math.max(requestedStart, parseInt(endInput?.value || '10', 10) || 10);
+
+    monitoringActivityRangeStart = total ? Math.min(requestedStart, total) : requestedStart;
+    monitoringActivityRangeEnd = total ? Math.min(Math.max(monitoringActivityRangeStart, requestedEnd), total) : requestedEnd;
+    syncMonitoringActivityRangeInputs();
+    renderMonitoringActivitiesTable();
+}
+
+function moveMonitoringActivityRange(direction) {
+    const windowSize = Math.max(1, monitoringActivityRangeEnd - monitoringActivityRangeStart + 1);
+    const total = getMonitoringFilteredActivities().length;
+    if (!total) return;
+
+    if (direction < 0) {
+        monitoringActivityRangeStart = Math.max(1, monitoringActivityRangeStart - windowSize);
+    } else {
+        monitoringActivityRangeStart = Math.min(Math.max(1, total - windowSize + 1), monitoringActivityRangeStart + windowSize);
     }
 
-    return items
-        .sort((a, b) => {
-            const dateA = parseActivityDate(a.dateRaw);
-            const dateB = parseActivityDate(b.dateRaw);
-            if (dateA && dateB) return dateB - dateA;
-            if (dateB) return 1;
-            if (dateA) return -1;
-            return String(b.dateLabel || '').localeCompare(String(a.dateLabel || ''));
-        })
-        .slice(0, 10);
+    monitoringActivityRangeEnd = Math.min(total, monitoringActivityRangeStart + windowSize - 1);
+    syncMonitoringActivityRangeInputs();
+    renderMonitoringActivitiesTable();
 }
 
 let requests = [
@@ -1167,6 +1180,9 @@ let osaActivityFeed = [];
 let activityRangeStart = 1;
 let activityRangeEnd = 10;
 let activityDateFilter = { from: null, to: null };
+let monitoringActivityRangeStart = 1;
+let monitoringActivityRangeEnd = 10;
+let monitoringActivityDateFilter = { from: null, to: null };
 
 const transactions = [
     { org: "Supreme Student Council", sender: "Juan Dela Cruz", doc: "Budget Proposal Q4", date: "Oct 25, 2023", status: "Pending" },
@@ -1261,10 +1277,12 @@ async function loadOsaActivityFeed() {
         }
         osaActivityFeed = Array.isArray(data.items) ? data.items : [];
         renderDashboardPreview();
+        return osaActivityFeed;
     } catch (error) {
         console.error('[loadOsaActivityFeed]', error);
         osaActivityFeed = [];
         renderDashboardPreview();
+        return osaActivityFeed;
     }
 }
 
@@ -1985,17 +2003,24 @@ function renderTransactions() {
 
 // --- ACTIONS ---
 
-function openMonitoring(orgId) {
+async function openMonitoring(orgId) {
     currentOrgId = orgId;
     const org = organizations.find(o => o.id === orgId);
 
     if (org) {
+        if (!osaActivityFeed.length) {
+            await loadOsaActivityFeed();
+        }
+
         // 1. Basic Info
         document.getElementById('monitoring-org-name').innerText = org.name;
         document.getElementById('monitoring-org-details').innerText = `${org.category} • ID: ${org.id}`;
 
         const monitoringActivities = buildMonitoringActivities(org);
         const latestActivity = monitoringActivities[0];
+        monitoringActivityRangeStart = 1;
+        monitoringActivityRangeEnd = 10;
+        syncMonitoringActivityRangeInputs();
 
         // 2. Activity Recency
         document.getElementById('monitoring-recency').innerText = `Last recorded activity: ${latestActivity?.dateLabel || 'No recent records'}`;
@@ -2059,15 +2084,7 @@ function openMonitoring(orgId) {
         officersContainer.innerHTML = officersHTML;
 
         // 5. Recent Activities
-        const eventTable = document.getElementById('monitoring-events-table');
-        eventTable.innerHTML = monitoringActivities.map((activity) => `
-            <tr>
-                <td>${activity.title}</td>
-                <td>${activity.type}</td>
-                <td>${activity.dateLabel}</td>
-                <td><span class="status-badge status-${String(activity.status).toLowerCase().replace(/[^a-z0-9]+/g, '-')}">${activity.status}</span></td>
-            </tr>
-        `).join('');
+        renderMonitoringActivitiesTable();
     }
     renderMonitoringServiceAuthorizations(orgId);
     loadServiceAuthorizations().then(() => {
@@ -2183,7 +2200,7 @@ function confirmRequestAction() {
 
 // --- DATE PICKER CALENDAR FUNCTIONS ---
 // Context-Aware Date Picker Logic
-let currentDateContext = 'requests'; // 'requests', 'docs', 'repo', or 'activity'
+let currentDateContext = 'requests'; // 'requests', 'docs', 'repo', 'activity', or 'monitoringActivity'
 
 // Independent Date Filter States
 const reqDateFilter = { from: null, to: null };
@@ -2208,6 +2225,9 @@ function openDatePicker(context = 'requests') {
     } else if (context === 'activity') {
         selectedFromDate = activityDateFilter.from;
         selectedToDate = activityDateFilter.to;
+    } else if (context === 'monitoringActivity') {
+        selectedFromDate = monitoringActivityDateFilter.from;
+        selectedToDate = monitoringActivityDateFilter.to;
     }
 
     updateDateRangeDisplay();
@@ -2400,6 +2420,18 @@ function applyDateRange() {
             if (dateBtn) dateBtn.classList.add('active');
 
             renderDashboardPreview();
+        } else if (currentDateContext === 'monitoringActivity') {
+            monitoringActivityDateFilter.from = selectedFromDate;
+            monitoringActivityDateFilter.to = selectedToDate;
+            monitoringActivityRangeStart = 1;
+            monitoringActivityRangeEnd = 10;
+
+            const dateBtn = document.querySelector('#monitoring .dashboard-activity-header-actions .date-range-btn');
+            const label = document.getElementById('monitoring-activity-date-range-label');
+            if (label) label.innerText = labelText;
+            if (dateBtn) dateBtn.classList.add('active');
+
+            renderMonitoringActivitiesTable();
         }
 
         closeDatePicker();
@@ -2428,6 +2460,27 @@ function clearActivityDateFilter() {
     syncActivityRangeInputs();
     renderDashboardPreview();
     showToast('Activity date filter cleared', 'success');
+}
+
+function clearMonitoringActivityDateFilter() {
+    monitoringActivityDateFilter.from = null;
+    monitoringActivityDateFilter.to = null;
+    monitoringActivityRangeStart = 1;
+    monitoringActivityRangeEnd = 10;
+
+    if (currentDateContext === 'monitoringActivity') {
+        selectedFromDate = null;
+        selectedToDate = null;
+    }
+
+    const dateBtn = document.querySelector('#monitoring .dashboard-activity-header-actions .date-range-btn');
+    const label = document.getElementById('monitoring-activity-date-range-label');
+    if (label) label.innerText = 'Select Date Range';
+    if (dateBtn) dateBtn.classList.remove('active');
+
+    syncMonitoringActivityRangeInputs();
+    renderMonitoringActivitiesTable();
+    showToast('Organization activity date filter cleared', 'success');
 }
 
 function clearRequestFilters() {
