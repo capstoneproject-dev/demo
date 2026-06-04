@@ -1424,6 +1424,51 @@ td {
     color: var(--text);
 }
 
+.activity-detail-modal-content {
+    width: min(94vw, 760px);
+    max-width: min(94vw, 760px);
+}
+
+.activity-detail-modal-content .request-action-modal-header {
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.activity-detail-modal-content .request-action-modal-header>div {
+    min-width: 0;
+    flex: 1;
+}
+
+.activity-detail-modal-content .request-action-modal-header h3,
+.activity-detail-subtitle {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.activity-detail-modal-content .modal-close-btn {
+    flex: 0 0 auto;
+}
+
+.activity-detail-modal-content .request-action-modal-body {
+    max-width: 100%;
+}
+
+.activity-object-info {
+    min-width: 0;
+}
+
+.activity-object-info>div {
+    min-width: 0;
+    flex: 1;
+}
+
+.activity-object-info strong,
+.activity-detail-section p,
+.activity-object-file-btn {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
 .modal-close-btn {
     background: none;
     border: none;
