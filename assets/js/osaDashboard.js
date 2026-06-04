@@ -889,7 +889,6 @@ function renderPrintingActivityDetail(activity, payload, detailMap) {
         { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.organization || activity.organization },
     ])}
         ${renderActivityTextSection('Notes', payload.notes || 'No notes provided.')}
-        ${renderActivityFileButton(payload.file_url, 'Open Print File')}
     `;
 }
 
@@ -1024,8 +1023,9 @@ function buildStudentActivityPreviewUrl(activity) {
         params.set('org', org);
     }
 
-    if (['organization_info', 'service_access'].includes(activity.sourceType)) {
+    if (activity.sourceType === 'organization_info') {
         params.set('target', 'organization');
+        params.set('section', 'about');
         return `../pages/studentDashboard.html?${params.toString()}`;
     }
 

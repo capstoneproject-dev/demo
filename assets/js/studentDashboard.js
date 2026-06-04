@@ -2081,6 +2081,7 @@ function openOrganizationPreviewFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const requestedView = params.get('view');
     const requestedOrg = params.get('org');
+    const requestedSection = params.get('section');
     const canEdit = isOrganizationPreviewModeFromUrl();
 
     if (requestedView !== 'organizations' || !requestedOrg) {
@@ -2102,7 +2103,9 @@ function openOrganizationPreviewFromUrl() {
 
     const contentDiv = document.getElementById('tab-content');
     if (contentDiv) {
-        activeMyOrgSection = 'home';
+        activeMyOrgSection = ['home', 'events', 'about', 'officers', 'contact'].includes(requestedSection)
+            ? requestedSection
+            : 'home';
         organizationBrowseContext = {
             orgName: normalizedOrg,
             editAsMyOrganization: true,
