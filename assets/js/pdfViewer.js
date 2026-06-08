@@ -22,6 +22,8 @@ const PDFViewer = {
     currentSubmissionId: null,
     isReadOnly: false,
     annotations: [],
+    annotationFilter: 'all',
+    annotationsLoadingStartedAt: 0,
 
     // Mode states
     highlightMode: false,
@@ -63,6 +65,7 @@ const PDFViewer = {
             pageInfo: document.getElementById('pdf-page-info'),
             zoomInfo: document.getElementById('pdf-zoom-info'),
             sidebar: document.getElementById('pdf-sidebar'),
+            annotationFilter: document.getElementById('pdf-annotation-filter'),
             annotationsList: document.getElementById('pdf-annotations-list'),
             highlightBtn: document.getElementById('pdf-highlight-btn'),
             commentBtn: document.getElementById('pdf-comment-btn'),
@@ -78,6 +81,11 @@ const PDFViewer = {
         document.addEventListener('mousemove', (e) => this.trackSelectionMouse(e));
         document.addEventListener('selectionchange', () => this.debugSelectionChange());
         document.addEventListener('mouseup', (e) => this.handleTextSelection(e));
+        this.elements.annotationFilter?.addEventListener('change', (e) => {
+            if (e.target?.name === 'pdf-annotation-filter') {
+                this.setAnnotationFilter(e.target.value);
+            }
+        });
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -195,6 +203,9 @@ const PDFViewer = {
         this.currentPage = 1;
         this.scale = 1.0;
         this.annotations = [];
+        this.annotationFilter = 'all';
+        const allFilterInput = this.elements.annotationFilter?.querySelector('input[value="all"]');
+        if (allFilterInput) allFilterInput.checked = true;
 
         const modal = this.elements.modal;
         if (!modal) return;
@@ -214,6 +225,7 @@ const PDFViewer = {
 
         this.elements.docName.textContent = localDoc?.name || remoteDoc?.name || 'Document';
         this.showLoading('Loading PDF...');
+        this.showAnnotationsLoading();
 
         try {
             if (localDoc?.data) {
@@ -284,6 +296,7 @@ const PDFViewer = {
     // PDF LOADING & RENDERING
     // ============================================
     async loadDocument(pdfData) {
+        this.showAnnotationsLoading();
         const loadingTask = pdfjsLib.getDocument(pdfData);
         this.pdfDoc = await loadingTask.promise;
         this.totalPages = this.pdfDoc.numPages;
@@ -1144,6 +1157,7 @@ const PDFViewer = {
     },
 
     async loadAnnotations() {
+        this.showAnnotationsLoading();
         if (this.currentSubmissionId) {
             try {
                 this.annotations = await this.fetchAnnotationsFromApi();
@@ -1163,8 +1177,32 @@ const PDFViewer = {
                 this.annotations = [];
             }
         }
+        await this.waitForMinimumAnnotationLoadingTime();
         this.renderAllAnnotations();
         this.renderAnnotationsSidebar();
+    },
+
+    showAnnotationsLoading() {
+        const list = this.elements.annotationsList;
+        if (!list) return;
+        this.annotationsLoadingStartedAt = Date.now();
+
+        const label = this.annotationFilter === 'comments'
+            ? 'Loading comments...'
+            : (this.annotationFilter === 'highlights' ? 'Loading highlights...' : 'Loading annotations...');
+
+        list.innerHTML = `
+            <div class="pdf-annotations-loading">
+                <span class="pdf-annotations-spinner" aria-hidden="true"></span>
+                <span>${label}</span>
+            </div>
+        `;
+    },
+
+    waitForMinimumAnnotationLoadingTime() {
+        const elapsed = Date.now() - this.annotationsLoadingStartedAt;
+        const remaining = Math.max(0, 300 - elapsed);
+        return remaining ? new Promise(resolve => setTimeout(resolve, remaining)) : Promise.resolve();
     },
 
     async createAnnotation(highlightData, comment) {
@@ -1260,6 +1298,25 @@ const PDFViewer = {
         }
     },
 
+    setAnnotationFilter(filter) {
+        const allowedFilters = ['all', 'highlights', 'comments'];
+        this.annotationFilter = allowedFilters.includes(filter) ? filter : 'all';
+        this.renderAllAnnotations();
+        this.renderAnnotationsSidebar();
+    },
+
+    getFilteredAnnotations(annotations = this.getAnnotations()) {
+        if (this.annotationFilter === 'highlights') {
+            return annotations.filter(annotation => !annotation.comment);
+        }
+
+        if (this.annotationFilter === 'comments') {
+            return annotations.filter(annotation => annotation.comment);
+        }
+
+        return annotations;
+    },
+
     renderPageAnnotations(pageNum) {
         const annotationLayer = this.elements.viewerContainer?.querySelector(
             `.pdf-annotation-layer[data-page-number="${pageNum}"]`
@@ -1271,7 +1328,7 @@ const PDFViewer = {
 
         annotationLayer.innerHTML = '';
 
-        const annotations = this.getAnnotations().filter(a => a.page === pageNum);
+        const annotations = this.getFilteredAnnotations().filter(a => a.page === pageNum);
         const layerRect = annotationLayer.getBoundingClientRect();
         const pageWidth = layerRect.width || annotationLayer.offsetWidth || pageContainer.offsetWidth;
         const pageHeight = layerRect.height || annotationLayer.offsetHeight || pageContainer.offsetHeight;
@@ -1293,21 +1350,6 @@ const PDFViewer = {
                 annotationLayer.appendChild(highlightEl);
             });
 
-            // Add comment marker if there's a comment
-            if (annotation.comment && annotation.rects.length > 0) {
-                const firstRect = annotation.rects.find(rect => this.isValidStoredRect(rect));
-                if (!firstRect) return;
-
-                const marker = document.createElement('div');
-                marker.className = 'pdf-comment-marker';
-                marker.dataset.annotationId = annotation.id;
-                marker.style.left = (firstRect.x / 100 * pageWidth - 12) + 'px';
-                marker.style.top = (firstRect.y / 100 * pageHeight - 12) + 'px';
-                marker.innerHTML = '<i class="fa-solid fa-comment"></i>';
-                marker.title = annotation.comment;
-                marker.onclick = () => this.scrollToSidebarItem(annotation.id);
-                annotationLayer.appendChild(marker);
-            }
         });
     },
 
@@ -1325,13 +1367,25 @@ const PDFViewer = {
         const list = this.elements.annotationsList;
         if (!list) return;
 
-        const annotations = this.getAnnotations();
+        const allAnnotations = this.getAnnotations();
+        const annotations = this.getFilteredAnnotations(allAnnotations);
 
-        if (annotations.length === 0) {
+        if (allAnnotations.length === 0) {
             list.innerHTML = `
                 <div class="pdf-no-annotations">
                     <i class="fa-solid fa-note-sticky"></i>
                     <p>No annotations yet<br><small>Select text to add highlights or comments</small></p>
+                </div>
+            `;
+            return;
+        }
+
+        if (annotations.length === 0) {
+            const label = this.annotationFilter === 'highlights' ? 'highlights' : 'comments';
+            list.innerHTML = `
+                <div class="pdf-no-annotations">
+                    <i class="fa-solid fa-filter"></i>
+                    <p>No ${label} to show<br><small>Switch filters to see other annotations</small></p>
                 </div>
             `;
             return;
