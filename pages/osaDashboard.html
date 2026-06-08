@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
     <!-- PDF Viewer Styles -->
-    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=pdf-annotate-apply-1">
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=pdf-annotation-loading-3">
 </head>
 
 <body>
@@ -898,6 +898,21 @@
                             <i class="fa-solid fa-angles-right"></i>
                         </button>
                     </div>
+                    <div id="pdf-annotation-filter" class="pdf-annotation-filter" role="radiogroup"
+                        aria-label="Annotation filter">
+                        <label>
+                            <input type="radio" name="pdf-annotation-filter" value="all" checked>
+                            <span>All</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="pdf-annotation-filter" value="highlights">
+                            <span>Highlights</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="pdf-annotation-filter" value="comments">
+                            <span>Comments</span>
+                        </label>
+                    </div>
                     <div id="pdf-annotations-list" class="pdf-sidebar-content">
                         <div class="pdf-no-annotations">
                             <i class="fa-solid fa-note-sticky"></i>
@@ -925,7 +940,7 @@
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
     <script src="../assets/js/osaDashboard.js?v=20260325-2"></script>
-    <script src="../assets/js/pdfViewer.js?v=pdf-annotate-apply-1"></script>
+    <script src="../assets/js/pdfViewer.js?v=pdf-annotation-loading-3"></script>
 </body>
 
 </html>
