@@ -26,6 +26,8 @@ const PDFViewer = {
     annotations: [],
     annotationFilter: 'all',
     annotationsLoadingStartedAt: 0,
+    selectedHighlightColor: '#ffeb3b',
+    allowedHighlightColors: ['#ffeb3b', '#34d399', '#60a5fa', '#f472b6', '#fb923c'],
 
     // Mode states
     highlightMode: false,
@@ -72,6 +74,7 @@ const PDFViewer = {
             annotationFilter: document.getElementById('pdf-annotation-filter'),
             annotationsList: document.getElementById('pdf-annotations-list'),
             highlightBtn: document.getElementById('pdf-highlight-btn'),
+            highlightColorPicker: document.getElementById('pdf-highlight-color-picker'),
             commentBtn: document.getElementById('pdf-comment-btn'),
             commentModal: document.getElementById('pdf-comment-modal'),
             commentTextarea: document.getElementById('pdf-comment-textarea'),
@@ -88,6 +91,12 @@ const PDFViewer = {
         this.elements.annotationFilter?.addEventListener('change', (e) => {
             if (e.target?.name === 'pdf-annotation-filter') {
                 this.setAnnotationFilter(e.target.value);
+            }
+        });
+        this.elements.highlightColorPicker?.addEventListener('click', (e) => {
+            const button = e.target.closest('[data-color]');
+            if (button) {
+                this.setHighlightColor(button.dataset.color);
             }
         });
         this.elements.pageInput?.addEventListener('keydown', (e) => {
@@ -886,7 +895,8 @@ const PDFViewer = {
         this.pendingHighlight = {
             page: pageNum,
             text: selectedText,
-            rects: rects
+            rects: rects,
+            color: this.selectedHighlightColor
         };
 
         if (!this.highlightMode && !this.commentMode) {
@@ -1146,6 +1156,49 @@ const PDFViewer = {
         return Math.round(Math.max(0, Math.min(100, value)) * 10000) / 10000;
     },
 
+    setHighlightColor(color) {
+        const normalizedColor = this.normalizeHighlightColor(color);
+        this.selectedHighlightColor = normalizedColor;
+        if (this.pendingHighlight) {
+            this.pendingHighlight.color = normalizedColor;
+            this.pendingHighlight.rects = this.applyHighlightColorToRects(this.pendingHighlight.rects, normalizedColor);
+        }
+
+        this.elements.highlightColorPicker?.querySelectorAll('[data-color]').forEach(button => {
+            button.classList.toggle(
+                'active',
+                this.normalizeHighlightColor(button.dataset.color) === normalizedColor
+            );
+        });
+
+        this.renderSelectionPreview();
+    },
+
+    normalizeHighlightColor(color) {
+        const normalizedColor = String(color || '').trim().toLowerCase();
+        return this.allowedHighlightColors.includes(normalizedColor) ? normalizedColor : '#ffeb3b';
+    },
+
+    getAnnotationHighlightColor(annotation, rect = null) {
+        return this.normalizeHighlightColor(annotation?.color || rect?.color || annotation?.rects?.[0]?.color);
+    },
+
+    applyHighlightColorToRects(rects, color) {
+        const normalizedColor = this.normalizeHighlightColor(color);
+        return (Array.isArray(rects) ? rects : []).map(rect => ({
+            ...rect,
+            color: normalizedColor
+        }));
+    },
+
+    hexToRgba(hex, alpha) {
+        const normalizedHex = this.normalizeHighlightColor(hex).slice(1);
+        const red = parseInt(normalizedHex.slice(0, 2), 16);
+        const green = parseInt(normalizedHex.slice(2, 4), 16);
+        const blue = parseInt(normalizedHex.slice(4, 6), 16);
+        return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+    },
+
     // ============================================
     // COMMENT MODAL
     // ============================================
@@ -1218,6 +1271,7 @@ const PDFViewer = {
                 page: item.page_number,
                 text: item.selected_text || '',
                 rects: Array.isArray(rects) ? rects : [],
+                color: this.normalizeHighlightColor(rects?.[0]?.color),
                 comment: item.comment_text || '',
                 createdAt: item.created_at,
                 createdByUserId: item.created_by_user_id,
@@ -1277,6 +1331,8 @@ const PDFViewer = {
 
     async createAnnotation(highlightData, comment) {
         let annotation = null;
+        const color = this.normalizeHighlightColor(highlightData?.color || this.selectedHighlightColor);
+        const rectsWithColor = this.applyHighlightColorToRects(highlightData.rects, color);
         if (this.currentSubmissionId) {
             const res = await fetch('../api/documents/annotations/create.php', {
                 method: 'POST',
@@ -1286,7 +1342,7 @@ const PDFViewer = {
                     submission_id: this.currentSubmissionId,
                     page: highlightData.page,
                     text: highlightData.text,
-                    rects: highlightData.rects,
+                    rects: rectsWithColor,
                     comment: comment
                 })
             });
@@ -1302,6 +1358,7 @@ const PDFViewer = {
                 page: item.page_number,
                 text: item.selected_text || '',
                 rects: Array.isArray(rects) ? rects : [],
+                color: this.normalizeHighlightColor(rects?.[0]?.color || color),
                 comment: item.comment_text || '',
                 createdAt: item.created_at
             };
@@ -1311,7 +1368,8 @@ const PDFViewer = {
                 id: 'ann_' + Date.now(),
                 page: highlightData.page,
                 text: highlightData.text,
-                rects: highlightData.rects,
+                rects: rectsWithColor,
+                color: color,
                 comment: comment,
                 createdAt: new Date().toISOString()
             };
@@ -1411,6 +1469,11 @@ const PDFViewer = {
                 const highlightEl = document.createElement('div');
                 highlightEl.className = 'pdf-highlight-rect';
                 highlightEl.dataset.annotationId = annotation.id;
+                const highlightColor = this.getAnnotationHighlightColor(annotation, rect);
+                highlightEl.style.setProperty('--pdf-highlight-bg', this.hexToRgba(highlightColor, 0.4));
+                highlightEl.style.setProperty('--pdf-highlight-hover-bg', this.hexToRgba(highlightColor, 0.58));
+                highlightEl.style.setProperty('--pdf-highlight-selected-bg', this.hexToRgba(highlightColor, 0.65));
+                highlightEl.style.setProperty('--pdf-highlight-ring', this.hexToRgba(highlightColor, 0.9));
                 highlightEl.style.left = (rect.x / 100 * pageWidth) + 'px';
                 highlightEl.style.top = (rect.y / 100 * pageHeight) + 'px';
                 highlightEl.style.width = (rect.width / 100 * pageWidth) + 'px';
@@ -1470,6 +1533,7 @@ const PDFViewer = {
         list.innerHTML = annotations.map(ann => `
             <div class="pdf-annotation-item ${ann.comment ? 'comment-type' : 'highlight-type'}" 
                  data-annotation-id="${ann.id}"
+                 style="${ann.comment ? '' : `--pdf-annotation-color: ${this.getAnnotationHighlightColor(ann)};`}"
                  onclick="PDFViewer.scrollToAnnotation('${ann.id}')">
                 <div class="pdf-annotation-item-header">
                     <div class="pdf-annotation-item-meta">
