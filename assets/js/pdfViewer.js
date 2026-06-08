@@ -9,12 +9,6 @@ if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-console.warn('[PDFViewer debug] pdfViewer.js loaded', {
-    href: window.location.href,
-    readyState: document.readyState,
-    pdfjsLoaded: typeof pdfjsLib !== 'undefined'
-});
-
 // ============================================
 // PDF VIEWER CONTROLLER
 // ============================================
@@ -37,7 +31,7 @@ const PDFViewer = {
     pendingHighlight: null,
     selectionDragStart: null,
     selectionDragActive: false,
-    selectionDebugEnabled: true,
+    selectionDebugEnabled: false,
     selectionDebugAllPdfSelections: true,
     lastSelectionDebugAt: 0,
     lastSelectionMouse: null,
@@ -55,11 +49,6 @@ const PDFViewer = {
     // INITIALIZATION
     // ============================================
     init() {
-        console.warn('[PDFViewer debug] init() called', {
-            readyState: document.readyState,
-            hasModal: !!document.getElementById('pdf-modal'),
-            hasViewerContainer: !!document.getElementById('pdf-viewer-container')
-        });
         this.cacheElements();
         this.bindEvents();
         this.loadStoredPdfs();
@@ -84,7 +73,6 @@ const PDFViewer = {
     },
 
     bindEvents() {
-        console.warn('[PDFViewer debug] bindEvents() called');
         // Text selection for highlighting
         document.addEventListener('mousedown', (e) => this.rememberSelectionDragStart(e));
         document.addEventListener('mousemove', (e) => this.trackSelectionMouse(e));
@@ -454,15 +442,36 @@ const PDFViewer = {
     // ============================================
     // ANNOTATION MODES
     // ============================================
-    toggleHighlightMode() {
-        this.highlightMode = !this.highlightMode;
+    async toggleHighlightMode() {
+        if (this.pendingHighlight?.rects?.length) {
+            const highlightData = this.pendingHighlight;
+            this.highlightMode = false;
+            this.commentMode = false;
+            this.elements.highlightBtn?.classList.remove('active');
+            this.elements.commentBtn?.classList.remove('active');
+
+            try {
+                await this.createAnnotation(highlightData, '');
+                this.pendingHighlight = null;
+                this.selectionDragStart = null;
+                this.selectionDragActive = false;
+                window.getSelection()?.removeAllRanges();
+                this.clearSelectionPreview();
+            } catch (error) {
+                console.error('Failed to save annotation:', error);
+                if (typeof showToast === 'function') showToast(error.message || 'Failed to save annotation', 'error');
+            }
+            return;
+        }
+
+        this.highlightMode = false;
         this.commentMode = false;
 
-        this.elements.highlightBtn?.classList.toggle('active', this.highlightMode);
+        this.elements.highlightBtn?.classList.remove('active');
         this.elements.commentBtn?.classList.remove('active');
 
-        if (this.highlightMode && typeof showToast === 'function') {
-            showToast('Select text to highlight', 'info');
+        if (typeof showToast === 'function') {
+            showToast('Select text first, then click highlight', 'info');
         }
     },
 
@@ -773,7 +782,6 @@ const PDFViewer = {
         const dragBounds = this.getSelectionDragBounds(textLayer, e);
         const rects = this.getSelectionHighlightRects(range, textLayer, dragBounds);
         this.logSelectionDebug('drag-end-before-save', e);
-        console.log('[PDFViewer selection debug] normalized annotation rects', rects);
 
         if (rects.length === 0) {
             this.selectionDragStart = null;
@@ -782,19 +790,18 @@ const PDFViewer = {
             return;
         }
 
-        if (!this.highlightMode && !this.commentMode) {
-            this.selectionDragStart = null;
-            this.selectionDragActive = false;
-            this.pendingHighlight = null;
-            return;
-        }
-
-        // Store pending highlight data
+        // Store pending highlight data so toolbar actions can apply it after selection.
         this.pendingHighlight = {
             page: pageNum,
             text: selectedText,
             rects: rects
         };
+
+        if (!this.highlightMode && !this.commentMode) {
+            this.selectionDragStart = null;
+            this.selectionDragActive = false;
+            return;
+        }
 
         if (this.commentMode) {
             // Open comment modal
@@ -1417,12 +1424,10 @@ window.PDFViewer = PDFViewer;
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
-    console.warn('[PDFViewer debug] waiting for DOMContentLoaded before init');
     document.addEventListener('DOMContentLoaded', () => {
         PDFViewer.init();
     });
 } else {
-    console.warn('[PDFViewer debug] DOM already ready; init immediately');
     PDFViewer.init();
 }
 
