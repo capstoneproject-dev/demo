@@ -1875,8 +1875,8 @@ function renderDocs(filter = 'All', btnElement = null) {
     list.innerHTML = filteredData.map((doc, index) => {
         let statusBadge = '';
         let actionButtons = `
-            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId || ('doc_' + index)}')">
-                <i class="fa-solid fa-eye"></i> View
+            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId || ('doc_' + index)}')" title="View Document">
+                <i class="fa-solid fa-eye"></i>
             </button>`;
 
         const statusText = String(doc.status || '').toLowerCase();
@@ -1887,11 +1887,11 @@ function renderDocs(filter = 'All', btnElement = null) {
         } else {
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
             actionButtons += `
-                <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'approved')">
-                    Approve
+                <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'approved')" title="Approve">
+                    <i class="fa-solid fa-check"></i>
                 </button>
-                <button class="btn btn-sm btn-outline" style="color:#dc2626; border-color:#dc2626;" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'rejected')">
-                    Reject
+                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'rejected')" title="Reject">
+                    <i class="fa-solid fa-xmark"></i>
                 </button>`;
         }
 
@@ -1915,7 +1915,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             <div class="col-ssc mobile-hide">${doc.org || 'N/A'}</div>
             <div class="col-osa mobile-hide">OSA Internal</div>
             <div class="col-status">
-                <div class="action-btn-group">
+                <div class="req-action-group">
                     ${actionButtons}
                 </div>
             </div>
