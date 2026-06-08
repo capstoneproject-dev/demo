@@ -23,6 +23,13 @@
 - **No build step**: All files are static or plain PHP; changes are reflected immediately.
 - **Database setup**: Import `aisers_database_setup_mysql.sql` into phpMyAdmin to create `capstone_db`.
 
+## Codex Working Style
+- For simple UI, CSS, HTML, or small single-file fixes, keep tool usage minimal by default.
+- Read the smallest relevant code slice first instead of scanning multiple files unless the task clearly needs broader context.
+- Avoid extra verification commands for low-risk edits; verify more deeply only when the change touches shared logic, data flow, or multiple files.
+- Prefer direct, local edits for straightforward requests and do not over-explore unless the user explicitly asks for deeper investigation.
+- If the user asks for a more thorough review, debugging pass, or broader validation, switch to a deeper workflow for that task.
+
 ## Project-Specific Patterns
 - **Login**: `assets/js/login.js` POSTs to `api/auth/login.php`, receives JSON, saves session to `localStorage`, redirects.
 - **Dashboard guard**: Each dashboard JS calls `validatePhpSession()` on load, which hits `api/auth/session.php`.
