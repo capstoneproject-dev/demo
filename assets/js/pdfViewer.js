@@ -721,16 +721,10 @@ const PDFViewer = {
         };
     },
 
-    handleTextSelection(e) {
+    async handleTextSelection(e) {
         this.selectionDragActive = false;
 
         if (this.isReadOnly) {
-            this.selectionDragStart = null;
-            this.clearSelectionPreview();
-            return;
-        }
-
-        if (!this.highlightMode && !this.commentMode) {
             this.selectionDragStart = null;
             this.clearSelectionPreview();
             return;
@@ -788,6 +782,13 @@ const PDFViewer = {
             return;
         }
 
+        if (!this.highlightMode && !this.commentMode) {
+            this.selectionDragStart = null;
+            this.selectionDragActive = false;
+            this.pendingHighlight = null;
+            return;
+        }
+
         // Store pending highlight data
         this.pendingHighlight = {
             page: pageNum,
@@ -800,17 +801,25 @@ const PDFViewer = {
             this.openCommentModal(selectedText);
         } else if (this.highlightMode) {
             // Create highlight immediately (no comment)
-            this.createAnnotation(this.pendingHighlight, '').catch((error) => {
+            try {
+                await this.createAnnotation(this.pendingHighlight, '');
+                selection.removeAllRanges();
+                this.pendingHighlight = null;
+            } catch (error) {
                 console.error('Failed to save annotation:', error);
                 if (typeof showToast === 'function') showToast(error.message || 'Failed to save annotation', 'error');
-            });
-            selection.removeAllRanges();
-            this.pendingHighlight = null;
+                this.selectionDragStart = null;
+                this.selectionDragActive = false;
+                this.clearSelectionPreview();
+                return;
+            }
         }
 
         this.selectionDragStart = null;
         this.selectionDragActive = false;
-        this.clearSelectionPreview();
+        if (this.highlightMode) {
+            this.clearSelectionPreview();
+        }
     },
 
     getSelectionDragBounds(textLayer, e) {
