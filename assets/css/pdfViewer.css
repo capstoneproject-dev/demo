@@ -132,6 +132,17 @@
     line-height: 26px;
 }
 
+.pdf-page-selector input::-webkit-outer-spin-button,
+.pdf-page-selector input::-webkit-inner-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+}
+
+.pdf-page-selector input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
 .pdf-page-selector span {
     display: inline-flex;
     align-items: center;
