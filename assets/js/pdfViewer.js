@@ -63,6 +63,8 @@ const PDFViewer = {
             docName: document.getElementById('pdf-doc-name'),
             viewerContainer: document.getElementById('pdf-viewer-container'),
             pageInfo: document.getElementById('pdf-page-info'),
+            pageInput: document.getElementById('pdf-page-input'),
+            totalPages: document.getElementById('pdf-total-pages'),
             zoomInfo: document.getElementById('pdf-zoom-info'),
             sidebar: document.getElementById('pdf-sidebar'),
             annotationFilter: document.getElementById('pdf-annotation-filter'),
@@ -86,10 +88,19 @@ const PDFViewer = {
                 this.setAnnotationFilter(e.target.value);
             }
         });
+        this.elements.pageInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.goToPageFromInput();
+            }
+        });
+        this.elements.pageInput?.addEventListener('change', () => this.goToPageFromInput());
+        this.elements.viewerContainer?.addEventListener('scroll', () => this.updateCurrentPageFromScroll(), { passive: true });
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (!this.elements.modal?.classList.contains('active')) return;
+            if (e.target === this.elements.pageInput) return;
 
             if (e.key === 'Escape') {
                 if (this.elements.commentModal?.classList.contains('active')) {
@@ -392,8 +403,12 @@ const PDFViewer = {
     },
 
     updatePageInfo() {
-        if (this.elements.pageInfo) {
-            this.elements.pageInfo.textContent = `${this.totalPages} pages`;
+        if (this.elements.pageInput) {
+            this.elements.pageInput.max = this.totalPages || 1;
+            this.elements.pageInput.value = this.currentPage || 1;
+        }
+        if (this.elements.totalPages) {
+            this.elements.totalPages.textContent = this.totalPages || 0;
         }
         if (this.elements.zoomInfo) {
             this.elements.zoomInfo.textContent = `${Math.round(this.scale * 100)}%`;
@@ -412,12 +427,47 @@ const PDFViewer = {
     },
 
     scrollToPage(pageNum) {
+        const targetPage = Math.min(Math.max(parseInt(pageNum, 10) || 1, 1), this.totalPages || 1);
         const pageContainer = this.elements.viewerContainer?.querySelector(
-            `.pdf-page-container[data-page-number="${pageNum}"]`
+            `.pdf-page-container[data-page-number="${targetPage}"]`
         );
         if (pageContainer) {
             pageContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            this.currentPage = pageNum;
+            this.currentPage = targetPage;
+            this.updatePageInfo();
+        }
+    },
+
+    goToPageFromInput() {
+        const value = parseInt(this.elements.pageInput?.value, 10);
+        const targetPage = Math.min(Math.max(value || 1, 1), this.totalPages || 1);
+
+        if (this.elements.pageInput) {
+            this.elements.pageInput.value = targetPage;
+        }
+        this.scrollToPage(targetPage);
+    },
+
+    updateCurrentPageFromScroll() {
+        if (!this.elements.viewerContainer || !this.totalPages) return;
+
+        const containerRect = this.elements.viewerContainer.getBoundingClientRect();
+        const pages = Array.from(this.elements.viewerContainer.querySelectorAll('.pdf-page-container'));
+        let closestPage = this.currentPage;
+        let closestDistance = Infinity;
+
+        pages.forEach(page => {
+            const rect = page.getBoundingClientRect();
+            const distance = Math.abs(rect.top - containerRect.top - 20);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestPage = parseInt(page.dataset.pageNumber, 10) || closestPage;
+            }
+        });
+
+        if (closestPage !== this.currentPage) {
+            this.currentPage = closestPage;
+            this.updatePageInfo();
         }
     },
 
