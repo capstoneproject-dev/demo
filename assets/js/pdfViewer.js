@@ -18,6 +18,8 @@ const PDFViewer = {
     currentPage: 1,
     totalPages: 0,
     scale: 1.0,
+    programmaticScrollTarget: null,
+    programmaticScrollTimer: null,
     currentDocId: null,
     currentSubmissionId: null,
     isReadOnly: false,
@@ -432,9 +434,18 @@ const PDFViewer = {
             `.pdf-page-container[data-page-number="${targetPage}"]`
         );
         if (pageContainer) {
-            pageContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            this.programmaticScrollTarget = targetPage;
+            if (this.programmaticScrollTimer) {
+                clearTimeout(this.programmaticScrollTimer);
+            }
+            this.programmaticScrollTimer = setTimeout(() => {
+                this.programmaticScrollTarget = null;
+                this.programmaticScrollTimer = null;
+            }, 800);
+
             this.currentPage = targetPage;
             this.updatePageInfo();
+            pageContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     },
 
@@ -464,6 +475,15 @@ const PDFViewer = {
                 closestPage = parseInt(page.dataset.pageNumber, 10) || closestPage;
             }
         });
+
+        if (this.programmaticScrollTarget) {
+            if (closestPage !== this.programmaticScrollTarget) return;
+            this.programmaticScrollTarget = null;
+            if (this.programmaticScrollTimer) {
+                clearTimeout(this.programmaticScrollTimer);
+                this.programmaticScrollTimer = null;
+            }
+        }
 
         if (closestPage !== this.currentPage) {
             this.currentPage = closestPage;
