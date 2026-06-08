@@ -29,6 +29,7 @@ const PDFViewer = {
 
     // Pending annotation data
     pendingHighlight: null,
+    renderRequestId: 0,
 
     // DOM references (set on init)
     elements: {},
@@ -234,6 +235,7 @@ const PDFViewer = {
         const modal = this.elements.modal;
         if (!modal) return;
 
+        this.renderRequestId++;
         modal.classList.remove('active', 'readonly');
         document.body.style.overflow = '';
 
@@ -258,6 +260,7 @@ const PDFViewer = {
     },
 
     showLoading(message) {
+        this.renderRequestId++;
         if (this.elements.viewerContainer) {
             this.elements.viewerContainer.innerHTML = `
                 <div class="pdf-loading">
@@ -283,29 +286,42 @@ const PDFViewer = {
 
     async renderAllPages() {
         const container = this.elements.viewerContainer;
+        if (!container || !this.pdfDoc) return;
+
+        const renderRequestId = ++this.renderRequestId;
         container.innerHTML = '';
 
         for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
-            await this.renderPage(pageNum, container);
+            if (renderRequestId !== this.renderRequestId) return;
+            await this.renderPage(pageNum, container, renderRequestId);
         }
     },
 
-    async renderPage(pageNum, container) {
+    async renderPage(pageNum, container, renderRequestId = this.renderRequestId) {
         const page = await this.pdfDoc.getPage(pageNum);
+        if (renderRequestId !== this.renderRequestId) return;
+
         const viewport = page.getViewport({ scale: this.scale });
+        const viewportWidth = viewport.width;
+        const viewportHeight = viewport.height;
+
+        const existingPage = container.querySelector(
+            `.pdf-page-container[data-page-number="${pageNum}"]`
+        );
+        existingPage?.remove();
 
         // Create page container
         const pageContainer = document.createElement('div');
         pageContainer.className = 'pdf-page-container';
         pageContainer.dataset.pageNumber = pageNum;
-        pageContainer.style.width = viewport.width + 'px';
-        pageContainer.style.height = viewport.height + 'px';
+        pageContainer.style.width = viewportWidth + 'px';
+        pageContainer.style.height = viewportHeight + 'px';
 
         // Create canvas
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        canvas.width = viewportWidth;
+        canvas.height = viewportHeight;
         pageContainer.appendChild(canvas);
 
         // Render PDF page to canvas
@@ -313,29 +329,36 @@ const PDFViewer = {
             canvasContext: context,
             viewport: viewport
         }).promise;
+        if (renderRequestId !== this.renderRequestId) return;
+
+        container.appendChild(pageContainer);
 
         // Create and render text layer (Native PDF.js)
         const textLayerDiv = document.createElement('div');
         textLayerDiv.className = 'textLayer';
+        textLayerDiv.style.width = viewportWidth + 'px';
+        textLayerDiv.style.height = viewportHeight + 'px';
+        textLayerDiv.style.setProperty('--scale-factor', this.scale);
         pageContainer.appendChild(textLayerDiv);
 
         const textContent = await page.getTextContent();
 
         // Use PDF.js renderTextLayer
         await pdfjsLib.renderTextLayer({
-            textContent: textContent,
+            textContentSource: textContent,
             container: textLayerDiv,
             viewport: viewport,
             textDivs: []
         }).promise;
+        if (renderRequestId !== this.renderRequestId || !pageContainer.isConnected) return;
 
         // Create annotation layer
         const annotationLayer = document.createElement('div');
         annotationLayer.className = 'pdf-annotation-layer';
         annotationLayer.dataset.pageNumber = pageNum;
+        annotationLayer.style.width = viewportWidth + 'px';
+        annotationLayer.style.height = viewportHeight + 'px';
         pageContainer.appendChild(annotationLayer);
-
-        container.appendChild(pageContainer);
 
         // Render annotations for this page
         this.renderPageAnnotations(pageNum);
@@ -445,22 +468,17 @@ const PDFViewer = {
 
         // Get the range and find which page it's on
         const range = selection.getRangeAt(0);
-        const textLayer = range.startContainer.parentElement?.closest('.textLayer');
+        const startNode = range.startContainer.nodeType === Node.ELEMENT_NODE
+            ? range.startContainer
+            : range.startContainer.parentElement;
+        const textLayer = startNode?.closest('.textLayer');
         if (!textLayer) return;
 
         const pageContainer = textLayer.closest('.pdf-page-container');
         if (!pageContainer) return;
 
         const pageNum = parseInt(pageContainer.dataset.pageNumber);
-        const pageRect = pageContainer.getBoundingClientRect();
-
-        // Get all client rects for the selection
-        const rects = Array.from(range.getClientRects()).map(rect => ({
-            x: ((rect.left - pageRect.left) / pageRect.width) * 100,
-            y: ((rect.top - pageRect.top) / pageRect.height) * 100,
-            width: (rect.width / pageRect.width) * 100,
-            height: (rect.height / pageRect.height) * 100
-        }));
+        const rects = this.getSelectionHighlightRects(range, textLayer);
 
         if (rects.length === 0) return;
 
@@ -483,6 +501,119 @@ const PDFViewer = {
             selection.removeAllRanges();
             this.pendingHighlight = null;
         }
+    },
+
+    getSelectionHighlightRects(range, textLayer) {
+        const layerRect = textLayer.getBoundingClientRect();
+        if (!layerRect.width || !layerRect.height) return [];
+
+        const clippedRects = Array.from(range.getClientRects())
+            .map(rect => this.clipRectToBounds(rect, layerRect))
+            .filter(Boolean)
+            .map(rect => ({
+                left: rect.left - layerRect.left,
+                top: rect.top - layerRect.top,
+                right: rect.right - layerRect.left,
+                bottom: rect.bottom - layerRect.top,
+                width: rect.right - rect.left,
+                height: rect.bottom - rect.top
+            }))
+            .filter(rect => rect.width >= 1 && rect.height >= 1);
+
+        if (clippedRects.length === 0) return [];
+
+        const mergedRects = this.mergeSelectionRectsByLine(clippedRects);
+
+        return mergedRects
+            .map(rect => ({
+                x: this.roundPercent((rect.left / layerRect.width) * 100),
+                y: this.roundPercent((rect.top / layerRect.height) * 100),
+                width: this.roundPercent((rect.width / layerRect.width) * 100),
+                height: this.roundPercent((rect.height / layerRect.height) * 100)
+            }))
+            .filter(rect => rect.width > 0 && rect.height > 0);
+    },
+
+    clipRectToBounds(rect, bounds) {
+        const left = Math.max(rect.left, bounds.left);
+        const top = Math.max(rect.top, bounds.top);
+        const right = Math.min(rect.right, bounds.right);
+        const bottom = Math.min(rect.bottom, bounds.bottom);
+
+        if (right <= left || bottom <= top) return null;
+
+        return { left, top, right, bottom };
+    },
+
+    mergeSelectionRectsByLine(rects) {
+        const sortedRects = rects
+            .slice()
+            .sort((a, b) => (a.top - b.top) || (a.left - b.left));
+        const lines = [];
+
+        sortedRects.forEach(rect => {
+            const rectCenter = rect.top + rect.height / 2;
+            const line = lines.find(item => {
+                const lineCenter = item.top + item.height / 2;
+                const overlap = Math.min(item.bottom, rect.bottom) - Math.max(item.top, rect.top);
+                return overlap > Math.min(item.height, rect.height) * 0.45 ||
+                    Math.abs(rectCenter - lineCenter) <= Math.max(item.height, rect.height) * 0.5;
+            });
+
+            if (line) {
+                line.fragments.push(rect);
+                line.left = Math.min(line.left, rect.left);
+                line.top = Math.min(line.top, rect.top);
+                line.right = Math.max(line.right, rect.right);
+                line.bottom = Math.max(line.bottom, rect.bottom);
+                line.width = line.right - line.left;
+                line.height = line.bottom - line.top;
+            } else {
+                lines.push({
+                    left: rect.left,
+                    top: rect.top,
+                    right: rect.right,
+                    bottom: rect.bottom,
+                    width: rect.width,
+                    height: rect.height,
+                    fragments: [rect]
+                });
+            }
+        });
+
+        return lines
+            .flatMap(line => this.mergeLineFragments(line.fragments))
+            .sort((a, b) => (a.top - b.top) || (a.left - b.left));
+    },
+
+    mergeLineFragments(fragments) {
+        const sortedFragments = fragments
+            .slice()
+            .sort((a, b) => a.left - b.left);
+        const merged = [];
+
+        sortedFragments.forEach(fragment => {
+            const previous = merged[merged.length - 1];
+            const gap = previous ? fragment.left - previous.right : Infinity;
+            const mergeGap = Math.max(12, Math.max(fragment.height, previous?.height || 0) * 0.75);
+
+            if (previous && gap <= mergeGap) {
+                previous.left = Math.min(previous.left, fragment.left);
+                previous.top = Math.min(previous.top, fragment.top);
+                previous.right = Math.max(previous.right, fragment.right);
+                previous.bottom = Math.max(previous.bottom, fragment.bottom);
+                previous.width = previous.right - previous.left;
+                previous.height = previous.bottom - previous.top;
+            } else {
+                merged.push({ ...fragment });
+            }
+        });
+
+        return merged;
+    },
+
+    roundPercent(value) {
+        return Math.round(Math.max(0, Math.min(100, value)) * 10000) / 10000;
     },
 
     // ============================================
@@ -687,12 +818,15 @@ const PDFViewer = {
         annotationLayer.innerHTML = '';
 
         const annotations = this.getAnnotations().filter(a => a.page === pageNum);
-        const pageWidth = pageContainer.offsetWidth;
-        const pageHeight = pageContainer.offsetHeight;
+        const layerRect = annotationLayer.getBoundingClientRect();
+        const pageWidth = layerRect.width || annotationLayer.offsetWidth || pageContainer.offsetWidth;
+        const pageHeight = layerRect.height || annotationLayer.offsetHeight || pageContainer.offsetHeight;
 
         annotations.forEach(annotation => {
             // Render highlight rects
             annotation.rects.forEach((rect, i) => {
+                if (!this.isValidStoredRect(rect)) return;
+
                 const highlightEl = document.createElement('div');
                 highlightEl.className = 'pdf-highlight-rect';
                 highlightEl.dataset.annotationId = annotation.id;
@@ -707,7 +841,9 @@ const PDFViewer = {
 
             // Add comment marker if there's a comment
             if (annotation.comment && annotation.rects.length > 0) {
-                const firstRect = annotation.rects[0];
+                const firstRect = annotation.rects.find(rect => this.isValidStoredRect(rect));
+                if (!firstRect) return;
+
                 const marker = document.createElement('div');
                 marker.className = 'pdf-comment-marker';
                 marker.dataset.annotationId = annotation.id;
@@ -719,6 +855,16 @@ const PDFViewer = {
                 annotationLayer.appendChild(marker);
             }
         });
+    },
+
+    isValidStoredRect(rect) {
+        return rect &&
+            Number.isFinite(rect.x) &&
+            Number.isFinite(rect.y) &&
+            Number.isFinite(rect.width) &&
+            Number.isFinite(rect.height) &&
+            rect.width > 0 &&
+            rect.height > 0;
     },
 
     renderAnnotationsSidebar() {
