@@ -9,6 +9,12 @@ if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
+console.warn('[PDFViewer debug] pdfViewer.js loaded', {
+    href: window.location.href,
+    readyState: document.readyState,
+    pdfjsLoaded: typeof pdfjsLib !== 'undefined'
+});
+
 // ============================================
 // PDF VIEWER CONTROLLER
 // ============================================
@@ -29,6 +35,12 @@ const PDFViewer = {
 
     // Pending annotation data
     pendingHighlight: null,
+    selectionDragStart: null,
+    selectionDragActive: false,
+    selectionDebugEnabled: true,
+    selectionDebugAllPdfSelections: true,
+    lastSelectionDebugAt: 0,
+    lastSelectionMouse: null,
     renderRequestId: 0,
 
     // DOM references (set on init)
@@ -43,6 +55,11 @@ const PDFViewer = {
     // INITIALIZATION
     // ============================================
     init() {
+        console.warn('[PDFViewer debug] init() called', {
+            readyState: document.readyState,
+            hasModal: !!document.getElementById('pdf-modal'),
+            hasViewerContainer: !!document.getElementById('pdf-viewer-container')
+        });
         this.cacheElements();
         this.bindEvents();
         this.loadStoredPdfs();
@@ -67,7 +84,11 @@ const PDFViewer = {
     },
 
     bindEvents() {
+        console.warn('[PDFViewer debug] bindEvents() called');
         // Text selection for highlighting
+        document.addEventListener('mousedown', (e) => this.rememberSelectionDragStart(e));
+        document.addEventListener('mousemove', (e) => this.trackSelectionMouse(e));
+        document.addEventListener('selectionchange', () => this.debugSelectionChange());
         document.addEventListener('mouseup', (e) => this.handleTextSelection(e));
 
         // Keyboard shortcuts
@@ -352,6 +373,11 @@ const PDFViewer = {
         }).promise;
         if (renderRequestId !== this.renderRequestId || !pageContainer.isConnected) return;
 
+        const selectionPreviewLayer = document.createElement('div');
+        selectionPreviewLayer.className = 'pdf-selection-preview-layer';
+        selectionPreviewLayer.dataset.pageNumber = pageNum;
+        pageContainer.appendChild(selectionPreviewLayer);
+
         // Create annotation layer
         const annotationLayer = document.createElement('div');
         annotationLayer.className = 'pdf-annotation-layer';
@@ -455,16 +481,280 @@ const PDFViewer = {
     // ============================================
     // TEXT SELECTION HANDLING
     // ============================================
-    handleTextSelection(e) {
-        if (this.isReadOnly) return;
-        if (!this.highlightMode && !this.commentMode) return;
+    rememberSelectionDragStart(e) {
+        this.selectionDragStart = null;
+        this.selectionDragActive = false;
+        this.lastSelectionMouse = { clientX: e.clientX, clientY: e.clientY };
+
         if (!this.elements.modal?.classList.contains('active')) return;
 
+        const target = e.target instanceof Element ? e.target : null;
+        const textLayer = target?.closest('.textLayer') ||
+            target?.closest('.pdf-page-container')?.querySelector('.textLayer');
+        if (!textLayer) return;
+
+        this.selectionDragStart = {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            textLayer
+        };
+        this.selectionDragActive = true;
+
+        this.clearSelectionPreview();
+        this.logSelectionDebug('drag-start', e);
+    },
+
+    clearSelectionPreview(pageNum = null) {
+        const selector = pageNum
+            ? `.pdf-selection-preview-layer[data-page-number="${pageNum}"]`
+            : '.pdf-selection-preview-layer';
+
+        this.elements.viewerContainer
+            ?.querySelectorAll(selector)
+            .forEach(layer => {
+                layer.innerHTML = '';
+            });
+    },
+
+    updateSelectionPreview(event = null) {
         const selection = window.getSelection();
-        if (!selection || selection.isCollapsed) return;
+        if (!selection || selection.isCollapsed || !selection.rangeCount) {
+            this.clearSelectionPreview();
+            return;
+        }
+
+        const range = selection.getRangeAt(0);
+        const textLayer = this.getSelectionTextLayer(range);
+        if (!textLayer) {
+            this.clearSelectionPreview();
+            return;
+        }
+
+        const pageContainer = textLayer.closest('.pdf-page-container');
+        const pageNum = pageContainer?.dataset.pageNumber;
+        const previewLayer = pageContainer?.querySelector('.pdf-selection-preview-layer');
+        if (!pageNum || !previewLayer) return;
+
+        const dragBounds = this.getSelectionDragBounds(textLayer, event || this.lastSelectionMouse);
+        const rects = this.getSelectionHighlightRects(range, textLayer, dragBounds);
+        const layerRect = previewLayer.getBoundingClientRect();
+        const pageWidth = layerRect.width || previewLayer.offsetWidth || pageContainer.offsetWidth;
+        const pageHeight = layerRect.height || previewLayer.offsetHeight || pageContainer.offsetHeight;
+
+        this.clearSelectionPreview();
+        rects.forEach(rect => {
+            const previewRect = document.createElement('div');
+            previewRect.className = 'pdf-selection-preview-rect';
+            previewRect.style.left = (rect.x / 100 * pageWidth) + 'px';
+            previewRect.style.top = (rect.y / 100 * pageHeight) + 'px';
+            previewRect.style.width = (rect.width / 100 * pageWidth) + 'px';
+            previewRect.style.height = (rect.height / 100 * pageHeight) + 'px';
+            previewLayer.appendChild(previewRect);
+        });
+    },
+
+    trackSelectionMouse(e) {
+        this.lastSelectionMouse = { clientX: e.clientX, clientY: e.clientY };
+        if (this.selectionDragStart && this.selectionDragActive && e.buttons === 1) {
+            this.updateSelectionPreview(e);
+        } else if (this.selectionDragStart && e.buttons !== 1) {
+            this.selectionDragActive = false;
+        }
+    },
+
+    debugSelectionChange() {
+        if (!this.selectionDebugEnabled) return;
+        if (!this.elements.modal?.classList.contains('active')) return;
+        if (this.selectionDragStart && this.selectionDragActive) {
+            this.updateSelectionPreview();
+        }
+
+        const now = performance.now();
+        if (now - this.lastSelectionDebugAt < 250) return;
+
+        const snapshot = this.getSelectionDebugSnapshot();
+        if (!this.selectionDragStart && !snapshot.textLayerPage && !snapshot.selectedTextLength) return;
+        if (!this.selectionDebugAllPdfSelections && !this.highlightMode && !this.commentMode) return;
+
+        this.lastSelectionDebugAt = now;
+        this.logSelectionDebug('selectionchange', null, snapshot);
+    },
+
+    logSelectionDebug(label, event = null, existingSnapshot = null) {
+        if (!this.selectionDebugEnabled) return;
+        if (typeof console === 'undefined' || typeof console.groupCollapsed !== 'function') return;
+
+        const snapshot = existingSnapshot || this.getSelectionDebugSnapshot(event);
+        console.warn('[PDFViewer selection debug]', label, {
+            mode: snapshot.mode,
+            text: snapshot.selectedTextLength,
+            rects: snapshot.nativeRectCount,
+            largest: snapshot.largestNativeRect,
+            hitElement: snapshot.hitElement,
+            textLayerPage: snapshot.textLayerPage
+        });
+        console.groupCollapsed(
+            `[PDFViewer selection debug] ${label}`,
+            `text=${snapshot.selectedTextLength}`,
+            `rects=${snapshot.nativeRectCount}`,
+            `largest=${snapshot.largestNativeRect?.width || 0}x${snapshot.largestNativeRect?.height || 0}`
+        );
+        console.log('summary', snapshot);
+        if (snapshot.nativeRects.length) {
+            console.table(snapshot.nativeRects.slice(0, 12));
+        }
+        if (snapshot.textSpanRects.length) {
+            console.table(snapshot.textSpanRects.slice(0, 12));
+        }
+        console.groupEnd();
+    },
+
+    getSelectionDebugSnapshot(event = null) {
+        const selection = window.getSelection();
+        const range = selection && !selection.isCollapsed && selection.rangeCount
+            ? selection.getRangeAt(0)
+            : null;
+        const textLayer = this.getSelectionTextLayer(range);
+        const layerRect = textLayer?.getBoundingClientRect();
+        const mouse = event
+            ? { clientX: event.clientX, clientY: event.clientY }
+            : this.lastSelectionMouse;
+        const hitElement = mouse
+            ? document.elementFromPoint(mouse.clientX, mouse.clientY)
+            : null;
+        const nativeRects = range
+            ? Array.from(range.getClientRects()).map(rect => this.debugRect(rect, layerRect))
+            : [];
+        const textSpanRects = range && textLayer && layerRect
+            ? this.getSelectedTextSpanRects(range, textLayer, layerRect)
+                .map(rect => this.debugLocalRect(rect))
+            : [];
+        const largestNativeRect = nativeRects
+            .slice()
+            .sort((a, b) => (b.width * b.height) - (a.width * a.height))[0] || null;
+
+        return {
+            mode: this.highlightMode ? 'highlight' : (this.commentMode ? 'comment' : 'off'),
+            selectedTextLength: selection?.toString().length || 0,
+            selectedTextPreview: (selection?.toString() || '').replace(/\s+/g, ' ').trim().slice(0, 160),
+            anchorNode: this.describeNode(selection?.anchorNode),
+            focusNode: this.describeNode(selection?.focusNode),
+            startNode: this.describeNode(range?.startContainer),
+            endNode: this.describeNode(range?.endContainer),
+            mouse,
+            hitElement: this.describeNode(hitElement),
+            dragStart: this.selectionDragStart
+                ? {
+                    clientX: this.selectionDragStart.clientX,
+                    clientY: this.selectionDragStart.clientY,
+                    page: this.selectionDragStart.textLayer?.closest('.pdf-page-container')?.dataset.pageNumber || null
+                }
+                : null,
+            textLayerPage: textLayer?.closest('.pdf-page-container')?.dataset.pageNumber || null,
+            textLayerBounds: layerRect ? this.debugRect(layerRect) : null,
+            nativeRectCount: nativeRects.length,
+            largestNativeRect,
+            nativeRects,
+            textSpanRectCount: textSpanRects.length,
+            textSpanRects
+        };
+    },
+
+    getSelectionTextLayer(range) {
+        if (!range) return null;
+
+        const startNode = range.startContainer?.nodeType === Node.ELEMENT_NODE
+            ? range.startContainer
+            : range.startContainer?.parentElement;
+        const focusNode = window.getSelection()?.focusNode;
+        const focusElement = focusNode?.nodeType === Node.ELEMENT_NODE
+            ? focusNode
+            : focusNode?.parentElement;
+
+        return startNode?.closest?.('.textLayer') || focusElement?.closest?.('.textLayer') || null;
+    },
+
+    describeNode(node) {
+        if (!node) return null;
+        if (node.nodeType === Node.TEXT_NODE) {
+            return {
+                type: 'text',
+                text: node.textContent?.replace(/\s+/g, ' ').trim().slice(0, 80) || ''
+            };
+        }
+
+        if (!(node instanceof Element)) {
+            return { type: `node-${node.nodeType}` };
+        }
+
+        return {
+            type: node.tagName.toLowerCase(),
+            id: node.id || '',
+            className: node.className || '',
+            page: node.closest('.pdf-page-container')?.dataset.pageNumber || null,
+            text: node.textContent?.replace(/\s+/g, ' ').trim().slice(0, 80) || ''
+        };
+    },
+
+    debugRect(rect, layerRect = null) {
+        const result = {
+            left: Math.round(rect.left * 100) / 100,
+            top: Math.round(rect.top * 100) / 100,
+            width: Math.round(rect.width * 100) / 100,
+            height: Math.round(rect.height * 100) / 100
+        };
+
+        if (layerRect) {
+            result.localLeft = Math.round((rect.left - layerRect.left) * 100) / 100;
+            result.localTop = Math.round((rect.top - layerRect.top) * 100) / 100;
+        }
+
+        return result;
+    },
+
+    debugLocalRect(rect) {
+        return {
+            left: Math.round(rect.left * 100) / 100,
+            top: Math.round(rect.top * 100) / 100,
+            width: Math.round(rect.width * 100) / 100,
+            height: Math.round(rect.height * 100) / 100
+        };
+    },
+
+    handleTextSelection(e) {
+        this.selectionDragActive = false;
+
+        if (this.isReadOnly) {
+            this.selectionDragStart = null;
+            this.clearSelectionPreview();
+            return;
+        }
+
+        if (!this.highlightMode && !this.commentMode) {
+            this.selectionDragStart = null;
+            this.clearSelectionPreview();
+            return;
+        }
+
+        if (!this.elements.modal?.classList.contains('active')) {
+            this.selectionDragStart = null;
+            this.clearSelectionPreview();
+            return;
+        }
+
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) {
+            this.selectionDragStart = null;
+            this.clearSelectionPreview();
+            return;
+        }
 
         const selectedText = selection.toString().trim();
-        if (!selectedText) return;
+        if (!selectedText) {
+            this.selectionDragStart = null;
+            this.clearSelectionPreview();
+            return;
+        }
 
         // Get the range and find which page it's on
         const range = selection.getRangeAt(0);
@@ -472,15 +762,31 @@ const PDFViewer = {
             ? range.startContainer
             : range.startContainer.parentElement;
         const textLayer = startNode?.closest('.textLayer');
-        if (!textLayer) return;
+        if (!textLayer) {
+            this.selectionDragStart = null;
+            this.clearSelectionPreview();
+            return;
+        }
 
         const pageContainer = textLayer.closest('.pdf-page-container');
-        if (!pageContainer) return;
+        if (!pageContainer) {
+            this.selectionDragStart = null;
+            this.clearSelectionPreview();
+            return;
+        }
 
         const pageNum = parseInt(pageContainer.dataset.pageNumber);
-        const rects = this.getSelectionHighlightRects(range, textLayer);
+        const dragBounds = this.getSelectionDragBounds(textLayer, e);
+        const rects = this.getSelectionHighlightRects(range, textLayer, dragBounds);
+        this.logSelectionDebug('drag-end-before-save', e);
+        console.log('[PDFViewer selection debug] normalized annotation rects', rects);
 
-        if (rects.length === 0) return;
+        if (rects.length === 0) {
+            this.selectionDragStart = null;
+            this.selectionDragActive = false;
+            this.clearSelectionPreview();
+            return;
+        }
 
         // Store pending highlight data
         this.pendingHighlight = {
@@ -501,13 +807,43 @@ const PDFViewer = {
             selection.removeAllRanges();
             this.pendingHighlight = null;
         }
+
+        this.selectionDragStart = null;
+        this.selectionDragActive = false;
+        this.clearSelectionPreview();
     },
 
-    getSelectionHighlightRects(range, textLayer) {
+    getSelectionDragBounds(textLayer, e) {
+        if (!this.selectionDragStart || this.selectionDragStart.textLayer !== textLayer) {
+            return null;
+        }
+
+        const layerRect = textLayer.getBoundingClientRect();
+        if (!layerRect.width || !layerRect.height) return null;
+
+        const startY = this.selectionDragStart.clientY - layerRect.top;
+        const endY = e.clientY - layerRect.top;
+        const padding = 10;
+
+        return {
+            left: 0,
+            top: Math.max(0, Math.min(startY, endY) - padding),
+            right: layerRect.width,
+            bottom: Math.min(layerRect.height, Math.max(startY, endY) + padding),
+            width: layerRect.width,
+            height: Math.min(layerRect.height, Math.max(startY, endY) + padding) -
+                Math.max(0, Math.min(startY, endY) - padding)
+        };
+    },
+
+    getSelectionHighlightRects(range, textLayer, dragBounds = null) {
         const layerRect = textLayer.getBoundingClientRect();
         if (!layerRect.width || !layerRect.height) return [];
 
-        const clippedRects = Array.from(range.getClientRects())
+        const textRects = this.getSelectedTextSpanRects(range, textLayer, layerRect);
+        if (textRects.length === 0) return [];
+
+        const selectionRects = Array.from(range.getClientRects())
             .map(rect => this.clipRectToBounds(rect, layerRect))
             .filter(Boolean)
             .map(rect => ({
@@ -520,6 +856,18 @@ const PDFViewer = {
             }))
             .filter(rect => rect.width >= 1 && rect.height >= 1);
 
+        const boundedSelectionRects = dragBounds
+            ? selectionRects
+                .map(rect => this.clipLocalRectToBounds(rect, dragBounds))
+                .filter(Boolean)
+            : selectionRects;
+        const boundedTextRects = dragBounds
+            ? textRects
+                .map(rect => this.clipLocalRectToBounds(rect, dragBounds))
+                .filter(Boolean)
+            : textRects;
+
+        const clippedRects = this.intersectSelectionWithTextRects(boundedSelectionRects, boundedTextRects);
         if (clippedRects.length === 0) return [];
 
         const mergedRects = this.mergeSelectionRectsByLine(clippedRects);
@@ -534,6 +882,62 @@ const PDFViewer = {
             .filter(rect => rect.width > 0 && rect.height > 0);
     },
 
+    getSelectedTextSpanRects(range, textLayer, layerRect) {
+        return Array.from(textLayer.querySelectorAll('span'))
+            .filter(span => span.textContent && span.textContent.trim())
+            .filter(span => {
+                try {
+                    return range.intersectsNode(span);
+                } catch (_err) {
+                    return false;
+                }
+            })
+            .flatMap(span => Array.from(span.getClientRects()))
+            .map(rect => this.clipRectToBounds(rect, layerRect))
+            .filter(Boolean)
+            .map(rect => ({
+                left: rect.left - layerRect.left,
+                top: rect.top - layerRect.top,
+                right: rect.right - layerRect.left,
+                bottom: rect.bottom - layerRect.top,
+                width: rect.right - rect.left,
+                height: rect.bottom - rect.top
+            }))
+            .filter(rect => rect.width >= 1 && rect.height >= 1);
+    },
+
+    intersectSelectionWithTextRects(selectionRects, textRects) {
+        const intersections = [];
+
+        selectionRects.forEach(selectionRect => {
+            textRects.forEach(textRect => {
+                const verticalOverlap = Math.min(selectionRect.bottom, textRect.bottom) -
+                    Math.max(selectionRect.top, textRect.top);
+                const minHeight = Math.min(selectionRect.height, textRect.height);
+
+                if (verticalOverlap < minHeight * 0.35) return;
+
+                const left = Math.max(selectionRect.left, textRect.left);
+                const right = Math.min(selectionRect.right, textRect.right);
+                const top = Math.max(selectionRect.top, textRect.top);
+                const bottom = Math.min(selectionRect.bottom, textRect.bottom);
+
+                if (right - left < 1 || bottom - top < 1) return;
+
+                intersections.push({
+                    left,
+                    top,
+                    right,
+                    bottom,
+                    width: right - left,
+                    height: bottom - top
+                });
+            });
+        });
+
+        return intersections;
+    },
+
     clipRectToBounds(rect, bounds) {
         const left = Math.max(rect.left, bounds.left);
         const top = Math.max(rect.top, bounds.top);
@@ -543,6 +947,24 @@ const PDFViewer = {
         if (right <= left || bottom <= top) return null;
 
         return { left, top, right, bottom };
+    },
+
+    clipLocalRectToBounds(rect, bounds) {
+        const left = Math.max(rect.left, bounds.left);
+        const top = Math.max(rect.top, bounds.top);
+        const right = Math.min(rect.right, bounds.right);
+        const bottom = Math.min(rect.bottom, bounds.bottom);
+
+        if (right <= left || bottom <= top) return null;
+
+        return {
+            left,
+            top,
+            right,
+            bottom,
+            width: right - left,
+            height: bottom - top
+        };
     },
 
     mergeSelectionRectsByLine(rects) {
@@ -635,6 +1057,9 @@ const PDFViewer = {
         this.elements.commentModal.classList.remove('active');
         this.elements.commentTextarea.value = '';
         window.getSelection()?.removeAllRanges();
+        this.selectionDragStart = null;
+        this.selectionDragActive = false;
+        this.clearSelectionPreview();
     },
 
     saveCommentFromModal() {
@@ -979,10 +1404,18 @@ const PDFViewer = {
     }
 };
 
+window.PDFViewer = PDFViewer;
+
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+    console.warn('[PDFViewer debug] waiting for DOMContentLoaded before init');
+    document.addEventListener('DOMContentLoaded', () => {
+        PDFViewer.init();
+    });
+} else {
+    console.warn('[PDFViewer debug] DOM already ready; init immediately');
     PDFViewer.init();
-});
+}
 
 // Global functions for onclick handlers
 function openPdfViewer(docId, readonly = false) {

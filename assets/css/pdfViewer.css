@@ -187,14 +187,15 @@
 }
 
 .pdf-page-container .textLayer ::selection {
-    background: rgba(0, 0, 255, 0.3);
+    background: transparent;
 }
 
 .pdf-page-container .textLayer ::-moz-selection {
-    background: rgba(0, 0, 255, 0.3);
+    background: transparent;
 }
 
-/* --- ANNOTATION LAYER --- */
+/* --- SELECTION / ANNOTATION LAYERS --- */
+.pdf-selection-preview-layer,
 .pdf-annotation-layer {
     position: absolute;
     left: 0;
@@ -203,6 +204,20 @@
     bottom: 0;
     pointer-events: none;
     overflow: hidden;
+}
+
+.pdf-selection-preview-layer {
+    z-index: 2;
+}
+
+.pdf-selection-preview-rect {
+    position: absolute;
+    background: rgba(0, 95, 255, 0.24);
+    border-radius: 2px;
+}
+
+.pdf-annotation-layer {
+    z-index: 3;
 }
 
 .pdf-highlight-rect {
