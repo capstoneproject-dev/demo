@@ -476,14 +476,23 @@ const PDFViewer = {
     },
 
     toggleCommentMode() {
-        this.commentMode = !this.commentMode;
+        if (this.pendingHighlight?.rects?.length) {
+            this.commentMode = false;
+            this.highlightMode = false;
+            this.elements.commentBtn?.classList.remove('active');
+            this.elements.highlightBtn?.classList.remove('active');
+            this.openCommentModal(this.pendingHighlight.text);
+            return;
+        }
+
+        this.commentMode = false;
         this.highlightMode = false;
 
-        this.elements.commentBtn?.classList.toggle('active', this.commentMode);
+        this.elements.commentBtn?.classList.remove('active');
         this.elements.highlightBtn?.classList.remove('active');
 
-        if (this.commentMode && typeof showToast === 'function') {
-            showToast('Select text to add a comment', 'info');
+        if (typeof showToast === 'function') {
+            showToast('Select text first, then click comment', 'info');
         }
     },
 
@@ -1073,20 +1082,24 @@ const PDFViewer = {
         this.elements.commentModal.classList.remove('active');
         this.elements.commentTextarea.value = '';
         window.getSelection()?.removeAllRanges();
+        this.pendingHighlight = null;
         this.selectionDragStart = null;
         this.selectionDragActive = false;
         this.clearSelectionPreview();
     },
 
-    saveCommentFromModal() {
+    async saveCommentFromModal() {
         const comment = this.elements.commentTextarea?.value.trim() || '';
 
         if (this.pendingHighlight) {
-            this.createAnnotation(this.pendingHighlight, comment).catch((error) => {
+            try {
+                await this.createAnnotation(this.pendingHighlight, comment);
+                this.pendingHighlight = null;
+            } catch (error) {
                 console.error('Failed to save comment annotation:', error);
                 if (typeof showToast === 'function') showToast(error.message || 'Failed to save comment', 'error');
-            });
-            this.pendingHighlight = null;
+                return;
+            }
         }
 
         this.closeCommentModal();
