@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
     <!-- PDF Viewer Styles -->
-    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=pdf-page-input-no-spinner-1">
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=pdf-highlight-sidebar-color-1">
 </head>
 
 <body>
@@ -862,6 +862,18 @@
                         title="Highlight Text">
                         <i class="fa-solid fa-highlighter"></i>
                     </button>
+                    <div id="pdf-highlight-color-picker" class="pdf-highlight-color-picker" aria-label="Highlight color">
+                        <button type="button" class="pdf-highlight-color active" data-color="#ffeb3b"
+                            style="--highlight-color: #ffeb3b;" title="Yellow highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#34d399"
+                            style="--highlight-color: #34d399;" title="Green highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#60a5fa"
+                            style="--highlight-color: #60a5fa;" title="Blue highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#f472b6"
+                            style="--highlight-color: #f472b6;" title="Pink highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#fb923c"
+                            style="--highlight-color: #fb923c;" title="Orange highlight"></button>
+                    </div>
                     <button id="pdf-comment-btn" class="btn btn-sm btn-outline" onclick="togglePdfCommentMode()"
                         title="Add Comment">
                         <i class="fa-solid fa-comment"></i>
@@ -943,7 +955,7 @@
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
     <script src="../assets/js/osaDashboard.js?v=20260325-2"></script>
-    <script src="../assets/js/pdfViewer.js?v=pdf-page-input-scrollfix-1"></script>
+    <script src="../assets/js/pdfViewer.js?v=pdf-highlight-sidebar-color-1"></script>
 </body>
 
 </html>
