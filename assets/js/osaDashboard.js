@@ -461,17 +461,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- DATA SIMULATION ---
 const organizations = [
-    { id: 1, name: "Supreme Student Council", category: "Student Council", president: "TBD", members: "N/A", status: "Active" },
-    { id: 2, name: "AISERS", category: "ICS", president: "TBD", members: "N/A", status: "Active" },
-    { id: 3, name: "ELITECH", category: "ICS", president: "TBD", members: "N/A", status: "Active" },
-    { id: 4, name: "ILASSO", category: "ILAS", president: "TBD", members: "N/A", status: "Active" },
-    { id: 5, name: "AERO-ATSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
-    { id: 6, name: "AETSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
-    { id: 7, name: "AMTSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
-    { id: 8, name: "RCYC", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
-    { id: 9, name: "CYC", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
-    { id: 10, name: "SCHOLAR'S GUILD", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
-    { id: 11, name: "AERONAUTICA", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" }
+    { id: 1, name: "Supreme Student Council", displayName: "SSC", fullName: "Supreme Student Council", orgCode: "SSC", category: "Student Council", president: "TBD", members: "N/A", status: "Active" },
+    { id: 2, name: "AISERS", fullName: "Alliance in Information System Empowered Responsive Students", orgCode: "AISERS", category: "ICS", president: "TBD", members: "N/A", status: "Active" },
+    { id: 3, name: "ELITECH", fullName: "Elite Technologist Society", orgCode: "ELITECH", category: "ICS", president: "TBD", members: "N/A", status: "Active" },
+    { id: 4, name: "ILASSO", fullName: "Institute of Liberal Arts and Sciences Student Organization", orgCode: "ILASSO", category: "ILAS", president: "TBD", members: "N/A", status: "Active" },
+    { id: 5, name: "AERO-ATSO", fullName: "Aeronautical Engineering Organization", orgCode: "AERO-ATSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
+    { id: 6, name: "AETSO", fullName: "Aviation Electronics Technology Student Organization", orgCode: "AETSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
+    { id: 7, name: "AMTSO", fullName: "Aircraft Maintenance Technology Student Organization", orgCode: "AMTSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
+    { id: 8, name: "RCYC", fullName: "Red Cross Youth Council", orgCode: "RCYC", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
+    { id: 9, name: "CYC", fullName: "College Youth Club", orgCode: "CYC", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
+    { id: 10, name: "SCHOLAR'S GUILD", fullName: "Scholar's Guild", orgCode: "SCHOLARS", aliases: ["SCHOLAR'S GUILD"], category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
+    { id: 11, name: "AERONAUTICA", fullName: "Aeronautica", orgCode: "AERONAUTICA", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" }
 ];
 
 function normalizeMonitoringOrgName(name) {
@@ -1501,9 +1501,36 @@ function navigate(viewId, element) {
 function renderOrgs() {
     const tbody = document.getElementById('org-list-body');
     if (!tbody) return;
-    tbody.innerHTML = organizations.map(org => `
+
+    const searchTerm = (document.getElementById('org-search-input')?.value || '').trim().toLowerCase();
+    const filteredOrgs = organizations.filter((org) => {
+        const searchableValues = [
+            org.name,
+            org.org_name,
+            org.fullName,
+            org.full_name,
+            org.orgCode,
+            org.org_code,
+            org.code,
+            ...(Array.isArray(org.aliases) ? org.aliases : [])
+        ].map((value) => String(value || '').toLowerCase());
+        return !searchTerm || searchableValues.some((value) => value.includes(searchTerm));
+    });
+
+    if (!filteredOrgs.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="2" style="text-align:center; color:var(--muted); padding:24px;">
+                    No organizations match your search.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = filteredOrgs.map(org => `
         <tr>
-            <td><strong>${org.name}</strong></td>
+            <td><strong>${org.displayName || org.name}</strong></td>
             <td class="text-right">
                 <button class="btn btn-sm btn-primary" onclick="openMonitoring(${org.id})">
                     <i class="fa-solid fa-eye"></i> View
@@ -1513,8 +1540,15 @@ function renderOrgs() {
     `).join('');
 }
 
+function setupOrgSearch() {
+    const input = document.getElementById('org-search-input');
+    if (!input) return;
+    input.addEventListener('input', renderOrgs);
+}
+
 let serviceAuthorizationMatrix = { service_catalog: [], organizations: [] };
 let serviceAuthorizationPromise = null;
+let monitoringOfficersCache = null;
 
 async function loadServiceAuthorizations(force = false) {
     if (serviceAuthorizationPromise && !force) {
@@ -1537,8 +1571,9 @@ async function loadServiceAuthorizations(force = false) {
             return serviceAuthorizationMatrix;
         })
         .catch((error) => {
+            console.error('[loadServiceAuthorizations]', error);
             serviceAuthorizationMatrix = { service_catalog: [], organizations: [] };
-            throw error;
+            return serviceAuthorizationMatrix;
         });
 
     return serviceAuthorizationPromise;
@@ -1546,6 +1581,58 @@ async function loadServiceAuthorizations(force = false) {
 
 function getServiceAuthorizationOrg(orgId) {
     return (serviceAuthorizationMatrix.organizations || []).find(org => Number(org.org_id) === Number(orgId)) || null;
+}
+
+async function loadMonitoringOfficers(org) {
+    if (!org) return [];
+
+    if (!monitoringOfficersCache) {
+        const response = await fetch('../api/accounts/officers/list.php', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load organization officers.');
+        }
+        monitoringOfficersCache = Array.isArray(data.items) ? data.items : [];
+    }
+
+    const targetName = normalizeMonitoringOrgName(org.name);
+    return monitoringOfficersCache.filter((officer) => {
+        const officerOrgName = normalizeMonitoringOrgName(officer.orgName || officer.org_name || '');
+        const officerOrgCode = normalizeMonitoringOrgName(officer.orgCode || officer.org_code || '');
+        const isActive = officer.isActive !== false && officer.is_active !== false && Number(officer.is_active ?? 1) !== 0;
+        return isActive && (officerOrgName === targetName || officerOrgCode === targetName);
+    });
+}
+
+function renderMonitoringOfficers(officers, orgName = 'this organization') {
+    const officersContainer = document.getElementById('monitoring-officers-grid');
+    if (!officersContainer) return;
+
+    if (!Array.isArray(officers) || officers.length === 0) {
+        officersContainer.innerHTML = `
+            <div class="officer-card">
+                <span class="officer-role">No officers registered</span>
+                <div class="officer-name" style="color: var(--muted); font-style: italic;">
+                    ${escapeDashboardHtml(orgName)}
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    officersContainer.innerHTML = officers.map((officer) => {
+        const position = officer.positionTitle || officer.position_title || officer.roleName || officer.role_name || 'Officer';
+        const name = officer.studentName || officer.officer_name || officer.officerName || 'Student Name';
+        return `
+            <div class="officer-card">
+                <span class="officer-role">${escapeDashboardHtml(position)}</span>
+                <div class="officer-name">${escapeDashboardHtml(name)}</div>
+            </div>
+        `;
+    }).join('');
 }
 
 function renderMonitoringServiceAuthorizations(orgId) {
@@ -2008,9 +2095,9 @@ async function openMonitoring(orgId) {
     const org = organizations.find(o => o.id === orgId);
 
     if (org) {
-        if (!osaActivityFeed.length) {
-            await loadOsaActivityFeed();
-        }
+        const activityFeedPromise = !osaActivityFeed.length
+            ? loadOsaActivityFeed().catch((error) => console.error('[openMonitoring] activity feed load failed:', error))
+            : Promise.resolve();
 
         // 1. Basic Info
         document.getElementById('monitoring-org-name').innerText = org.name;
@@ -2053,38 +2140,41 @@ async function openMonitoring(orgId) {
 
         // 4. Render Officers & Adviser List
         const officersContainer = document.getElementById('monitoring-officers-grid');
-
-        // Define the required roles
-        const roles = [
-            "President", "Vice President (Internal)", "Vice President (External)",
-            "Secretary", "Treasurer", "Auditor",
-            "Business Manager", "Public Information Officer", "Peace Officer",
-            "4th Year Rep", "3rd Year Rep", "2nd Year Rep", "1st Year Rep",
-            "Faculty Adviser"
-        ];
-
-        // Generate mock names (some TBD for realism)
-        let officersHTML = '';
-        roles.forEach((role, index) => {
-            // Simulate some missing officers (TBD)
-            let name = "Student Name";
-            if (role === "Faculty Adviser") name = "Prof. Adviser Name";
-            if (index > 8 && org.id % 3 === 0) name = "TBD"; // Randomly unassigned reps
-
-            // Special styling for TBD
-            const nameStyle = name === "TBD" ? 'color: var(--muted); font-style: italic;' : '';
-
-            officersHTML += `
+        if (officersContainer) {
+            officersContainer.innerHTML = `
                 <div class="officer-card">
-                    <span class="officer-role">${role}</span>
-                    <div class="officer-name" style="${nameStyle}">${name}</div>
+                    <span class="officer-role">Loading officers</span>
+                    <div class="officer-name" style="color: var(--muted); font-style: italic;">Please wait...</div>
                 </div>
             `;
+        }
+        loadMonitoringOfficers(org).then((officers) => {
+            if (Number(currentOrgId) === Number(org.id)) {
+                renderMonitoringOfficers(officers, org.name);
+            }
+        }).catch((error) => {
+            console.error('[openMonitoring] officers load failed:', error);
+            if (officersContainer) {
+                officersContainer.innerHTML = `
+                    <div class="officer-card">
+                        <span class="officer-role">Officers unavailable</span>
+                        <div class="officer-name" style="color: var(--muted); font-style: italic;">
+                            Could not load officer records
+                        </div>
+                    </div>
+                `;
+            }
         });
-        officersContainer.innerHTML = officersHTML;
 
         // 5. Recent Activities
         renderMonitoringActivitiesTable();
+        activityFeedPromise.then(() => {
+            if (Number(currentOrgId) !== Number(org.id)) return;
+            const refreshedActivities = buildMonitoringActivities(org);
+            const refreshedLatest = refreshedActivities[0];
+            document.getElementById('monitoring-recency').innerText = `Last recorded activity: ${refreshedLatest?.dateLabel || 'No recent records'}`;
+            renderMonitoringActivitiesTable();
+        });
     }
     renderMonitoringServiceAuthorizations(orgId);
     loadServiceAuthorizations().then(() => {
@@ -2562,6 +2652,7 @@ window.addEventListener('DOMContentLoaded', () => {
     initReqOrgFilter();
     renderRequests();
     loadRequestsFromApi();
+    setupOrgSearch();
     renderOrgs();
     loadServiceAuthorizations()
         .then(() => loadOsaActivityFeed())
