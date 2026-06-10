@@ -20,6 +20,7 @@ try {
         'document_type' => $_GET['document_type'] ?? null,
         'semester'      => $_GET['semester'] ?? null,
         'academic_year' => $_GET['academic_year'] ?? null,
+        'grading_period' => $_GET['grading_period'] ?? null,
         'from'          => $_GET['from'] ?? null,
         'to'            => $_GET['to'] ?? null,
         'q'             => trim((string)($_GET['q'] ?? '')),

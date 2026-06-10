@@ -4273,9 +4273,9 @@ async function handleDocSubmit(e) {
     const type = document.getElementById('doc-type').value;
     const title = (e.currentTarget.querySelector('input[type="text"]')?.value || '').trim();
     const description = (e.currentTarget.querySelector('textarea')?.value || '').trim();
-    const academicYear = `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
-    const month = new Date().getMonth();
-    const semester = (month >= 7 && month <= 11) ? '1st' : '2nd';
+    const academicYear = getCurrentDocumentAcademicYear();
+    const semester = getCurrentDocumentSemester();
+    const gradingPeriod = getCurrentDocumentGradingPeriod();
 
     if (!title) {
         alert('Title is required.');
@@ -4310,6 +4310,7 @@ async function handleDocSubmit(e) {
                 description,
                 semester,
                 academic_year: academicYear,
+                grading_period: gradingPeriod,
                 file_url: uploadData.file_url
             })
         });
@@ -4325,6 +4326,23 @@ async function handleDocSubmit(e) {
         console.error(error);
         alert(error.message || 'Failed to submit document.');
     }
+}
+
+function getCurrentDocumentAcademicYear(date = new Date()) {
+    const year = date.getFullYear();
+    const startYear = date.getMonth() >= 5 ? year : year - 1;
+    return `${startYear}-${startYear + 1}`;
+}
+
+function getCurrentDocumentSemester(date = new Date()) {
+    return date.getMonth() >= 5 && date.getMonth() <= 10 ? '1st' : '2nd';
+}
+
+function getCurrentDocumentGradingPeriod(date = new Date()) {
+    const month = date.getMonth();
+    if ([5, 6, 11, 0].includes(month)) return 'prelim';
+    if ([7, 8, 1, 2].includes(month)) return 'midterm';
+    return 'finals';
 }
 
 function formatTimeRange(start, end) {
@@ -5455,6 +5473,9 @@ async function loadDocsFromApi() {
             org: item.org_name || '',
             id: item.submission_id,
             submission_id: item.submission_id,
+            semester: item.semester || null,
+            academicYear: item.academic_year || null,
+            gradingPeriod: item.grading_period || null,
             fileUrl: resolvePdfUrl(item.file_url),
             viewerId: `submission_${item.submission_id}`,
             submittedByUserId: item.submitted_by_user_id,
@@ -5495,6 +5516,7 @@ async function loadRepoFromApi() {
             approvedAt: item.approved_at || null,
             semester: item.semester || null,
             academicYear: item.academic_year || null,
+            gradingPeriod: item.grading_period || null,
             file_url: resolvePdfUrl(item.file_url),
             viewerId: `submission_${item.submission_id}`,
         }));

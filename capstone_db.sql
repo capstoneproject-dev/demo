@@ -158,6 +158,7 @@ CREATE TABLE `documents_approved` (
   `description` text DEFAULT NULL,
   `semester` enum('1st','2nd') DEFAULT NULL,
   `academic_year` varchar(9) DEFAULT NULL,
+  `grading_period` enum('prelim','midterm','finals') DEFAULT NULL,
   `approved_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -165,9 +166,9 @@ CREATE TABLE `documents_approved` (
 -- Dumping data for table `documents_approved`
 --
 
-INSERT INTO `documents_approved` (`repo_id`, `submission_id`, `org_id`, `approved_by_user_id`, `title`, `document_type`, `file_url`, `description`, `semester`, `academic_year`, `approved_at`) VALUES
-(1, 4, 2, 1, 'wedding', 'Proposal', '/CAPSTONE/demo/uploads/documents/20260301_055446_f772b164_WEDDING-CEREMONY-SCRIPT.pdf', 'wedding', '2nd', '2026-2027', '2026-03-01 13:21:08'),
-(2, 3, 2, 1, 'TRY', 'Activity Report', '/CAPSTONE/demo/uploads/documents/20260301_055245_d3fb5dfe_CyberSecurity.pdf', 'TRY', '2nd', '2026-2027', '2026-03-01 13:27:24');
+INSERT INTO `documents_approved` (`repo_id`, `submission_id`, `org_id`, `approved_by_user_id`, `title`, `document_type`, `file_url`, `description`, `semester`, `academic_year`, `grading_period`, `approved_at`) VALUES
+(1, 4, 2, 1, 'wedding', 'Proposal', '/CAPSTONE/demo/uploads/documents/20260301_055446_f772b164_WEDDING-CEREMONY-SCRIPT.pdf', 'wedding', '2nd', '2026-2027', 'midterm', '2026-03-01 13:21:08'),
+(2, 3, 2, 1, 'TRY', 'Activity Report', '/CAPSTONE/demo/uploads/documents/20260301_055245_d3fb5dfe_CyberSecurity.pdf', 'TRY', '2nd', '2026-2027', 'midterm', '2026-03-01 13:27:24');
 
 -- --------------------------------------------------------
 
@@ -215,6 +216,7 @@ CREATE TABLE `document_submissions` (
   `reviewer_notes` text DEFAULT NULL,
   `semester` enum('1st','2nd') DEFAULT NULL,
   `academic_year` varchar(9) DEFAULT NULL,
+  `grading_period` enum('prelim','midterm','finals') DEFAULT NULL,
   `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
   `reviewed_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
@@ -225,9 +227,9 @@ CREATE TABLE `document_submissions` (
 -- Dumping data for table `document_submissions`
 --
 
-INSERT INTO `document_submissions` (`submission_id`, `org_id`, `submitted_by_user_id`, `reviewed_by_user_id`, `title`, `description`, `document_type`, `file_url`, `recipient`, `status`, `reviewer_notes`, `semester`, `academic_year`, `submitted_at`, `reviewed_at`, `created_at`, `updated_at`) VALUES
-(3, 2, 4, 1, 'TRY', 'TRY', 'Activity Report', '/CAPSTONE/demo/uploads/documents/20260301_055245_d3fb5dfe_CyberSecurity.pdf', 'OSA', 'approved', 'COMMENT COMMENT', '2nd', '2026-2027', '2026-03-01 12:52:45', '2026-03-01 13:27:24', '2026-03-01 12:52:45', '2026-03-01 13:27:24'),
-(4, 2, 4, 1, 'wedding', 'wedding', 'Proposal', '/CAPSTONE/demo/uploads/documents/20260301_055446_f772b164_WEDDING-CEREMONY-SCRIPT.pdf', 'OSA', 'approved', NULL, '2nd', '2026-2027', '2026-03-01 12:54:46', '2026-03-01 13:21:08', '2026-03-01 12:54:46', '2026-03-01 13:21:08');
+INSERT INTO `document_submissions` (`submission_id`, `org_id`, `submitted_by_user_id`, `reviewed_by_user_id`, `title`, `description`, `document_type`, `file_url`, `recipient`, `status`, `reviewer_notes`, `semester`, `academic_year`, `grading_period`, `submitted_at`, `reviewed_at`, `created_at`, `updated_at`) VALUES
+(3, 2, 4, 1, 'TRY', 'TRY', 'Activity Report', '/CAPSTONE/demo/uploads/documents/20260301_055245_d3fb5dfe_CyberSecurity.pdf', 'OSA', 'approved', 'COMMENT COMMENT', '2nd', '2026-2027', 'midterm', '2026-03-01 12:52:45', '2026-03-01 13:27:24', '2026-03-01 12:52:45', '2026-03-01 13:27:24'),
+(4, 2, 4, 1, 'wedding', 'wedding', 'Proposal', '/CAPSTONE/demo/uploads/documents/20260301_055446_f772b164_WEDDING-CEREMONY-SCRIPT.pdf', 'OSA', 'approved', NULL, '2nd', '2026-2027', 'midterm', '2026-03-01 12:54:46', '2026-03-01 13:21:08', '2026-03-01 12:54:46', '2026-03-01 13:21:08');
 
 --
 -- Triggers `document_submissions`
@@ -236,16 +238,17 @@ DELIMITER $$
 CREATE TRIGGER `trg_doc_sub_to_repo` AFTER UPDATE ON `document_submissions` FOR EACH ROW BEGIN
   IF NEW.status='approved' AND OLD.status <> 'approved' THEN
     INSERT INTO documents_approved
-      (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, approved_at)
+      (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, grading_period, approved_at)
     VALUES
       (NEW.submission_id, NEW.org_id, COALESCE(NEW.reviewed_by_user_id, NEW.submitted_by_user_id),
-       NEW.title, NEW.document_type, NEW.file_url, NEW.description, NEW.semester, NEW.academic_year, NOW())
+       NEW.title, NEW.document_type, NEW.file_url, NEW.description, NEW.semester, NEW.academic_year, NEW.grading_period, NOW())
     ON DUPLICATE KEY UPDATE
       approved_at = VALUES(approved_at),
       file_url = VALUES(file_url),
       description = VALUES(description),
       semester = VALUES(semester),
-      academic_year = VALUES(academic_year);
+      academic_year = VALUES(academic_year),
+      grading_period = VALUES(grading_period);
   END IF;
 END
 $$
