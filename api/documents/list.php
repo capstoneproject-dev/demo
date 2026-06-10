@@ -20,6 +20,9 @@ try {
         'status'    => $_GET['status']    ?? 'all',
         'recipient' => $_GET['recipient'] ?? null,
         'q'         => trim((string)($_GET['q'] ?? '')),
+        'semester'  => $_GET['semester'] ?? null,
+        'academic_year' => $_GET['academic_year'] ?? null,
+        'grading_period' => $_GET['grading_period'] ?? null,
         'from'      => $_GET['from']      ?? null,
         'to'        => $_GET['to']        ?? null,
     ];

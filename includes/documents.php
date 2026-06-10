@@ -65,6 +65,45 @@ function docValidateSemester(?string $sem): ?string
     return $sem;
 }
 
+function docValidateGradingPeriod(?string $period): ?string
+{
+    $period = $period ? trim($period) : null;
+    if (!$period) return null;
+    $period = strtolower($period);
+    if (!in_array($period, ['prelim', 'midterm', 'finals'], true)) {
+        throw new DocumentValidationException('grading_period must be prelim, midterm, or finals.');
+    }
+    return $period;
+}
+
+function docEnsureTermColumns(PDO $pdo): void
+{
+    static $ensured = false;
+    if ($ensured) return;
+
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS grading_period ENUM('prelim','midterm','finals') DEFAULT NULL AFTER academic_year");
+    $pdo->exec("ALTER TABLE documents_approved ADD COLUMN IF NOT EXISTS grading_period ENUM('prelim','midterm','finals') DEFAULT NULL AFTER academic_year");
+    $pdo->exec("
+        UPDATE document_submissions
+        SET grading_period = CASE
+            WHEN MONTH(submitted_at) IN (6, 7, 12, 1) THEN 'prelim'
+            WHEN MONTH(submitted_at) IN (8, 9, 2, 3) THEN 'midterm'
+            ELSE 'finals'
+        END
+        WHERE grading_period IS NULL
+    ");
+    $pdo->exec("
+        UPDATE documents_approved
+        SET grading_period = CASE
+            WHEN MONTH(approved_at) IN (6, 7, 12, 1) THEN 'prelim'
+            WHEN MONTH(approved_at) IN (8, 9, 2, 3) THEN 'midterm'
+            ELSE 'finals'
+        END
+        WHERE grading_period IS NULL
+    ");
+    $ensured = true;
+}
+
 function docValidateType(string $type): string
 {
     $type = trim($type);
@@ -76,6 +115,8 @@ function docValidateType(string $type): string
 
 function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): array
 {
+    docEnsureTermColumns($pdo);
+
     $title        = trim((string)($data['title'] ?? ''));
     $documentType = docValidateType((string)($data['document_type'] ?? ''));
     $recipient    = trim((string)($data['recipient'] ?? 'OSA')) ?: 'OSA';
@@ -83,6 +124,7 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
     $fileUrl      = trim((string)($data['file_url'] ?? ''));
     $semester     = docValidateSemester($data['semester'] ?? null);
     $academicYear = docValidateAcademicYear($data['academic_year'] ?? null);
+    $gradingPeriod = docValidateGradingPeriod($data['grading_period'] ?? null);
 
     if ($title === '')  throw new DocumentValidationException('title is required.');
     if ($fileUrl === '')throw new DocumentValidationException('file_url is required.');
@@ -90,8 +132,8 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
 
     $stmt = $pdo->prepare(
         "INSERT INTO document_submissions
-         (org_id, submitted_by_user_id, title, document_type, file_url, recipient, description, status, semester, academic_year)
-         VALUES (:org, :uid, :title, :type, :file, :recipient, :description, 'pending', :semester, :ay)"
+         (org_id, submitted_by_user_id, title, document_type, file_url, recipient, description, status, semester, academic_year, grading_period)
+         VALUES (:org, :uid, :title, :type, :file, :recipient, :description, 'pending', :semester, :ay, :period)"
     );
     $stmt->execute([
         ':org'         => $orgId,
@@ -103,6 +145,7 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
         ':description' => $description,
         ':semester'    => $semester,
         ':ay'          => $academicYear,
+        ':period'      => $gradingPeriod,
     ]);
 
     $id = (int)$pdo->lastInsertId();
@@ -111,6 +154,8 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
 
 function docFetchSubmission(PDO $pdo, int $id): array
 {
+    docEnsureTermColumns($pdo);
+
     $stmt = $pdo->prepare(
         "SELECT ds.*, o.org_name
          FROM document_submissions ds
@@ -129,6 +174,8 @@ function docFetchSubmission(PDO $pdo, int $id): array
 
 function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null): array
 {
+    docEnsureTermColumns($pdo);
+
     $where  = [];
     $params = [];
 
@@ -145,6 +192,19 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
     if (!empty($filters['recipient'])) {
         $where[] = 'ds.recipient = :recipient';
         $params[':recipient'] = $filters['recipient'];
+    }
+
+    if (!empty($filters['semester']) && $filters['semester'] !== 'all') {
+        $where[] = 'ds.semester = :sem';
+        $params[':sem'] = docValidateSemester($filters['semester']);
+    }
+    if (!empty($filters['academic_year'])) {
+        $where[] = 'ds.academic_year = :ay';
+        $params[':ay'] = docValidateAcademicYear($filters['academic_year']);
+    }
+    if (!empty($filters['grading_period']) && $filters['grading_period'] !== 'all') {
+        $where[] = 'ds.grading_period = :period';
+        $params[':period'] = docValidateGradingPeriod($filters['grading_period']);
     }
 
     if (!empty($filters['q'])) {
@@ -185,6 +245,8 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
 
 function docReviewSubmission(PDO $pdo, int $submissionId, int $reviewerId, string $decision, ?string $notes = null): array
 {
+    docEnsureTermColumns($pdo);
+
     $decision = strtolower(trim($decision));
     if (!in_array($decision, ['approved', 'rejected'], true)) {
         throw new DocumentValidationException('decision must be approved or rejected');
@@ -207,11 +269,49 @@ function docReviewSubmission(PDO $pdo, int $submissionId, int $reviewerId, strin
         ':id'     => $submissionId,
     ]);
 
-    return docFetchSubmission($pdo, $submissionId);
+    $submission = docFetchSubmission($pdo, $submissionId);
+    if ($decision === 'approved') {
+        docSyncApprovedRepository($pdo, $submission);
+    }
+
+    return $submission;
+}
+
+function docSyncApprovedRepository(PDO $pdo, array $submission): void
+{
+    $stmt = $pdo->prepare(
+        "INSERT INTO documents_approved
+         (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, grading_period, approved_at)
+         VALUES (:sid, :org, :approver, :title, :type, :file, :description, :semester, :ay, :period, NOW())
+         ON DUPLICATE KEY UPDATE
+             approved_by_user_id = VALUES(approved_by_user_id),
+             title = VALUES(title),
+             document_type = VALUES(document_type),
+             file_url = VALUES(file_url),
+             description = VALUES(description),
+             semester = VALUES(semester),
+             academic_year = VALUES(academic_year),
+             grading_period = VALUES(grading_period),
+             approved_at = VALUES(approved_at)"
+    );
+    $stmt->execute([
+        ':sid' => (int)$submission['submission_id'],
+        ':org' => (int)$submission['org_id'],
+        ':approver' => (int)($submission['reviewed_by_user_id'] ?? $submission['submitted_by_user_id']),
+        ':title' => (string)$submission['title'],
+        ':type' => (string)$submission['document_type'],
+        ':file' => (string)$submission['file_url'],
+        ':description' => $submission['description'] ?? null,
+        ':semester' => $submission['semester'] ?? null,
+        ':ay' => $submission['academic_year'] ?? null,
+        ':period' => $submission['grading_period'] ?? null,
+    ]);
 }
 
 function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null): array
 {
+    docEnsureTermColumns($pdo);
+
     $where  = [];
     $params = [];
     if ($orgScope !== null) {
@@ -228,7 +328,11 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
     }
     if (!empty($filters['academic_year'])) {
         $where[] = 'da.academic_year = :ay';
-        $params[':ay'] = $filters['academic_year'];
+        $params[':ay'] = docValidateAcademicYear($filters['academic_year']);
+    }
+    if (!empty($filters['grading_period']) && $filters['grading_period'] !== 'all') {
+        $where[] = 'da.grading_period = :period';
+        $params[':period'] = docValidateGradingPeriod($filters['grading_period']);
     }
     if (!empty($filters['from'])) {
         $where[] = 'da.approved_at >= :from';
@@ -263,12 +367,27 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
 
 function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
 {
+    docEnsureTermColumns($pdo);
+
     $where = [];
     $params = [];
 
     if (!empty($filters['status']) && $filters['status'] !== 'all') {
         $where[] = 'ds.status = :status';
         $params[':status'] = $filters['status'];
+    }
+
+    if (!empty($filters['semester']) && $filters['semester'] !== 'all') {
+        $where[] = 'ds.semester = :sem';
+        $params[':sem'] = docValidateSemester($filters['semester']);
+    }
+    if (!empty($filters['academic_year'])) {
+        $where[] = 'ds.academic_year = :ay';
+        $params[':ay'] = docValidateAcademicYear($filters['academic_year']);
+    }
+    if (!empty($filters['grading_period']) && $filters['grading_period'] !== 'all') {
+        $where[] = 'ds.grading_period = :period';
+        $params[':period'] = docValidateGradingPeriod($filters['grading_period']);
     }
 
     if (!empty($filters['q'])) {
@@ -299,6 +418,7 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
                    ds.reviewer_notes,
                    ds.semester,
                    ds.academic_year,
+                   ds.grading_period,
                    ds.submitted_at,
                    ds.reviewed_at,
                    ds.created_at,
