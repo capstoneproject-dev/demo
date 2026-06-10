@@ -701,6 +701,48 @@ td {
     flex-wrap: wrap;
 }
 
+#docs-status-view .date-filters-bar {
+    gap: 12px;
+    padding: 10px 18px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+#docs-status-view .date-input-group {
+    gap: 7px;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+#docs-status-view .date-input-group label {
+    font-size: 0.8rem;
+}
+
+#docs-status-view .date-input-group select {
+    height: 36px;
+    min-width: 118px;
+    max-width: 180px;
+    padding: 6px 28px 6px 10px;
+    font-size: 0.82rem;
+}
+
+#docs-status-view #docs-filter-year {
+    min-width: 150px;
+    max-width: 170px;
+}
+
+#docs-status-view .date-range-btn,
+#docs-status-view .date-filters-bar .btn-sm {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 0.8rem;
+    flex: 0 0 auto;
+}
+
+#docs-status-view .date-range-btn {
+    gap: 6px;
+}
+
 .date-input-group {
     display: flex;
     align-items: center;
@@ -716,7 +758,8 @@ td {
 }
 
 .date-input-group input[type="date"],
-.date-input-group input[type="month"] {
+.date-input-group input[type="month"],
+.date-input-group select {
     margin-bottom: 0;
     padding: 6px 12px;
     height: 38px;
@@ -738,12 +781,32 @@ td {
         align-items: stretch;
     }
 
+    #docs-status-view .date-filters-bar {
+        padding: 12px;
+        flex-wrap: wrap;
+        overflow-x: visible;
+    }
+
+    #docs-status-view .date-input-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    #docs-status-view .date-input-group select,
+    #docs-status-view #docs-filter-year,
+    #docs-status-view .date-range-btn,
+    #docs-status-view .date-filters-bar .btn-sm {
+        width: 100%;
+        max-width: none;
+    }
+
     .date-input-group {
         justify-content: space-between;
     }
 
     .date-input-group input[type="date"],
-    .date-input-group input[type="month"] {
+    .date-input-group input[type="month"],
+    .date-input-group select {
         flex: 1;
         max-width: 200px;
     }
@@ -1231,7 +1294,7 @@ td {
     flex-direction: column;
     gap: 6px;
     flex: 1;
-    min-width: 150px;
+    min-width: 132px;
     /* Ensure inputs don't get too small */
 }
 
@@ -1247,14 +1310,14 @@ td {
 .repo-filter-group input {
     margin-bottom: 0;
     /* Remove default margin */
-    height: 38px;
-    font-size: 0.85rem;
-    padding: 6px 12px;
+    height: 36px;
+    font-size: 0.82rem;
+    padding: 6px 10px;
 }
 
 /* Specific button alignment in the row */
 .repo-filter-row .btn {
-    height: 38px;
+    height: 36px;
     white-space: nowrap;
 }
 

@@ -326,6 +326,45 @@ header {
     justify-content: space-between;
 }
 
+.academic-term-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: -6px 0 18px;
+    padding: 13px 16px;
+    border: 1px solid rgba(14, 165, 233, 0.24);
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.09), rgba(16, 185, 129, 0.07));
+    color: var(--text);
+}
+
+.academic-term-summary-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    color: #0369a1;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+.academic-term-summary span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0;
+    margin-bottom: 2px;
+}
+
+.academic-term-summary strong {
+    display: block;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
 .stat-info h3 {
     font-size: 2rem;
     color: var(--primary);
@@ -2075,6 +2114,17 @@ body.dark .stat-card {
     /* Use panel color for clarity */
 }
 
+body.dark .academic-term-summary {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.14), rgba(16, 185, 129, 0.1));
+    border-color: rgba(125, 211, 252, 0.22);
+}
+
+body.dark .academic-term-summary-icon {
+    background: rgba(15, 23, 42, 0.72);
+    color: #7dd3fc;
+    border-color: rgba(125, 211, 252, 0.22);
+}
+
 body.dark .stat-info h3,
 body.dark .stat-icon,
 body.dark .card-title,
@@ -2365,6 +2415,53 @@ body.dark #organizations label.btn-primary:hover {
     flex-wrap: wrap;
 }
 
+#docs-status-view .date-filters-bar {
+    gap: 12px;
+    padding: 10px 18px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+#docs-status-view .date-input-group {
+    gap: 7px;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+#docs-status-view .date-input-group label {
+    font-size: 0.8rem;
+}
+
+#docs-status-view .date-input-group select {
+    height: 36px;
+    min-width: 118px;
+    max-width: 180px;
+    padding: 6px 28px 6px 10px;
+    font-size: 0.82rem;
+}
+
+#docs-status-view #filter-by-org {
+    min-width: 170px;
+    max-width: 200px;
+}
+
+#docs-status-view #docs-filter-year {
+    min-width: 150px;
+    max-width: 170px;
+}
+
+#docs-status-view .date-range-btn,
+#docs-status-view .date-filters-bar .btn-sm {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 0.8rem;
+    flex: 0 0 auto;
+}
+
+#docs-status-view .date-range-btn {
+    gap: 6px;
+}
+
 .date-input-group {
     display: flex;
     align-items: center;
@@ -2380,7 +2477,8 @@ body.dark #organizations label.btn-primary:hover {
 }
 
 .date-input-group input[type="date"],
-.date-input-group input[type="month"] {
+.date-input-group input[type="month"],
+.date-input-group select {
     margin-bottom: 0;
     padding: 6px 12px;
     height: 38px;
@@ -2402,12 +2500,33 @@ body.dark #organizations label.btn-primary:hover {
         align-items: stretch;
     }
 
+    #docs-status-view .date-filters-bar {
+        padding: 12px;
+        flex-wrap: wrap;
+        overflow-x: visible;
+    }
+
+    #docs-status-view .date-input-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    #docs-status-view .date-input-group select,
+    #docs-status-view #filter-by-org,
+    #docs-status-view #docs-filter-year,
+    #docs-status-view .date-range-btn,
+    #docs-status-view .date-filters-bar .btn-sm {
+        width: 100%;
+        max-width: none;
+    }
+
     .date-input-group {
         justify-content: space-between;
     }
 
     .date-input-group input[type="date"],
-    .date-input-group input[type="month"] {
+    .date-input-group input[type="month"],
+    .date-input-group select {
         flex: 1;
         max-width: 200px;
     }
@@ -3310,6 +3429,32 @@ body.dark .repo-filter-bar {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
+.academic-term-control-card {
+    border-color: rgba(14, 165, 233, 0.24);
+}
+
+.academic-term-card-note {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.84rem;
+}
+
+.academic-term-editor {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.academic-term-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 0.84rem;
+}
+
 .term-year-wrap {
     max-width: 130px;
 }
@@ -3647,6 +3792,15 @@ body.dark .compliance-item {
 
 /* Mobile Responsiveness for Profile */
 @media (max-width: 768px) {
+    .academic-term-actions {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .academic-term-editor {
+        grid-template-columns: 1fr;
+    }
+
     .profile-form-grid {
         grid-template-columns: 1fr; /* Stack inputs on mobile */
         gap: 15px;

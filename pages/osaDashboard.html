@@ -192,6 +192,16 @@
                 </div>
             </div>
 
+            <div class="academic-term-summary" id="dashboard-academic-term-card">
+                <div class="academic-term-summary-icon">
+                    <i class="fa-solid fa-calendar-check"></i>
+                </div>
+                <div>
+                    <span>Current Academic Term</span>
+                    <strong id="dashboard-active-term-label">Loading term...</strong>
+                </div>
+            </div>
+
             <div class="content-row">
                 <div class="card">
                     <div class="card-header">
@@ -493,6 +503,28 @@
                             </select>
                         </div>
 
+                        <div class="date-input-group">
+                            <label for="docs-filter-sem">Semester:</label>
+                            <select id="docs-filter-sem" onchange="renderDocs(currentDocFilter)">
+                                <option value="1st">1st Semester</option>
+                                <option value="2nd">2nd Semester</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-period">Term:</label>
+                            <select id="docs-filter-period" onchange="renderDocs(currentDocFilter)">
+                                <option value="prelim">Prelim</option>
+                                <option value="midterm">Midterm</option>
+                                <option value="finals">Finals</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-year">School Year:</label>
+                            <select id="docs-filter-year" onchange="renderDocs(currentDocFilter)"></select>
+                        </div>
+
                         <button class="date-range-btn" onclick="openDatePicker('docs')">
                             <i class="fa-solid fa-calendar-days"></i>
                             <span id="docs-date-range-label">Select Date Range</span>
@@ -568,10 +600,23 @@
                         <div class="repo-filter-group">
                             <label>Semester:</label>
                             <select id="repo-filter-sem" onchange="renderRepoTable()">
-                                <option value="all">All Semesters</option>
                                 <option value="1st">1st Semester</option>
                                 <option value="2nd">2nd Semester</option>
                             </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>Term:</label>
+                            <select id="repo-filter-period" onchange="renderRepoTable()">
+                                <option value="prelim">Prelim</option>
+                                <option value="midterm">Midterm</option>
+                                <option value="finals">Finals</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>School Year:</label>
+                            <select id="repo-filter-year" onchange="renderRepoTable()"></select>
                         </div>
 
                         <button class="date-range-btn" onclick="openDatePicker('repo')">
@@ -650,6 +695,42 @@
                 </div>
 
                 <div class="profile-details-stack">
+
+                    <div class="card academic-term-control-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">Academic Term Control</div>
+                                <p class="academic-term-card-note">Used by document submissions, compliance, and repository views.</p>
+                            </div>
+                        </div>
+                        <div class="academic-term-editor">
+                            <label class="term-select-wrap">
+                                <span>School Year</span>
+                                <select id="profile-academic-year-select" class="term-select" aria-label="Profile academic year"></select>
+                            </label>
+                            <label class="term-select-wrap">
+                                <span>Semester</span>
+                                <select id="profile-semester-select" class="term-select" aria-label="Profile semester">
+                                    <option value="1st">1st Semester</option>
+                                    <option value="2nd">2nd Semester</option>
+                                </select>
+                            </label>
+                            <label class="term-select-wrap">
+                                <span>Term</span>
+                                <select id="profile-period-select" class="term-select" aria-label="Profile grading period">
+                                    <option value="prelim">Prelim</option>
+                                    <option value="midterm">Midterm</option>
+                                    <option value="finals">Finals</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="academic-term-actions">
+                            <span id="profile-active-term-note">Current term applies to new submissions.</span>
+                            <button id="saveAcademicTermBtn" class="btn btn-primary btn-sm" type="button" onclick="saveActiveAcademicTerm()">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Term
+                            </button>
+                        </div>
+                    </div>
 
                     <div class="card">
                         <div class="card-header">
@@ -977,7 +1058,7 @@
 
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
-    <script src="../assets/js/osaDashboard.js?v=20260611-4"></script>
+    <script src="../assets/js/osaDashboard.js?v=20260611-7"></script>
     <script src="../assets/js/pdfViewer.js?v=pdf-highlight-sidebar-color-1"></script>
 </body>
 
