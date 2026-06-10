@@ -311,9 +311,44 @@ function docSyncApprovedRepository(PDO $pdo, array $submission): void
     ]);
 }
 
+function docBackfillApprovedRepository(PDO $pdo, ?int $orgScope = null): void
+{
+    $where = ["ds.status = 'approved'", 'da.repo_id IS NULL'];
+    $params = [];
+
+    if ($orgScope !== null) {
+        $where[] = 'ds.org_id = :org_scope';
+        $params[':org_scope'] = $orgScope;
+    }
+
+    $sql = "
+        INSERT INTO documents_approved
+            (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, grading_period, approved_at)
+        SELECT
+            ds.submission_id,
+            ds.org_id,
+            COALESCE(ds.reviewed_by_user_id, ds.submitted_by_user_id),
+            ds.title,
+            ds.document_type,
+            ds.file_url,
+            ds.description,
+            ds.semester,
+            ds.academic_year,
+            ds.grading_period,
+            COALESCE(ds.reviewed_at, ds.updated_at, ds.submitted_at, NOW())
+        FROM document_submissions ds
+        LEFT JOIN documents_approved da ON da.submission_id = ds.submission_id
+        WHERE " . implode(' AND ', $where) . "
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+}
+
 function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null): array
 {
     docEnsureTermColumns($pdo);
+    docBackfillApprovedRepository($pdo, $orgScope);
 
     $where  = [];
     $params = [];

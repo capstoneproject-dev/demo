@@ -5689,10 +5689,8 @@ function renderRepoTable() {
     const filterYear = document.getElementById('repo-filter-year')?.value || officerActiveAcademicTerm.academic_year;
     const filterPeriod = document.getElementById('repo-filter-period')?.value || officerActiveAcademicTerm.grading_period;
 
-    // Filter Logic
-    const filtered = repositoryData.filter(item => {
+    const evaluateRepoItem = (item) => {
         const matchesActiveOrg = officerOrgMatch(item.org);
-        if (!matchesActiveOrg) return false;
 
         // 1. File Type
         const matchesType = filterType === 'All' || item.category === filterType;
@@ -5702,9 +5700,12 @@ function renderRepoTable() {
             item.category.toLowerCase().includes(searchInput);
 
         // 3. Academic Term + Date Logic
-        const matchesTerm = String(item.semester || '').toLowerCase() === String(filterSem).toLowerCase()
+        const itemHasTerm = !!(item.semester || item.academicYear || item.gradingPeriod);
+        const matchesTerm = !itemHasTerm || (
+            String(item.semester || '').toLowerCase() === String(filterSem).toLowerCase()
             && String(item.academicYear || '').trim() === String(filterYear).trim()
-            && String(item.gradingPeriod || '').toLowerCase() === String(filterPeriod).toLowerCase();
+            && String(item.gradingPeriod || '').toLowerCase() === String(filterPeriod).toLowerCase()
+        );
 
         const itemDate = item.approvedAt ? new Date(item.approvedAt) : new Date(item.date);
         let matchesDate = true;
@@ -5720,8 +5721,32 @@ function renderRepoTable() {
 
         }
 
-        return matchesType && matchesSearch && matchesTerm && matchesDate;
-    });
+        return {
+            item,
+            matchesActiveOrg,
+            matchesType,
+            matchesSearch,
+            matchesTerm,
+            matchesDate,
+            included: matchesActiveOrg && matchesType && matchesSearch && matchesTerm && matchesDate,
+            includedIgnoringTerm: matchesActiveOrg && matchesType && matchesSearch && matchesDate,
+            term: {
+                semester: item.semester || null,
+                academicYear: item.academicYear || null,
+                gradingPeriod: item.gradingPeriod || null,
+            },
+        };
+    };
+
+    const evaluated = repositoryData.map((item) => evaluateRepoItem(item));
+    let filtered = evaluated.filter((entry) => entry.included).map((entry) => entry.item);
+    const termFallback = filtered.length === 0
+        ? evaluated.filter((entry) => entry.includedIgnoringTerm).map((entry) => entry.item)
+        : [];
+
+    if (termFallback.length > 0) {
+        filtered = termFallback;
+    }
 
     // Update Label
     const label = document.getElementById('repo-current-view-label');
