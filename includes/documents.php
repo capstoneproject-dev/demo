@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/system_settings.php';
 
 class DocumentValidationException extends RuntimeException {}
 class DocumentAuthorizationException extends RuntimeException {}
@@ -122,9 +123,11 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
     $recipient    = trim((string)($data['recipient'] ?? 'OSA')) ?: 'OSA';
     $description  = trim((string)($data['description'] ?? '')) ?: null;
     $fileUrl      = trim((string)($data['file_url'] ?? ''));
-    $semester     = docValidateSemester($data['semester'] ?? null);
-    $academicYear = docValidateAcademicYear($data['academic_year'] ?? null);
-    $gradingPeriod = docValidateGradingPeriod($data['grading_period'] ?? null);
+    // Academic-term feature boundary: submissions use the active global term from system_settings.
+    $activeTerm = settingsGetActiveAcademicTerm($pdo);
+    $semester     = docValidateSemester($activeTerm['semester'] ?? null);
+    $academicYear = docValidateAcademicYear($activeTerm['academic_year'] ?? null);
+    $gradingPeriod = docValidateGradingPeriod($activeTerm['grading_period'] ?? null);
 
     if ($title === '')  throw new DocumentValidationException('title is required.');
     if ($fileUrl === '')throw new DocumentValidationException('file_url is required.');

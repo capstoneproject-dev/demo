@@ -955,6 +955,29 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `system_settings`
+--
+
+CREATE TABLE `system_settings` (
+  `setting_key` varchar(100) NOT NULL,
+  `setting_value` varchar(255) NOT NULL,
+  `updated_by_user_id` int(11) DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `system_settings`
+--
+
+INSERT INTO `system_settings` (`setting_key`, `setting_value`, `updated_by_user_id`, `updated_at`) VALUES
+('active_academic_year', '2026-2027', NULL, current_timestamp()),
+('active_semester', '1st', NULL, current_timestamp()),
+('active_grading_period', 'prelim', NULL, current_timestamp());
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `users`
 --
 
