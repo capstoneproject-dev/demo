@@ -1237,6 +1237,28 @@
                     </div>
 
                     <div class="date-filters-bar">
+                        <div class="date-input-group">
+                            <label for="docs-filter-sem">Semester:</label>
+                            <select id="docs-filter-sem" onchange="renderDocs(currentDocFilter)">
+                                <option value="1st">1st Semester</option>
+                                <option value="2nd">2nd Semester</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-period">Term:</label>
+                            <select id="docs-filter-period" onchange="renderDocs(currentDocFilter)">
+                                <option value="prelim">Prelim</option>
+                                <option value="midterm">Midterm</option>
+                                <option value="finals">Finals</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-year">School Year:</label>
+                            <select id="docs-filter-year" onchange="renderDocs(currentDocFilter)"></select>
+                        </div>
+
                         <button class="date-range-btn" onclick="openDatePicker('docs')">
                             <i class="fa-solid fa-calendar-days"></i>
                             <span id="docs-date-range-label">Select Date Range</span>
@@ -1304,10 +1326,23 @@
                         <div class="repo-filter-group">
                             <label>Semester:</label>
                             <select id="repo-filter-sem" onchange="renderRepoTable()">
-                                <option value="all">All Semesters</option>
                                 <option value="1st">1st Semester</option>
                                 <option value="2nd">2nd Semester</option>
                             </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>Term:</label>
+                            <select id="repo-filter-period" onchange="renderRepoTable()">
+                                <option value="prelim">Prelim</option>
+                                <option value="midterm">Midterm</option>
+                                <option value="finals">Finals</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>School Year:</label>
+                            <select id="repo-filter-year" onchange="renderRepoTable()"></select>
                         </div>
 
                         <button class="date-range-btn" onclick="openDatePicker('repo')">
@@ -1994,7 +2029,7 @@
     <script src="../assets/js/igp-api.js"></script>
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../assets/js/officerAnalytics.js"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260611-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260611-4"></script>
 </body>
 
 </html>

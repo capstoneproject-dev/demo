@@ -270,6 +270,7 @@ function initOsaAuthContext() {
 
 const DOCUMENTS_API_BASE = '../api/documents';
 const OSA_ACTIVITY_FEED_API = '../api/osa/activity-feed.php';
+const OSA_ACADEMIC_TERM_API = '../api/osa/settings/academic-term.php';
 
 function fmtDateShort(iso) {
     if (!iso) return '';
@@ -1469,6 +1470,66 @@ async function handlePdfUpload(event) {
     event.target.value = '';
 }
 let currentOrgId = null;
+let osaSectionPollingTimer = null;
+let requestsPollingInFlight = false;
+let monitoringPollingInFlight = false;
+
+function getActiveOsaSectionId() {
+    return document.querySelector('.section-view.active')?.id || 'dashboard';
+}
+
+async function pollRequestsPage() {
+    if (requestsPollingInFlight || document.hidden || getActiveOsaSectionId() !== 'requests') return;
+    requestsPollingInFlight = true;
+    try {
+        await loadRequestsFromApi();
+    } finally {
+        requestsPollingInFlight = false;
+    }
+}
+
+async function pollMonitoringPage() {
+    if (monitoringPollingInFlight || document.hidden || getActiveOsaSectionId() !== 'monitoring' || !currentOrgId) return;
+    monitoringPollingInFlight = true;
+    const org = organizations.find(o => Number(o.id) === Number(currentOrgId));
+    try {
+        await Promise.all([
+            loadDocsFromApi(),
+            loadRepoFromApi(),
+            loadOsaActivityFeed(),
+            loadServiceAuthorizations(true),
+        ]);
+
+        if (getActiveOsaSectionId() !== 'monitoring' || !org || Number(currentOrgId) !== Number(org.id)) return;
+
+        renderMonitoringCompliance(org);
+        renderMonitoringServiceAuthorizations(currentOrgId);
+        const latestActivity = buildMonitoringActivities(org)[0];
+        const recency = document.getElementById('monitoring-recency');
+        if (recency) {
+            recency.innerText = `Last recorded activity: ${latestActivity?.dateLabel || 'No recent records'}`;
+        }
+        renderMonitoringActivitiesTable();
+    } finally {
+        monitoringPollingInFlight = false;
+    }
+}
+
+function runActiveOsaSectionPoll() {
+    const activeSection = getActiveOsaSectionId();
+    if (activeSection === 'requests') {
+        pollRequestsPage();
+    } else if (activeSection === 'monitoring') {
+        pollMonitoringPage();
+    }
+}
+
+function startOsaSectionPolling() {
+    if (!osaSectionPollingTimer) {
+        osaSectionPollingTimer = window.setInterval(runActiveOsaSectionPoll, 3000);
+    }
+    runActiveOsaSectionPoll();
+}
 
 // --- NAVIGATION ---
 function navigate(viewId, element) {
@@ -1501,6 +1562,7 @@ function navigate(viewId, element) {
         'profile': 'My Profile' // <-- Add this line
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'OSA Portal';
+    startOsaSectionPolling();
 }
 
 // --- RENDER FUNCTIONS ---
@@ -1569,6 +1631,165 @@ function getDefaultGradingPeriod(date = new Date()) {
     return 'finals';
 }
 
+// Academic-term feature boundary: this block syncs the global term from system_settings.
+let activeAcademicTerm = {
+    academic_year: getDefaultAcademicYear(),
+    semester: getDefaultSemester(),
+    grading_period: getDefaultGradingPeriod()
+};
+let activeAcademicTermPromise = null;
+
+function normalizeAcademicTerm(term = {}) {
+    return {
+        academic_year: String(term.academic_year || term.academicYear || activeAcademicTerm.academic_year || getDefaultAcademicYear()).trim(),
+        semester: String(term.semester || activeAcademicTerm.semester || getDefaultSemester()).trim(),
+        grading_period: String(term.grading_period || term.gradingPeriod || activeAcademicTerm.grading_period || getDefaultGradingPeriod()).trim().toLowerCase()
+    };
+}
+
+function isValidAcademicTerm(term) {
+    return /^\d{4}-\d{4}$/.test(term.academic_year)
+        && ['1st', '2nd'].includes(term.semester)
+        && ['prelim', 'midterm', 'finals'].includes(term.grading_period);
+}
+
+function formatGradingPeriodLabel(period) {
+    const labels = { prelim: 'Prelim', midterm: 'Midterm', finals: 'Finals' };
+    return labels[String(period || '').toLowerCase()] || 'Term';
+}
+
+function formatAcademicTermLabel(term = activeAcademicTerm) {
+    const normalized = normalizeAcademicTerm(term);
+    return `${normalized.academic_year} | ${normalized.semester} Semester | ${formatGradingPeriodLabel(normalized.grading_period)}`;
+}
+
+function buildAcademicYearOptions(date = new Date(), selectedYear = '') {
+    const currentStartYear = Number(getDefaultAcademicYear(date).slice(0, 4));
+    const options = Array.from({ length: 3 }, (_item, index) => {
+        const startYear = currentStartYear + index;
+        return `${startYear}-${startYear + 1}`;
+    });
+
+    if (selectedYear && !options.includes(selectedYear)) {
+        options.push(selectedYear);
+    }
+
+    return options.sort();
+}
+
+function populateAcademicYearSelect(select, selectedYear) {
+    if (!select) return;
+    const options = buildAcademicYearOptions(new Date(), selectedYear || activeAcademicTerm.academic_year);
+    select.innerHTML = options.map((academicYear) => (
+        `<option value="${academicYear}">${academicYear}</option>`
+    )).join('');
+    if (selectedYear) select.value = selectedYear;
+}
+
+function syncActiveAcademicTermDisplays() {
+    const normalized = normalizeAcademicTerm(activeAcademicTerm);
+    const dashboardLabel = document.getElementById('dashboard-active-term-label');
+    if (dashboardLabel) dashboardLabel.innerText = formatAcademicTermLabel(normalized);
+
+    const profileYear = document.getElementById('profile-academic-year-select');
+    const profileSemester = document.getElementById('profile-semester-select');
+    const profilePeriod = document.getElementById('profile-period-select');
+    populateAcademicYearSelect(profileYear, normalized.academic_year);
+    if (profileSemester) profileSemester.value = normalized.semester;
+    if (profilePeriod) profilePeriod.value = normalized.grading_period;
+
+    const profileNote = document.getElementById('profile-active-term-note');
+    if (profileNote) profileNote.innerText = `Current: ${formatAcademicTermLabel(normalized)}`;
+}
+
+function applyActiveTermToViewFilters() {
+    complianceTermFilter.semester = activeAcademicTerm.semester;
+    complianceTermFilter.academicYear = activeAcademicTerm.academic_year;
+    complianceTermFilter.gradingPeriod = activeAcademicTerm.grading_period;
+    syncComplianceTermControls();
+    syncDocsTermControlsToActive();
+    syncRepoTermControlsToActive();
+}
+
+function syncAcademicTermFeature({ resetViewFilters = false } = {}) {
+    syncActiveAcademicTermDisplays();
+    if (resetViewFilters) {
+        applyActiveTermToViewFilters();
+    } else {
+        syncComplianceTermControls();
+        syncDocsTermControls();
+        syncRepoTermControls();
+    }
+    renderMonitoringComplianceForCurrentOrg();
+    renderRepoTable();
+}
+
+async function loadActiveAcademicTerm(force = false) {
+    if (activeAcademicTermPromise && !force) return activeAcademicTermPromise;
+
+    activeAcademicTermPromise = fetch(OSA_ACADEMIC_TERM_API, { credentials: 'same-origin' })
+        .then((response) => response.json().catch(() => ({})).then((data) => ({ response, data })))
+        .then(({ response, data }) => {
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load active academic term.');
+            }
+            const term = normalizeAcademicTerm(data.term || {});
+            if (!isValidAcademicTerm(term)) {
+                throw new Error('The active academic term is invalid.');
+            }
+            activeAcademicTerm = term;
+            syncAcademicTermFeature({ resetViewFilters: true });
+            return activeAcademicTerm;
+        })
+        .catch((error) => {
+            console.error('[loadActiveAcademicTerm]', error);
+            syncAcademicTermFeature();
+            return activeAcademicTerm;
+        })
+        .finally(() => {
+            activeAcademicTermPromise = null;
+        });
+
+    return activeAcademicTermPromise;
+}
+
+async function saveActiveAcademicTerm() {
+    const saveBtn = document.getElementById('saveAcademicTermBtn');
+    const term = normalizeAcademicTerm({
+        academic_year: document.getElementById('profile-academic-year-select')?.value,
+        semester: document.getElementById('profile-semester-select')?.value,
+        grading_period: document.getElementById('profile-period-select')?.value
+    });
+
+    if (!isValidAcademicTerm(term)) {
+        showToast('Choose a valid school year, semester, and term.', 'error');
+        syncActiveAcademicTermDisplays();
+        return;
+    }
+
+    try {
+        if (saveBtn) saveBtn.disabled = true;
+        const response = await fetch(OSA_ACADEMIC_TERM_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(term)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not save academic term.');
+        }
+        activeAcademicTerm = normalizeAcademicTerm(data.term || term);
+        syncAcademicTermFeature({ resetViewFilters: true });
+        showToast('Academic term updated.', 'success');
+    } catch (error) {
+        showToast(error.message || 'Could not save academic term.', 'error');
+        syncActiveAcademicTermDisplays();
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+
 const complianceTermFilter = {
     semester: getDefaultSemester(),
     academicYear: getDefaultAcademicYear(),
@@ -1579,27 +1800,9 @@ function normalizeComplianceTermValue(value) {
     return String(value || '').trim().toLowerCase();
 }
 
-function buildAcademicYearOptions(date = new Date()) {
-    const currentStartYear = Number(getDefaultAcademicYear(date).slice(0, 4));
-    return Array.from({ length: 3 }, (_item, index) => {
-        const startYear = currentStartYear + index;
-        return `${startYear}-${startYear + 1}`;
-    });
-}
-
 function populateComplianceAcademicYearSelect() {
     const yearSelect = document.getElementById('compliance-academic-year-select');
-    if (!yearSelect) return;
-
-    const options = buildAcademicYearOptions();
-    if (!options.includes(complianceTermFilter.academicYear)) {
-        options.push(complianceTermFilter.academicYear);
-        options.sort();
-    }
-
-    yearSelect.innerHTML = options.map((academicYear) => (
-        `<option value="${academicYear}">${academicYear}</option>`
-    )).join('');
+    populateAcademicYearSelect(yearSelect, complianceTermFilter.academicYear);
 }
 
 function syncComplianceTermControls() {
@@ -2058,6 +2261,20 @@ function initDocOrgFilter() {
 // --- PORTED DOCUMENT LOGIC ---
 let currentDocFilter = 'All';
 
+function syncDocsTermControls() {
+    const yearSelect = document.getElementById('docs-filter-year');
+    populateAcademicYearSelect(yearSelect, yearSelect?.value || activeAcademicTerm.academic_year);
+}
+
+function syncDocsTermControlsToActive() {
+    const yearSelect = document.getElementById('docs-filter-year');
+    const semesterSelect = document.getElementById('docs-filter-sem');
+    const periodSelect = document.getElementById('docs-filter-period');
+    populateAcademicYearSelect(yearSelect, activeAcademicTerm.academic_year);
+    if (semesterSelect) semesterSelect.value = activeAcademicTerm.semester;
+    if (periodSelect) periodSelect.value = activeAcademicTerm.grading_period;
+}
+
 function renderRecentDocs() {
     const list = document.getElementById('recent-docs-list');
     if (!list) return;
@@ -2127,6 +2344,9 @@ function renderDocs(filter = 'All', btnElement = null) {
     const dateVal = document.getElementById('filter-by-date')?.value || '';
     const monthVal = document.getElementById('filter-by-month')?.value || '';
     const orgVal = document.getElementById('filter-by-org')?.value || 'all';
+    const termSemester = document.getElementById('docs-filter-sem')?.value || activeAcademicTerm.semester;
+    const termYear = document.getElementById('docs-filter-year')?.value || activeAcademicTerm.academic_year;
+    const termPeriod = document.getElementById('docs-filter-period')?.value || activeAcademicTerm.grading_period;
 
     // DATA SIMULATION POOLS
     const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
@@ -2143,7 +2363,13 @@ function renderDocs(filter = 'All', btnElement = null) {
 
         // 2. Organization Filter
         const matchesOrg = (orgVal === 'all') || (doc.org === orgVal);
-        // 3. Date/Month Filter
+
+        // 3. Academic term filter
+        const matchesTerm = String(doc.semester || '').toLowerCase() === String(termSemester).toLowerCase()
+            && String(doc.academicYear || '').trim() === String(termYear).trim()
+            && String(doc.gradingPeriod || '').toLowerCase() === String(termPeriod).toLowerCase();
+
+        // 4. Date/Month Filter
         let matchesDate = true;
         let docDateObj;
 
@@ -2157,7 +2383,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             matchesDate = docDateObj >= fromDate && docDateObj <= toDate;
         }
 
-        return matchesStatus && matchesOrg && matchesDate;
+        return matchesStatus && matchesOrg && matchesTerm && matchesDate;
     });
 
     if (filteredData.length === 0) {
@@ -2223,6 +2449,7 @@ function filterDocs(filter, btnElement) {
 function resetDateFilters() {
     const orgInput = document.getElementById('filter-by-org');
     if (orgInput) orgInput.value = 'all';
+    syncDocsTermControlsToActive();
 
     // Reset Docs Date Filter
     docsDateFilter.from = null;
@@ -2820,6 +3047,8 @@ function showToast(message, type = 'info') {
 window.addEventListener('DOMContentLoaded', () => {
     setDate();
     resetDateFilters(); // Reset date filters on load
+    syncActiveAcademicTermDisplays();
+    loadActiveAcademicTerm();
 
     // Initialize Dashboard
     renderDashboardPreview();
@@ -2870,11 +3099,18 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    startOsaSectionPolling();
 });
 
 document.addEventListener('pdfviewer:ready', () => {
     syncPdfUploadsIntoTransactions();
     renderTransactions();
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        runActiveOsaSectionPoll();
+    }
 });
 
 window.addEventListener('click', function (event) {
@@ -2898,9 +3134,23 @@ let currentRepoCategory = 'All';
 
 // --- UPDATED REPOSITORY LOGIC ---
 
+function syncRepoTermControls() {
+    populateAcademicYearSelect(document.getElementById('repo-filter-year'), document.getElementById('repo-filter-year')?.value || activeAcademicTerm.academic_year);
+}
+
+function syncRepoTermControlsToActive() {
+    const yearSelect = document.getElementById('repo-filter-year');
+    const semesterSelect = document.getElementById('repo-filter-sem');
+    const periodSelect = document.getElementById('repo-filter-period');
+    populateAcademicYearSelect(yearSelect, activeAcademicTerm.academic_year);
+    if (semesterSelect) semesterSelect.value = activeAcademicTerm.semester;
+    if (periodSelect) periodSelect.value = activeAcademicTerm.grading_period;
+}
+
 // 1. Initialize Repository
 function initRepository() {
     initRepoOrgFilter();
+    syncRepoTermControlsToActive();
     updateRepoCategoryDropdown(); // Calculates counts and updates Dropdown text
     renderRepoTable();
 }
@@ -2963,7 +3213,9 @@ function renderRepoTable() {
     const searchInput = document.getElementById('repo-search-input')?.value.toLowerCase() || '';
     const filterType = document.getElementById('repo-filter-type')?.value || 'All';
     const filterOrg = document.getElementById('repo-filter-org')?.value || 'all';
-    const filterSem = document.getElementById('repo-filter-sem')?.value || 'all';
+    const filterSem = document.getElementById('repo-filter-sem')?.value || activeAcademicTerm.semester;
+    const filterYear = document.getElementById('repo-filter-year')?.value || activeAcademicTerm.academic_year;
+    const filterPeriod = document.getElementById('repo-filter-period')?.value || activeAcademicTerm.grading_period;
 
     // Filter Logic
     const filtered = repositoryData.filter(item => {
@@ -2977,7 +3229,11 @@ function renderRepoTable() {
         const matchesSearch = item.name.toLowerCase().includes(searchInput) ||
             item.org.toLowerCase().includes(searchInput);
 
-        // 4. Date Logic
+        // 4. Term and Date Logic
+        const matchesTerm = String(item.semester || '').toLowerCase() === String(filterSem).toLowerCase()
+            && String(item.academicYear || '').trim() === String(filterYear).trim()
+            && String(item.gradingPeriod || '').toLowerCase() === String(filterPeriod).toLowerCase();
+
         const itemDate = item.approvedAt ? new Date(item.approvedAt) : new Date(item.date);
         let matchesDate = true;
 
@@ -2987,11 +3243,9 @@ function renderRepoTable() {
             fromDate.setHours(0, 0, 0, 0);
             toDate.setHours(23, 59, 59, 999);
             matchesDate = itemDate >= fromDate && itemDate <= toDate;
-        } else if (filterSem !== 'all') {
-            matchesDate = (item.semester || '').toLowerCase() === filterSem.toLowerCase();
         }
 
-        return matchesType && matchesOrg && matchesSearch && matchesDate;
+        return matchesType && matchesOrg && matchesSearch && matchesTerm && matchesDate;
     });
 
     // Update Header Label
@@ -3028,8 +3282,8 @@ function renderRepoTable() {
 function resetRepoFilters() {
     document.getElementById('repo-filter-type').value = 'All';
     document.getElementById('repo-filter-org').value = 'all';
-    document.getElementById('repo-filter-sem').value = 'all';
     document.getElementById('repo-search-input').value = '';
+    syncRepoTermControlsToActive();
 
     // Reset Date Filter
     repoDateFilter.from = null;

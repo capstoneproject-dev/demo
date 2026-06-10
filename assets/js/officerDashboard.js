@@ -1,4 +1,5 @@
 const AUTH_SESSION_KEY = 'naapAuthSession';
+const OFFICER_ACADEMIC_TERM_API = '../api/settings/academic-term.php';
 let officerOrgSyncPromise = Promise.resolve();
 const DEFAULT_OFFICER_AVATAR = 'https://picsum.photos/seed/officer1/150/150';
 const OFFICER_ANNOUNCEMENT_PREVIEW_KEY_PREFIX = 'osaAnnouncementPreview_';
@@ -3572,6 +3573,92 @@ function renderRecentDocs() {
 
 // --- UPDATED RENDERING LOGIC WITH DATE FILTERS ---
 
+let officerActiveAcademicTerm = {
+    academic_year: getOfficerDefaultAcademicYear(),
+    semester: getOfficerDefaultSemester(),
+    grading_period: getOfficerDefaultGradingPeriod()
+};
+
+function getOfficerDefaultAcademicYear(date = new Date()) {
+    const year = date.getFullYear();
+    const startYear = date.getMonth() >= 5 ? year : year - 1;
+    return `${startYear}-${startYear + 1}`;
+}
+
+function getOfficerDefaultSemester(date = new Date()) {
+    return date.getMonth() >= 5 && date.getMonth() <= 10 ? '1st' : '2nd';
+}
+
+function getOfficerDefaultGradingPeriod(date = new Date()) {
+    const month = date.getMonth();
+    if ([5, 6, 11, 0].includes(month)) return 'prelim';
+    if ([7, 8, 1, 2].includes(month)) return 'midterm';
+    return 'finals';
+}
+
+function normalizeOfficerAcademicTerm(term = {}) {
+    return {
+        academic_year: String(term.academic_year || term.academicYear || officerActiveAcademicTerm.academic_year).trim(),
+        semester: String(term.semester || officerActiveAcademicTerm.semester).trim(),
+        grading_period: String(term.grading_period || term.gradingPeriod || officerActiveAcademicTerm.grading_period).trim().toLowerCase()
+    };
+}
+
+function buildOfficerAcademicYearOptions(selectedYear = '') {
+    const currentStartYear = Number(getOfficerDefaultAcademicYear().slice(0, 4));
+    const options = Array.from({ length: 3 }, (_item, index) => {
+        const startYear = currentStartYear + index;
+        return `${startYear}-${startYear + 1}`;
+    });
+    if (selectedYear && !options.includes(selectedYear)) options.push(selectedYear);
+    return options.sort();
+}
+
+function populateOfficerAcademicYearSelect(select, selectedYear) {
+    if (!select) return;
+    const options = buildOfficerAcademicYearOptions(selectedYear || officerActiveAcademicTerm.academic_year);
+    select.innerHTML = options.map((academicYear) => (
+        `<option value="${academicYear}">${academicYear}</option>`
+    )).join('');
+    if (selectedYear) select.value = selectedYear;
+}
+
+function syncOfficerDocsTermControlsToActive() {
+    const yearSelect = document.getElementById('docs-filter-year');
+    const semesterSelect = document.getElementById('docs-filter-sem');
+    const periodSelect = document.getElementById('docs-filter-period');
+    populateOfficerAcademicYearSelect(yearSelect, officerActiveAcademicTerm.academic_year);
+    if (semesterSelect) semesterSelect.value = officerActiveAcademicTerm.semester;
+    if (periodSelect) periodSelect.value = officerActiveAcademicTerm.grading_period;
+}
+
+function syncOfficerRepoTermControlsToActive() {
+    const yearSelect = document.getElementById('repo-filter-year');
+    const semesterSelect = document.getElementById('repo-filter-sem');
+    const periodSelect = document.getElementById('repo-filter-period');
+    populateOfficerAcademicYearSelect(yearSelect, officerActiveAcademicTerm.academic_year);
+    if (semesterSelect) semesterSelect.value = officerActiveAcademicTerm.semester;
+    if (periodSelect) periodSelect.value = officerActiveAcademicTerm.grading_period;
+}
+
+async function loadOfficerActiveAcademicTerm() {
+    try {
+        const response = await fetch(OFFICER_ACADEMIC_TERM_API, { credentials: 'same-origin' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load active academic term.');
+        }
+        officerActiveAcademicTerm = normalizeOfficerAcademicTerm(data.term || {});
+    } catch (error) {
+        console.error('[loadOfficerActiveAcademicTerm]', error);
+    } finally {
+        syncOfficerDocsTermControlsToActive();
+        syncOfficerRepoTermControlsToActive();
+        renderDocs(currentDocFilter);
+        renderRepoTable();
+    }
+}
+
 function renderDocs(filter = 'All', btnElement = null) {
     currentDocFilter = filter;
 
@@ -3588,6 +3675,9 @@ function renderDocs(filter = 'All', btnElement = null) {
     const list = document.getElementById('docs-list');
     const dateVal = document.getElementById('filter-by-date') ? document.getElementById('filter-by-date').value : '';
     const monthVal = document.getElementById('filter-by-month') ? document.getElementById('filter-by-month').value : '';
+    const termSemester = document.getElementById('docs-filter-sem')?.value || officerActiveAcademicTerm.semester;
+    const termYear = document.getElementById('docs-filter-year')?.value || officerActiveAcademicTerm.academic_year;
+    const termPeriod = document.getElementById('docs-filter-period')?.value || officerActiveAcademicTerm.grading_period;
 
     // DATA SIMULATION POOLS
     const sscOfficers = ["Pres. Cruz", "VP Santos", "Sec. Reyes"];
@@ -3601,6 +3691,12 @@ function renderDocs(filter = 'All', btnElement = null) {
     });
 
     // 2. Filter by Date Range (Updated)
+    filteredData = filteredData.filter(doc => (
+        String(doc.semester || '').toLowerCase() === String(termSemester).toLowerCase()
+        && String(doc.academicYear || '').trim() === String(termYear).trim()
+        && String(doc.gradingPeriod || '').toLowerCase() === String(termPeriod).toLowerCase()
+    ));
+
     const { from, to } = docsDateFilter;
 
     if (from && to) {
@@ -3740,6 +3836,7 @@ function resetDateFilters() {
     // Reset State
     docsDateFilter.from = null;
     docsDateFilter.to = null;
+    syncOfficerDocsTermControlsToActive();
 
     // Reset UI
     const dateBtn = document.querySelector('#documents .date-range-btn');
@@ -4273,9 +4370,6 @@ async function handleDocSubmit(e) {
     const type = document.getElementById('doc-type').value;
     const title = (e.currentTarget.querySelector('input[type="text"]')?.value || '').trim();
     const description = (e.currentTarget.querySelector('textarea')?.value || '').trim();
-    const academicYear = getCurrentDocumentAcademicYear();
-    const semester = getCurrentDocumentSemester();
-    const gradingPeriod = getCurrentDocumentGradingPeriod();
 
     if (!title) {
         alert('Title is required.');
@@ -4308,9 +4402,6 @@ async function handleDocSubmit(e) {
                 document_type: type,
                 recipient,
                 description,
-                semester,
-                academic_year: academicYear,
-                grading_period: gradingPeriod,
                 file_url: uploadData.file_url
             })
         });
@@ -4326,23 +4417,6 @@ async function handleDocSubmit(e) {
         console.error(error);
         alert(error.message || 'Failed to submit document.');
     }
-}
-
-function getCurrentDocumentAcademicYear(date = new Date()) {
-    const year = date.getFullYear();
-    const startYear = date.getMonth() >= 5 ? year : year - 1;
-    return `${startYear}-${startYear + 1}`;
-}
-
-function getCurrentDocumentSemester(date = new Date()) {
-    return date.getMonth() >= 5 && date.getMonth() <= 10 ? '1st' : '2nd';
-}
-
-function getCurrentDocumentGradingPeriod(date = new Date()) {
-    const month = date.getMonth();
-    if ([5, 6, 11, 0].includes(month)) return 'prelim';
-    if ([7, 8, 1, 2].includes(month)) return 'midterm';
-    return 'finals';
 }
 
 function formatTimeRange(start, end) {
@@ -5417,6 +5491,8 @@ window.addEventListener('DOMContentLoaded', () => {
     initializeOfficerFinancialSummaryDefaultDate();
     initializeOfficerPrintingHistoryDefaultDate();
     renderRentals();
+    syncOfficerDocsTermControlsToActive();
+    loadOfficerActiveAcademicTerm();
     renderDocs();
     renderRecentDocs();
     renderAnnouncements();
@@ -5561,6 +5637,7 @@ let currentRepoCategory = 'All';
 
 // 1. Initialize Repository (Call this when view loads)
 function initRepository() {
+    syncOfficerRepoTermControlsToActive();
     updateRepoCategoryDropdown(); // Calculates counts and updates Dropdown text
     renderRepoTable();
 }
@@ -5608,9 +5685,9 @@ function renderRepoTable() {
     // Get Filter Values
     const searchInput = document.getElementById('repo-search-input')?.value.toLowerCase() || '';
     const filterType = document.getElementById('repo-filter-type')?.value || 'All';
-    const filterSem = document.getElementById('repo-filter-sem')?.value || 'all';
-    const filterMonth = document.getElementById('repo-filter-month')?.value || '';
-    const filterDate = document.getElementById('repo-filter-date')?.value || '';
+    const filterSem = document.getElementById('repo-filter-sem')?.value || officerActiveAcademicTerm.semester;
+    const filterYear = document.getElementById('repo-filter-year')?.value || officerActiveAcademicTerm.academic_year;
+    const filterPeriod = document.getElementById('repo-filter-period')?.value || officerActiveAcademicTerm.grading_period;
 
     // Filter Logic
     const filtered = repositoryData.filter(item => {
@@ -5624,7 +5701,11 @@ function renderRepoTable() {
         const matchesSearch = item.name.toLowerCase().includes(searchInput) ||
             item.category.toLowerCase().includes(searchInput);
 
-        // 3. Date Logic (Updated)
+        // 3. Academic Term + Date Logic
+        const matchesTerm = String(item.semester || '').toLowerCase() === String(filterSem).toLowerCase()
+            && String(item.academicYear || '').trim() === String(filterYear).trim()
+            && String(item.gradingPeriod || '').toLowerCase() === String(filterPeriod).toLowerCase();
+
         const itemDate = item.approvedAt ? new Date(item.approvedAt) : new Date(item.date);
         let matchesDate = true;
 
@@ -5637,11 +5718,9 @@ function renderRepoTable() {
 
             matchesDate = checkDate >= fromDate && checkDate <= toDate;
 
-        } else if (filterSem !== 'all') {
-            matchesDate = (item.semester || '').toLowerCase() === filterSem.toLowerCase();
         }
 
-        return matchesType && matchesSearch && matchesDate;
+        return matchesType && matchesSearch && matchesTerm && matchesDate;
     });
 
     // Update Label
@@ -5677,8 +5756,8 @@ function renderRepoTable() {
 // 4. Reset Function
 function resetRepoFilters() {
     document.getElementById('repo-filter-type').value = 'All';
-    document.getElementById('repo-filter-sem').value = 'all';
     document.getElementById('repo-search-input').value = '';
+    syncOfficerRepoTermControlsToActive();
 
     // Reset Date Filter
     repoDateFilter.from = null;
