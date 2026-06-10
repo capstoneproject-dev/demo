@@ -307,6 +307,9 @@ async function loadDocsFromApi() {
             status: item.status || 'pending',
             date: fmtDateShort(item.submitted_at),
             submittedAt: item.submitted_at || null,
+            semester: item.semester || null,
+            academicYear: item.academic_year || null,
+            gradingPeriod: item.grading_period || null,
             fileUrl: resolvePdfUrl(item.file_url),
             viewerId: `submission_${item.submission_id}`
         }));
@@ -317,6 +320,7 @@ async function loadDocsFromApi() {
         });
         renderDocs(currentDocFilter);
         renderRecentDocs();
+        renderMonitoringComplianceForCurrentOrg();
         loadOsaActivityFeed();
     } catch (error) {
         console.error('loadDocsFromApi failed', error);
@@ -340,6 +344,7 @@ async function loadRepoFromApi() {
             approvedAt: item.approved_at || null,
             semester: item.semester || null,
             academicYear: item.academic_year || null,
+            gradingPeriod: item.grading_period || null,
             file_url: resolvePdfUrl(item.file_url),
             viewerId: `submission_${item.submission_id}`
         }));
@@ -350,6 +355,7 @@ async function loadRepoFromApi() {
         });
         updateRepoCategoryDropdown();
         renderRepoTable();
+        renderMonitoringComplianceForCurrentOrg();
         loadOsaActivityFeed();
     } catch (error) {
         console.error('loadRepoFromApi failed', error);
@@ -1546,6 +1552,206 @@ function setupOrgSearch() {
     input.addEventListener('input', renderOrgs);
 }
 
+function getDefaultAcademicYear(date = new Date()) {
+    const year = date.getFullYear();
+    const startYear = date.getMonth() >= 5 ? year : year - 1;
+    return `${startYear}-${startYear + 1}`;
+}
+
+function getDefaultSemester(date = new Date()) {
+    return date.getMonth() >= 5 && date.getMonth() <= 10 ? '1st' : '2nd';
+}
+
+function getDefaultGradingPeriod(date = new Date()) {
+    const month = date.getMonth();
+    if ([5, 6, 11, 0].includes(month)) return 'prelim';
+    if ([7, 8, 1, 2].includes(month)) return 'midterm';
+    return 'finals';
+}
+
+const complianceTermFilter = {
+    semester: getDefaultSemester(),
+    academicYear: getDefaultAcademicYear(),
+    gradingPeriod: getDefaultGradingPeriod()
+};
+
+function normalizeComplianceTermValue(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function buildAcademicYearOptions(date = new Date()) {
+    const currentStartYear = Number(getDefaultAcademicYear(date).slice(0, 4));
+    return Array.from({ length: 3 }, (_item, index) => {
+        const startYear = currentStartYear + index;
+        return `${startYear}-${startYear + 1}`;
+    });
+}
+
+function populateComplianceAcademicYearSelect() {
+    const yearSelect = document.getElementById('compliance-academic-year-select');
+    if (!yearSelect) return;
+
+    const options = buildAcademicYearOptions();
+    if (!options.includes(complianceTermFilter.academicYear)) {
+        options.push(complianceTermFilter.academicYear);
+        options.sort();
+    }
+
+    yearSelect.innerHTML = options.map((academicYear) => (
+        `<option value="${academicYear}">${academicYear}</option>`
+    )).join('');
+}
+
+function syncComplianceTermControls() {
+    populateComplianceAcademicYearSelect();
+    const semesterSelect = document.getElementById('compliance-semester-select');
+    const periodSelect = document.getElementById('compliance-period-select');
+    const yearSelect = document.getElementById('compliance-academic-year-select');
+    if (semesterSelect) semesterSelect.value = complianceTermFilter.semester;
+    if (periodSelect) periodSelect.value = complianceTermFilter.gradingPeriod;
+    if (yearSelect) yearSelect.value = complianceTermFilter.academicYear;
+}
+
+function setComplianceSemester(semester) {
+    if (!['1st', '2nd'].includes(semester)) return;
+    complianceTermFilter.semester = semester;
+    syncComplianceTermControls();
+    renderMonitoringComplianceForCurrentOrg();
+}
+
+function setCompliancePeriod(period) {
+    if (!['prelim', 'midterm', 'finals'].includes(period)) return;
+    complianceTermFilter.gradingPeriod = period;
+    syncComplianceTermControls();
+    renderMonitoringComplianceForCurrentOrg();
+}
+
+function setComplianceAcademicYear(academicYear) {
+    const normalized = String(academicYear || '').trim();
+    if (!/^\d{4}-\d{4}$/.test(normalized)) {
+        showToast('Use academic year format YYYY-YYYY.', 'error');
+        syncComplianceTermControls();
+        return;
+    }
+    complianceTermFilter.academicYear = normalized;
+    syncComplianceTermControls();
+    renderMonitoringComplianceForCurrentOrg();
+}
+
+const COMPLIANCE_REQUIREMENTS = [
+    {
+        label: 'Financial Report',
+        aliases: ['financial statement', 'financial report', 'semestral financial report']
+    },
+    {
+        label: 'Activity Report',
+        aliases: ['activity report']
+    },
+    {
+        label: 'Audit Status',
+        aliases: ['audit report', 'audit status']
+    }
+];
+
+function getOrgSearchKeys(org) {
+    if (!org) return [];
+    return [
+        org.name,
+        org.displayName,
+        org.fullName,
+        org.orgCode,
+        org.org_name,
+        org.org_code,
+        org.code,
+        ...(Array.isArray(org.aliases) ? org.aliases : [])
+    ]
+        .map((value) => normalizeMonitoringOrgName(value))
+        .filter(Boolean);
+}
+
+function documentMatchesOrg(item, org) {
+    const orgKeys = getOrgSearchKeys(org);
+    const itemOrg = normalizeMonitoringOrgName(item?.org || item?.org_name || item?.organization || '');
+    return !!itemOrg && orgKeys.includes(itemOrg);
+}
+
+function documentMatchesRequirement(item, requirement) {
+    const type = String(item?.type || item?.category || item?.document_type || '').trim().toLowerCase();
+    const title = String(item?.title || item?.name || '').trim().toLowerCase();
+    return requirement.aliases.some((alias) => type.includes(alias) || title.includes(alias));
+}
+
+function documentMatchesComplianceTerm(item) {
+    const semester = normalizeComplianceTermValue(item?.semester);
+    const academicYear = String(item?.academicYear || item?.academic_year || '').trim();
+    const gradingPeriod = normalizeComplianceTermValue(item?.gradingPeriod || item?.grading_period);
+
+    return semester === normalizeComplianceTermValue(complianceTermFilter.semester)
+        && academicYear === complianceTermFilter.academicYear
+        && gradingPeriod === normalizeComplianceTermValue(complianceTermFilter.gradingPeriod);
+}
+
+function getComplianceItemTime(item) {
+    const rawDate = item?.approvedAt || item?.submittedAt || item?.date || '';
+    const parsed = new Date(rawDate);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function getComplianceStatusFromSubmission(item) {
+    const status = String(item?.status || '').trim().toLowerCase();
+    if (status === 'approved') {
+        return { label: 'Approved', className: 'status-completed' };
+    }
+    if (status === 'rejected') {
+        return { label: 'For Revision', className: 'status-rejected' };
+    }
+    return { label: 'Under Review', className: 'status-pending' };
+}
+
+function getComplianceState(org, requirement) {
+    const approvedMatches = repositoryData
+        .filter((item) => documentMatchesOrg(item, org) && documentMatchesRequirement(item, requirement) && documentMatchesComplianceTerm(item))
+        .sort((a, b) => getComplianceItemTime(b) - getComplianceItemTime(a));
+
+    if (approvedMatches.length) {
+        return { label: 'Approved', className: 'status-completed' };
+    }
+
+    const submissionMatches = docsData
+        .filter((item) => documentMatchesOrg(item, org) && documentMatchesRequirement(item, requirement) && documentMatchesComplianceTerm(item))
+        .sort((a, b) => getComplianceItemTime(b) - getComplianceItemTime(a));
+
+    if (submissionMatches.length) {
+        return getComplianceStatusFromSubmission(submissionMatches[0]);
+    }
+
+    return { label: 'Not Submitted', className: 'status-pending' };
+}
+
+function renderMonitoringCompliance(org) {
+    const complianceContainer = document.getElementById('monitoring-compliance-list');
+    if (!complianceContainer || !org) return;
+    syncComplianceTermControls();
+
+    complianceContainer.innerHTML = COMPLIANCE_REQUIREMENTS.map((requirement) => {
+        const state = getComplianceState(org, requirement);
+        return `
+            <div class="compliance-item">
+                <span class="compliance-label">${escapeDashboardHtml(requirement.label)}</span>
+                <span class="status-badge ${state.className}">
+                    ${escapeDashboardHtml(state.label)}
+                </span>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderMonitoringComplianceForCurrentOrg() {
+    if (!currentOrgId) return;
+    const org = organizations.find(o => Number(o.id) === Number(currentOrgId));
+    renderMonitoringCompliance(org);
+}
+
 let serviceAuthorizationMatrix = { service_catalog: [], organizations: [] };
 let serviceAuthorizationPromise = null;
 let monitoringOfficersCache = null;
@@ -2113,30 +2319,7 @@ async function openMonitoring(orgId) {
         document.getElementById('monitoring-recency').innerText = `Last recorded activity: ${latestActivity?.dateLabel || 'No recent records'}`;
 
         // 3. Render Compliance Overview
-        const complianceContainer = document.getElementById('monitoring-compliance-list');
-        // Simulating status based on org ID for variety
-        const isCompliant = org.id % 2 === 0;
-
-        complianceContainer.innerHTML = `
-            <div class="compliance-item">
-                <span class="compliance-label">Financial Report</span>
-                <span class="status-badge ${isCompliant ? 'status-completed' : 'status-pending'}">
-                    ${isCompliant ? 'Submitted' : 'Pending'}
-                </span>
-            </div>
-            <div class="compliance-item">
-                <span class="compliance-label">Activity Reports</span>
-                <span class="status-badge ${isCompliant ? 'status-completed' : 'status-pending'}">
-                    ${isCompliant ? 'Complete' : 'Incomplete'}
-                </span>
-            </div>
-            <div class="compliance-item">
-                <span class="compliance-label">Audit Status</span>
-                <span class="status-badge ${isCompliant ? 'status-completed' : 'status-pending'}">
-                    ${isCompliant ? 'Passed' : 'Pending'}
-                </span>
-            </div>
-        `;
+        renderMonitoringCompliance(org);
 
         // 4. Render Officers & Adviser List
         const officersContainer = document.getElementById('monitoring-officers-grid');
@@ -2653,6 +2836,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderRequests();
     loadRequestsFromApi();
     setupOrgSearch();
+    syncComplianceTermControls();
     renderOrgs();
     loadServiceAuthorizations()
         .then(() => loadOsaActivityFeed())
