@@ -2239,6 +2239,7 @@ function navigate(viewId, element) {
     } else {
         startStudentPrintingAutoRefresh();
     }
+    syncStudentPagePolling();
 
     // Scroll to top
     window.scrollTo(0, 0);
@@ -2278,6 +2279,7 @@ function switchServiceTab(tabName, btn) {
     } else {
         stopStudentPrintingAutoRefresh();
     }
+    syncStudentPagePolling();
 }
 
 // --- ORGANIZATION TABS LOGIC ---
@@ -3143,12 +3145,11 @@ if (localStorage.getItem('theme') === 'dark') {
 
 let carouselInterval;
 let currentDashboardSlideIndex = 0;
+let dashboardCarouselSignature = '';
 
-function initDashboardCarousel() {
+function initDashboardCarousel(force = false) {
     const track = document.getElementById('dashboardCarouselTrack');
     if (!track) return;
-
-    track.innerHTML = ''; // Clear previous content
 
     // 1. Filter events that match "Today" status
     // This uses the same helper logic as the Events Tab -> Today Filter
@@ -3173,6 +3174,14 @@ function initDashboardCarousel() {
             slidesToRender = scopedEvents.length ? [{ src: scopedEvents[0].img, title: "Event" }] : [];
         }
     }
+
+    const nextSignature = JSON.stringify(slidesToRender.map(item => [item.src || '', item.title || '']));
+    if (!force && track.children.length && nextSignature === dashboardCarouselSignature) {
+        return;
+    }
+
+    dashboardCarouselSignature = nextSignature;
+    track.innerHTML = ''; // Clear previous content
 
     // 2. Generate Slides
     slidesToRender.forEach((item, index) => {
@@ -3278,6 +3287,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize Dashboard Carousel for the new layout
     initDashboardCarousel();
+    syncStudentPagePolling();
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    syncStudentPagePolling();
+    pollActiveStudentPage().catch((error) => console.error('[pollActiveStudentPage]', error));
 });
 
 // --- MODAL LOGIC ---
@@ -3635,6 +3651,7 @@ document.addEventListener('click', (event) => {
 let studentServiceCatalog = [];
 let studentServiceCatalogPromise = null;
 let studentServiceCatalogLoaded = false;
+let studentServicesRenderSignature = '';
 let currentSelectedCatalogItem = null;
 const serviceGroups = {};
 let currentServiceModule = 'rentals';
@@ -3647,6 +3664,9 @@ const studentCancellingPrintJobs = new Set();
 let studentPrintingAutoRefreshInterval = null;
 let studentPrintingAutoRefreshInFlight = false;
 let studentServicesTrackerPromise = null;
+const STUDENT_PAGE_POLL_INTERVAL_MS = 3000;
+let studentPagePollingInterval = null;
+let studentPagePollingInFlight = false;
 let studentLockerState = {
     enabled: false,
     org_name: '',
@@ -3655,6 +3675,78 @@ let studentLockerState = {
     current_locker: null
 };
 let pendingStudentLockerSelection = null;
+
+function getActiveStudentPageView() {
+    const activeSection = document.querySelector('.section-view.active');
+    return activeSection ? activeSection.id : '';
+}
+
+function isStudentPagePollingView(viewId = getActiveStudentPageView()) {
+    return viewId === 'dashboard' || viewId === 'services';
+}
+
+async function pollActiveStudentPage() {
+    const activeView = getActiveStudentPageView();
+    if (document.hidden || !isStudentPagePollingView(activeView) || studentPagePollingInFlight) {
+        return;
+    }
+
+    studentPagePollingInFlight = true;
+    try {
+        if (activeView === 'dashboard') {
+            await loadStudentEventsFromApi();
+            renderDashboard();
+            initDashboardCarousel();
+            return;
+        }
+
+        if (activeView === 'services') {
+            await Promise.allSettled([
+                loadStudentServicesTracker(true),
+                loadStudentServiceCatalog(true),
+                loadCurrentRentals(),
+                loadStudentLockers(),
+                loadStudentPrintJobs(false)
+            ]);
+
+            const searchInput = document.getElementById('serviceSearch');
+            renderServices(searchInput ? searchInput.value : '');
+            renderServicesModuleNav();
+            renderPrintingProviderOptions();
+
+            const rentalsTab = document.getElementById('services-my-rentals-tab');
+            if (rentalsTab && rentalsTab.classList.contains('active')) {
+                await loadRentalHistory();
+                buildFilterOptions();
+                updateFilterVisibility();
+                applyAllFilters();
+            }
+        }
+    } finally {
+        studentPagePollingInFlight = false;
+    }
+}
+
+function stopStudentPagePolling() {
+    if (studentPagePollingInterval) {
+        clearInterval(studentPagePollingInterval);
+        studentPagePollingInterval = null;
+    }
+    studentPagePollingInFlight = false;
+}
+
+function syncStudentPagePolling() {
+    if (isOsaStudentPreviewModeFromUrl() || !isStudentPagePollingView()) {
+        stopStudentPagePolling();
+        return;
+    }
+
+    if (studentPagePollingInterval) return;
+
+    studentPagePollingInterval = setInterval(() => {
+        pollActiveStudentPage().catch((error) => console.error('[pollActiveStudentPage]', error));
+    }, STUDENT_PAGE_POLL_INTERVAL_MS);
+}
 
 function isStudentPrintingHeroAutoRefreshActive() {
     const servicesView = document.getElementById('services');
@@ -4667,7 +4759,6 @@ function renderServices(filter = "") {
     }
 
     if (!studentServiceCatalogLoaded) {
-        grid.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 40px;">Loading services...</div>`;
         return;
     }
 
@@ -4687,6 +4778,31 @@ function renderServices(filter = "") {
 
     const grouped = groupCatalogByCategory(filteredItems);
     const categories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+    const renderSignature = JSON.stringify({
+        filter: filterLower,
+        categories: categories.map((categoryName) => ({
+            categoryName,
+            items: [...grouped[categoryName]]
+                .sort((a, b) => String(a.display_name || '').localeCompare(String(b.display_name || '')))
+                .map((service) => ({
+                    id: service.service_item_id || service.item_id || service.id || '',
+                    name: service.display_name || '',
+                    image: service.image_path || '',
+                    available: Number(service.available_count || 0),
+                    total: Number(service.total_count || 0),
+                    minRate: Number(service.hourly_rate_min ?? service.min_rate ?? service.rate_min ?? service.hourly_rate ?? 0),
+                    maxRate: Number(service.hourly_rate_max ?? service.max_rate ?? service.rate_max ?? service.hourly_rate ?? 0),
+                    orgs: Array.isArray(service.orgs)
+                        ? service.orgs.map(org => `${org.org_code || ''}:${org.org_name || ''}`).sort()
+                        : []
+                }))
+        }))
+    });
+
+    if (renderSignature === studentServicesRenderSignature) {
+        return;
+    }
+    studentServicesRenderSignature = renderSignature;
 
     if (!categories.length) {
         grid.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 40px;">No services found matching "${filter}".</div>`;
