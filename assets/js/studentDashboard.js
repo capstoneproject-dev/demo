@@ -2775,7 +2775,7 @@ let currentCalendarDate = new Date();
 
 // --- CALENDAR FUNCTIONS ---
 
-function renderCalendar() {
+function renderEventCalendar() {
     const year = currentCalendarDate.getFullYear();
     const month = currentCalendarDate.getMonth(); // 0-11
 
@@ -2853,7 +2853,7 @@ function renderCalendar() {
 
 function changeMonth(direction) {
     currentCalendarDate.setMonth(currentCalendarDate.getMonth() + direction);
-    renderCalendar();
+    renderEventCalendar();
 }
 
 // --- CALENDAR DATE CLICK & POPOVER LOGIC ---
@@ -3057,7 +3057,7 @@ function renderDashboard() {
     }
 
     // 3. Render Calendar (Existing Logic)
-    renderCalendar();
+    renderEventCalendar();
 }
 
 function renderProfile() {
@@ -6806,7 +6806,7 @@ function openDateFilterModal() {
         modal.classList.add('open');
         // Initialize calendar with current month
         calendarCurrentDate = new Date();
-        renderCalendar();
+        renderRentalFilterCalendar();
         document.body.style.overflow = 'hidden';
     }
 }
@@ -6819,10 +6819,10 @@ function closeDateFilterModal() {
 
 function navigateCalendarMonth(offset) {
     calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + offset);
-    renderCalendar();
+    renderRentalFilterCalendar();
 }
 
-function renderCalendar() {
+function renderRentalFilterCalendar() {
     const year = calendarCurrentDate.getFullYear();
     const month = calendarCurrentDate.getMonth();
 
@@ -6904,7 +6904,7 @@ function selectCalendarDate(date) {
         }
     }
 
-    renderCalendar();
+    renderRentalFilterCalendar();
 }
 
 function updateSelectedRangeDisplay() {
@@ -6963,7 +6963,7 @@ function applyDatePreset(preset) {
     calendarSelectedStart = startDate;
     calendarSelectedEnd = endDate;
     updateSelectedRangeDisplay();
-    renderCalendar();
+    renderRentalFilterCalendar();
 }
 
 function applyDateFilter() {
