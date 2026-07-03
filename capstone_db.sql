@@ -1141,7 +1141,7 @@ ALTER TABLE `inventory_categories`
 --
 ALTER TABLE `inventory_items`
   ADD PRIMARY KEY (`item_id`),
-  ADD UNIQUE KEY `barcode` (`barcode`),
+  ADD UNIQUE KEY `uq_inventory_org_barcode` (`org_id`,`barcode`),
   ADD KEY `fk_inventory_org_category` (`org_id`,`category_id`),
   ADD KEY `idx_inventory_org_status` (`org_id`,`status`),
   ADD KEY `idx_inventory_category` (`category_id`);
