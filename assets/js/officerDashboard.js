@@ -531,6 +531,19 @@ function getOfficerScopedAnnouncements() {
     return announcementsData.filter(item => officerOrgMatch(item.org));
 }
 
+function setActiveRentalsCount(count) {
+    const countEl = document.getElementById('active-rentals-count');
+    if (countEl) {
+        countEl.innerText = String(Number(count) || 0);
+        return;
+    }
+
+    const activeRentalsCard = Array.from(document.querySelectorAll('.stat-card .stat-info p'))
+        .find(p => (p.textContent || '').trim() === 'Active Rentals');
+    const fallbackCountEl = activeRentalsCard ? activeRentalsCard.parentElement.querySelector('h3') : null;
+    if (fallbackCountEl) fallbackCountEl.innerText = String(Number(count) || 0);
+}
+
 // --- LOGOUT HANDLER ---
 async function handleLogout(e) {
     e.preventDefault();
@@ -3277,21 +3290,48 @@ async function sendSelectedLockerNotice() {
 
 // --- RENDER FUNCTIONS ---
 
+function getRentalDashboardStatusClass(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'reserved') return 'status-pending';
+    if (normalized === 'overdue') return 'status-overdue';
+    if (normalized === 'returned') return 'status-returned';
+    return 'status-borrowed';
+}
+
+function getRentalDashboardStatusLabel(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'reserved') return 'Reserved';
+    if (normalized === 'overdue') return 'Overdue';
+    if (normalized === 'returned') return 'Returned';
+    return 'Active';
+}
+
 function renderRentals() {
-    // Dashboard preview (top 3)
     const dashTable = document.getElementById('dashboard-rentals-table');
-    dashTable.innerHTML = getOfficerScopedRentals().slice(0, 3).map(item => {
-        let badgeClass = item.status === 'Reserved'
-            ? 'status-pending'
-            : (item.status === 'Rented' ? 'status-borrowed' : (item.status === 'Overdue' ? 'status-overdue' : 'status-borrowed'));
+    if (!dashTable) return;
+
+    const scopedRentals = getOfficerScopedRentals();
+    if (scopedRentals.length === 0) {
+        dashTable.innerHTML = `
+        <tr>
+            <td colspan="4" style="text-align:center; color: var(--muted);">No active rentals or services right now.</td>
+        </tr>`;
+        setActiveRentalsCount(0);
+        return;
+    }
+
+    dashTable.innerHTML = scopedRentals.map(item => {
+        const badgeClass = getRentalDashboardStatusClass(item.status);
         return `
         <tr>
-            <td>${item.item}</td>
-            <td>${item.renter.split(' ')[0]}</td>
-            <td>${item.due}</td>
-            <td><span class="status-badge ${badgeClass}">${item.status}</span></td>
+            <td>${escapeHtml(item.item || '-')}</td>
+            <td>${escapeHtml(item.renter || '-')}</td>
+            <td>${escapeHtml(item.due || '-')}</td>
+            <td><span class="status-badge ${badgeClass}">${escapeHtml(getRentalDashboardStatusLabel(item.status))}</span></td>
         </tr>`;
     }).join('');
+
+    setActiveRentalsCount(scopedRentals.length);
 
     if (typeof refreshAnalyticsCharts === 'function') {
         refreshAnalyticsCharts();
@@ -3299,10 +3339,27 @@ function renderRentals() {
 }
 
 async function loadRentalsFromApi() {
-    if (!window.igpApi || typeof window.igpApi.getRentals !== 'function') return;
+    const dashTable = document.getElementById('dashboard-rentals-table');
+    if (dashTable) {
+        dashTable.innerHTML = `
+        <tr>
+            <td colspan="4" style="text-align:center; color: var(--muted);">Loading active rentals...</td>
+        </tr>`;
+    }
+    setActiveRentalsCount(0);
+
+    if (!window.igpApi || typeof window.igpApi.getRentals !== 'function') {
+        if (dashTable) {
+            dashTable.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align:center; color: var(--muted);">IGP rental service is unavailable.</td>
+            </tr>`;
+        }
+        return;
+    }
 
     try {
-        const res = await window.igpApi.getRentals({ status: 'open' });
+        const res = await window.igpApi.getRentals({ status: 'active' });
         const items = res.items || [];
 
         rentalsData = items.map(item => ({
@@ -3310,16 +3367,9 @@ async function loadRentalsFromApi() {
             renter: item.renter_name || '-',
             due: fmtDateShort(item.expected_return_time),
             dueAt: item.expected_return_time || null,
-            status: String(item.status || '').toLowerCase() === 'reserved'
-                ? 'Reserved'
-                : (String(item.status || '').toLowerCase() === 'overdue' ? 'Overdue' : 'Rented'),
+            status: item.status || 'active',
             org: item.org_id
         }));
-
-        const activeRentalsCard = Array.from(document.querySelectorAll('.stat-card .stat-info p'))
-            .find(p => (p.textContent || '').trim() === 'Active Rentals');
-        const countEl = activeRentalsCard ? activeRentalsCard.parentElement.querySelector('h3') : null;
-        if (countEl) countEl.innerText = String(items.length);
 
         if (typeof initializeOfficerAnalyticsYearOptions === 'function') {
             initializeOfficerAnalyticsYearOptions();
@@ -3327,7 +3377,54 @@ async function loadRentalsFromApi() {
         renderRentals();
     } catch (e) {
         console.error('loadRentalsFromApi failed', e);
+        rentalsData = [];
+        setActiveRentalsCount(0);
+        if (dashTable) {
+            dashTable.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align:center; color: var(--muted);">Could not load active rentals from the database.</td>
+            </tr>`;
+        }
     }
+}
+
+function loadMockActiveRentals() {
+    const orgId = Number(readAuthSession().active_org_id || 0) || getActiveOfficerOrgName();
+    rentalsData = [
+        {
+            item: 'Canon EOS 1500D Camera',
+            renter: 'Maria Santos',
+            due: fmtDateShort(new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()),
+            dueAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+            status: 'active',
+            org: orgId
+        },
+        {
+            item: 'Wireless Microphone Set',
+            renter: 'John Dela Cruz',
+            due: fmtDateShort(new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString()),
+            dueAt: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(),
+            status: 'active',
+            org: orgId
+        },
+        {
+            item: 'Projector with HDMI Cable',
+            renter: 'Angela Reyes',
+            due: fmtDateShort(new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()),
+            dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            status: 'active',
+            org: orgId
+        },
+        {
+            item: 'Event Sound System Package',
+            renter: 'Mark Villanueva',
+            due: fmtDateShort(new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString()),
+            dueAt: new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString(),
+            status: 'active',
+            org: orgId
+        }
+    ];
+    renderRentals();
 }
 
 // --- MODAL FUNCTIONS ---
@@ -5490,7 +5587,6 @@ window.addEventListener('DOMContentLoaded', () => {
     initTrackerSidebarBehavior();
     initializeOfficerFinancialSummaryDefaultDate();
     initializeOfficerPrintingHistoryDefaultDate();
-    renderRentals();
     syncOfficerDocsTermControlsToActive();
     loadOfficerActiveAcademicTerm();
     renderDocs();
