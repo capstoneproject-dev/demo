@@ -4891,6 +4891,38 @@ body.dark #organizations .card .btn-share.active {
     z-index: 1;
 }
 
+.dashboard-event-empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+    background:
+        linear-gradient(135deg, rgba(0, 33, 71, 0.08), rgba(245, 158, 11, 0.08)),
+        var(--panel-2);
+}
+
+.dashboard-event-empty i {
+    color: var(--primary);
+    font-size: 1.8rem;
+}
+
+.dashboard-event-empty strong {
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.dashboard-event-empty span {
+    max-width: 220px;
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
 /* Carousel Arrows for Sidebar */
 .dashboard-event-carousel .carousel-arrow {
     position: absolute;
@@ -4912,6 +4944,108 @@ body.dark #organizations .card .btn-share.active {
 
 .dashboard-event-carousel .carousel-arrow:hover {
     background: rgba(0, 0, 0, 0.7);
+}
+
+.dashboard-event-carousel.is-empty .carousel-arrow {
+    display: none;
+}
+
+.dashboard-mock-event-btn {
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--primary);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.dashboard-mock-event-btn:hover {
+    border-color: var(--primary);
+    background: rgba(0, 33, 71, 0.06);
+}
+
+.dashboard-event-today-details {
+    margin-top: 16px;
+}
+
+.dashboard-event-today-details[hidden] {
+    display: none;
+}
+
+.dashboard-event-info-grid {
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.dashboard-event-info-grid .info-item {
+    padding: 10px 12px;
+    min-width: 0;
+}
+
+.dashboard-event-info-grid .info-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.dashboard-event-info-grid .info-item span {
+    overflow-wrap: anywhere;
+}
+
+.dashboard-event-about h4 {
+    color: var(--text);
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+}
+
+.dashboard-event-about p {
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.45;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.dashboard-event-about p.expanded {
+    display: block;
+    -webkit-line-clamp: unset;
+    max-height: 140px;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.dashboard-event-about p.expanded::-webkit-scrollbar {
+    width: 5px;
+}
+
+.dashboard-event-about p.expanded::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}
+
+.dashboard-event-read-more {
+    margin-top: 8px;
+    border: 0;
+    background: transparent;
+    color: var(--primary);
+    font-size: 0.82rem;
+    font-weight: 800;
+    padding: 0;
+    cursor: pointer;
+}
+
+.dashboard-event-read-more:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 1200px) {
+    .dashboard-event-info-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .dashboard-event-carousel .carousel-prev {
@@ -6211,6 +6345,25 @@ body.dark #organizations .card .btn-share.active {
     /* Subtle slide right */
 }
 
+.dashboard-announcement-item.has-org-color {
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--announcement-org-color) 24%, #ffffff), #ffffff 88%);
+    border-color: color-mix(in srgb, var(--announcement-org-color) 42%, var(--border));
+    border-left: 6px solid var(--announcement-org-color);
+}
+
+.dashboard-announcement-item.has-org-color:hover {
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--announcement-org-color) 30%, #ffffff), #ffffff 88%);
+    border-color: color-mix(in srgb, var(--announcement-org-color) 56%, var(--border));
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.dashboard-announcement-item.has-org-color .announcement-icon,
+.dashboard-announcement-item.has-org-color .date-badge {
+    background: color-mix(in srgb, var(--announcement-org-color) 18%, #ffffff);
+}
+
 .dashboard-announcement-item:last-child {
     border-bottom: 1px solid transparent;
     /* Remove default list border */
@@ -6220,6 +6373,24 @@ body.dark #organizations .card .btn-share.active {
     background: rgba(0, 33, 71, 0.05);
     color: var(--primary);
     border-radius: 10px;
+}
+
+.announcement-org-label {
+    color: var(--primary);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.dashboard-announcement-empty {
+    padding: 18px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    color: var(--muted);
+    text-align: center;
+    background: var(--bg);
 }
 
 /* 4. Upcoming Events Preview Cards (New Class from JS) */
@@ -6441,6 +6612,22 @@ body.dark .dashboard-announcement-item {
 body.dark .dashboard-announcement-item:hover {
     background: #1e293b;
     /* Darker hover */
+}
+
+body.dark .dashboard-announcement-item.has-org-color {
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--announcement-org-color) 26%, var(--panel-2)), var(--panel-2) 88%);
+    border-color: color-mix(in srgb, var(--announcement-org-color) 48%, var(--border));
+}
+
+body.dark .dashboard-announcement-item.has-org-color:hover {
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--announcement-org-color) 34%, #1e293b), #1e293b 88%);
+}
+
+body.dark .dashboard-announcement-item.has-org-color .announcement-icon,
+body.dark .dashboard-announcement-item.has-org-color .date-badge {
+    background: color-mix(in srgb, var(--announcement-org-color) 22%, var(--panel));
 }
 
 body.dark .dashboard-event-preview-card:not(.has-event-banner) {

@@ -72,7 +72,9 @@ const extendedEvents = Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
     d.events.map((e, index) => ({ id: e.id || `${orgKey}-${index + 1}`, ...e, org: orgKey }))
 );
 const STUDENT_EVENTS_API = '../api/student/events/list.php';
+const STUDENT_ANNOUNCEMENTS_API = '../api/student/announcements/list.php';
 let databaseEvents = [];
+let databaseAnnouncements = [];
 
 const ORG_BANNER_ASSET_VERSION = "20260527";
 const ORG_PROFILE_OVERRIDES_KEY = "naapOrgProfileOverrides";
@@ -327,9 +329,9 @@ function applyOrganizationPreviewModeChrome() {
     }
 }
 
-// Helper to determine event status relative to "Today" (Feb 7, 2026)
+// Helper to determine event status relative to the current day.
 function getEventStatus(dateStr) {
-    const today = new Date(2026, 1, 7); // Month is 0-indexed: 1 = Feb. Day = 7.
+    const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Parse format "MMM. DD, YYYY" e.g., "Jan. 15, 2026"
@@ -661,6 +663,9 @@ function getStudentScopedExtendedEvents() {
 }
 
 function getStudentScopedAnnouncements() {
+    if (databaseAnnouncements.length) {
+        return databaseAnnouncements;
+    }
     return announcementsData.filter(item => studentCanAccessOrg(item.org));
 }
 
@@ -692,9 +697,41 @@ function formatStudentEventTimeLabel(dateValue) {
     });
 }
 
+function formatStudentAnnouncementDateLabel(dateValue) {
+    if (!dateValue) return 'Just now';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return String(dateValue);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
+}
+
 function getOrganizationVisual(orgName) {
     const normalizedTarget = normalizeOrgName(orgName);
     return organizationData.find((org) => normalizeOrgName(org.name) === normalizedTarget) || null;
+}
+
+function getAnnouncementOrganizationVisual(item) {
+    const aliases = {
+        SSC: 'Supreme Student Council',
+    };
+    const candidates = [item?.org, item?.orgCode, aliases[String(item?.orgCode || '').toUpperCase()]]
+        .map(value => String(value || '').trim())
+        .filter(Boolean);
+
+    for (const candidate of candidates) {
+        const visual = getOrganizationVisual(candidate);
+        if (visual) return visual;
+    }
+
+    return null;
+}
+
+function getAnnouncementOrganizationColor(item) {
+    const orgVisual = getAnnouncementOrganizationVisual(item);
+    return orgVisual?.color || '';
 }
 
 function resolveEventPhotoPath(photoPath) {
@@ -773,6 +810,41 @@ function mapOsaEventPreviewPayload(payload) {
     };
 }
 
+function mapDatabaseAnnouncement(item) {
+    const orgName = item.org_name || item.org_code || 'Organization';
+    const publishedAt = item.published_at || item.created_at || item.updated_at || '';
+    return {
+        id: item.announcement_id || null,
+        title: item.title || 'Untitled Announcement',
+        content: item.content || '',
+        org: orgName,
+        orgCode: item.org_code || '',
+        date: formatStudentAnnouncementDateLabel(publishedAt),
+        dateRaw: publishedAt,
+        announcement_photo: item.announcement_photo || '',
+        audience_type: item.audience_type || 'all_students',
+        isPublished: Number(item.is_published || 0) === 1
+    };
+}
+
+async function loadStudentAnnouncementsFromApi() {
+    try {
+        const response = await fetch(`${STUDENT_ANNOUNCEMENTS_API}?limit=10`, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load announcements.');
+        }
+        databaseAnnouncements = (Array.isArray(data.items) ? data.items : []).map(mapDatabaseAnnouncement);
+        renderDashboard();
+    } catch (error) {
+        console.error('[loadStudentAnnouncementsFromApi]', error);
+        databaseAnnouncements = [];
+    }
+}
+
 async function loadStudentEventsFromApi() {
     try {
         const response = await fetch(STUDENT_EVENTS_API, {
@@ -785,6 +857,7 @@ async function loadStudentEventsFromApi() {
         }
         databaseEvents = (Array.isArray(data.items) ? data.items : []).map(mapDatabaseEvent);
         renderDashboard();
+        initDashboardCarousel();
         const activeOrgTab = document.querySelector('.tab-btn.active[onclick*="switchOrgTab(\'events\'"]');
         if (activeOrgTab) {
             switchOrgTab('events', activeOrgTab);
@@ -2992,24 +3065,47 @@ function getEventsForDate(year, month, day) {
 
 
 function renderDashboard() {
-    // 1. Render Announcements (Existing Logic)
+    // 1. Render Announcements
     const annList = document.getElementById('announcements-list');
-    annList.innerHTML = getStudentScopedAnnouncements().map(item => `
-        <div class="list-item dashboard-announcement-item">
-            <div class="item-icon announcement-icon"><i class="fa-solid fa-bullhorn"></i></div>
-            <div class="item-content">
-                <h4>${item.title}</h4>
-                <p>${item.content}</p>
+    const latestAnnouncements = getStudentScopedAnnouncements().slice(0, 5);
+    if (!latestAnnouncements.length) {
+        annList.innerHTML = `
+            <div class="dashboard-announcement-empty">
+                No announcements have been posted yet.
             </div>
-            <span class="date-badge">${item.date}</span>
-        </div>
-    `).join('');
+        `;
+    } else {
+        annList.innerHTML = latestAnnouncements.map(item => {
+            const orgLabel = item.orgCode
+                ? `${item.org} (${item.orgCode})`
+                : (item.org || 'Organization');
+            const orgColor = getAnnouncementOrganizationColor(item);
+            const colorClass = orgColor ? ' has-org-color' : '';
+            const colorStyle = orgColor
+                ? ` style="--announcement-org-color: ${escapeHtml(orgColor)};"`
+                : '';
+            return `
+                <div class="list-item dashboard-announcement-item${colorClass}"${colorStyle}>
+                    <div class="item-icon announcement-icon"><i class="fa-solid fa-bullhorn"></i></div>
+                    <div class="item-content">
+                        <div class="announcement-org-label">${escapeHtml(orgLabel)}</div>
+                        <h4>${escapeHtml(item.title)}</h4>
+                        <p>${escapeHtml(item.content)}</p>
+                    </div>
+                    <span class="date-badge">${escapeHtml(item.date || '')}</span>
+                </div>
+            `;
+        }).join('');
+    }
 
     // 2. Render ALL Upcoming Events (Grid Layout)
     const eventContainer = document.getElementById('events-preview-container');
 
     // Filter & Sort
-    const upcomingEvents = getStudentScopedExtendedEvents()
+    const dashboardEvents = dashboardMockUpcomingEvent
+        ? [dashboardMockUpcomingEvent, ...getStudentScopedExtendedEvents()]
+        : getStudentScopedExtendedEvents();
+    const upcomingEvents = dashboardEvents
         .filter(ev => {
             const status = getEventStatus(ev.date);
             return status === 'upcoming' || status === 'today';
@@ -3146,34 +3242,81 @@ if (localStorage.getItem('theme') === 'dark') {
 let carouselInterval;
 let currentDashboardSlideIndex = 0;
 let dashboardCarouselSignature = '';
+let dashboardMockEventToday = null;
+let dashboardMockUpcomingEvent = null;
+
+function renderDashboardEventTodayDetails(eventObj) {
+    const details = document.getElementById('dashboardEventTodayDetails');
+    if (!details) return;
+
+    if (!eventObj) {
+        details.innerHTML = '';
+        details.hidden = true;
+        return;
+    }
+
+    details.hidden = false;
+    details.innerHTML = `
+        <div class="details-info-grid dashboard-event-info-grid">
+            <div class="info-item">
+                <i class="fa-regular fa-calendar info-icon"></i>
+                <div>
+                    <small>Date</small>
+                    <span>${escapeHtml(eventObj.date || 'TBA')}</span>
+                </div>
+            </div>
+            <div class="info-item">
+                <i class="fa-regular fa-clock info-icon"></i>
+                <div>
+                    <small>Time</small>
+                    <span>${escapeHtml(eventObj.time || 'TBA')}</span>
+                </div>
+            </div>
+            <div class="info-item">
+                <i class="fa-solid fa-location-dot info-icon"></i>
+                <div>
+                    <small>Venue</small>
+                    <span>${escapeHtml(eventObj.venue || eventObj.location || 'TBA')}</span>
+                </div>
+            </div>
+            <div class="info-item">
+                <i class="fa-solid fa-users info-icon"></i>
+                <div>
+                    <small>Participants</small>
+                    <span>${escapeHtml(`${Number(eventObj.participants || 0)} Registered`)}</span>
+                </div>
+            </div>
+        </div>
+        <div class="dashboard-event-about">
+            <h4>About this Event</h4>
+            <p id="dashboardEventAboutText">${escapeHtml(eventObj.description || eventObj.desc || 'No event description available.')}</p>
+            <button type="button" class="dashboard-event-read-more" onclick="toggleDashboardEventAbout(this)">
+                Read More
+            </button>
+        </div>
+    `;
+}
+
+function toggleDashboardEventAbout(button) {
+    const text = document.getElementById('dashboardEventAboutText');
+    if (!text || !button) return;
+    const expanded = text.classList.toggle('expanded');
+    button.textContent = expanded ? 'Show Less' : 'Read More';
+}
 
 function initDashboardCarousel(force = false) {
     const track = document.getElementById('dashboardCarouselTrack');
     if (!track) return;
 
-    // 1. Filter events that match "Today" status
-    // This uses the same helper logic as the Events Tab -> Today Filter
     const scopedEvents = getStudentScopedExtendedEvents();
-    const todayEvents = scopedEvents.filter(ev => getEventStatus(ev.date) === 'today');
-
-    let slidesToRender = [];
-
-    if (todayEvents.length > 0) {
-        // If we have events today, cycle through their main images
-        slidesToRender = todayEvents.map(ev => ({
-            src: ev.img,
-            title: ev.title
-        }));
-    } else {
-        // Fallback: If no events today, show the next upcoming event to avoid empty white space
-        const nextEvent = scopedEvents.find(ev => getEventStatus(ev.date) === 'upcoming');
-        if (nextEvent) {
-            slidesToRender = [{ src: nextEvent.img, title: nextEvent.title }];
-        } else {
-            // Ultimate fallback if no upcoming events exist
-            slidesToRender = scopedEvents.length ? [{ src: scopedEvents[0].img, title: "Event" }] : [];
-        }
-    }
+    const todayEvents = dashboardMockEventToday
+        ? [dashboardMockEventToday]
+        : scopedEvents.filter(ev => getEventStatus(ev.date) === 'today');
+    const slidesToRender = todayEvents.map(ev => ({
+        src: ev.img,
+        title: ev.title,
+        org: ev.org || '',
+    }));
 
     const nextSignature = JSON.stringify(slidesToRender.map(item => [item.src || '', item.title || '']));
     if (!force && track.children.length && nextSignature === dashboardCarouselSignature) {
@@ -3182,33 +3325,91 @@ function initDashboardCarousel(force = false) {
 
     dashboardCarouselSignature = nextSignature;
     track.innerHTML = ''; // Clear previous content
+    track.closest('.dashboard-event-carousel')?.classList.toggle('is-empty', slidesToRender.length === 0);
 
-    // 2. Generate Slides
+    if (!slidesToRender.length) {
+        renderDashboardEventTodayDetails(null);
+        track.innerHTML = `
+            <div class="dashboard-event-empty">
+                <i class="fa-regular fa-calendar-check"></i>
+                <strong>No events today</strong>
+                <span>Check Upcoming Events for the next scheduled activities.</span>
+            </div>
+        `;
+        currentDashboardSlideIndex = 0;
+        if (carouselInterval) clearInterval(carouselInterval);
+        return;
+    }
+
+    renderDashboardEventTodayDetails(todayEvents[0]);
+
     slidesToRender.forEach((item, index) => {
         const img = document.createElement('img');
         img.src = item.src;
         img.className = 'carousel-slide-img';
         img.alt = item.title;
-        img.title = item.title; // Tooltip on hover
+        img.title = item.org ? `${item.title} - ${item.org}` : item.title;
 
-        // Set first image as active
         if (index === 0) img.classList.add('active');
 
         track.appendChild(img);
     });
 
-    // 3. Reset Index
     currentDashboardSlideIndex = 0;
 
-    // 4. Restart Interval
     if (carouselInterval) clearInterval(carouselInterval);
 
-    // Only auto-rotate if we have more than 1 image
     if (slidesToRender.length > 1) {
         carouselInterval = setInterval(() => {
             moveDashboardSlide(1);
         }, 3000);
     }
+}
+
+function loadMockDashboardEventToday() {
+    const now = new Date();
+    dashboardMockEventToday = {
+        id: 'mock-dashboard-today',
+        title: 'Mock Campus Assembly',
+        date: formatStudentEventDateLabel(now.toISOString()),
+        dateRaw: now.toISOString(),
+        org: 'AISERS',
+        desc: 'This is temporary mock data for previewing the Event Today card layout. The description is intentionally long so you can test how the Read More button behaves when an organization posts a detailed announcement-style event description. It should stay compact at first, then expand when the student chooses to read the full details. When expanded, this text should not stretch the dashboard card endlessly. Instead, it should remain inside a neat scrollable area so the Calendar card below stays in a predictable position. This final sentence is here to make the mock content long enough for the scrollbar to appear during testing.',
+        description: 'This is temporary mock data for previewing the Event Today card layout. The description is intentionally long so you can test how the Read More button behaves when an organization posts a detailed announcement-style event description. It should stay compact at first, then expand when the student chooses to read the full details. When expanded, this text should not stretch the dashboard card endlessly. Instead, it should remain inside a neat scrollable area so the Calendar card below stays in a predictable position. This final sentence is here to make the mock content long enough for the scrollbar to appear during testing.',
+        time: '7:00 AM',
+        venue: 'MPH',
+        location: 'MPH',
+        participants: 1,
+        img: '../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg',
+        gallery: ['../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg'],
+        isPublished: true
+    };
+
+    dashboardCarouselSignature = '';
+    initDashboardCarousel(true);
+}
+
+function loadMockUpcomingEvent() {
+    const eventDate = new Date();
+    eventDate.setDate(eventDate.getDate() + 1);
+    dashboardMockUpcomingEvent = {
+        id: 'mock-dashboard-upcoming',
+        title: 'Mock Innovation Workshop',
+        date: formatStudentEventDateLabel(eventDate.toISOString()),
+        dateRaw: eventDate.toISOString(),
+        org: 'AISERS',
+        desc: 'Temporary mock data for previewing the Upcoming Events card layout.',
+        description: 'Temporary mock data for previewing the Upcoming Events card layout.',
+        time: '9:30 AM',
+        venue: 'Computer Laboratory 2',
+        location: 'Computer Laboratory 2',
+        participants: 24,
+        img: '../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg',
+        gallery: ['../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg'],
+        isPublished: true
+    };
+
+    renderDashboard();
 }
 
 // Function to manually move slides (for arrows)
@@ -3254,6 +3455,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     setDate();
     await loadOrganizationPublicProfiles();
     renderDashboard();
+    loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
     const eventsLoadPromise = loadStudentEventsFromApi().catch((error) => console.error(error));
 
     if (!isOsaPreview) {
@@ -3284,6 +3486,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     eventsLoadPromise.finally(() => {
         openStudentActivityPreviewFromUrl();
     });
+    window.setInterval(() => {
+        loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
+    }, 60000);
 
     // Initialize Dashboard Carousel for the new layout
     initDashboardCarousel();
@@ -3293,6 +3498,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     syncStudentPagePolling();
+    loadStudentAnnouncementsFromApi().catch((error) => console.error('[loadStudentAnnouncementsFromApi]', error));
     pollActiveStudentPage().catch((error) => console.error('[pollActiveStudentPage]', error));
 });
 

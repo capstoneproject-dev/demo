@@ -157,6 +157,61 @@ function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
     return $rows;
 }
 
+function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = []): array
+{
+    $where = [
+        'a.is_published = 1',
+        "COALESCE(o.status, 'active') = 'active'",
+    ];
+    $params = [];
+
+    $q = trim((string)($filters['q'] ?? ''));
+    if ($q !== '') {
+        $where[] = '(a.title LIKE :q_title OR a.content LIKE :q_content OR o.org_name LIKE :q_org_name OR o.org_code LIKE :q_org_code)';
+        $qLike = '%' . $q . '%';
+        $params[':q_title'] = $qLike;
+        $params[':q_content'] = $qLike;
+        $params[':q_org_name'] = $qLike;
+        $params[':q_org_code'] = $qLike;
+    }
+
+    $limit = isset($filters['limit']) ? (int)$filters['limit'] : 10;
+    $limit = max(1, min(50, $limit));
+
+    $sql = "
+        SELECT a.announcement_id,
+               a.org_id,
+               a.created_by_user_id,
+               a.title,
+               a.content,
+               a.announcement_photo,
+               a.audience_type,
+               a.is_published,
+               a.published_at,
+               a.created_at,
+               a.updated_at,
+               o.org_name,
+               o.org_code
+        FROM announcements a
+        JOIN organizations o ON o.org_id = a.org_id
+        WHERE " . implode(' AND ', $where) . "
+        ORDER BY COALESCE(a.published_at, a.created_at) DESC, a.announcement_id DESC
+        LIMIT {$limit}";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+
+    foreach ($rows as &$row) {
+        $row['announcement_id'] = (int)$row['announcement_id'];
+        $row['org_id'] = (int)$row['org_id'];
+        $row['created_by_user_id'] = (int)$row['created_by_user_id'];
+        $row['is_published'] = (int)$row['is_published'];
+    }
+
+    return $rows;
+}
+
 function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): array
 {
     $title   = trim((string)($data['title'] ?? ''));
