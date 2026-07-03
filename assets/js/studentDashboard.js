@@ -549,7 +549,7 @@ function getOsaEventPreviewPayloadFromUrl() {
     }
 }
 
-const DEFAULT_STUDENT_AVATAR = "https://picsum.photos/seed/student1/150/150";
+const DEFAULT_STUDENT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E";
 let studentProfileEditMode = false;
 let studentProfileSnapshot = null;
 let registrationPrefill = null;
@@ -617,8 +617,8 @@ function buildCurrentStudentProfile() {
     const mergedProfile = {
         ...fallbackProfile,
         ...storedProfile,
-        ...sessionBackedProfile,
-        ...authBackedProfile
+        ...authBackedProfile,
+        ...sessionBackedProfile
     };
     const normalizedCourse = String(mergedProfile.course || "").toUpperCase().trim();
     const mappedOrg = authSession.mapped_org_name || mergedProfile.organization || courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
@@ -876,6 +876,10 @@ function getStudentYearLevel(sectionText) {
 function updateStudentProfileView() {
     const refreshedProfile = buildCurrentStudentProfile();
     Object.assign(currentStudentProfile, refreshedProfile);
+    const rawProfilePhoto = String(refreshedProfile.profilePhoto || '');
+    const profilePhotoUrl = rawProfilePhoto && !/^(data|blob):/i.test(rawProfilePhoto)
+        ? `${rawProfilePhoto}${rawProfilePhoto.includes('?') ? '&' : '?'}v=${encodeURIComponent(rawProfilePhoto)}`
+        : rawProfilePhoto;
 
     const courseLine = refreshedProfile.section
         ? `${refreshedProfile.course} - ${refreshedProfile.section}`
@@ -894,8 +898,8 @@ function updateStudentProfileView() {
 
     if (userNameEl) userNameEl.innerText = refreshedProfile.fullName;
     if (userCourseEl) userCourseEl.innerText = courseLine || "-";
-    if (headerAvatar) headerAvatar.src = refreshedProfile.profilePhoto;
-    if (profileAvatar) profileAvatar.src = refreshedProfile.profilePhoto;
+    if (headerAvatar) headerAvatar.src = profilePhotoUrl;
+    if (profileAvatar) profileAvatar.src = profilePhotoUrl;
     if (profileName) profileName.innerText = refreshedProfile.fullName;
     if (profileRole) profileRole.innerText = `Student - ${roleLabel}`;
     if (yearStat) yearStat.innerText = getStudentYearLevel(refreshedProfile.section);
@@ -1109,6 +1113,17 @@ function setupStudentProfilePhotoUploader() {
                 const session = readAuthSession();
                 session.profile_photo = data.photo_url;
                 localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+            }
+            if (data.photo_url) {
+                const authDb = readJsonStorage(AUTH_DB_KEY, {});
+                const session = data.session || readAuthSession();
+                if (Array.isArray(authDb.users) && session?.user_id) {
+                    const authUser = authDb.users.find(user => Number(user.user_id) === Number(session.user_id));
+                    if (authUser) {
+                        authUser.profile_photo = data.photo_url;
+                        localStorage.setItem(AUTH_DB_KEY, JSON.stringify(authDb));
+                    }
+                }
             }
 
             updateStudentProfileView();
