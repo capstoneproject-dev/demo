@@ -1299,6 +1299,35 @@ body.dark .tab-btn:hover {
     opacity: 1;
 }
 
+.my-org-search-hidden {
+    display: none !important;
+}
+
+.my-org-search-empty {
+    grid-column: 1 / -1;
+    width: 100%;
+    padding: 28px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    background: var(--panel-2);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.my-org-search-empty[hidden] {
+    display: none;
+}
+
+.my-org-search-empty i,
+.my-org-search-empty strong {
+    color: var(--text);
+}
+
 .my-org-ref-badge {
     padding: 8px 16px;
     border-radius: 4px;

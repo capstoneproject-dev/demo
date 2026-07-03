@@ -1136,6 +1136,7 @@ const myOrgOfficersState = {
     error: '',
     items: []
 };
+let currentMyOrgSearchQuery = '';
 
 function buildMyOrgSectionLabel(section) {
     const labels = {
@@ -2000,7 +2001,7 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
                     ${editModeButtonMarkup}
                     <div class="my-org-ref-search">
                         <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" placeholder="Search ${buildMyOrgSectionLabel(activeMyOrgSection)}">
+                        <input type="text" value="${escapeHtml(currentMyOrgSearchQuery)}" placeholder="Search ${buildMyOrgSectionLabel(activeMyOrgSection)}" oninput="searchMyOrgPage(this.value)">
                     </div>
                     <img src="${logoImage}" alt="${organization.name} logo" class="my-org-ref-top-logo">
                 </div>
@@ -2024,6 +2025,52 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
         </div>
     `;
     initOrgHeroSlideshows(contentDiv);
+    searchMyOrgPage(currentMyOrgSearchQuery);
+}
+
+function searchMyOrgPage(rawQuery = '') {
+    const page = document.querySelector('.my-org-page');
+    if (!page) return;
+
+    const query = String(rawQuery || '').trim().toLowerCase();
+    currentMyOrgSearchQuery = rawQuery;
+    const searchableSelectors = [
+        '.my-org-ref-ann-item',
+        '.my-org-ref-activity-card',
+        '.my-org-ref-quickfacts li',
+        '.my-org-event-card',
+        '.my-org-spa-card',
+        '.my-org-officer-card',
+        '.my-org-contact-card',
+        '.my-org-service-pill',
+        '.my-org-highlight-list li',
+        '.my-org-kpi-box'
+    ];
+    const items = Array.from(page.querySelectorAll(searchableSelectors.join(',')))
+        .filter((item, index, allItems) => !allItems.some(other => other !== item && other.contains(item)));
+
+    let visibleCount = 0;
+    items.forEach((item) => {
+        const haystack = item.textContent.toLowerCase();
+        const isMatch = !query || haystack.includes(query);
+        item.classList.toggle('my-org-search-hidden', !isMatch);
+        if (isMatch) visibleCount++;
+    });
+
+    let emptyState = page.querySelector('.my-org-search-empty');
+    if (!emptyState) {
+        emptyState = document.createElement('div');
+        emptyState.className = 'my-org-search-empty';
+        emptyState.innerHTML = `
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <strong>No results found</strong>
+            <span>Try another keyword in this organization page.</span>
+        `;
+        const activeSection = page.querySelector('.my-org-spa-section, .my-org-ref-main');
+        (activeSection || page).appendChild(emptyState);
+    }
+
+    emptyState.hidden = !query || visibleCount > 0;
 }
 
 function renderMyOrganizationTab(contentDiv) {
@@ -2253,6 +2300,7 @@ function returnToOrganizationsAboutGrid() {
 
 function switchMyOrgSection(sectionName) {
     activeMyOrgSection = sectionName || 'home';
+    currentMyOrgSearchQuery = '';
     const contentDiv = document.getElementById('tab-content');
     if (contentDiv) {
         if (organizationBrowseContext?.orgName) {
