@@ -27,6 +27,45 @@ function igpColumnExists(PDO $pdo, string $table, string $column): bool
     return ((int)$stmt->fetchColumn() > 0);
 }
 
+function igpEnsureInventoryBarcodeScope(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+
+    $globalBarcodeIndex = $pdo->prepare(
+        "SELECT INDEX_NAME
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'inventory_items'
+           AND NON_UNIQUE = 0
+         GROUP BY INDEX_NAME
+         HAVING SUM(CASE WHEN COLUMN_NAME = 'barcode' THEN 1 ELSE 0 END) = 1
+            AND SUM(CASE WHEN COLUMN_NAME <> 'barcode' THEN 1 ELSE 0 END) = 0
+         LIMIT 1"
+    );
+    $globalBarcodeIndex->execute();
+    $indexName = $globalBarcodeIndex->fetchColumn();
+    if ($indexName) {
+        $pdo->exec('ALTER TABLE inventory_items DROP INDEX `' . str_replace('`', '``', (string)$indexName) . '`');
+    }
+
+    $scopedBarcodeIndex = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'inventory_items'
+           AND INDEX_NAME = 'uq_inventory_org_barcode'"
+    );
+    $scopedBarcodeIndex->execute();
+    if ((int)$scopedBarcodeIndex->fetchColumn() === 0) {
+        $pdo->exec('ALTER TABLE inventory_items ADD UNIQUE KEY uq_inventory_org_barcode (org_id, barcode)');
+    }
+
+    $done = true;
+}
+
 function igpRequireOfficerOrgContext(): array
 {
     $session = getPhpSession();
@@ -382,6 +421,8 @@ function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
 
 function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
 {
+    igpEnsureInventoryBarcodeScope($pdo);
+
     $hasImagePath = igpColumnExists($pdo, 'inventory_items', 'image_path');
     $itemId = isset($data['item_id']) ? (int)$data['item_id'] : 0;
     $itemName = trim((string)($data['item_name'] ?? ''));
@@ -406,6 +447,25 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
     if (!in_array($status, ['available', 'reserved', 'rented', 'maintenance'], true)) {
         throw new IgpValidationException('Invalid inventory status.');
     }
+
+    $barcodeCheck = $pdo->prepare(
+        "SELECT item_id
+         FROM inventory_items
+         WHERE org_id = :org
+           AND barcode = :barcode
+           AND (:is_new = 1 OR item_id <> :item_id)
+         LIMIT 1"
+    );
+    $barcodeCheck->execute([
+        ':org' => $orgId,
+        ':barcode' => $barcode,
+        ':is_new' => $itemId > 0 ? 0 : 1,
+        ':item_id' => $itemId,
+    ]);
+    if ($barcodeCheck->fetch()) {
+        throw new IgpValidationException('Barcode already exists for this organization. Please use a unique barcode.');
+    }
+
     if ($overtimeInterval !== null && $overtimeInterval !== '') {
         $overtimeInterval = (int)$overtimeInterval;
         if ($overtimeInterval <= 0) {
