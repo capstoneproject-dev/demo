@@ -4743,6 +4743,15 @@ function formatStudentRate(item) {
     return `₱${min.toFixed(2)} - ₱${max.toFixed(2)}/hr`;
 }
 
+function formatStudentOrgRate(org) {
+    const min = Number(org?.hourly_rate_min ?? org?.hourly_rate ?? 0);
+    const max = Number(org?.hourly_rate_max ?? org?.hourly_rate ?? min);
+    if (min === max) {
+        return `&#8369;${min.toFixed(2)}/hr`;
+    }
+    return `&#8369;${min.toFixed(2)} - &#8369;${max.toFixed(2)}/hr`;
+}
+
 function isStudentServiceAvailable(item) {
     return Number(item?.available_count || 0) > 0;
 }
@@ -4793,7 +4802,7 @@ function renderServices(filter = "") {
                     minRate: Number(service.hourly_rate_min ?? service.min_rate ?? service.rate_min ?? service.hourly_rate ?? 0),
                     maxRate: Number(service.hourly_rate_max ?? service.max_rate ?? service.rate_max ?? service.hourly_rate ?? 0),
                     orgs: Array.isArray(service.orgs)
-                        ? service.orgs.map(org => `${org.org_code || ''}:${org.org_name || ''}`).sort()
+                        ? service.orgs.map(org => `${org.org_code || ''}:${org.org_name || ''}:${org.hourly_rate_min ?? ''}:${org.hourly_rate_max ?? ''}`).sort()
                         : []
                 }))
         }))
@@ -5332,11 +5341,13 @@ function openServiceModal(serviceName, parentGroup = null, catalogItem = null) {
             meta: Number(org.available_count || 0) > 0
                 ? `${org.available_count} available`
                 : `Unavailable • ${Number(org.total_count || 0)} in inventory`,
+            rateLabel: formatStudentOrgRate(org),
         }))
         : (serviceOrgMapping[serviceName] || []).map((orgName) => ({
             label: orgName,
             value: orgName,
             meta: '',
+            rateLabel: '',
         }));
 
     // Logo Mapping
@@ -5381,7 +5392,10 @@ function openServiceModal(serviceName, parentGroup = null, catalogItem = null) {
                         ${orgOption.meta ? `<small style="color:var(--muted);">${orgOption.meta}</small>` : ''}
                     </div>
                 </div>
-                <i class="fa-solid fa-circle-check check-icon"></i>
+                <div class="org-option-actions">
+                    ${orgOption.rateLabel ? `<div class="org-rate-pill">${orgOption.rateLabel}</div>` : ''}
+                    <i class="fa-solid fa-circle-check check-icon"></i>
+                </div>
             `;
             listContainer.appendChild(card);
 
