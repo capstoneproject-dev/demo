@@ -2066,7 +2066,7 @@ function renderMonitoringServiceAuthorizations(orgId) {
         const isPrinting = service.service_key === 'printing';
         const isDirectlyManaged = isMasterServices || isPrinting;
         const toggleLabel = isMasterServices
-            ? 'Organization Services'
+            ? 'Organization Rentals'
             : service.service_name;
         return `
             <label class="service-toggle-item">
