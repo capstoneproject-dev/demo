@@ -13,7 +13,7 @@ const ST_DEFAULT_SERVICES = [
     [
         'service_key' => 'services',
         'service_name' => 'Services',
-        'description' => 'Master switch for enabling an organization to offer services.',
+        'description' => 'Master switch for enabling an organization to offer rentals.',
     ],
     [
         'service_key' => 'rentals',
