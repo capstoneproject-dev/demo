@@ -10,6 +10,74 @@ require_once __DIR__ . '/../config/db.php';
 class AnnouncementValidationException extends RuntimeException {}
 class AnnouncementAuthorizationException extends RuntimeException {}
 
+function annEnsureProgramTargetsTable(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS announcement_program_targets (
+            target_id INT NOT NULL AUTO_INCREMENT,
+            announcement_id INT NOT NULL,
+            program_id INT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (target_id),
+            UNIQUE KEY uq_announcement_program_target (announcement_id, program_id),
+            KEY idx_announcement_program_targets_program (program_id),
+            CONSTRAINT fk_announcement_program_targets_announcement
+                FOREIGN KEY (announcement_id) REFERENCES announcements(announcement_id) ON DELETE CASCADE,
+            CONSTRAINT fk_announcement_program_targets_program
+                FOREIGN KEY (program_id) REFERENCES academic_programs(program_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+}
+
+function annNormalizeProgramIds(array $values): array
+{
+    $ids = [];
+    foreach ($values as $value) {
+        $id = (int)$value;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    return array_values($ids);
+}
+
+function annAttachProgramTargets(PDO $pdo, array &$rows): void
+{
+    if (!$rows) return;
+    annEnsureProgramTargetsTable($pdo);
+
+    $ids = array_values(array_filter(array_map(
+        static fn($row) => (int)($row['announcement_id'] ?? 0),
+        $rows
+    )));
+    if (!$ids) return;
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare(
+        "SELECT apt.announcement_id,
+                apt.program_id,
+                ap.program_code
+         FROM announcement_program_targets apt
+         JOIN academic_programs ap ON ap.program_id = apt.program_id
+         WHERE apt.announcement_id IN ({$placeholders})
+         ORDER BY ap.program_code ASC"
+    );
+    $stmt->execute($ids);
+
+    $targetsByAnnouncement = [];
+    foreach ($stmt->fetchAll() as $target) {
+        $announcementId = (int)$target['announcement_id'];
+        $targetsByAnnouncement[$announcementId][] = [
+            'program_id' => (int)$target['program_id'],
+            'program_code' => (string)$target['program_code'],
+        ];
+    }
+
+    foreach ($rows as &$row) {
+        $row['target_programs'] = $targetsByAnnouncement[(int)$row['announcement_id']] ?? [];
+    }
+}
+
 function annSaveAnnouncementPhotoFromData(string $photoValue): string
 {
     $raw = trim($photoValue);
@@ -97,6 +165,8 @@ function annRequireOfficerOrgContext(): array
 
 function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
 {
+    annEnsureProgramTargetsTable($pdo);
+
     $where   = ['a.org_id = :org'];
     $params  = [':org' => $orgId];
 
@@ -153,17 +223,39 @@ function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
         $row['created_by_user_id']= (int)$row['created_by_user_id'];
         $row['is_published']      = (int)$row['is_published'];
     }
+    annAttachProgramTargets($pdo, $rows);
 
     return $rows;
 }
 
 function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = []): array
 {
+    annEnsureProgramTargetsTable($pdo);
+
     $where = [
         'a.is_published = 1',
         "COALESCE(o.status, 'active') = 'active'",
     ];
     $params = [];
+
+    $studentProgramId = (int)($filters['student_program_id'] ?? 0);
+    if ($studentProgramId > 0) {
+        $where[] = "(
+            a.audience_type = 'all_students'
+            OR (
+                a.audience_type = 'specific_courses'
+                AND EXISTS (
+                    SELECT 1
+                    FROM announcement_program_targets apt
+                    WHERE apt.announcement_id = a.announcement_id
+                      AND apt.program_id = :student_program_id
+                )
+            )
+        )";
+        $params[':student_program_id'] = $studentProgramId;
+    } else {
+        $where[] = "a.audience_type = 'all_students'";
+    }
 
     $q = trim((string)($filters['q'] ?? ''));
     if ($q !== '') {
@@ -208,6 +300,7 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
         $row['created_by_user_id'] = (int)$row['created_by_user_id'];
         $row['is_published'] = (int)$row['is_published'];
     }
+    annAttachProgramTargets($pdo, $rows);
 
     return $rows;
 }
@@ -217,6 +310,7 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
     $title   = trim((string)($data['title'] ?? ''));
     $content = trim((string)($data['content'] ?? ''));
     $audience= trim((string)($data['audience_type'] ?? 'all_students'));
+    $targetProgramIds = annNormalizeProgramIds((array)($data['target_program_ids'] ?? []));
     $publish = isset($data['publish']) ? (int)!empty($data['publish']) : 1;
 
     if ($title === '') {
@@ -229,9 +323,29 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
         throw new AnnouncementValidationException('Invalid creator user.');
     }
 
-    $allowedAudiences = ['all_students', 'org_members', 'officers'];
+    $allowedAudiences = ['all_students', 'specific_courses'];
     if (!in_array($audience, $allowedAudiences, true)) {
         $audience = 'all_students';
+    }
+    if ($audience === 'specific_courses' && !$targetProgramIds) {
+        throw new AnnouncementValidationException('Select at least one course for this announcement.');
+    }
+    if ($audience !== 'specific_courses') {
+        $targetProgramIds = [];
+    }
+    $validProgramIds = [];
+    if ($targetProgramIds) {
+        $validStmt = $pdo->prepare(
+            "SELECT program_id
+             FROM academic_programs
+             WHERE is_active = 1
+               AND program_id IN (" . implode(',', array_fill(0, count($targetProgramIds), '?')) . ")"
+        );
+        $validStmt->execute($targetProgramIds);
+        $validProgramIds = array_map('intval', $validStmt->fetchAll(PDO::FETCH_COLUMN));
+        if (!$validProgramIds) {
+            throw new AnnouncementValidationException('Selected courses are not available.');
+        }
     }
 
     $announcementPhoto = annSaveAnnouncementPhotoValue($data);
@@ -255,6 +369,19 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
     ]);
 
     $id = (int)$pdo->lastInsertId();
+    if ($validProgramIds) {
+        annEnsureProgramTargetsTable($pdo);
+        $targetInsert = $pdo->prepare(
+            "INSERT IGNORE INTO announcement_program_targets (announcement_id, program_id)
+             VALUES (:announcement_id, :program_id)"
+        );
+        foreach ($validProgramIds as $programId) {
+            $targetInsert->execute([
+                ':announcement_id' => $id,
+                ':program_id' => $programId,
+            ]);
+        }
+    }
 
     $fetch = $pdo->prepare(
         "SELECT announcement_id,
@@ -298,6 +425,9 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
     $row['org_id']             = (int)$row['org_id'];
     $row['created_by_user_id'] = (int)$row['created_by_user_id'];
     $row['is_published']       = (int)$row['is_published'];
+    $rows = [$row];
+    annAttachProgramTargets($pdo, $rows);
+    $row = $rows[0];
 
     return $row;
 }
