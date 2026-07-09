@@ -1472,7 +1472,12 @@ async function handlePdfUpload(event) {
 let currentOrgId = null;
 let osaSectionPollingTimer = null;
 let requestsPollingInFlight = false;
-let monitoringPollingInFlight = false;
+let monitoringCardPollingInFlight = false;
+let monitoringActivityPollingInFlight = false;
+let lastMonitoringCardPollAt = 0;
+const MONITORING_CARD_POLL_MS = 15000;
+const MONITORING_ACTIVITY_POLL_MS = 3000;
+const OSA_SECTION_POLL_MS = MONITORING_ACTIVITY_POLL_MS;
 
 function getActiveOsaSectionId() {
     return document.querySelector('.section-view.active')?.id || 'dashboard';
@@ -1488,9 +1493,12 @@ async function pollRequestsPage() {
     }
 }
 
-async function pollMonitoringPage() {
-    if (monitoringPollingInFlight || document.hidden || getActiveOsaSectionId() !== 'monitoring' || !currentOrgId) return;
-    monitoringPollingInFlight = true;
+async function pollMonitoringCard(force = false) {
+    if (monitoringCardPollingInFlight || document.hidden || getActiveOsaSectionId() !== 'monitoring' || !currentOrgId) return;
+    const now = Date.now();
+    if (!force && now - lastMonitoringCardPollAt < MONITORING_CARD_POLL_MS) return;
+
+    monitoringCardPollingInFlight = true;
     const org = organizations.find(o => Number(o.id) === Number(currentOrgId));
     try {
         await Promise.all([
@@ -1509,9 +1517,21 @@ async function pollMonitoringPage() {
         if (recency) {
             recency.innerText = `Last recorded activity: ${latestActivity?.dateLabel || 'No recent records'}`;
         }
+        lastMonitoringCardPollAt = Date.now();
+    } finally {
+        monitoringCardPollingInFlight = false;
+    }
+}
+
+async function pollMonitoringActivities() {
+    if (monitoringActivityPollingInFlight || document.hidden || getActiveOsaSectionId() !== 'monitoring' || !currentOrgId) return;
+    monitoringActivityPollingInFlight = true;
+    try {
+        await loadOsaActivityFeed();
+        if (getActiveOsaSectionId() !== 'monitoring' || !currentOrgId) return;
         renderMonitoringActivitiesTable();
     } finally {
-        monitoringPollingInFlight = false;
+        monitoringActivityPollingInFlight = false;
     }
 }
 
@@ -1520,13 +1540,14 @@ function runActiveOsaSectionPoll() {
     if (activeSection === 'requests') {
         pollRequestsPage();
     } else if (activeSection === 'monitoring') {
-        pollMonitoringPage();
+        pollMonitoringActivities();
+        pollMonitoringCard();
     }
 }
 
 function startOsaSectionPolling() {
     if (!osaSectionPollingTimer) {
-        osaSectionPollingTimer = window.setInterval(runActiveOsaSectionPoll, 3000);
+        osaSectionPollingTimer = window.setInterval(runActiveOsaSectionPoll, OSA_SECTION_POLL_MS);
     }
     runActiveOsaSectionPoll();
 }
@@ -1793,11 +1814,31 @@ async function saveActiveAcademicTerm() {
 const complianceTermFilter = {
     semester: getDefaultSemester(),
     academicYear: getDefaultAcademicYear(),
-    gradingPeriod: getDefaultGradingPeriod()
+    gradingPeriod: getDefaultGradingPeriod(),
+    financialMonth: String(new Date().getMonth() + 1)
 };
 
 function normalizeComplianceTermValue(value) {
     return String(value || '').trim().toLowerCase();
+}
+
+const COMPLIANCE_MONTHS = [
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' }
+];
+
+function getComplianceMonthLabel(monthValue) {
+    return COMPLIANCE_MONTHS.find((month) => month.value === String(monthValue))?.label || 'Month';
 }
 
 function populateComplianceAcademicYearSelect() {
@@ -1810,9 +1851,11 @@ function syncComplianceTermControls() {
     const semesterSelect = document.getElementById('compliance-semester-select');
     const periodSelect = document.getElementById('compliance-period-select');
     const yearSelect = document.getElementById('compliance-academic-year-select');
+    const monthSelect = document.getElementById('compliance-financial-month-select');
     if (semesterSelect) semesterSelect.value = complianceTermFilter.semester;
     if (periodSelect) periodSelect.value = complianceTermFilter.gradingPeriod;
     if (yearSelect) yearSelect.value = complianceTermFilter.academicYear;
+    if (monthSelect) monthSelect.value = complianceTermFilter.financialMonth;
 }
 
 function setComplianceSemester(semester) {
@@ -1841,13 +1884,23 @@ function setComplianceAcademicYear(academicYear) {
     renderMonitoringComplianceForCurrentOrg();
 }
 
+function setComplianceFinancialMonth(month) {
+    const normalized = String(month || '').trim();
+    if (!COMPLIANCE_MONTHS.some((item) => item.value === normalized)) return;
+    complianceTermFilter.financialMonth = normalized;
+    syncComplianceTermControls();
+    renderMonitoringComplianceForCurrentOrg();
+}
+
 const COMPLIANCE_REQUIREMENTS = [
     {
         label: 'Financial Report',
+        cadence: 'monthly',
         aliases: ['financial statement', 'financial report', 'semestral financial report']
     },
     {
         label: 'Activity Report',
+        cadence: 'per_term',
         aliases: ['activity report']
     }
 ];
@@ -1883,17 +1936,43 @@ function documentMatchesRequirement(item, requirement) {
 function documentMatchesComplianceTerm(item) {
     const semester = normalizeComplianceTermValue(item?.semester);
     const academicYear = String(item?.academicYear || item?.academic_year || '').trim();
-    const gradingPeriod = normalizeComplianceTermValue(item?.gradingPeriod || item?.grading_period);
 
     return semester === normalizeComplianceTermValue(complianceTermFilter.semester)
-        && academicYear === complianceTermFilter.academicYear
-        && gradingPeriod === normalizeComplianceTermValue(complianceTermFilter.gradingPeriod);
+        && academicYear === complianceTermFilter.academicYear;
+}
+
+function getComplianceItemDate(item) {
+    const rawDate = item?.approvedAt || item?.submittedAt || item?.date || '';
+    const parsed = new Date(rawDate);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getCalendarYearForAcademicMonth(academicYear, monthValue) {
+    const [startYear, endYear] = String(academicYear || '').split('-').map(Number);
+    const month = Number(monthValue);
+    if (!startYear || !endYear || !month) return null;
+    return month >= 6 ? startYear : endYear;
+}
+
+function documentMatchesComplianceMonth(item) {
+    const itemDate = getComplianceItemDate(item);
+    if (!itemDate) return false;
+
+    const selectedMonth = Number(complianceTermFilter.financialMonth);
+    const selectedYear = getCalendarYearForAcademicMonth(complianceTermFilter.academicYear, selectedMonth);
+    return itemDate.getFullYear() === selectedYear && itemDate.getMonth() + 1 === selectedMonth;
+}
+
+function documentMatchesComplianceSchedule(item, requirement) {
+    if (requirement.cadence === 'monthly') {
+        return documentMatchesComplianceMonth(item);
+    }
+    return documentMatchesComplianceTerm(item);
 }
 
 function getComplianceItemTime(item) {
-    const rawDate = item?.approvedAt || item?.submittedAt || item?.date || '';
-    const parsed = new Date(rawDate);
-    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+    const parsed = getComplianceItemDate(item);
+    return parsed ? parsed.getTime() : 0;
 }
 
 function getComplianceStatusFromSubmission(item) {
@@ -1909,7 +1988,7 @@ function getComplianceStatusFromSubmission(item) {
 
 function getComplianceState(org, requirement) {
     const approvedMatches = repositoryData
-        .filter((item) => documentMatchesOrg(item, org) && documentMatchesRequirement(item, requirement) && documentMatchesComplianceTerm(item))
+        .filter((item) => documentMatchesOrg(item, org) && documentMatchesRequirement(item, requirement) && documentMatchesComplianceSchedule(item, requirement))
         .sort((a, b) => getComplianceItemTime(b) - getComplianceItemTime(a));
 
     if (approvedMatches.length) {
@@ -1917,7 +1996,7 @@ function getComplianceState(org, requirement) {
     }
 
     const submissionMatches = docsData
-        .filter((item) => documentMatchesOrg(item, org) && documentMatchesRequirement(item, requirement) && documentMatchesComplianceTerm(item))
+        .filter((item) => documentMatchesOrg(item, org) && documentMatchesRequirement(item, requirement) && documentMatchesComplianceSchedule(item, requirement))
         .sort((a, b) => getComplianceItemTime(b) - getComplianceItemTime(a));
 
     if (submissionMatches.length) {
@@ -1925,6 +2004,40 @@ function getComplianceState(org, requirement) {
     }
 
     return { label: 'Not Submitted', className: 'status-pending' };
+}
+
+function renderComplianceRequirementControls(requirement) {
+    if (requirement.cadence === 'monthly') {
+        return `
+            <label class="term-select-wrap compliance-inline-control">
+                <span>Month</span>
+                <select id="compliance-financial-month-select" class="term-select" onchange="setComplianceFinancialMonth(this.value)">
+                    ${COMPLIANCE_MONTHS.map((month) => (
+                        `<option value="${month.value}" ${month.value === String(complianceTermFilter.financialMonth) ? 'selected' : ''}>${month.label}</option>`
+                    )).join('')}
+                </select>
+            </label>
+        `;
+    }
+
+    return `
+        <label class="term-select-wrap compliance-inline-control">
+            <span>Semester</span>
+            <select id="compliance-semester-select" class="term-select" onchange="setComplianceSemester(this.value)">
+                <option value="1st" ${complianceTermFilter.semester === '1st' ? 'selected' : ''}>1st Semester</option>
+                <option value="2nd" ${complianceTermFilter.semester === '2nd' ? 'selected' : ''}>2nd Semester</option>
+            </select>
+        </label>
+    `;
+}
+
+function getComplianceRequirementScopeLabel(requirement) {
+    if (requirement.cadence === 'monthly') {
+        const selectedMonth = Number(complianceTermFilter.financialMonth);
+        const selectedYear = getCalendarYearForAcademicMonth(complianceTermFilter.academicYear, selectedMonth);
+        return `${getComplianceMonthLabel(selectedMonth)} ${selectedYear || ''}`.trim();
+    }
+    return `${complianceTermFilter.semester} Semester`;
 }
 
 function renderMonitoringCompliance(org) {
@@ -1936,7 +2049,13 @@ function renderMonitoringCompliance(org) {
         const state = getComplianceState(org, requirement);
         return `
             <div class="compliance-item">
-                <span class="compliance-label">${escapeDashboardHtml(requirement.label)}</span>
+                <div class="compliance-main">
+                    <span class="compliance-label">${escapeDashboardHtml(requirement.label)}</span>
+                    <span class="compliance-scope">${escapeDashboardHtml(getComplianceRequirementScopeLabel(requirement))}</span>
+                </div>
+                <div class="compliance-controls">
+                    ${renderComplianceRequirementControls(requirement)}
+                </div>
                 <span class="status-badge ${state.className}">
                     ${escapeDashboardHtml(state.label)}
                 </span>
@@ -2521,6 +2640,7 @@ function renderTransactions() {
 
 async function openMonitoring(orgId) {
     currentOrgId = orgId;
+    lastMonitoringCardPollAt = 0;
     const org = organizations.find(o => o.id === orgId);
 
     if (org) {
