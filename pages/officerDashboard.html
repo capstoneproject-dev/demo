@@ -1599,11 +1599,19 @@
                     </div>
                     <form id="announcement-form" onsubmit="postAnnouncement(event)">
                         <label>Target Audience</label>
-                        <select id="ann-audience">
+                        <select id="ann-audience" onchange="toggleAnnouncementCourseTargets()">
                             <option value="all_students">All Students</option>
-                            <option value="org_members">Org Members Only</option>
-                            <option value="officers">Officers</option>
+                            <option value="specific_courses">Specific Courses</option>
                         </select>
+                        <div id="ann-course-targets" class="announcement-course-targets" hidden>
+                            <div class="announcement-course-targets-header">
+                                <span>Courses</span>
+                                <button type="button" class="btn btn-outline btn-sm" id="ann-course-toggle-all" onclick="toggleAllAnnouncementCourses()">Select All</button>
+                            </div>
+                            <div id="ann-course-target-list" class="announcement-course-target-list">
+                                <div class="announcement-course-empty">Loading courses...</div>
+                            </div>
+                        </div>
 
                         <label>Headline</label>
                         <input type="text" id="ann-title" placeholder="Enter headline..." required>

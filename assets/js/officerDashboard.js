@@ -4066,10 +4066,113 @@ function resolveAnnouncementPhotoPath(photoPath) {
 function formatAnnouncementAudienceLabel(audience) {
     const labels = {
         all_students: 'All Students',
+        specific_courses: 'Specific Courses',
         org_members: 'Org Members Only',
         officers: 'Officers'
     };
     return labels[audience] || audience || 'All Students';
+}
+
+let announcementCourseTargets = [];
+
+function toggleAnnouncementCourseTargets() {
+    const audienceSelect = document.getElementById('ann-audience');
+    const targets = document.getElementById('ann-course-targets');
+    if (!audienceSelect || !targets) return;
+    targets.hidden = audienceSelect.value !== 'specific_courses';
+}
+
+function getSelectedAnnouncementProgramIds() {
+    return Array.from(document.querySelectorAll('#ann-course-target-list input[type="checkbox"]:checked'))
+        .map((input) => Number(input.value || 0))
+        .filter((programId) => programId > 0);
+}
+
+function updateAnnouncementCourseToggleLabel() {
+    const toggleButton = document.getElementById('ann-course-toggle-all');
+    if (!toggleButton) return;
+    const inputs = Array.from(document.querySelectorAll('#ann-course-target-list input[type="checkbox"]'));
+    const allSelected = inputs.length > 0 && inputs.every((input) => input.checked);
+    toggleButton.textContent = allSelected ? 'Unselect All' : 'Select All';
+}
+
+function toggleAllAnnouncementCourses() {
+    const inputs = Array.from(document.querySelectorAll('#ann-course-target-list input[type="checkbox"]'));
+    const shouldSelectAll = !inputs.length || !inputs.every((input) => input.checked);
+    inputs.forEach((input) => {
+        input.checked = shouldSelectAll;
+    });
+    updateAnnouncementCourseToggleLabel();
+}
+
+function renderAnnouncementCourseTargets() {
+    const list = document.getElementById('ann-course-target-list');
+    if (!list) return;
+
+    if (!announcementCourseTargets.length) {
+        list.innerHTML = '<div class="announcement-course-empty">No courses are available.</div>';
+        return;
+    }
+
+    const grouped = new Map();
+    announcementCourseTargets.forEach((program) => {
+        const instituteName = program.instituteName || 'Other Programs';
+        if (!grouped.has(instituteName)) grouped.set(instituteName, []);
+        grouped.get(instituteName).push(program);
+    });
+
+    list.innerHTML = Array.from(grouped.entries()).map(([instituteName, programs]) => `
+        <div class="announcement-course-group">
+            <div class="announcement-course-group-title">${escapeHtml(instituteName)}</div>
+            <div class="announcement-course-chip-row">
+                ${programs.map((program) => `
+                    <label class="announcement-course-option">
+                        <input type="checkbox" value="${program.programId}" onchange="updateAnnouncementCourseToggleLabel()">
+                        <span>${escapeHtml(program.programCode)}</span>
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+    updateAnnouncementCourseToggleLabel();
+}
+
+async function loadAnnouncementCourseTargets() {
+    const list = document.getElementById('ann-course-target-list');
+    if (list) {
+        list.innerHTML = '<div class="announcement-course-empty">Loading courses...</div>';
+    }
+
+    try {
+        const response = await fetch('../api/announcements/programs.php', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load courses.');
+        }
+
+        announcementCourseTargets = (Array.isArray(data.items) ? data.items : [])
+            .map((item) => ({
+                programId: Number(item.programId || 0),
+                programCode: String(item.programCode || '').trim(),
+                instituteId: Number(item.instituteId || 0),
+                instituteName: String(item.instituteName || '').trim()
+            }))
+            .filter((program) => program.programId > 0 && program.programCode)
+            .sort((a, b) => (
+                a.instituteName.localeCompare(b.instituteName)
+                || a.programCode.localeCompare(b.programCode)
+            ));
+        renderAnnouncementCourseTargets();
+    } catch (error) {
+        console.error('[loadAnnouncementCourseTargets]', error);
+        announcementCourseTargets = [];
+        if (list) {
+            list.innerHTML = '<div class="announcement-course-empty">Could not load courses.</div>';
+        }
+    }
 }
 
 const announcementDetailCarouselState = {
@@ -4407,6 +4510,7 @@ async function fetchAnnouncementsFromApi() {
             title: item.title,
             content: item.content,
             audience_type: item.audience_type,
+            target_programs: item.target_programs || [],
             announcement_photo: item.announcement_photo || '',
             event_datetime: item.event_datetime || '',
             event_location: item.event_location || '',
@@ -4526,6 +4630,7 @@ async function postAnnouncement(e) {
     const title = document.getElementById('ann-title').value;
     const content = document.getElementById('ann-content').value;
     const audience = document.getElementById('ann-audience') ? document.getElementById('ann-audience').value : 'all_students';
+    const targetProgramIds = audience === 'specific_courses' ? getSelectedAnnouncementProgramIds() : [];
     const syncEvent = document.getElementById('sync-event').checked; // Get checkbox state
     const eventDate = document.getElementById('event-date')?.value || '';
     const eventTimeStart = (document.getElementById('event-time-start')?.value || '').trim();
@@ -4540,6 +4645,10 @@ async function postAnnouncement(e) {
             alert('Please select Event Date, Start Time, and End Time.');
             return;
         }
+    }
+    if (audience === 'specific_courses' && targetProgramIds.length === 0) {
+        alert('Please select at least one course for this announcement.');
+        return;
     }
 
     if (announcementPhotoFiles.length) {
@@ -4561,6 +4670,7 @@ async function postAnnouncement(e) {
                 title,
                 content,
                 audience_type: audience,
+                target_program_ids: targetProgramIds,
                 announcement_photos: announcementPhotoDataUrls,
                 publish: true
             })
@@ -4576,6 +4686,7 @@ async function postAnnouncement(e) {
             title: item.title || title,
             content: item.content || content,
             audience_type: item.audience_type || audience,
+            target_programs: item.target_programs || [],
             announcement_photo: item.announcement_photo || '',
             event_datetime: item.event_datetime || '',
             event_location: item.event_location || '',
@@ -4631,6 +4742,7 @@ async function postAnnouncement(e) {
     }
 
     e.target.reset();
+    toggleAnnouncementCourseTargets();
     clearAnnouncementPhotoPreview();
 }
 
@@ -5584,6 +5696,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     setupAnnouncementPhotoPreviewCarousel();
+    loadAnnouncementCourseTargets();
+    toggleAnnouncementCourseTargets();
     initTrackerSidebarBehavior();
     initializeOfficerFinancialSummaryDefaultDate();
     initializeOfficerPrintingHistoryDefaultDate();
