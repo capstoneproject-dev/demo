@@ -80,6 +80,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             <tr>
                                 <th>Event Name</th>
                                 <th>Total Attendance</th>
+                                <th>Pre Registered</th>
                                 <th>First Record</th>
                                 <th>Last Record</th>
                                 <th class="text-end">Actions</th>
@@ -104,7 +105,10 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     <div class="modal-body">
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 id="modalEventName" class="mb-0"></h6>
+                                <div>
+                                    <h6 id="modalEventName" class="mb-1"></h6>
+                                    <span class="badge text-dark" id="modalPreRegisteredCount" style="background-color: #bfe9ff;">Pre Registered: 0</span>
+                                </div>
                                 <button class="btn btn-primary btn-sm" id="startEventAttendance">Start
                                     Attendance</button>
                             </div>
@@ -238,8 +242,24 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 createdAt: row.created_at || '',
                 firstDate: row.first_record_date || null,
                 lastDate: row.last_record_date || null,
+                attendanceCount: Number(row.attended_count ?? row.attendance_count ?? 0),
+                preRegisteredCount: Number(row.pre_registered_count || 0),
                 records: []
             };
+        }
+
+        function isPreRegisteredRecord(record) {
+            const status = String(record.status || record.attendance_status || '').trim();
+            return Boolean(record.isRegistered) || status === 'registered' || (!record.timeIn && !record.timeOut);
+        }
+
+        function getEventPreRegisteredCount(eventName, records = []) {
+            const normalizedTargetName = normalizeEventName(eventName);
+            const apiEvent = events.find(event => normalizeEventName(event.name || event.event_name) === normalizedTargetName);
+            if (apiEvent) {
+                return Number(apiEvent.preRegisteredCount ?? apiEvent.pre_registered_count ?? 0);
+            }
+            return records.filter(isPreRegisteredRecord).length;
         }
 
         async function qrApiRequest(path, options = {}) {
@@ -355,7 +375,10 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         createdAt: event.createdAt || event.created_at || '',
                         records: [],
                         firstDate: event.firstDate || event.first_record_date || null,
-                        lastDate: event.lastDate || event.last_record_date || null
+                        lastDate: event.lastDate || event.last_record_date || null,
+                        attendanceCount: Number(event.attendanceCount ?? event.attended_count ?? event.attendance_count ?? 0),
+                        preRegisteredCount: Number(event.preRegisteredCount ?? event.pre_registered_count ?? 0),
+                        hasApiCounts: Boolean(event.id || event.event_id)
                     });
                 }
             });
@@ -376,12 +399,22 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         createdAt: new Date(),
                         records: [],
                         firstDate: record.date,
-                        lastDate: record.date
+                        lastDate: record.date,
+                        attendanceCount: 0,
+                        preRegisteredCount: 0,
+                        hasApiCounts: false
                     });
                 }
                 const event = eventsMap.get(normalizedEventName);
                 if (event) {
                     event.records.push(record);
+                    if (!event.hasApiCounts) {
+                        if (isPreRegisteredRecord(record)) {
+                            event.preRegisteredCount += 1;
+                        } else {
+                            event.attendanceCount += 1;
+                        }
+                    }
                     // Update first and last dates
                     if (!event.firstDate || new Date(record.date) < new Date(event.firstDate)) {
                         event.firstDate = record.date;
@@ -422,7 +455,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${event.name}</td>
-                    <td>${event.records.length}</td>
+                    <td>${event.attendanceCount}</td>
+                    <td>${event.preRegisteredCount}</td>
                     <td>${event.firstDate || 'N/A'}</td>
                     <td>${event.lastDate || 'N/A'}</td>
                     <td class="text-end">
@@ -499,6 +533,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             };
 
             document.getElementById('modalEventName').textContent = eventName;
+            document.getElementById('modalPreRegisteredCount').textContent = `Pre Registered: ${getEventPreRegisteredCount(eventName, eventRecords)}`;
             const modalRecords = document.getElementById('modalEventRecords');
             modalRecords.innerHTML = '';
 

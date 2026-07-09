@@ -135,6 +135,8 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
                e.created_at,
                e.updated_at,
                COUNT(ar.record_id) AS attendance_count,
+               COALESCE(SUM(CASE WHEN ar.time_in IS NULL AND ar.time_out IS NULL THEN 1 ELSE 0 END), 0) AS pre_registered_count,
+               COALESCE(SUM(CASE WHEN ar.time_in IS NOT NULL OR ar.time_out IS NOT NULL THEN 1 ELSE 0 END), 0) AS attended_count,
                MIN(DATE(ar.time_in)) AS first_record_date,
                MAX(DATE(ar.time_in)) AS last_record_date
         FROM events e
@@ -190,7 +192,9 @@ function qrListPublishedEventsForStudents(PDO $pdo, array $filters = []): array
                e.updated_at,
                o.org_name,
                o.org_code,
-               COUNT(ar.record_id) AS attendance_count
+               COUNT(ar.record_id) AS attendance_count,
+               COALESCE(SUM(CASE WHEN ar.time_in IS NULL AND ar.time_out IS NULL THEN 1 ELSE 0 END), 0) AS pre_registered_count,
+               COALESCE(SUM(CASE WHEN ar.time_in IS NOT NULL OR ar.time_out IS NOT NULL THEN 1 ELSE 0 END), 0) AS attended_count
         FROM events e
         JOIN organizations o ON o.org_id = e.org_id
         LEFT JOIN attendance_records ar ON ar.event_id = e.event_id
@@ -207,6 +211,8 @@ function qrListPublishedEventsForStudents(PDO $pdo, array $filters = []): array
         $row['created_by_user_id'] = (int)$row['created_by_user_id'];
         $row['is_published'] = (int)$row['is_published'];
         $row['attendance_count'] = (int)$row['attendance_count'];
+        $row['pre_registered_count'] = (int)$row['pre_registered_count'];
+        $row['attended_count'] = (int)$row['attended_count'];
     }
     return $rows;
 }
