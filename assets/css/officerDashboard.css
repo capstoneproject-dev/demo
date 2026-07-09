@@ -1684,6 +1684,27 @@ body.dark .sub-nav-btn.active {
 }
 
 /* --- ANNOUNCEMENTS --- */
+#announcements .content-row {
+    align-items: stretch;
+    min-height: calc(100vh - 170px);
+}
+
+#announcements .content-row > .card {
+    min-height: 0;
+}
+
+#announcement-feed {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+#ann-content {
+    min-height: 130px;
+    resize: vertical;
+    overflow-y: hidden;
+}
+
 .announcement-card {
     border-left: 4px solid var(--primary);
     padding: 15px;
