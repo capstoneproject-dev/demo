@@ -4080,6 +4080,7 @@ function toggleAnnouncementCourseTargets() {
     const targets = document.getElementById('ann-course-targets');
     if (!audienceSelect || !targets) return;
     targets.hidden = audienceSelect.value !== 'specific_courses';
+    setTimeout(resizeAnnouncementContentBox, 0);
 }
 
 function getSelectedAnnouncementProgramIds() {
@@ -4500,6 +4501,46 @@ function setupAnnouncementPhotoPreviewCarousel() {
     document.querySelector('.announcement-photo-next')?.addEventListener('click', () => moveAnnouncementPhotoPreview(1));
 }
 
+function getVisibleOuterHeight(element) {
+    if (!element || element.hidden || element.offsetParent === null) return 0;
+    const style = window.getComputedStyle(element);
+    return element.offsetHeight + parseFloat(style.marginTop || 0) + parseFloat(style.marginBottom || 0);
+}
+
+function resizeAnnouncementContentBox() {
+    const textarea = document.getElementById('ann-content');
+    const form = document.getElementById('announcement-form');
+    const card = form?.closest('.card');
+    if (!textarea || !form || !card) return;
+
+    const followingHeight = Array.from(form.children).reduce((total, child) => {
+        if (child === textarea) return total;
+        if (textarea.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            return total + getVisibleOuterHeight(child);
+        }
+        return total;
+    }, 0);
+
+    const cardRect = card.getBoundingClientRect();
+    const textareaRect = textarea.getBoundingClientRect();
+    const cardStyle = window.getComputedStyle(card);
+    const bottomPadding = parseFloat(cardStyle.paddingBottom || 0);
+    const maxHeight = Math.max(130, cardRect.bottom - textareaRect.top - followingHeight - bottomPadding - 12);
+
+    textarea.style.height = 'auto';
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+}
+
+function setupAnnouncementContentAutoResize() {
+    const textarea = document.getElementById('ann-content');
+    if (!textarea) return;
+    textarea.addEventListener('input', resizeAnnouncementContentBox);
+    window.addEventListener('resize', resizeAnnouncementContentBox);
+    resizeAnnouncementContentBox();
+}
+
 async function fetchAnnouncementsFromApi() {
     try {
         const res = await fetch('../api/announcements/list.php', { credentials: 'same-origin' });
@@ -4744,6 +4785,7 @@ async function postAnnouncement(e) {
     e.target.reset();
     toggleAnnouncementCourseTargets();
     clearAnnouncementPhotoPreview();
+    resizeAnnouncementContentBox();
 }
 
 function returnItem(index) {
@@ -5696,6 +5738,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     setupAnnouncementPhotoPreviewCarousel();
+    setupAnnouncementContentAutoResize();
     loadAnnouncementCourseTargets();
     toggleAnnouncementCourseTargets();
     initTrackerSidebarBehavior();
