@@ -1849,10 +1849,6 @@ const COMPLIANCE_REQUIREMENTS = [
     {
         label: 'Activity Report',
         aliases: ['activity report']
-    },
-    {
-        label: 'Audit Status',
-        aliases: ['audit report', 'audit status']
     }
 ];
 
