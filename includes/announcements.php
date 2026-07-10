@@ -283,7 +283,23 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
                a.created_at,
                a.updated_at,
                o.org_name,
-               o.org_code
+               o.org_code,
+               (
+                   SELECT e.event_datetime
+                   FROM events e
+                   WHERE e.org_id = a.org_id
+                     AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                   ORDER BY e.event_id DESC
+                   LIMIT 1
+               ) AS event_datetime,
+               (
+                   SELECT e.location
+                   FROM events e
+                   WHERE e.org_id = a.org_id
+                     AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                   ORDER BY e.event_id DESC
+                   LIMIT 1
+               ) AS event_location
         FROM announcements a
         JOIN organizations o ON o.org_id = a.org_id
         WHERE " . implode(' AND ', $where) . "

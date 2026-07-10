@@ -354,26 +354,6 @@ try {
 
             SELECT
                 CONVERT(COALESCE(NULLIF(o.org_code, ''), o.org_name) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS organization,
-                CONVERT('Rental Inventory' USING utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type,
-                CONVERT(CONCAT(COUNT(*), ' rental item', IF(COUNT(*) = 1, '', 's'), ' listed/updated') USING utf8mb4) COLLATE utf8mb4_unicode_ci AS title,
-                CONVERT(CONCAT('Items: ', GROUP_CONCAT(CONCAT(i.item_name, ' [', i.barcode, ']') ORDER BY i.item_name, i.barcode SEPARATOR ', ')) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS details,
-                COALESCE(i.updated_at, i.created_at) AS activity_at,
-                CONVERT('rental_inventory' USING utf8mb4) COLLATE utf8mb4_unicode_ci AS source_type,
-                0 AS source_id,
-                CONVERT(CONCAT(
-                    'Items: ', GROUP_CONCAT(CONCAT(i.item_name, ' [', i.barcode, ']') ORDER BY i.item_name, i.barcode SEPARATOR ', '),
-                    '\nStatus: ', i.status,
-                    '\nRecorded At: ', DATE_FORMAT(COALESCE(i.updated_at, i.created_at), '%b %d, %Y %h:%i %p')
-                ) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS full_details,
-                CONVERT(i.status USING utf8mb4) COLLATE utf8mb4_unicode_ci AS status
-            FROM inventory_items i
-            JOIN organizations o ON o.org_id = i.org_id
-            GROUP BY o.org_id, o.org_code, o.org_name, COALESCE(i.updated_at, i.created_at), i.status
-
-            UNION ALL
-
-            SELECT
-                CONVERT(COALESCE(NULLIF(o.org_code, ''), o.org_name) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS organization,
                 CONVERT(CASE WHEN r.service_kind = 'locker' THEN 'Locker Rental' ELSE 'Student Rental' END USING utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type,
                 CONVERT(CONCAT(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ' rented ', COALESCE(ri_summary.items_label, 'an item')) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS title,
                 CONVERT(CONCAT('Student No: ', COALESCE(u.student_number, 'N/A'), ' - Due: ', DATE_FORMAT(r.expected_return_time, '%b %d, %Y %h:%i %p'), ' - PHP ', FORMAT(r.total_cost, 2)) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS details,
