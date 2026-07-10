@@ -25,6 +25,21 @@ function normalizeCourse(code) {
   return String(code || '').trim().toUpperCase();
 }
 
+function setupPasswordVisibilityToggles() {
+  document.querySelectorAll('.password-toggle').forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      const input = toggle.closest('.password-field')?.querySelector('input');
+      if (!input) return;
+
+      const isVisible = input.type === 'text';
+      input.type = isVisible ? 'password' : 'text';
+      toggle.setAttribute('aria-pressed', String(!isVisible));
+      toggle.setAttribute('aria-label', isVisible ? 'Show password' : 'Hide password');
+      toggle.title = isVisible ? 'Show password' : 'Hide password';
+    });
+  });
+}
+
 function normalizeOrgName(name) {
   const raw = String(name || '').trim();
   const upper = raw.toUpperCase();
@@ -1839,6 +1854,7 @@ async function handleLogin() {
    ===================== */
 document.addEventListener('DOMContentLoaded', () => {
   getAuthDb();
+  setupPasswordVisibilityToggles();
   setupPhoneInput('student-phone-input');
   setupPhoneInput('org-phone-input');
   setupPhoneInput('osa-phone-input');
