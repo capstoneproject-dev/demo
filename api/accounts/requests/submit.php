@@ -2,6 +2,7 @@
 // Public endpoint (no session guard) – students submit account requests from the login page or Android app
 require_once '../../../config/db.php';
 require_once '../../../includes/auth.php';
+require_once '../../../includes/otp.php';
 
 header('Content-Type: application/json');
 requirePost();
@@ -17,6 +18,7 @@ $yearSection   = trim($body['yearSection'] ?? $body['section'] ?? '');
 $reqRole       = trim($body['requestedRole'] ?? 'student');
 $reqOrg        = trim($body['requestedOrg']  ?? '');
 $reqPosition   = trim($body['requestedPosition'] ?? '');
+$verificationToken = trim($body['verification_token'] ?? '');
 
 if (!$studentNumber || !$studentName || !$email || !$password) {
     jsonError('studentId, name, email, and password are required.', 422);
@@ -65,6 +67,10 @@ try {
         }
     }
 
+    $purpose = $reqRole === 'org_officer' ? 'org_registration' : 'student_registration';
+    $pdo->beginTransaction();
+    consumeOtpVerification($pdo, $verificationToken, $purpose, $email, $studentNumber);
+
     $pwHash = password_hash($password, PASSWORD_BCRYPT);
 
     $ins = $pdo->prepare("
@@ -86,8 +92,14 @@ try {
         ':position' => $reqPosition ?: null,
     ]);
     $regId = (int)$pdo->lastInsertId();
+    $pdo->commit();
 
     jsonOk(['reg_id' => $regId, 'msg' => 'Registration request submitted. Please wait for approval.']);
+} catch (InvalidArgumentException $e) {
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    jsonError($e->getMessage(), 403);
 } catch (PDOException $e) {
-    jsonError('DB error: ' . $e->getMessage(), 500);
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    error_log('[api/accounts/requests/submit] ' . $e->getMessage());
+    jsonError('Could not submit the registration request right now.', 500);
 }

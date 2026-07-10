@@ -526,7 +526,8 @@ async function submitPendingRegistration(payload) {
         section:      payload.section      || '',
         requestedRole: payload.requestedRole || 'student',
         requestedOrg:  payload.requestedOrg  || '',
-        requestedPosition: payload.requestedPosition || ''
+        requestedPosition: payload.requestedPosition || '',
+        verification_token: payload.verificationToken || ''
       })
     });
     const json = await res.json();
@@ -635,17 +636,25 @@ if (signInBtn) signInBtn.addEventListener('click', toggleSlide);
    ===================== */
 const signInContainer = document.getElementById('signInContainer');
 const forgotOtpState = {
-  generatedOtp: '',
+  challengeToken: '',
+  verificationToken: '',
   sentToEmail: '',
   sentToStudentNumber: '',
-  verified: false
+  verified: false,
+  isSubmitting: false,
+  resendTimer: null
 };
 const registrationOtpState = {
-  generatedOtp: '',
+  challengeToken: '',
+  verificationToken: '',
   pendingAction: null,
   pendingEmail: '',
+  pendingIdentifier: '',
+  pendingPurpose: '',
   pendingLabel: '',
-  isSubmitting: false
+  isSubmitting: false,
+  isSending: false,
+  resendTimer: null
 };
 
 function getForgotOtpInputs() {
@@ -697,13 +706,23 @@ function getForgotOtpValue() {
   return getForgotOtpInputs().map((input) => String(input.value || '').trim().toUpperCase()).join('');
 }
 
-function generateSimulatedOtp() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let otp = '';
-  for (let i = 0; i < 6; i += 1) {
-    otp += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return otp;
+function startOtpResendCountdown(button, seconds, state) {
+  if (state.resendTimer) clearInterval(state.resendTimer);
+  let remaining = Math.max(0, Number(seconds) || 0);
+  const render = () => {
+    if (!button) return;
+    button.disabled = remaining > 0;
+    button.textContent = remaining > 0 ? `RESEND OTP (${remaining}s)` : 'RESEND OTP';
+  };
+  render();
+  state.resendTimer = setInterval(() => {
+    remaining -= 1;
+    render();
+    if (remaining <= 0) {
+      clearInterval(state.resendTimer);
+      state.resendTimer = null;
+    }
+  }, 1000);
 }
 
 function revealForgotOtpSection() {
@@ -712,19 +731,28 @@ function revealForgotOtpSection() {
 }
 
 function resetForgotPasswordFlow(keepFields) {
-  forgotOtpState.generatedOtp = '';
+  forgotOtpState.challengeToken = '';
+  forgotOtpState.verificationToken = '';
   forgotOtpState.sentToEmail = '';
   forgotOtpState.sentToStudentNumber = '';
   forgotOtpState.verified = false;
+  forgotOtpState.isSubmitting = false;
+  if (forgotOtpState.resendTimer) clearInterval(forgotOtpState.resendTimer);
+  forgotOtpState.resendTimer = null;
 
   const section = document.getElementById('forgotOtpSection');
   if (section) section.classList.add('hidden');
 
   const status = document.getElementById('forgotOtpStatus');
-  if (status) status.textContent = 'A 6-character OTP was sent to your email.';
+  if (status) status.textContent = 'A 6-digit OTP was sent to your email.';
 
-  const note = document.getElementById('forgotOtpSimulationNote');
-  if (note) note.textContent = '';
+  const resendBtn = document.getElementById('forgotResendOtpBtn');
+  const verifyBtn = document.getElementById('forgotVerifyOtpBtn');
+  if (resendBtn) {
+    resendBtn.disabled = false;
+    resendBtn.textContent = 'RESEND OTP';
+  }
+  if (verifyBtn) verifyBtn.disabled = false;
 
   clearForgotOtpFeedback();
   resetForgotOtpInputs();
@@ -742,19 +770,24 @@ function resetForgotPasswordFlow(keepFields) {
   }
 }
 
-function sendForgotOtpSimulation() {
+async function sendForgotOtp() {
   const studentInput = document.getElementById('forgotStudentNumber');
   const emailInput = document.getElementById('forgotEmail');
   const newPasswordInput = document.getElementById('forgotNewPassword');
   const confirmPasswordInput = document.getElementById('forgotConfirmPassword');
   const status = document.getElementById('forgotOtpStatus');
-  const note = document.getElementById('forgotOtpSimulationNote');
+  const sendBtn = document.getElementById('forgotSendOtpBtn');
+  const resendBtn = document.getElementById('forgotResendOtpBtn');
 
   const studentNumber = String((studentInput && studentInput.value) || '').trim();
   const email = String((emailInput && emailInput.value) || '').trim();
   const newPassword = String((newPasswordInput && newPasswordInput.value) || '');
   const confirmPassword = String((confirmPasswordInput && confirmPasswordInput.value) || '');
 
+  if (!studentNumber || !email) {
+    setForgotFormFeedback('Enter your student number and email address.', false);
+    return;
+  }
   if (!newPassword || !confirmPassword) {
     setForgotFormFeedback('Enter your new password and confirm it before sending the OTP.', false);
     return;
@@ -768,40 +801,55 @@ function sendForgotOtpSimulation() {
     return;
   }
 
-  forgotOtpState.generatedOtp = generateSimulatedOtp();
-  forgotOtpState.sentToEmail = email;
-  forgotOtpState.sentToStudentNumber = studentNumber;
-  forgotOtpState.verified = false;
+  if (sendBtn) sendBtn.disabled = true;
+  if (resendBtn) resendBtn.disabled = true;
+  setForgotFormFeedback('Sending verification code...', true);
+  try {
+    const response = await fetch('../api/auth/otp/send.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purpose: 'password_reset', email, identifier: studentNumber })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Could not send the verification code.');
 
-  revealForgotOtpSection();
-  resetForgotOtpInputs();
-  clearForgotOtpFeedback();
-  setForgotFormFeedback('', false);
-  setLoginStatusMessage('', false);
-
-  if (status) status.textContent = 'A 6-character OTP was generated for this simulation.';
-  if (note) note.textContent = 'Simulation mode OTP: ' + forgotOtpState.generatedOtp;
-
-  focusForgotOtpInput(0);
+    forgotOtpState.challengeToken = data.challenge_token;
+    forgotOtpState.verificationToken = '';
+    forgotOtpState.sentToEmail = email;
+    forgotOtpState.sentToStudentNumber = studentNumber;
+    forgotOtpState.verified = false;
+    revealForgotOtpSection();
+    resetForgotOtpInputs();
+    clearForgotOtpFeedback();
+    setForgotFormFeedback(data.message || 'Verification code requested.', true);
+    setLoginStatusMessage('', false);
+    if (status) status.textContent = `Enter the 6-digit code sent to ${email}.`;
+    startOtpResendCountdown(resendBtn, data.resend_after, forgotOtpState);
+    focusForgotOtpInput(0);
+  } catch (error) {
+    setForgotFormFeedback(error.message || 'Could not send the verification code.', false);
+    if (resendBtn) resendBtn.disabled = false;
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+  }
 }
 
-async function verifyForgotOtpSimulation() {
+async function verifyForgotOtp() {
   const enteredOtp = getForgotOtpValue();
   const newPasswordInput = document.getElementById('forgotNewPassword');
   const confirmPasswordInput = document.getElementById('forgotConfirmPassword');
   const newPassword = String((newPasswordInput && newPasswordInput.value) || '');
   const confirmPassword = String((confirmPasswordInput && confirmPasswordInput.value) || '');
 
-  if (!forgotOtpState.generatedOtp) {
+  if (forgotOtpState.isSubmitting) return;
+
+  if (!forgotOtpState.challengeToken) {
     setForgotOtpFeedback('Send an OTP first.', false);
     return;
   }
   if (enteredOtp.length !== 6) {
-    setForgotOtpFeedback('Enter the complete 6-character OTP.', false);
-    return;
-  }
-  if (enteredOtp !== forgotOtpState.generatedOtp) {
-    setForgotOtpFeedback('Invalid OTP. Check the code and try again.', false);
+    setForgotOtpFeedback('Enter the complete 6-digit OTP.', false);
     return;
   }
   if (!newPassword || !confirmPassword) {
@@ -819,29 +867,48 @@ async function verifyForgotOtpSimulation() {
 
   const studentNumber = String(forgotOtpState.sentToStudentNumber || '').trim();
   const email = String(forgotOtpState.sentToEmail || '').trim();
+  const verifyBtn = document.getElementById('forgotVerifyOtpBtn');
+  forgotOtpState.isSubmitting = true;
+  if (verifyBtn) verifyBtn.disabled = true;
 
   try {
+    if (!forgotOtpState.verificationToken) {
+      const verificationResponse = await fetch('../api/auth/otp/verify.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challenge_token: forgotOtpState.challengeToken, otp: enteredOtp })
+      });
+      const verificationData = await verificationResponse.json();
+      if (!verificationResponse.ok || !verificationData.ok) {
+        throw new Error(verificationData.error || 'Invalid or expired verification code.');
+      }
+      forgotOtpState.verificationToken = verificationData.verification_token;
+    }
+
     const response = await fetch('../api/auth/forgot-password-reset.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         student_number: studentNumber,
         email,
-        otp: enteredOtp,
+        verification_token: forgotOtpState.verificationToken,
         new_password: newPassword
       })
     });
     const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Could not reset the password.');
 
     forgotOtpState.verified = true;
     setForgotOtpFeedback('OTP verified.', true);
 
     setLoginStatusMessage('Password has been reset. Please log in again with your new password.', true);
   } catch (error) {
-    console.error('[verifyForgotOtpSimulation] reset error:', error);
-    forgotOtpState.verified = true;
-    setForgotOtpFeedback('OTP verified.', true);
-    setLoginStatusMessage('OTP verified. Could not update the database right now.', true);
+    console.error('[verifyForgotOtp] error:', error);
+    setForgotOtpFeedback(error.message || 'Could not verify the code.', false);
+    forgotOtpState.isSubmitting = false;
+    if (verifyBtn) verifyBtn.disabled = false;
+    return;
   }
 
   setTimeout(() => {
@@ -863,7 +930,7 @@ function setupForgotOtpInputs() {
 
   inputs.forEach((input, index) => {
     input.addEventListener('input', (event) => {
-      const clean = String(event.target.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-1);
+      const clean = String(event.target.value || '').replace(/\D/g, '').slice(-1);
       event.target.value = clean;
       clearForgotOtpFeedback();
       if (clean && index < inputs.length - 1) focusForgotOtpInput(index + 1);
@@ -887,7 +954,7 @@ function setupForgotOtpInputs() {
     input.addEventListener('paste', (event) => {
       event.preventDefault();
       const pasted = (event.clipboardData || window.clipboardData).getData('text');
-      const chars = String(pasted || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6).split('');
+      const chars = String(pasted || '').replace(/\D/g, '').slice(0, 6).split('');
       if (chars.length === 0) return;
       inputs.forEach((field, idx) => { field.value = chars[idx] || ''; });
       clearForgotOtpFeedback();
@@ -905,9 +972,9 @@ function setupForgotPasswordFlow() {
   setupForgotOtpInputs();
   resetForgotPasswordFlow(false);
 
-  if (sendBtn) sendBtn.addEventListener('click', sendForgotOtpSimulation);
-  if (verifyBtn) verifyBtn.addEventListener('click', verifyForgotOtpSimulation);
-  if (resendBtn) resendBtn.addEventListener('click', sendForgotOtpSimulation);
+  if (sendBtn) sendBtn.addEventListener('click', sendForgotOtp);
+  if (verifyBtn) verifyBtn.addEventListener('click', verifyForgotOtp);
+  if (resendBtn) resendBtn.addEventListener('click', sendForgotOtp);
   if (form) form.addEventListener('submit', (event) => event.preventDefault());
 }
 
@@ -967,61 +1034,110 @@ function closeRegistrationOtpModal() {
   if (modal) modal.classList.remove('open');
   registrationOtpState.pendingAction = null;
   registrationOtpState.pendingEmail = '';
+  registrationOtpState.pendingIdentifier = '';
+  registrationOtpState.pendingPurpose = '';
   registrationOtpState.pendingLabel = '';
-  registrationOtpState.generatedOtp = '';
+  registrationOtpState.challengeToken = '';
+  registrationOtpState.verificationToken = '';
   registrationOtpState.isSubmitting = false;
-  const note = document.getElementById('registrationOtpSimulationNote');
+  registrationOtpState.isSending = false;
+  if (registrationOtpState.resendTimer) clearInterval(registrationOtpState.resendTimer);
+  registrationOtpState.resendTimer = null;
   const status = document.getElementById('registrationOtpStatus');
-  if (note) note.textContent = '';
-  if (status) status.textContent = 'Enter the 6-character OTP to continue registration.';
+  if (status) status.textContent = 'Enter the 6-digit OTP to continue registration.';
+  const resendBtn = document.getElementById('registrationOtpResendBtn');
+  const verifyBtn = document.getElementById('registrationOtpVerifyBtn');
+  if (resendBtn) {
+    resendBtn.disabled = false;
+    resendBtn.textContent = 'RESEND OTP';
+  }
+  if (verifyBtn) verifyBtn.disabled = false;
   clearRegistrationOtpFeedback();
   resetRegistrationOtpInputs();
 }
 
-function sendRegistrationOtpSimulation() {
-  if (!registrationOtpState.pendingAction) return;
-  registrationOtpState.generatedOtp = generateSimulatedOtp();
+async function sendRegistrationOtp() {
+  if (!registrationOtpState.pendingAction || registrationOtpState.isSending) return;
+  registrationOtpState.isSending = true;
   registrationOtpState.isSubmitting = false;
-  const note = document.getElementById('registrationOtpSimulationNote');
   const status = document.getElementById('registrationOtpStatus');
-  if (status) {
-    status.textContent = registrationOtpState.pendingEmail
-      ? 'Enter the 6-character OTP sent to ' + registrationOtpState.pendingEmail + '.'
-      : 'Enter the 6-character OTP to continue ' + registrationOtpState.pendingLabel + ' registration.';
-  }
-  if (note) note.textContent = 'Simulation mode OTP: ' + registrationOtpState.generatedOtp;
+  const resendBtn = document.getElementById('registrationOtpResendBtn');
+  const verifyBtn = document.getElementById('registrationOtpVerifyBtn');
+  if (status) status.textContent = 'Sending verification code...';
+  if (resendBtn) resendBtn.disabled = true;
+  if (verifyBtn) verifyBtn.disabled = true;
   clearRegistrationOtpFeedback();
   resetRegistrationOtpInputs();
   openRegistrationOtpModal();
-  focusRegistrationOtpInput(0);
+  try {
+    const response = await fetch('../api/auth/otp/send.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        purpose: registrationOtpState.pendingPurpose,
+        email: registrationOtpState.pendingEmail,
+        identifier: registrationOtpState.pendingIdentifier
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Could not send the verification code.');
+
+    registrationOtpState.challengeToken = data.challenge_token;
+    registrationOtpState.verificationToken = '';
+    if (status) status.textContent = `Enter the 6-digit code sent to ${registrationOtpState.pendingEmail}.`;
+    setRegistrationOtpFeedback(data.message || 'Verification code requested.', true);
+    startOtpResendCountdown(resendBtn, data.resend_after, registrationOtpState);
+    focusRegistrationOtpInput(0);
+  } catch (error) {
+    if (status) status.textContent = `Verify ${registrationOtpState.pendingLabel} registration.`;
+    setRegistrationOtpFeedback(error.message || 'Could not send the verification code.', false);
+    if (resendBtn) resendBtn.disabled = false;
+  } finally {
+    registrationOtpState.isSending = false;
+    if (verifyBtn) verifyBtn.disabled = false;
+  }
 }
 
-async function verifyRegistrationOtpSimulation() {
+async function verifyRegistrationOtp() {
   const enteredOtp = getRegistrationOtpValue();
-  if (!registrationOtpState.generatedOtp) {
+  if (!registrationOtpState.challengeToken) {
     setRegistrationOtpFeedback('Send an OTP first.', false);
     return;
   }
   if (enteredOtp.length !== 6) {
-    setRegistrationOtpFeedback('Enter the complete 6-character OTP.', false);
-    return;
-  }
-  if (enteredOtp !== registrationOtpState.generatedOtp) {
-    setRegistrationOtpFeedback('Invalid OTP. Check the code and try again.', false);
+    setRegistrationOtpFeedback('Enter the complete 6-digit OTP.', false);
     return;
   }
   if (!registrationOtpState.pendingAction || registrationOtpState.isSubmitting) return;
 
   registrationOtpState.isSubmitting = true;
-  setRegistrationOtpFeedback('OTP verified. Creating account...', true);
+  setRegistrationOtpFeedback('Verifying OTP...', true);
+  const verifyBtn = document.getElementById('registrationOtpVerifyBtn');
+  const resendBtn = document.getElementById('registrationOtpResendBtn');
+  if (verifyBtn) verifyBtn.disabled = true;
+  if (resendBtn) resendBtn.disabled = true;
 
   try {
-    await registrationOtpState.pendingAction();
+    if (!registrationOtpState.verificationToken) {
+      const response = await fetch('../api/auth/otp/verify.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challenge_token: registrationOtpState.challengeToken, otp: enteredOtp })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Invalid or expired verification code.');
+      registrationOtpState.verificationToken = data.verification_token;
+    }
+    await registrationOtpState.pendingAction(registrationOtpState.verificationToken);
     closeRegistrationOtpModal();
   } catch (error) {
     registrationOtpState.isSubmitting = false;
-    console.error('[verifyRegistrationOtpSimulation] error:', error);
-    setRegistrationOtpFeedback('OTP verified, but the registration could not be completed.', false);
+    if (verifyBtn) verifyBtn.disabled = false;
+    if (resendBtn && !registrationOtpState.resendTimer) resendBtn.disabled = false;
+    console.error('[verifyRegistrationOtp] error:', error);
+    setRegistrationOtpFeedback(error.message || 'The registration could not be completed.', false);
   }
 }
 
@@ -1031,7 +1147,7 @@ function setupRegistrationOtpInputs() {
 
   inputs.forEach((input, index) => {
     input.addEventListener('input', (event) => {
-      const clean = String(event.target.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-1);
+      const clean = String(event.target.value || '').replace(/\D/g, '').slice(-1);
       event.target.value = clean;
       clearRegistrationOtpFeedback();
       if (clean && index < inputs.length - 1) focusRegistrationOtpInput(index + 1);
@@ -1055,7 +1171,7 @@ function setupRegistrationOtpInputs() {
     input.addEventListener('paste', (event) => {
       event.preventDefault();
       const pasted = (event.clipboardData || window.clipboardData).getData('text');
-      const chars = String(pasted || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6).split('');
+      const chars = String(pasted || '').replace(/\D/g, '').slice(0, 6).split('');
       if (chars.length === 0) return;
       inputs.forEach((field, idx) => { field.value = chars[idx] || ''; });
       clearRegistrationOtpFeedback();
@@ -1064,11 +1180,13 @@ function setupRegistrationOtpInputs() {
   });
 }
 
-function startRegistrationOtpFlow(label, email, action) {
+function startRegistrationOtpFlow(label, email, identifier, purpose, action) {
   registrationOtpState.pendingAction = action;
   registrationOtpState.pendingEmail = String(email || '').trim();
+  registrationOtpState.pendingIdentifier = String(identifier || '').trim();
+  registrationOtpState.pendingPurpose = purpose;
   registrationOtpState.pendingLabel = label;
-  sendRegistrationOtpSimulation();
+  sendRegistrationOtp();
 }
 
 function setupRegistrationOtpFlow() {
@@ -1083,8 +1201,8 @@ function setupRegistrationOtpFlow() {
       if (event.target === modal) closeRegistrationOtpModal();
     });
   }
-  if (verifyBtn) verifyBtn.addEventListener('click', verifyRegistrationOtpSimulation);
-  if (resendBtn) resendBtn.addEventListener('click', sendRegistrationOtpSimulation);
+  if (verifyBtn) verifyBtn.addEventListener('click', verifyRegistrationOtp);
+  if (resendBtn) resendBtn.addEventListener('click', sendRegistrationOtp);
 }
 
 /* =====================
@@ -1461,7 +1579,7 @@ async function registerStudent() {
   }
   if (!hasPrivacyConsent('student-privacy-consent')) return;
 
-  startRegistrationOtpFlow('student', email, async () => {
+  startRegistrationOtpFlow('student', email, studentNumber, 'student_registration', async (verificationToken) => {
     const submitted = await submitPendingRegistration({
       studentId: studentNumber,
       name: fullName,
@@ -1472,7 +1590,8 @@ async function registerStudent() {
       yearSection: section,
       section: `${normalizeCourse(course)} ${section}`.trim(),
       requestedRole: 'student',
-      requestedOrg: ''
+      requestedOrg: '',
+      verificationToken
     });
 
     if (!submitted.ok) {
@@ -1517,7 +1636,7 @@ async function registerOrgOfficer() {
   }
   if (!hasPrivacyConsent('org-privacy-consent')) return;
 
-  startRegistrationOtpFlow('organization', email, async () => {
+  startRegistrationOtpFlow('organization', email, studentNumber, 'org_registration', async (verificationToken) => {
     const submitted = await submitPendingRegistration({
       studentId: studentNumber,
       name: fullName,
@@ -1529,7 +1648,8 @@ async function registerOrgOfficer() {
       section: `${normalizeCourse(course)} ${section}`.trim(),
       requestedRole: 'org_officer',
       requestedOrg: orgName,
-      requestedPosition: positionTitle
+      requestedPosition: positionTitle,
+      verificationToken
     });
 
     if (!submitted.ok) {
@@ -1564,7 +1684,7 @@ async function registerOsa() {
   }
   if (!hasPrivacyConsent('osa-privacy-consent')) return;
 
-  startRegistrationOtpFlow('OSA', email, async () => {
+  startRegistrationOtpFlow('OSA', email, employeeNumber, 'osa_registration', async (verificationToken) => {
     const parsedName = splitName(fullName);
     const btn = document.getElementById('osaRegisterBtn');
     if (btn) btn.disabled = true;
@@ -1580,7 +1700,8 @@ async function registerOsa() {
           email,
           phone,
           password,
-          confirm_password: confirmPassword
+          confirm_password: confirmPassword,
+          verification_token: verificationToken
         })
       });
       const data = await resp.json();

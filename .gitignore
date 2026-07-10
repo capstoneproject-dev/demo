@@ -1,1 +1,4 @@
 config/analytics_ai.php
+composer.phar
+composer-setup.php
+/vendor/

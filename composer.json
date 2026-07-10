@@ -1,0 +1,8 @@
+{
+  "name": "naap/capstone-demo",
+  "description": "NAAP capstone web application",
+  "license": "proprietary",
+  "require": {
+    "phpmailer/phpmailer": "^6.10"
+  }
+}
