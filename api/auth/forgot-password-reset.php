@@ -2,13 +2,12 @@
 /**
  * POST /api/auth/forgot-password-reset.php
  *
- * Simulation-backed reset flow:
- * - Accepts student_number + email + otp + new_password
- * - If a matching active account exists in users, updates password_hash
- *   to the chosen new password after OTP verification.
+ * Verified reset flow. A single-use server-issued email verification token is
+ * required before the password can be changed.
  */
 
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/otp.php';
 
 header('Content-Type: application/json');
 
@@ -17,11 +16,11 @@ requirePost();
 $body = getRequestBody();
 $studentNumber = trim((string)($body['student_number'] ?? ''));
 $email = trim((string)($body['email'] ?? ''));
-$otp = trim((string)($body['otp'] ?? ''));
+$verificationToken = trim((string)($body['verification_token'] ?? ''));
 $newPassword = (string)($body['new_password'] ?? '');
 
-if ($studentNumber === '' || $email === '' || $otp === '' || $newPassword === '') {
-    jsonError('Student number, email, OTP, and new password are required.', 422);
+if ($studentNumber === '' || $email === '' || $verificationToken === '' || $newPassword === '') {
+    jsonError('Student number, email verification, and new password are required.', 422);
 }
 
 if (strlen($newPassword) < 8) {
@@ -49,6 +48,9 @@ try {
         jsonError('No matching active account was found.', 404);
     }
 
+    $pdo->beginTransaction();
+    consumeOtpVerification($pdo, $verificationToken, 'password_reset', $email, $studentNumber);
+
     $update = $pdo->prepare(
         "UPDATE users
          SET password_hash = :password_hash,
@@ -60,11 +62,16 @@ try {
         ':password_hash' => password_hash($newPassword, PASSWORD_BCRYPT),
         ':user_id' => (int)$user['user_id'],
     ]);
+    $pdo->commit();
 
     jsonOk([
         'message' => 'Password reset successfully.',
     ]);
+} catch (InvalidArgumentException $e) {
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    jsonError($e->getMessage(), 403);
 } catch (PDOException $e) {
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
     error_log('[api/auth/forgot-password-reset] ' . $e->getMessage());
     jsonError('Could not reset the password right now.', 500);
 }

@@ -44,7 +44,7 @@
         <!-- FORGOT PASSWORD PANEL -->
         <div id="panel-forgot">
           <h1>FORGOT PASSWORD</h1>
-          <p class="subtitle">Enter your student number and email to receive a simulated 6-character OTP.</p>
+          <p class="subtitle">Enter your student number and email to receive a 6-digit verification code.</p>
 
           <form id="forgotPasswordForm" class="forgot-password-form">
             <input type="text" id="forgotStudentNumber" placeholder="Student Number" autocomplete="off" />
@@ -57,16 +57,15 @@
             <button type="button" id="forgotSendOtpBtn">SEND OTP</button>
 
             <div id="forgotOtpSection" class="forgot-otp-section hidden">
-              <p class="otp-helper" id="forgotOtpStatus">A 6-character OTP was sent to your email.</p>
+              <p class="otp-helper" id="forgotOtpStatus">A 6-digit OTP was sent to your email.</p>
               <div class="otp-input-group" id="forgotOtpInputs">
-                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-                <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="numeric" autocomplete="one-time-code" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+                <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
               </div>
-              <p class="simulation-note" id="forgotOtpSimulationNote" aria-live="polite"></p>
               <p class="otp-feedback" id="forgotOtpFeedback" aria-live="polite"></p>
               <div class="otp-actions">
                 <button type="button" id="forgotVerifyOtpBtn">VERIFY OTP</button>
@@ -318,16 +317,15 @@
         <button class="close-modal" onclick="closeRegistrationOtpModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="otp-helper" id="registrationOtpStatus">Enter the 6-character OTP to continue registration.</p>
+        <p class="otp-helper" id="registrationOtpStatus">Enter the 6-digit OTP to continue registration.</p>
         <div class="otp-input-group" id="registrationOtpInputs">
-          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
-          <input type="text" class="otp-char" maxlength="1" inputmode="text" autocomplete="one-time-code" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" autocomplete="one-time-code" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
         </div>
-        <p class="simulation-note" id="registrationOtpSimulationNote" aria-live="polite"></p>
         <p class="otp-feedback" id="registrationOtpFeedback" aria-live="polite"></p>
         <div class="otp-actions">
           <button type="button" id="registrationOtpVerifyBtn">VERIFY OTP</button>

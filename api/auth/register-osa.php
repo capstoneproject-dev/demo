@@ -12,6 +12,7 @@
 
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/otp.php';
 
 header('Content-Type: application/json');
 
@@ -25,6 +26,7 @@ $email           = trim($body['email']            ?? '');
 $phone           = trim($body['phone']            ?? '');
 $password        = $body['password']              ?? '';
 $confirmPassword = $body['confirm_password']      ?? '';
+$verificationToken = trim($body['verification_token'] ?? '');
 
 // --- Validation ---
 if (!$employeeNumber || !$firstName || !$email || !$password || !$confirmPassword) {
@@ -46,15 +48,28 @@ if (employeeNumberExists($employeeNumber)) {
     jsonError('An account with that employee number already exists.');
 }
 
-// --- Create user ---
-$userId = createOsaUser([
-    'employee_number' => $employeeNumber,
-    'first_name'      => $firstName,
-    'last_name'       => $lastName,
-    'email'           => $email,
-    'phone'           => $phone,
-    'password'        => $password,
-]);
+// --- Consume verification and create user atomically ---
+$pdo = getPdo();
+try {
+    $pdo->beginTransaction();
+    consumeOtpVerification($pdo, $verificationToken, 'osa_registration', $email, $employeeNumber);
+    $userId = createOsaUser([
+        'employee_number' => $employeeNumber,
+        'first_name'      => $firstName,
+        'last_name'       => $lastName,
+        'email'           => $email,
+        'phone'           => $phone,
+        'password'        => $password,
+    ]);
+    $pdo->commit();
+} catch (InvalidArgumentException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    jsonError($e->getMessage(), 403);
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log('[api/auth/register-osa] ' . $e->getMessage());
+    jsonError('Could not create the account right now.', 500);
+}
 
 // --- Build and persist session ---
 $user = getUserById($userId);
