@@ -29,7 +29,12 @@
 
           <form id="loginForm">
             <input type="text" id="loginIdentifier" placeholder="Email / Student Number / Employee Number" />
-            <input type="password" id="loginPassword" placeholder="Password" />
+            <div class="password-field">
+              <input type="password" id="loginPassword" placeholder="Password" />
+              <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg>
+              </button>
+            </div>
             <button type="button" id="loginBtn">LOGIN</button>
 
             <div class="nav-links">
@@ -50,8 +55,8 @@
             <input type="text" id="forgotStudentNumber" placeholder="Student Number" autocomplete="off" />
             <input type="email" id="forgotEmail" placeholder="Email" autocomplete="off" />
             <div class="forgot-reset-fields">
-              <input type="password" id="forgotNewPassword" placeholder="New Password" autocomplete="new-password" />
-              <input type="password" id="forgotConfirmPassword" placeholder="Confirm New Password" autocomplete="new-password" />
+              <div class="password-field"><input type="password" id="forgotNewPassword" placeholder="New Password" autocomplete="new-password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
+              <div class="password-field"><input type="password" id="forgotConfirmPassword" placeholder="Confirm New Password" autocomplete="new-password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
             </div>
             <p class="forgot-form-feedback hidden" id="forgotFormFeedback" aria-live="polite"></p>
             <button type="button" id="forgotSendOtpBtn">SEND OTP</button>
@@ -104,8 +109,8 @@
           <input type="text" id="student-section-input" placeholder="Section" />
           <input type="email" id="student-email-input" placeholder="Email" />
           <input type="tel" id="student-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
-          <input type="password" id="student-password-input" placeholder="Password" />
-          <input type="password" id="student-confirm-password-input" placeholder="Re-enter Password" />
+          <div class="password-field"><input type="password" id="student-password-input" placeholder="Password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
+          <div class="password-field"><input type="password" id="student-confirm-password-input" placeholder="Re-enter Password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
           <label class="privacy-consent" for="student-privacy-consent">
             <input type="checkbox" id="student-privacy-consent" />
             <span>By creating an account, you acknowledge that the system will collect and process your personal data for registration, user authentication, student organization management, document submission, communication, monitoring, and other legitimate academic and administrative purposes. Your data will be processed in accordance with Republic Act No. 10173, or the Data Privacy Act of 2012.</span>
@@ -119,8 +124,8 @@
           <input type="text" id="osa-name-input" placeholder="Name" />
           <input type="email" id="osa-email-input" placeholder="Email" />
           <input type="tel" id="osa-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
-          <input type="password" id="osa-password-input" placeholder="Password" />
-          <input type="password" id="osa-confirm-password-input" placeholder="Re-enter Password" />
+          <div class="password-field"><input type="password" id="osa-password-input" placeholder="Password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
+          <div class="password-field"><input type="password" id="osa-confirm-password-input" placeholder="Re-enter Password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
           <label class="privacy-consent" for="osa-privacy-consent">
             <input type="checkbox" id="osa-privacy-consent" />
             <span>By creating an account, you acknowledge that the system will collect and process your personal data for registration, user authentication, student organization management, document submission, communication, monitoring, and other legitimate academic and administrative purposes. Your data will be processed in accordance with Republic Act No. 10173, or the Data Privacy Act of 2012.</span>
