@@ -544,6 +544,265 @@ function setActiveRentalsCount(count) {
     if (fallbackCountEl) fallbackCountEl.innerText = String(Number(count) || 0);
 }
 
+let officerDashboardRefreshTimer = null;
+let officerDashboardRequest = null;
+let officerDashboardMockPreviewActive = false;
+
+function setDashboardText(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+}
+
+function formatDashboardCurrency(value) {
+    return new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(Number(value) || 0);
+}
+
+function formatDashboardRelativeTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const seconds = Math.round((date.getTime() - Date.now()) / 1000);
+    const ranges = [
+        ['year', 31536000], ['month', 2592000], ['week', 604800],
+        ['day', 86400], ['hour', 3600], ['minute', 60],
+    ];
+    const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+    for (const [unit, size] of ranges) {
+        if (Math.abs(seconds) >= size) return formatter.format(Math.round(seconds / size), unit);
+    }
+    return 'just now';
+}
+
+function formatDashboardStatus(status) {
+    return String(status || 'active')
+        .replace(/^locker_/, '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function renderOfficerDashboard(data) {
+    const revenue = data.revenue || {};
+    setDashboardText('dashboard-revenue-value', formatDashboardCurrency(revenue.current));
+    setDashboardText('dashboard-revenue-period', `Revenue (${revenue.period || 'Current month'})`);
+    const revenueChange = document.getElementById('dashboard-revenue-change');
+    if (revenueChange) {
+        const change = revenue.change_percent;
+        if (change === null || change === undefined) {
+            revenueChange.textContent = 'N/A';
+            revenueChange.style.color = 'var(--muted)';
+        } else {
+            const numericChange = Number(change) || 0;
+            const icon = numericChange > 0 ? 'fa-arrow-up' : numericChange < 0 ? 'fa-arrow-down' : 'fa-minus';
+            revenueChange.innerHTML = `<i class="fa-solid ${icon}"></i> ${Math.abs(numericChange).toFixed(1)}%`;
+            revenueChange.style.color = numericChange > 0 ? '#059669' : numericChange < 0 ? '#dc2626' : 'var(--muted)';
+        }
+    }
+
+    const participation = data.participation || {};
+    const participationValue = document.getElementById('dashboard-participation-value');
+    if (participationValue) {
+        const growth = participation.growth_percent;
+        participationValue.textContent = growth === null || growth === undefined
+            ? 'N/A'
+            : `${Number(growth) > 0 ? '+' : ''}${Number(growth).toFixed(1)}%`;
+        participationValue.style.color = Number(growth) > 0
+            ? '#059669'
+            : Number(growth) < 0 ? '#dc2626' : 'var(--muted)';
+    }
+    if (participation.latest_event) {
+        const eventDate = new Date(participation.latest_event_date);
+        const shortDate = Number.isNaN(eventDate.getTime())
+            ? ''
+            : eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        setDashboardText('dashboard-participation-event', `${participation.latest_event}${shortDate ? ` (${shortDate})` : ''}`);
+    } else {
+        setDashboardText('dashboard-participation-event', 'Waiting for two completed events');
+    }
+
+    const documents = data.documents || {};
+    setDashboardText('dashboard-document-period', `(${documents.period || 'Current month'})`);
+    setDashboardText('dashboard-doc-pending', documents.pending || 0);
+    setDashboardText('dashboard-doc-accepted', documents.approved || 0);
+    setDashboardText('dashboard-doc-rejected', documents.rejected || 0);
+
+    const services = data.active_services || {};
+    const serviceItems = Array.isArray(services.items) ? services.items : [];
+    setActiveRentalsCount(services.count || 0);
+    const table = document.getElementById('dashboard-rentals-table');
+    if (table) {
+        table.innerHTML = serviceItems.length ? serviceItems.map(item => `
+            <tr>
+                <td>${escapeHtml(item.item || item.service_type || '-')}</td>
+                <td>${escapeHtml(item.borrower || '-')}</td>
+                <td>${escapeHtml(fmtDateShort(item.date) || '-')}</td>
+                <td><span class="status-badge ${getRentalDashboardStatusClass(item.status)}">${escapeHtml(formatDashboardStatus(item.status))}</span></td>
+            </tr>
+        `).join('') : '<tr><td colspan="4" style="text-align:center; color: var(--muted);">No active rentals or services right now.</td></tr>';
+    }
+
+    const updates = Array.isArray(data.latest_updates) ? data.latest_updates : [];
+    const updatesContainer = document.getElementById('dashboard-latest-updates');
+    if (updatesContainer) {
+        updatesContainer.innerHTML = updates.length ? updates.map(update => `
+            <div class="dash-announcement">
+                <h5>${escapeHtml(update.title || 'Untitled')}<small style="font-weight:400; font-size:0.7rem; color:var(--muted);">${escapeHtml(formatDashboardRelativeTime(update.published_at))}</small></h5>
+                <p>${escapeHtml(update.content || '')}</p>
+            </div>
+        `).join('') : '<div style="color:var(--muted);">No published updates yet.</div>';
+    }
+
+    const events = Array.isArray(data.upcoming_events) ? data.upcoming_events : [];
+    const eventsContainer = document.getElementById('dashboard-upcoming-events');
+    if (eventsContainer) {
+        eventsContainer.innerHTML = events.length ? events.map(event => {
+            const date = new Date(event.event_datetime);
+            const validDate = !Number.isNaN(date.getTime());
+            return `
+                <div class="event-item">
+                    <div class="event-date-box">
+                        <span class="event-day">${validDate ? date.getDate() : '--'}</span>
+                        <span class="event-month">${validDate ? date.toLocaleDateString('en-US', { month: 'short' }) : 'TBA'}</span>
+                    </div>
+                    <div class="event-details">
+                        <h4>${escapeHtml(event.name || 'Untitled Event')}</h4>
+                        <p><i class="fa-regular fa-clock"></i> ${validDate ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'TBA'} • ${escapeHtml(event.location || 'Location TBA')}</p>
+                    </div>
+                </div>`;
+        }).join('') : '<div style="color:var(--muted);">No upcoming published events.</div>';
+    }
+
+    const notifications = Array.isArray(data.notifications) ? data.notifications : [];
+    const notificationCount = document.getElementById('notif-count');
+    const notificationDropdown = document.getElementById('notif-dropdown');
+    if (notificationCount) {
+        notificationCount.textContent = String(notifications.length);
+        notificationCount.hidden = notifications.length === 0;
+    }
+    if (notificationDropdown) {
+        notificationDropdown.innerHTML = notifications.length ? notifications.map(item => `
+            <div class="notif-item">
+                <strong>${escapeHtml(item.title || 'Update')}</strong>
+                <small>${escapeHtml(formatDashboardRelativeTime(item.published_at))}</small>
+            </div>
+        `).join('') : '<div class="notif-item"><small>No published notifications.</small></div>';
+    }
+}
+
+// Temporary dashboard-only preview data. This never calls an API or writes to the database.
+// Remove this function and #dashboard-mock-data-btn when the mock preview is no longer needed.
+function showOfficerDashboardMockData() {
+    const now = new Date();
+    const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = (items) => items[randomInt(0, items.length - 1)];
+    const shuffle = (items) => [...items].sort(() => Math.random() - 0.5);
+    const dateAfterDays = (days, hour = 9) => {
+        const date = new Date(now);
+        date.setDate(date.getDate() + days);
+        date.setHours(hour, 0, 0, 0);
+        return date.toISOString();
+    };
+    const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const currentRevenue = randomInt(8200, 28500);
+    const previousRevenue = randomInt(7000, 26000);
+    const revenueChange = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
+    const previousParticipants = randomInt(80, 220);
+    const latestParticipants = randomInt(75, 260);
+    const participationChange = ((latestParticipants - previousParticipants) / previousParticipants) * 100;
+    const borrowers = ['Maria Santos', 'John Dela Cruz', 'Angela Reyes', 'Mark Villanueva', 'Paolo Garcia', 'Trisha Mendoza'];
+    const services = [
+        { service_type: 'rental', item: 'Canon EOS 1500D Camera', status: 'active' },
+        { service_type: 'rental', item: 'Wireless Microphone Set', status: 'active' },
+        { service_type: 'rental', item: 'Projector with HDMI Cable', status: 'reserved' },
+        { service_type: 'locker', item: `Locker ${pick(['A', 'B', 'C'])}-${randomInt(1, 30)}`, status: 'locker_active' },
+        { service_type: 'printing', item: pick(['Event Program.pdf', 'Organization Report.pdf', 'Activity Proposal.pdf']), status: pick(['queued', 'ready']) },
+    ];
+    const selectedServices = shuffle(services).slice(0, randomInt(3, 5)).map((service, index) => ({
+        ...service,
+        borrower: pick(borrowers),
+        date: dateAfterDays(randomInt(index, index + 8), randomInt(8, 17)),
+    }));
+    const updates = shuffle([
+        ['General Assembly', 'Mandatory attendance for all members at Room 301. Please bring your IDs.'],
+        ['Office Closure', 'Office will be closed due to the university holiday. Operations resume Monday.'],
+        ['Volunteer Call', 'Sign up now to join the organization outreach program this weekend.'],
+        ['Membership Update', 'Membership verification is now open for all active members.'],
+    ]).slice(0, 2).map(([title, content], index) => ({
+        id: `mock-update-${index}`,
+        title,
+        content,
+        published_at: dateAfterDays(-randomInt(index, index + 3), randomInt(8, 17)),
+    }));
+    const eventOptions = shuffle([
+        ['Tech Innovation Summit', 'Auditorium A'],
+        ['Inter-Org Sports Fest', 'University Oval'],
+        ['Leadership Workshop', 'AVR 2'],
+        ['Community Outreach', 'Student Center'],
+    ]).slice(0, 2);
+    officerDashboardMockPreviewActive = true;
+    renderOfficerDashboard({
+        revenue: { current: currentRevenue, previous: previousRevenue, change_percent: revenueChange, period: monthLabel },
+        participation: {
+            growth_percent: participationChange,
+            latest_event: pick(['General Assembly', 'Leadership Forum', 'Organization Orientation']),
+            latest_event_date: dateAfterDays(-randomInt(7, 28)),
+            latest_count: latestParticipants,
+            previous_count: previousParticipants,
+        },
+        active_services: {
+            count: selectedServices.length,
+            items: selectedServices,
+        },
+        documents: { period: monthLabel, pending: randomInt(0, 8), approved: randomInt(6, 28), rejected: randomInt(0, 4) },
+        latest_updates: updates,
+        notifications: updates.map(({ id, title, published_at }) => ({ id, title, published_at })),
+        upcoming_events: eventOptions.map(([name, location], index) => ({
+            id: `mock-event-${index}`,
+            name,
+            location,
+            event_datetime: dateAfterDays(randomInt(3 + index * 3, 9 + index * 5), randomInt(8, 17)),
+        })),
+    });
+    const button = document.getElementById('dashboard-mock-data-btn');
+    if (button) button.innerHTML = '<i class="fa-solid fa-flask"></i> Mock Preview Active';
+    showToast('Mock preview shown. Refresh to restore live database data.', 'info');
+}
+
+async function loadOfficerDashboard(showFeedback = false) {
+    officerDashboardMockPreviewActive = false;
+    const mockButton = document.getElementById('dashboard-mock-data-btn');
+    if (mockButton) mockButton.innerHTML = '<i class="fa-solid fa-flask"></i> Mock Data';
+    if (officerDashboardRequest) return officerDashboardRequest;
+    officerDashboardRequest = (async () => {
+        try {
+            const response = await fetch('../api/officer/dashboard.php', {
+                credentials: 'same-origin',
+                cache: 'no-store',
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) throw new Error(data.error || 'Could not load dashboard data.');
+            renderOfficerDashboard(data);
+            if (showFeedback) showToast('Dashboard refreshed.', 'success');
+        } catch (error) {
+            console.error('[loadOfficerDashboard] error:', error);
+            if (showFeedback) showToast(error.message || 'Could not refresh dashboard.', 'error');
+        } finally {
+            officerDashboardRequest = null;
+        }
+    })();
+    return officerDashboardRequest;
+}
+
+function startOfficerDashboardRealtime() {
+    if (officerDashboardRefreshTimer) clearInterval(officerDashboardRefreshTimer);
+    officerDashboardRefreshTimer = setInterval(() => {
+        if (!document.hidden && !officerDashboardMockPreviewActive) loadOfficerDashboard(false);
+    }, 30000);
+}
+
 // --- LOGOUT HANDLER ---
 async function handleLogout(e) {
     e.preventDefault();
@@ -5750,18 +6009,25 @@ window.addEventListener('DOMContentLoaded', () => {
     renderRecentDocs();
     renderAnnouncements();
     fetchAnnouncementsFromApi();
-    loadRentalsFromApi();
     loadDocsFromApi();
     loadRepoFromApi();
     officerOrgSyncPromise
         .catch(() => {})
         .finally(() => {
+            loadOfficerDashboard(false);
+            startOfficerDashboardRealtime();
             loadOfficerPrintingQueue().catch(() => {});
         });
     loadOfficerFinancialSummary().catch(() => {});
     // Initialize repository counts
     if (typeof updateFolderCounts === 'function') {
         updateFolderCounts();
+    }
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !officerDashboardMockPreviewActive && !isOfficerAnnouncementPreviewMode()) {
+        loadOfficerDashboard(false);
     }
 });
 

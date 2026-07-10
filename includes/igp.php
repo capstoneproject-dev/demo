@@ -1612,6 +1612,7 @@ function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
                 r.actual_return_time,
                 r.total_cost,
                 r.payment_status,
+                r.paid_at,
                 r.status,
                 r.locker_period_type,
                 CONCAT(COALESCE(ru.first_name, ''), ' ', COALESCE(ru.last_name, '')) AS renter_name,
@@ -1624,8 +1625,8 @@ function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
          JOIN users ru ON ru.user_id = r.renter_user_id
          LEFT JOIN users pu ON pu.user_id = r.processed_by_user_id
          LEFT JOIN student_numbers sn ON sn.student_number = ru.student_number
-         JOIN rental_items ri ON ri.rental_id = r.rental_id
-         JOIN inventory_items i ON i.item_id = ri.item_id
+         LEFT JOIN rental_items ri ON ri.rental_id = r.rental_id
+         LEFT JOIN inventory_items i ON i.item_id = ri.item_id
          WHERE r.org_id = :org_id
          GROUP BY r.rental_id
          ORDER BY r.rent_time DESC"
@@ -1653,6 +1654,7 @@ function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
             'processed_by' => trim((string)($row['processor_name'] ?? '')) ?: '-',
             'status' => (string)($row['status'] ?? ''),
             'payment_status' => strtolower((string)($row['payment_status'] ?? 'unpaid')) === 'paid' ? 'paid' : 'unpaid',
+            'paid_at' => (string)($row['paid_at'] ?? ''),
             'base_cost' => $baseCost,
             'overtime_cost' => $overtimeCost,
             'total_cost' => $totalCost,
@@ -1706,6 +1708,7 @@ function igpGetPrintingFinancialRows(PDO $pdo, int $orgId): array
             'processed_by' => trim((string)($row['processed_by'] ?? '')) ?: '-',
             'status' => $status,
             'payment_status' => $status === 'claimed' ? 'paid' : 'unpaid',
+            'paid_at' => (string)($row['claimed_at'] ?? ''),
             'base_cost' => $totalCost,
             'overtime_cost' => 0.0,
             'total_cost' => $totalCost,
