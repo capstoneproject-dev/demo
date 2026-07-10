@@ -124,21 +124,10 @@
                 <div class="notif-wrapper" onclick="toggleNotifs()">
                     <div class="notif-btn">
                         <i class="fa-regular fa-bell"></i>
-                        <span class="notif-badge" id="notif-count">3</span>
+                        <span class="notif-badge" id="notif-count" hidden>0</span>
                     </div>
                     <div class="notif-dropdown" id="notif-dropdown">
-                        <div class=em">
-                            <strong>New Event Proposal</strong>
-                            <small>Submitted by Sports Club • 5m ago</small>
-                        </div>
-                        <div class="notif-item">
-                            <strong>OSA Reminder</strong>
-                            <small>Financial Statement due tomorrow</small>
-                        </div>
-                        <div class="notif-item">
-                            <strong>System Alert</strong>
-                            <small>Server backup completed</small>
-                        </div>
+                        <div class="notif-item"><small>Loading notifications...</small></div>
                     </div>
                 </div>
 
@@ -159,25 +148,25 @@
                 <div class="stat-card">
                     <div class="stat-info">
                         <div style="display: flex; align-items: baseline; gap: 6px;">
-                            <h3>₱12.5k</h3>
-                            <span style="color: #059669; font-size: 0.8rem; font-weight: 600;">
-                                <i class="fa-solid fa-arrow-up"></i> 8.5%
+                            <h3 id="dashboard-revenue-value">₱0.00</h3>
+                            <span id="dashboard-revenue-change" style="color: var(--muted); font-size: 0.8rem; font-weight: 600;">
+                                0%
                             </span>
                             <span style="color: var(--muted); font-size: 0.75rem;">vs last month</span>
                         </div>
-                        <p>Revenue (February)</p>
+                        <p id="dashboard-revenue-period">Revenue</p>
                     </div>
                     <div class="stat-icon"><i class="fa-solid fa-wallet"></i></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-info">
-                        <h3 style="color: #059669;">+12%</h3>
+                        <h3 id="dashboard-participation-value" style="color: var(--muted);">N/A</h3>
                         <p style="margin-bottom: 5px;">Participation Growth</p>
 
                         <div style="font-size: 0.75rem; line-height: 1.3;">
-                            <span style="color: var(--muted);">Based on previous event:</span>
+                            <span style="color: var(--muted);">Latest completed event:</span>
                             <div style="font-weight: 600; color: var(--muted);">
-                                General Assembly (Jan 25)
+                                <span id="dashboard-participation-event">Waiting for two completed events</span>
                             </div>
                         </div>
                     </div>
@@ -186,7 +175,7 @@
                 <div class="stat-card">
                     <div class="stat-info">
                         <h3 id="active-rentals-count">0</h3>
-                        <p>Active Rentals</p>
+                        <p>Active Rentals &amp; Services</p>
                         <p id="rentals-stat-date" style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
                             Fetching date...
                         </p>
@@ -198,7 +187,7 @@
                         style="width: 100%; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
                         <div>
                             <span style="font-weight: 600; color: var(--text); display: block;">Document Status</span>
-                            <small style="color: var(--muted); font-size: 0.75rem;">(February)</small>
+                            <small id="dashboard-document-period" style="color: var(--muted); font-size: 0.75rem;">Current month</small>
                         </div>
                         <i class="fa-solid fa-file-contract" style="color: var(--muted);"></i>
                     </div>
@@ -206,16 +195,16 @@
                     <div
                         style="width: 100%; display: flex; justify-content: space-between; text-align: center; padding-top: 5px;">
                         <div style="flex: 1;">
-                            <h3 style="color: #d97706; font-size: 1.2rem; margin-bottom: 0;">2</h3>
+                            <h3 id="dashboard-doc-pending" style="color: #d97706; font-size: 1.2rem; margin-bottom: 0;">0</h3>
                             <p style="font-size: 0.7rem; color: var(--muted);">Pending</p>
                         </div>
                         <div
                             style="flex: 1; border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
-                            <h3 style="color: #059669; font-size: 1.2rem; margin-bottom: 0;">15</h3>
+                            <h3 id="dashboard-doc-accepted" style="color: #059669; font-size: 1.2rem; margin-bottom: 0;">0</h3>
                             <p style="font-size: 0.7rem; color: var(--muted);">Accepted</p>
                         </div>
                         <div style="flex: 1;">
-                            <h3 style="color: #dc2626; font-size: 1.2rem; margin-bottom: 0;">1</h3>
+                            <h3 id="dashboard-doc-rejected" style="color: #dc2626; font-size: 1.2rem; margin-bottom: 0;">0</h3>
                             <p style="font-size: 0.7rem; color: var(--muted);">Rejected</p>
                         </div>
                     </div>
@@ -233,7 +222,13 @@
                             </p>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                            <button class="btn btn-outline btn-sm" type="button" onclick="loadMockActiveRentals()">Mock Data</button>
+                            <!-- Temporary UI preview control — remove with showOfficerDashboardMockData(). -->
+                            <button id="dashboard-mock-data-btn" class="btn btn-outline btn-sm" type="button" onclick="showOfficerDashboardMockData()">
+                                <i class="fa-solid fa-flask"></i> Mock Data
+                            </button>
+                            <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerDashboard(true)">
+                                <i class="fa-solid fa-rotate-right"></i> Refresh
+                            </button>
                             <button class="btn btn-outline btn-sm" onclick="viewAllRentals()">View All</button>
                         </div>
                     </div>
@@ -261,20 +256,7 @@
                     <div class="card-header">
                         <div class="card-title">Latest Updates</div>
                     </div>
-                    <div class="dash-announcement">
-                        <h5>
-                            General Assembly
-                            <small style="font-weight: 400; font-size: 0.7rem; color: var(--muted);">Today</small>
-                        </h5>
-                        <p>Mandatory attendance for all members at Room 301. Please bring your IDs.</p>
-                    </div>
-                    <div class="dash-announcement">
-                        <h5>
-                            Office Closure
-                            <small style="font-weight: 400; font-size: 0.7rem; color: var(--muted);">Yesterday</small>
-                        </h5>
-                        <p>Office will be closed due to University Holiday. Operations resume Monday.</p>
-                    </div>
+                    <div id="dashboard-latest-updates" style="color: var(--muted);">Loading updates...</div>
                 </div>
 
                 <!-- Upcoming Events -->
@@ -283,27 +265,8 @@
                         <div class="card-title">Upcoming Events</div>
                         <button class="btn btn-outline btn-sm" onclick="viewEventsList()">View Events</button>
                     </div>
-                    <div class="event-list">
-                        <div class="event-item">
-                            <div class="event-date-box">
-                                <span class="event-day">15</span>
-                                <span class="event-month">Feb</span>
-                            </div>
-                            <div class="event-details">
-                                <h4>Tech Innovation Summit</h4>
-                                <p><i class="fa-regular fa-clock"></i> 9:00 AM • Auditorium A</p>
-                            </div>
-                        </div>
-                        <div class="event-item">
-                            <div class="event-date-box">
-                                <span class="event-day">22</span>
-                                <span class="event-month">Feb</span>
-                            </div>
-                            <div class="event-details">
-                                <h4>Inter-Org Sports Fest</h4>
-                                <p><i class="fa-regular fa-clock"></i> 8:00 AM • University Oval</p>
-                            </div>
-                        </div>
+                    <div id="dashboard-upcoming-events" class="event-list">
+                        <div style="color: var(--muted);">Loading events...</div>
                     </div>
                 </div>
 
@@ -2042,7 +2005,7 @@
     <script src="../assets/js/igp-api.js"></script>
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../assets/js/officerAnalytics.js"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260703-2"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260710-dashboard-live"></script>
 </body>
 
 </html>
