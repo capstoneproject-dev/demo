@@ -24,13 +24,13 @@ body.dark .my-org-page {
 }
 
 .my-org-page.org-theme-ssc {
-    --my-org-primary: #7d83d9;
-    --my-org-secondary: #d4d8ff;
-    --my-org-surface: #fefcf7;
-    --my-org-primary-soft: rgba(193, 193, 193, 0.35);
+    --my-org-primary: #4b5563;
+    --my-org-secondary: #9ca3af;
+    --my-org-surface: #f3f4f6;
+    --my-org-primary-soft: rgba(75, 85, 99, 0.30);
     --my-org-on-primary: #ffffff;
-    --my-org-text: #111328;
-    --my-org-muted: #5d6072;
+    --my-org-text: #111827;
+    --my-org-muted: #374151;
 }
 
 .my-org-page.org-theme-cyc {
@@ -131,13 +131,13 @@ body.dark .my-org-page.org-theme-scholar-guild {
 }
 
 body.dark .my-org-page.org-theme-ssc {
-    --my-org-primary: #141437;
-    --my-org-secondary: #141437;
-    --my-org-surface: #161625;
-    --my-org-primary-soft: rgba(193, 193, 193, 0.20);
+    --my-org-primary: #374151;
+    --my-org-secondary: #111827;
+    --my-org-surface: #0f172a;
+    --my-org-primary-soft: rgba(75, 85, 99, 0.28);
     --my-org-on-primary: #ffffff;
-    --my-org-text: #eef0ff;
-    --my-org-muted: #bac0e6;
+    --my-org-text: #f9fafb;
+    --my-org-muted: #cbd5e1;
 }
 
 body.dark .my-org-page.org-theme-cyc {
