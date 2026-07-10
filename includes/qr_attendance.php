@@ -162,8 +162,6 @@ function qrListPublishedEventsForStudents(PDO $pdo, array $filters = []): array
 {
     $where = [
         'e.is_published = 1',
-        'e.event_photo IS NOT NULL',
-        'OCTET_LENGTH(e.event_photo) > 0',
     ];
     $params = [];
 

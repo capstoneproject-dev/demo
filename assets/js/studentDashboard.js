@@ -73,8 +73,12 @@ const extendedEvents = Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
 );
 const STUDENT_EVENTS_API = '../api/student/events/list.php';
 const STUDENT_ANNOUNCEMENTS_API = '../api/student/announcements/list.php';
+const STUDENT_RECENT_ACTIVITY_API = '../api/student/dashboard/recent-activity.php';
 let databaseEvents = [];
 let databaseAnnouncements = [];
+let databaseRecentActivity = [];
+let studentAnnouncementCalendarDate = new Date();
+let studentAnnouncementSelectedDate = '';
 
 const ORG_BANNER_ASSET_VERSION = "20260527";
 const ORG_PROFILE_OVERRIDES_KEY = "naapOrgProfileOverrides";
@@ -334,9 +338,12 @@ function getEventStatus(dateStr) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Parse format "MMM. DD, YYYY" e.g., "Jan. 15, 2026"
-    const cleanDateStr = dateStr.replace('.', ''); // "Jan 15, 2026"
-    const eventDate = new Date(cleanDateStr);
+    const rawValue = String(dateStr || '').trim();
+    const normalizedValue = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(rawValue)
+        ? rawValue.replace(' ', 'T')
+        : rawValue.replace('.', '');
+    const eventDate = new Date(normalizedValue);
+    if (Number.isNaN(eventDate.getTime())) return 'unknown';
     eventDate.setHours(0, 0, 0, 0);
 
     if (eventDate.getTime() === today.getTime()) return 'today';
@@ -655,7 +662,7 @@ function studentCanAccessOrg(orgText) {
 }
 
 function getAllOrganizationEvents() {
-    return databaseEvents.length ? databaseEvents : extendedEvents;
+    return databaseEvents;
 }
 
 function getStudentScopedExtendedEvents() {
@@ -823,13 +830,15 @@ function mapDatabaseAnnouncement(item) {
         dateRaw: publishedAt,
         announcement_photo: item.announcement_photo || '',
         audience_type: item.audience_type || 'all_students',
+        event_datetime: item.event_datetime || '',
+        event_location: item.event_location || '',
         isPublished: Number(item.is_published || 0) === 1
     };
 }
 
 async function loadStudentAnnouncementsFromApi() {
     try {
-        const response = await fetch(`${STUDENT_ANNOUNCEMENTS_API}?limit=10`, {
+        const response = await fetch(`${STUDENT_ANNOUNCEMENTS_API}?limit=50`, {
             method: 'GET',
             credentials: 'same-origin'
         });
@@ -866,6 +875,74 @@ async function loadStudentEventsFromApi() {
         console.error('[loadStudentEventsFromApi]', error);
         databaseEvents = [];
     }
+}
+
+async function loadStudentRecentActivity() {
+    try {
+        const response = await fetch(`${STUDENT_RECENT_ACTIVITY_API}?limit=5`, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load recent activity.');
+        }
+        databaseRecentActivity = Array.isArray(data.items) ? data.items : [];
+    } catch (error) {
+        console.error('[loadStudentRecentActivity]', error);
+        databaseRecentActivity = [];
+    }
+    renderStudentRecentActivity();
+    return databaseRecentActivity;
+}
+
+function formatStudentRelativeTime(dateValue) {
+    const date = parseStudentAnnouncementDate(dateValue);
+    if (!date) return '';
+    const difference = Math.max(0, Date.now() - date.getTime());
+    const minutes = Math.floor(difference / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getStudentActivityIcon(activityType) {
+    const icons = {
+        printing: 'fa-print',
+        rental: 'fa-box-open',
+        locker: 'fa-lock',
+        event: 'fa-calendar-check',
+        membership: 'fa-user-plus'
+    };
+    return icons[String(activityType || '').toLowerCase()] || 'fa-clock-rotate-left';
+}
+
+function renderStudentRecentActivity() {
+    const container = document.getElementById('dashboard-recent-activity');
+    if (!container) return;
+    if (!databaseRecentActivity.length) {
+        container.innerHTML = `
+            <div class="dashboard-data-empty">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>No recent activity yet.</span>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = databaseRecentActivity.map(item => `
+        <div class="list-item dashboard-activity-item">
+            <div class="item-icon"><i class="fa-solid ${getStudentActivityIcon(item.activity_type)}"></i></div>
+            <div class="item-content">
+                <h4>${escapeHtml(item.title || 'Activity')}</h4>
+                <p>${escapeHtml(item.description || '')}</p>
+            </div>
+            <span class="date-badge" title="${escapeHtml(formatStudentAnnouncementDateLabel(item.activity_at))}">${escapeHtml(formatStudentRelativeTime(item.activity_at))}</span>
+        </div>
+    `).join('');
 }
 
 function getStudentYearLevel(sectionText) {
@@ -2738,7 +2815,7 @@ function switchOrgTab(tabName, btn) {
                     ev.org.toLowerCase().includes(searchTerm);
 
                 // 2. Time Match
-                const status = getEventStatus(ev.date);
+                const status = getEventStatus(ev.dateRaw || ev.date);
                 let matchesTime = false;
                 if (currentTimeFilter === 'all') matchesTime = true;
                 else matchesTime = (status === currentTimeFilter);
@@ -2765,7 +2842,7 @@ function switchOrgTab(tabName, btn) {
             // Render Cards
             filtered.forEach(ev => {
                 const isRegistered = isEventRegistered(ev.title);
-                const status = getEventStatus(ev.date);
+                const status = getEventStatus(ev.dateRaw || ev.date);
 
                 // Parse date for Badge (e.g. "Feb. 07")
                 const [monthStr, dayStr] = ev.date.split(' '); // ["Feb.", "07,"]
@@ -3080,6 +3157,17 @@ function navigateToEventDetails(eventTitle) {
     }, 100);
 }
 
+function navigateToOrganizationEvents(event) {
+    if (event) event.preventDefault();
+    hideCalendarPopover();
+    navigate('organizations');
+
+    const eventsTabButton = document.getElementById('organizations-events-tab');
+    if (eventsTabButton) {
+        switchOrgTab('events', eventsTabButton);
+    }
+}
+
 // --- GLOBAL LISTENER TO CLOSE POPOVER ON OUTSIDE CLICK ---
 document.addEventListener('click', function (e) {
     const popover = document.getElementById('calendarPopover');
@@ -3096,8 +3184,15 @@ document.addEventListener('click', function (e) {
 // Helper to check if extendedEvents match the current calendar day
 function getEventsForDate(year, month, day) {
     return getStudentScopedExtendedEvents().filter(event => {
+        const rawDate = parseStudentAnnouncementDate(event.dateRaw);
+        if (rawDate) {
+            return rawDate.getFullYear() === year
+                && rawDate.getMonth() === month
+                && rawDate.getDate() === day;
+        }
+
         // Extended Events Date Format: "Nov. 11-24, 2024" or "Nov. 11, 2024"
-        const dateStr = event.date;
+        const dateStr = String(event.date || '');
 
         // Simple regex to extract parts
         // Matches: "Month. Start-End, Year" or "Month. Start, Year"
@@ -3138,27 +3233,52 @@ function renderDashboard() {
             </div>
         `;
     } else {
-        annList.innerHTML = latestAnnouncements.map(item => {
+        annList.innerHTML = latestAnnouncements.map((item, index) => {
             const orgLabel = item.orgCode
                 ? `${item.org} (${item.orgCode})`
                 : (item.org || 'Organization');
+            const isEventAnnouncement = Boolean(item.event_datetime || item.event_location);
+            const typeLabel = isEventAnnouncement ? 'Event' : 'Announcement';
+            const typeIcon = isEventAnnouncement ? 'fa-calendar-days' : 'fa-bullhorn';
             const orgColor = getAnnouncementOrganizationColor(item);
             const colorClass = orgColor ? ' has-org-color' : '';
             const colorStyle = orgColor
                 ? ` style="--announcement-org-color: ${escapeHtml(orgColor)};"`
                 : '';
             return `
-                <div class="list-item dashboard-announcement-item${colorClass}"${colorStyle}>
-                    <div class="item-icon announcement-icon"><i class="fa-solid fa-bullhorn"></i></div>
+                <div class="list-item dashboard-announcement-item ${isEventAnnouncement ? 'is-event-announcement' : 'is-simple-announcement'}${colorClass}"${colorStyle}
+                    onclick="toggleDashboardAnnouncementCard(this)">
+                    <div class="item-icon announcement-icon"><i class="fa-solid ${typeIcon}"></i></div>
                     <div class="item-content">
-                        <div class="announcement-org-label">${escapeHtml(orgLabel)}</div>
+                        <div class="announcement-card-meta">
+                            <div class="announcement-org-label">${escapeHtml(orgLabel)}</div>
+                            <span class="announcement-type-badge"><i class="fa-solid ${typeIcon}"></i> ${typeLabel}</span>
+                        </div>
                         <h4>${escapeHtml(item.title)}</h4>
-                        <p>${escapeHtml(item.content)}</p>
+                        <p id="dashboard-announcement-content-${index}" class="dashboard-announcement-content">${escapeHtml(item.content)}</p>
+                        ${isEventAnnouncement ? `
+                            <div class="dashboard-announcement-event-info">
+                                <span><i class="fa-regular fa-calendar"></i> ${escapeHtml(formatStudentAnnouncementDateLabel(item.event_datetime))}</span>
+                                <span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(item.event_location || 'Venue TBA')}</span>
+                            </div>
+                        ` : ''}
                     </div>
-                    <span class="date-badge">${escapeHtml(item.date || '')}</span>
+                    <div class="dashboard-announcement-actions">
+                        <span class="date-badge">${escapeHtml(item.date || '')}</span>
+                        <button type="button" class="dashboard-announcement-expand" aria-expanded="false"
+                            aria-controls="dashboard-announcement-content-${index}" aria-label="Expand announcement"
+                            onclick="event.stopPropagation(); toggleDashboardAnnouncement(this)">
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                    </div>
                 </div>
             `;
         }).join('');
+    }
+
+    if (document.getElementById('date-picker-modal')?.classList.contains('active')) {
+        renderStudentAnnouncementCalendar();
+        renderStudentAnnouncementCalendarResults();
     }
 
     // 2. Render ALL Upcoming Events (Grid Layout)
@@ -3170,12 +3290,12 @@ function renderDashboard() {
         : getStudentScopedExtendedEvents();
     const upcomingEvents = dashboardEvents
         .filter(ev => {
-            const status = getEventStatus(ev.date);
+            const status = getEventStatus(ev.dateRaw || ev.date);
             return status === 'upcoming' || status === 'today';
         })
         .sort((a, b) => {
-            const dateA = new Date(a.date.replace('.', ''));
-            const dateB = new Date(b.date.replace('.', ''));
+            const dateA = parseStudentAnnouncementDate(a.dateRaw) || new Date(String(a.date || '').replace('.', ''));
+            const dateB = parseStudentAnnouncementDate(b.dateRaw) || new Date(String(b.date || '').replace('.', ''));
             return dateA - dateB;
         });
 
@@ -3218,6 +3338,182 @@ function renderDashboard() {
     // 3. Render Calendar (Existing Logic)
     renderEventCalendar();
 }
+
+function toggleDashboardAnnouncement(button) {
+    const item = button.closest('.dashboard-announcement-item');
+    if (!item) return;
+    toggleDashboardAnnouncementCard(item);
+}
+
+function toggleDashboardAnnouncementCard(item) {
+    const button = item.querySelector('.dashboard-announcement-expand');
+    const expanded = item.classList.toggle('is-expanded');
+    if (button) {
+        button.setAttribute('aria-expanded', String(expanded));
+        button.setAttribute('aria-label', expanded ? 'Collapse announcement' : 'Expand announcement');
+        button.innerHTML = `<i class="fa-solid fa-chevron-${expanded ? 'up' : 'down'}"></i>`;
+    }
+}
+
+function parseStudentAnnouncementDate(value) {
+    if (!value) return null;
+    const raw = String(value).trim();
+    const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+        ? raw.replace(' ', 'T') + '+08:00'
+        : raw;
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getStudentAnnouncementRelevantDate(item) {
+    return parseStudentAnnouncementDate(item.event_datetime || item.dateRaw);
+}
+
+function getStudentAnnouncementDateKey(item) {
+    const date = getStudentAnnouncementRelevantDate(item);
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function openStudentAnnouncementCalendar() {
+    const modal = document.getElementById('date-picker-modal');
+    if (!modal) return;
+    const firstDatedItem = getStudentScopedAnnouncements().find(item => getStudentAnnouncementRelevantDate(item));
+    const initialDate = firstDatedItem ? getStudentAnnouncementRelevantDate(firstDatedItem) : new Date();
+    studentAnnouncementCalendarDate = new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
+    studentAnnouncementSelectedDate = '';
+    renderStudentAnnouncementCalendar();
+    renderStudentAnnouncementCalendarResults();
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeStudentAnnouncementCalendar() {
+    const modal = document.getElementById('date-picker-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+}
+
+function changeStudentAnnouncementMonth(step) {
+    studentAnnouncementCalendarDate.setMonth(studentAnnouncementCalendarDate.getMonth() + step);
+    renderStudentAnnouncementCalendar();
+}
+
+function renderStudentAnnouncementCalendar() {
+    const grid = document.getElementById('student-announcement-calendar-grid');
+    const label = document.getElementById('student-announcement-month-year');
+    if (!grid || !label) return;
+
+    const year = studentAnnouncementCalendarDate.getFullYear();
+    const month = studentAnnouncementCalendarDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayKey = getStudentAnnouncementDateKey({ dateRaw: new Date() });
+    const dateCounts = getStudentScopedAnnouncements().reduce((counts, item) => {
+        const key = getStudentAnnouncementDateKey(item);
+        if (key) counts[key] = (counts[key] || 0) + 1;
+        return counts;
+    }, {});
+
+    label.textContent = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    grid.innerHTML = '';
+    for (let index = 0; index < firstDay; index++) {
+        const spacer = document.createElement('div');
+        spacer.className = 'calendar-date other-month';
+        grid.appendChild(spacer);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'calendar-date';
+        if (key === todayKey) button.classList.add('today');
+        if (key === studentAnnouncementSelectedDate) button.classList.add('selected');
+        if (dateCounts[key]) button.classList.add('has-announcements');
+        button.innerHTML = `<span>${day}</span>${dateCounts[key] ? `<small>${dateCounts[key]}</small>` : ''}`;
+        button.setAttribute('aria-label', `${dateCounts[key] || 0} announcements on ${new Date(year, month, day).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`);
+        button.onclick = () => selectStudentAnnouncementDate(key);
+        grid.appendChild(button);
+    }
+}
+
+function selectStudentAnnouncementDate(dateKey) {
+    studentAnnouncementSelectedDate = studentAnnouncementSelectedDate === dateKey ? '' : dateKey;
+    renderStudentAnnouncementCalendar();
+    renderStudentAnnouncementCalendarResults();
+}
+
+function clearStudentAnnouncementDate() {
+    studentAnnouncementSelectedDate = '';
+    renderStudentAnnouncementCalendar();
+    renderStudentAnnouncementCalendarResults();
+}
+
+function renderStudentAnnouncementCalendarResults() {
+    const container = document.getElementById('student-announcement-calendar-results');
+    if (!container) return;
+    const items = getStudentScopedAnnouncements()
+        .filter(item => !studentAnnouncementSelectedDate || getStudentAnnouncementDateKey(item) === studentAnnouncementSelectedDate)
+        .sort((a, b) => (getStudentAnnouncementRelevantDate(b)?.getTime() || 0) - (getStudentAnnouncementRelevantDate(a)?.getTime() || 0));
+
+    if (!items.length) {
+        container.innerHTML = `<div class="dashboard-announcement-empty">No announcements found for this date.</div>`;
+        return;
+    }
+
+    let currentDateKey = '';
+    container.innerHTML = items.map((item, index) => {
+        const date = getStudentAnnouncementRelevantDate(item);
+        const dateKey = getStudentAnnouncementDateKey(item) || 'undated';
+        const isEvent = Boolean(item.event_datetime || item.event_location);
+        const typeLabel = isEvent ? 'Event' : 'Announcement';
+        const typeIcon = isEvent ? 'fa-calendar-days' : 'fa-bullhorn';
+        const heading = dateKey !== currentDateKey
+            ? `<h4 class="announcement-date-heading">${date ? escapeHtml(date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })) : 'Date unavailable'}</h4>`
+            : '';
+        currentDateKey = dateKey;
+        return `${heading}
+            <article class="announcement-calendar-item ${isEvent ? 'is-event' : 'is-simple'}">
+                <button type="button" class="announcement-calendar-item-summary" onclick="toggleStudentAnnouncementCalendarItem(this)" aria-expanded="false">
+                    <span class="announcement-calendar-type"><i class="fa-solid ${typeIcon}"></i></span>
+                    <span class="announcement-calendar-copy">
+                        <span class="announcement-calendar-item-meta"><strong>${typeLabel}</strong> &middot; ${escapeHtml(item.orgCode || item.org || 'Organization')}</span>
+                        <b>${escapeHtml(item.title)}</b>
+                    </span>
+                    <i class="fa-solid fa-chevron-down announcement-calendar-chevron"></i>
+                </button>
+                <div class="announcement-calendar-item-details">
+                    <p>${escapeHtml(item.content)}</p>
+                    ${isEvent ? `<div class="dashboard-announcement-event-info"><span><i class="fa-regular fa-clock"></i> ${escapeHtml(formatStudentEventTimeLabel(item.event_datetime))}</span><span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(item.event_location || 'Venue TBA')}</span></div>` : `<small>Posted ${escapeHtml(item.date || '')}</small>`}
+                </div>
+            </article>`;
+    }).join('');
+}
+
+function toggleStudentAnnouncementCalendarItem(button) {
+    const item = button.closest('.announcement-calendar-item');
+    if (!item) return;
+    const expanded = item.classList.toggle('is-expanded');
+    button.setAttribute('aria-expanded', String(expanded));
+}
+
+document.addEventListener('click', (event) => {
+    const modal = document.getElementById('date-picker-modal');
+    if (event.target === modal) closeStudentAnnouncementCalendar();
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.getElementById('date-picker-modal')?.classList.contains('active')) {
+        closeStudentAnnouncementCalendar();
+    }
+});
 
 function renderProfile() {
     updateStudentProfileView();
@@ -3307,6 +3603,7 @@ let currentDashboardSlideIndex = 0;
 let dashboardCarouselSignature = '';
 let dashboardMockEventToday = null;
 let dashboardMockUpcomingEvent = null;
+let dashboardTodayEvents = [];
 
 function renderDashboardEventTodayDetails(eventObj) {
     const details = document.getElementById('dashboardEventTodayDetails');
@@ -3374,7 +3671,8 @@ function initDashboardCarousel(force = false) {
     const scopedEvents = getStudentScopedExtendedEvents();
     const todayEvents = dashboardMockEventToday
         ? [dashboardMockEventToday]
-        : scopedEvents.filter(ev => getEventStatus(ev.date) === 'today');
+        : scopedEvents.filter(ev => getEventStatus(ev.dateRaw || ev.date) === 'today');
+    dashboardTodayEvents = todayEvents;
     const slidesToRender = todayEvents.map(ev => ({
         src: ev.img,
         title: ev.title,
@@ -3498,6 +3796,7 @@ function moveDashboardSlide(direction) {
 
     // Add active to new
     slides[currentDashboardSlideIndex].classList.add('active');
+    renderDashboardEventTodayDetails(dashboardTodayEvents[currentDashboardSlideIndex] || null);
 
     // Reset timer on manual interaction so it doesn't jump immediately after click
     if (slides.length > 1) {
@@ -3519,6 +3818,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadOrganizationPublicProfiles();
     renderDashboard();
     loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
+    loadStudentRecentActivity().catch((error) => console.error(error));
     const eventsLoadPromise = loadStudentEventsFromApi().catch((error) => console.error(error));
 
     if (!isOsaPreview) {
@@ -3551,6 +3851,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     window.setInterval(() => {
         loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
+        loadStudentRecentActivity().catch((error) => console.error(error));
     }, 60000);
 
     // Initialize Dashboard Carousel for the new layout
@@ -3562,6 +3863,7 @@ document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     syncStudentPagePolling();
     loadStudentAnnouncementsFromApi().catch((error) => console.error('[loadStudentAnnouncementsFromApi]', error));
+    loadStudentRecentActivity().catch((error) => console.error('[loadStudentRecentActivity]', error));
     pollActiveStudentPage().catch((error) => console.error('[pollActiveStudentPage]', error));
 });
 

@@ -6364,6 +6364,32 @@ body.dark #organizations .card .btn-share.active {
     margin-bottom: 12px;
     padding: 16px;
     transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.dashboard-announcement-item > .item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.announcement-view-all-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--primary);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.announcement-view-all-btn:hover {
+    background: var(--panel-2);
+    border-color: var(--border);
 }
 
 .dashboard-announcement-item:hover {
@@ -6413,6 +6439,426 @@ body.dark #organizations .card .btn-share.active {
     text-transform: uppercase;
 }
 
+.announcement-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.announcement-card-meta .announcement-org-label {
+    margin-bottom: 0;
+}
+
+.announcement-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(0, 33, 71, 0.08);
+    color: var(--primary);
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.is-event-announcement .announcement-type-badge,
+.announcement-calendar-item.is-event .announcement-calendar-type {
+    background: rgba(217, 119, 6, 0.13);
+    color: #b45309;
+}
+
+.dashboard-announcement-content {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.dashboard-announcement-item.is-expanded .dashboard-announcement-content {
+    display: block;
+    overflow: visible;
+}
+
+.dashboard-announcement-event-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin-top: 9px;
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
+.dashboard-announcement-item .dashboard-announcement-event-info {
+    display: none;
+}
+
+.dashboard-announcement-item.is-expanded .dashboard-announcement-event-info {
+    display: flex;
+}
+
+.dashboard-announcement-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+    margin-left: 12px;
+}
+
+.dashboard-announcement-actions .date-badge {
+    margin-left: 0;
+}
+
+.dashboard-announcement-expand {
+    display: grid;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-2);
+    color: var(--primary);
+    font-size: 0.68rem;
+    cursor: pointer;
+}
+
+.dashboard-announcement-expand:hover {
+    border-color: var(--primary);
+}
+
+/* Announcement calendar: officer date-picker visual language with a dated feed. */
+.date-picker-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.date-picker-modal.active {
+    display: flex;
+}
+
+.date-picker-content {
+    width: min(920px, 96vw);
+    max-height: min(760px, 92vh);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--panel);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+.date-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.date-picker-header h3,
+.date-picker-header p {
+    margin: 0;
+}
+
+.date-picker-header p {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.date-picker-body {
+    padding: 24px;
+}
+
+.announcement-calendar-body {
+    display: grid;
+    grid-template-columns: minmax(300px, 0.85fr) minmax(340px, 1.15fr);
+    gap: 24px;
+    max-height: calc(92vh - 91px);
+}
+
+.announcement-calendar-picker {
+    align-self: start;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel-2);
+}
+
+.date-picker-modal .calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.date-picker-modal .calendar-nav button {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+}
+
+.date-picker-modal .calendar-nav button:hover {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+}
+
+.date-picker-modal .calendar-month-year {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+/* The dashboard's event calendar makes .calendar-grid itself a seven-column
+   grid. In this modal, its two children are full-width grid sections. */
+.date-picker-modal .calendar-grid {
+    display: block;
+    width: 100%;
+    margin: 0;
+}
+
+.date-picker-modal .calendar-weekdays,
+.date-picker-modal .calendar-dates {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.date-picker-modal .calendar-weekdays {
+    margin-bottom: 8px;
+}
+
+.date-picker-modal .calendar-weekdays div {
+    padding: 6px 0;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.date-picker-modal .calendar-date {
+    position: relative;
+    display: grid;
+    aspect-ratio: 1;
+    min-width: 0;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.date-picker-modal .calendar-date:hover,
+.date-picker-modal .calendar-date.has-announcements {
+    border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+    background: color-mix(in srgb, var(--primary) 9%, transparent);
+}
+
+.date-picker-modal .calendar-date.selected {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+}
+
+.date-picker-modal .calendar-date.today {
+    box-shadow: inset 0 0 0 2px var(--primary);
+}
+
+.date-picker-modal .calendar-date small {
+    position: absolute;
+    right: 3px;
+    bottom: 2px;
+    min-width: 14px;
+    padding: 1px 3px;
+    border-radius: 999px;
+    background: #d97706;
+    color: #fff;
+    font-size: 0.55rem;
+    line-height: 1.2;
+}
+
+.announcement-calendar-show-all {
+    width: 100%;
+    margin-top: 14px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--primary);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.announcement-calendar-results-wrap {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.announcement-calendar-legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.announcement-calendar-results {
+    height: 100%;
+    max-height: calc(92vh - 155px);
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.announcement-date-heading {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 0 8px;
+    padding: 8px 0;
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.announcement-calendar-item {
+    margin-bottom: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+    border-radius: 10px;
+    background: var(--panel-2);
+}
+
+.announcement-calendar-item.is-event {
+    border-left-color: #d97706;
+}
+
+.announcement-calendar-item-summary {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 34px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.announcement-calendar-type {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border-radius: 9px;
+    background: rgba(0, 33, 71, 0.08);
+    color: var(--primary);
+}
+
+.announcement-calendar-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.announcement-calendar-copy b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.announcement-calendar-item-meta {
+    color: var(--muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+}
+
+.announcement-calendar-chevron {
+    transition: transform 0.2s ease;
+}
+
+.announcement-calendar-item.is-expanded .announcement-calendar-chevron {
+    transform: rotate(180deg);
+}
+
+.announcement-calendar-item-details {
+    display: none;
+    padding: 0 14px 14px 56px;
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.55;
+}
+
+.announcement-calendar-item-details p {
+    margin: 0;
+    color: var(--text);
+    white-space: pre-wrap;
+}
+
+.announcement-calendar-item.is-expanded .announcement-calendar-item-details {
+    display: block;
+}
+
+@media (max-width: 760px) {
+    .dashboard-announcement-item {
+        align-items: flex-start;
+    }
+
+    .announcement-calendar-body {
+        display: block;
+        overflow-y: auto;
+    }
+
+    .announcement-calendar-results-wrap {
+        margin-top: 18px;
+        overflow: visible;
+    }
+
+    .announcement-calendar-results {
+        max-height: none;
+        overflow: visible;
+    }
+
+    .date-picker-modal {
+        padding: 10px;
+    }
+
+    .date-picker-body,
+    .date-picker-header {
+        padding: 16px;
+    }
+
+    .date-picker-header p {
+        display: none;
+    }
+}
+
 .dashboard-announcement-empty {
     padding: 18px;
     border: 1px dashed var(--border);
@@ -6420,6 +6866,33 @@ body.dark #organizations .card .btn-share.active {
     color: var(--muted);
     text-align: center;
     background: var(--bg);
+}
+
+.dashboard-data-loading,
+.dashboard-data-empty {
+    display: flex;
+    min-height: 84px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 18px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.dashboard-activity-item .item-content {
+    min-width: 0;
+    flex: 1;
+}
+
+.dashboard-activity-item .item-content p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 4. Upcoming Events Preview Cards (New Class from JS) */
