@@ -93,7 +93,7 @@ jsonOk([
         'student_number'  => $user['student_number'],
         'employee_number' => $user['employee_number'],
         'program_code'    => $user['program_code'] ?? null,
-        'section'         => $user['year_section'] ?? ($user['section'] ?? null),
+        'section'         => $user['student_numbers_year_section'] ?? $user['year_section'] ?? ($user['section'] ?? null),
         'program_id'      => $user['program_id'] ?? null,
         'institute_id'    => $user['institute_id'] ?? null,
         'last_login_at'   => $user['last_login_at'] ?? null,
