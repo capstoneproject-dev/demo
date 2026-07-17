@@ -18,9 +18,11 @@ function findUserByIdentifier(string $identifier): ?array
 {
     $stmt = getPdo()->prepare(
         "SELECT u.*,
+                sn.year_section AS student_numbers_year_section,
                 ap.program_code,
                 ap.program_id
          FROM   users u
+         LEFT JOIN student_numbers sn ON sn.student_number = u.student_number
          LEFT JOIN academic_programs ap ON ap.program_id = u.program_id
          WHERE  (u.email = :id_email OR u.student_number = :id_sn OR u.employee_number = :id_en)
            AND  u.is_active = 1
@@ -35,9 +37,11 @@ function getUserById(int $userId): ?array
 {
     $stmt = getPdo()->prepare(
         "SELECT u.*,
+                sn.year_section AS student_numbers_year_section,
                 ap.program_code,
                 ap.program_id
          FROM   users u
+         LEFT JOIN student_numbers sn ON sn.student_number = u.student_number
          LEFT JOIN academic_programs ap ON ap.program_id = u.program_id
          WHERE  u.user_id = :id AND u.is_active = 1
          LIMIT 1"
@@ -147,7 +151,7 @@ function buildSessionPayload(
         // Extra fields used by buildCurrentStudentProfile() in studentDashboard.js
         'program_id'          => isset($user['program_id']) ? (int)$user['program_id'] : null,
         'program_code'        => $user['program_code'] ?? null,
-        'section'             => $user['year_section'] ?? null,
+        'section'             => $user['student_numbers_year_section'] ?? $user['year_section'] ?? null,
         'mapped_org_id'       => $mappedOrgId,
         'mapped_org_name'     => $mappedOrgName,
     ];
@@ -162,7 +166,7 @@ function buildLegacyProfile(array $user, ?string $orgName): array
         'studentNumber' => $user['student_number'] ?? '',
         'fullName'      => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
         'course'        => $user['program_code'] ?? '',
-        'section'       => $user['year_section'] ?? '',
+        'section'       => $user['student_numbers_year_section'] ?? $user['year_section'] ?? '',
         'email'         => $user['email'] ?? '',
         'organization'  => $orgName ?? '',
     ];
