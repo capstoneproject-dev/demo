@@ -952,6 +952,7 @@ CREATE TABLE `student_numbers` (
   `student_number` varchar(20) NOT NULL,
   `student_name` varchar(200) NOT NULL,
   `year_section` varchar(50) DEFAULT NULL,
+  `academic_year` varchar(9) DEFAULT NULL,
   `program_id` int(11) DEFAULT NULL,
   `institute_id` int(11) DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
@@ -1258,6 +1259,7 @@ ALTER TABLE `student_numbers`
   ADD UNIQUE KEY `student_number` (`student_number`),
   ADD KEY `fk_sn_added_by` (`added_by_user_id`),
   ADD KEY `idx_student_numbers_sn` (`student_number`,`is_active`),
+  ADD KEY `idx_student_numbers_academic_year` (`academic_year`),
   ADD KEY `idx_student_numbers_program_id` (`program_id`),
   ADD KEY `idx_student_numbers_institute_id` (`institute_id`);
 

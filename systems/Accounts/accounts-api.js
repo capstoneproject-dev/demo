@@ -274,10 +274,18 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
             return list.filter(o => o.studentId === studentId);
         }
 
-        // ── BULK IMPORT ──────────────────────────────────────────────
+        // ── ANNUAL ENROLLMENT ROSTER ────────────────────────────────
 
-        async bulkImportStudentNumbers(records) {
-            return await post('/student-numbers/import.php', { records });
+        async previewAnnualRoster(records) {
+            return await post('/student-numbers/import.php', { action: 'preview', records });
+        }
+
+        async applyAnnualRoster(records, confirmedAcademicYear) {
+            return await post('/student-numbers/import.php', {
+                action: 'apply',
+                records,
+                confirmedAcademicYear
+            });
         }
 
         // ── STATS ────────────────────────────────────────────────────

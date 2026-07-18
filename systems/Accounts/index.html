@@ -17,8 +17,8 @@
         <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <h2 class="h5 mb-0">Account Management</h2>
             <div class="d-flex flex-wrap gap-2">
-                <a href="student-numbers.html?v=20260325c" class="btn btn-outline-secondary btn-sm">Student Database</a>
-                <button id="importData"   class="btn btn-outline-secondary btn-sm"
+                <a href="student-numbers.html?v=20260718e" class="btn btn-outline-secondary btn-sm">Student Database</a>
+                <button id="importData" class="btn btn-outline-secondary btn-sm"
                     data-bs-toggle="modal" data-bs-target="#importStudentsModal">Import XLSX</button>
                 <button id="exportData"   class="btn btn-outline-secondary btn-sm">Export XLSX</button>
                 <button id="refreshData" class="btn btn-outline-secondary btn-sm" title="Refresh data" aria-label="Refresh data">
@@ -211,7 +211,7 @@
 
 <!-- ════════ ADD STUDENT MODAL ════════ -->
 <div class="modal fade" id="addStudentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form id="addStudentForm">
                 <div class="modal-header">
@@ -437,7 +437,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Import Student Accounts from XLSX</h5>
+                <h5 class="modal-title">Import Annual Enrollment Roster from XLSX</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -447,13 +447,22 @@
                 </div>
                 <div class="alert alert-info mb-0">
                     <strong>Expected columns (first row = headers):</strong><br>
-                    <code>studentId &nbsp;|&nbsp; studentName &nbsp;|&nbsp; institute &nbsp;|&nbsp; programCode &nbsp;|&nbsp; yearSection &nbsp;|&nbsp; email &nbsp;|&nbsp; phone</code><br>
-                    <small class="text-muted">Internal fields like userId, hasUnpaidDebt, isActive, and addedAt are not needed. Duplicate studentIds are skipped.</small>
+                    <code>studentId &nbsp;|&nbsp; studentName &nbsp;|&nbsp; institute &nbsp;|&nbsp; programCode &nbsp;|&nbsp; yearSection</code><br>
+                    <small class="text-muted">Upload the complete official enrollment roster. Existing student IDs will be updated, not skipped.</small>
+                </div>
+                <div id="accountRosterPreview" class="d-none mt-3">
+                    <div id="accountRosterWarning" class="alert alert-warning d-none"></div>
+                    <h6 id="accountRosterYear" class="mb-3"></h6>
+                    <div id="accountRosterSummary" class="row g-2 mb-3"></div>
+                    <div id="accountRosterDetails" class="small"></div>
+                    <div class="alert alert-danger mt-3 mb-0">
+                        Confirming will deactivate students absent from this complete roster and disable their portal accounts.
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning" onclick="processStudentsXLSXImport()">Import</button>
+                <button id="accountRosterImportBtn" type="button" class="btn btn-warning" onclick="processStudentsXLSXImport()">Preview Import</button>
             </div>
         </div>
     </div>
@@ -462,9 +471,9 @@
 <!-- Scripts -->
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/bootstrap.bundle.min.js"></script>
-<script src="accounts-api.js"></script>
+<script src="accounts-api.js?v=20260718e"></script>
 <script src="api.js"></script>
-<script src="script.js"></script>
+<script src="script.js?v=20260718e"></script>
 </body>
 </html>
 

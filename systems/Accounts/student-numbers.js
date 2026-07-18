@@ -1,13 +1,13 @@
 // Student Numbers Management System
-// Uses accountsLocalStorageService (local-storage-service.js) — no direct key access!
+// Uses accountsLocalStorageService (local-storage-service.js) â€” no direct key access!
 
 var studentNumbers = [];
 
 function getService() { return window.accountsLocalStorageService; }
 
 function formatDate(v) {
-    if (!v) return '—';
-    try { return new Date(v).toLocaleString(); } catch (_) { return '—'; }
+    if (!v) return 'â€”';
+    try { return new Date(v).toLocaleString(); } catch (_) { return 'â€”'; }
 }
 
 function generateId() {
@@ -99,9 +99,9 @@ function updateStudentNumbersTable() {
             '<td>' + (i+1) + '</td>' +
             '<td><strong>' + escHtml(s.studentId) + '</strong></td>' +
             '<td>' + escHtml(s.studentName) + '</td>' +
-            '<td><small>' + escHtml(s.institute || '—') + '</small></td>' +
-            '<td>' + escHtml(s.programCode || '—') + '</td>' +
-            '<td>' + escHtml(s.yearSection || '—') + '</td>' +
+            '<td><small>' + escHtml(s.institute || 'â€”') + '</small></td>' +
+            '<td>' + escHtml(s.programCode || 'â€”') + '</td>' +
+            '<td>' + escHtml(s.yearSection || 'â€”') + '</td>' +
             '<td>' + formatDate(s.addedAt) + '</td>' +
             '<td>' +
                 '<button class="btn btn-sm btn-outline-primary" onclick="editStudentNumber(\'' + escHtml(s.studentId) + '\')">Edit</button> ' +
@@ -268,23 +268,121 @@ async function deleteStudentNumber(studentId) {
     }
 }
 
-// -- Import XLSX --
+// -- Annual enrollment roster import --
+var pendingAnnualRoster = null;
+
 function importStudentNumbers() {
+    resetAnnualRosterImport();
     new bootstrap.Modal(document.getElementById('importCSVModal')).show();
+}
+
+function resetAnnualRosterImport() {
+    pendingAnnualRoster = null;
+    var preview = document.getElementById('annualRosterPreview');
+    var button = document.getElementById('annualRosterImportBtn');
+    if (preview) preview.classList.add('d-none');
+    if (button) {
+        button.textContent = 'Preview Import';
+        button.className = 'btn btn-primary';
+        button.disabled = false;
+    }
+}
+
+function escapeRosterHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+function renderAnnualRosterPreview(result) {
+    var summary = result.summary || {};
+    var preview = document.getElementById('annualRosterPreview');
+    var warning = document.getElementById('annualRosterWarning');
+    var year = document.getElementById('annualRosterYear');
+    var summaryEl = document.getElementById('annualRosterSummary');
+    var details = document.getElementById('annualRosterDetails');
+    if (!preview || !summaryEl || !details) return;
+
+    year.textContent = 'Active academic year: ' + (result.academicYear || 'Not set');
+    var cards = [
+        ['New', summary.new || 0, 'text-primary'], ['Updated', summary.updated || 0, 'text-info'],
+        ['Reactivated', summary.reactivated || 0, 'text-success'], ['Unchanged', summary.unchanged || 0, 'text-secondary'],
+        ['Deactivate', summary.deactivated || 0, 'text-danger'], ['Officers affected', summary.officersAffected || 0, 'text-danger'],
+        ['Rejected', summary.rejected || 0, 'text-warning']
+    ];
+    summaryEl.innerHTML = cards.map(function(card) {
+        return '<div class="col-6 col-md-4"><div class="border rounded p-2 text-center">' +
+            '<div class="fs-4 fw-bold ' + card[2] + '">' + card[1] + '</div>' +
+            '<div class="text-muted">' + card[0] + '</div></div></div>';
+    }).join('');
+
+    var groups = [
+        ['New students', result.changes && result.changes.new],
+        ['Updated students', result.changes && result.changes.updated],
+        ['Reactivated students', result.changes && result.changes.reactivated],
+        ['Students to deactivate', result.changes && result.changes.deactivated],
+        ['Officers affected', result.changes && result.changes.officersAffected]
+    ];
+    details.innerHTML = groups.map(function(group) {
+        var rows = group[1] || [];
+        if (!rows.length) return '';
+        var visible = rows.slice(0, 8).map(function(row) {
+            var oldValue = row.previousYearSection ? ' (from ' + escapeRosterHtml(row.previousYearSection) + ')' : '';
+            var officerRole = row.officerRoles ? ' â€” ' + escapeRosterHtml(row.officerRoles) : '';
+            return '<li><strong>' + escapeRosterHtml(row.studentId) + '</strong> â€” ' +
+                escapeRosterHtml(row.studentName) + ' â€” ' + escapeRosterHtml(row.programCode) +
+                ' ' + escapeRosterHtml(row.yearSection) + oldValue + officerRole + '</li>';
+        }).join('');
+        var remaining = rows.length > 8 ? '<li class="text-muted">â€¦and ' + (rows.length - 8) + ' more</li>' : '';
+        return '<div class="mb-2"><strong>' + group[0] + ' (' + rows.length + ')</strong><ul class="mb-0">' + visible + remaining + '</ul></div>';
+    }).join('') || '<span class="text-muted">No enrollment changes detected.</span>';
+
+    if (summary.largeDeactivationWarning) {
+        warning.textContent = 'Warning: this import will deactivate ' + summary.deactivationPercent + '% of currently active students. Verify that the XLSX contains the complete enrollment roster.';
+        warning.classList.remove('d-none');
+    } else {
+        warning.classList.add('d-none');
+    }
+    preview.classList.remove('d-none');
 }
 
 async function processXLSXImport() {
     var fileInput = document.getElementById('csvFile');
+    var actionButton = document.getElementById('annualRosterImportBtn');
+
+    if (pendingAnnualRoster) {
+        try {
+            actionButton.disabled = true;
+            actionButton.textContent = 'Applyingâ€¦';
+            var applied = await getService().applyAnnualRoster(pendingAnnualRoster.records, pendingAnnualRoster.academicYear);
+            await loadStudentNumbers();
+            updateStudentNumbersTable();
+            updateTotalCount();
+            var appliedModal = bootstrap.Modal.getInstance(document.getElementById('importCSVModal'));
+            if (appliedModal) appliedModal.hide();
+            if (fileInput) fileInput.value = '';
+            resetAnnualRosterImport();
+            showToast('Roster updated', applied.msg || 'Annual enrollment roster applied.', 'success');
+        } catch (err) {
+            actionButton.disabled = false;
+            actionButton.textContent = 'Confirm & Apply Roster';
+            showToast('Import failed', err.message, 'error');
+        }
+        return;
+    }
+
     var file = fileInput.files[0];
     if (!file) { showToast('Error', 'Please select an XLSX file.', 'error'); return; }
 
     try {
+        actionButton.disabled = true;
+        actionButton.textContent = 'Validatingâ€¦';
         var data = await file.arrayBuffer();
         var workbook = XLSX.read(data, { type: 'array' });
         var ws = workbook.Sheets[workbook.SheetNames[0]];
         var jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-        if (jsonData.length < 2) { showToast('Error', 'File needs at least a header row and one data row.', 'error'); return; }
+        if (jsonData.length < 2) { throw new Error('File needs at least a header row and one data row.'); }
 
         var headers = jsonData[0].map(function(h) { return String(h).trim().toLowerCase().replace(/[\s_-]/g, ''); });
 
@@ -301,16 +399,15 @@ async function processXLSXImport() {
         var instIdx      = col(['institute','institutename']);
         var progIdx      = col(['programcode','program','course']);
         var ysIdx        = col(['yearsection','section','yearsec']);
-        var emailIdx     = col(['email','emailaddress']);
-        var phoneIdx     = col(['phone','phonenumber','mobile']);
 
         var missingRequiredHeaders = [];
         if (idIdx === -1)   missingRequiredHeaders.push('studentId');
         if (nameIdx === -1) missingRequiredHeaders.push('studentName');
         if (instIdx === -1) missingRequiredHeaders.push('institute');
         if (progIdx === -1) missingRequiredHeaders.push('programCode');
+        if (ysIdx === -1)   missingRequiredHeaders.push('yearSection');
         if (missingRequiredHeaders.length > 0) {
-            showToast('Error', 'Missing required column(s): ' + missingRequiredHeaders.join(', '), 'error'); return;
+            throw new Error('Missing required column(s): ' + missingRequiredHeaders.join(', '));
         }
 
         var records = [];
@@ -324,7 +421,8 @@ async function processXLSXImport() {
             var studentName = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
             var institute   = instIdx  !== -1 ? String(row[instIdx]  || '').trim() : '';
             var programCode = progIdx  !== -1 ? String(row[progIdx]  || '').trim() : '';
-            if (!studentId || !studentName || !institute || !programCode) {
+            var yearSection = ysIdx !== -1 ? String(row[ysIdx] || '').trim() : '';
+            if (!studentId || !studentName || !institute || !programCode || !yearSection) {
                 invalidRows++;
                 continue;
             }
@@ -334,41 +432,50 @@ async function processXLSXImport() {
                 studentName: studentName,
                 institute:   institute,
                 programCode: programCode,
-                yearSection: ysIdx    !== -1 ? String(row[ysIdx]    || '').trim() : '',
-                email:       emailIdx !== -1 ? String(row[emailIdx] || '').trim() : '',
-                phone:       phoneIdx !== -1 ? String(row[phoneIdx] || '').trim() : '',
-                hasUnpaidDebt: false,
-                isActive: true
+                yearSection: yearSection
             });
         }
 
         if (records.length === 0) {
-            showToast('Error', 'No valid rows found to import.', 'error');
-            return;
+            throw new Error('No valid rows found to import.');
         }
 
-        var result = await getService().bulkImportStudentNumbers(records);
-        var imported = Number(result.imported || 0);
-        var skipped  = Number(result.skipped  || 0);
-        var errors   = Number(result.errors   || 0);
+        if (invalidRows > 0) {
+            throw new Error(invalidRows + ' row(s) have missing required values. No changes were made.');
+        }
 
-        await loadStudentNumbers();
-        updateStudentNumbersTable();
-        updateTotalCount();
-        var modal = bootstrap.Modal.getInstance(document.getElementById('importCSVModal'));
-        if (modal) modal.hide();
-        if (fileInput) fileInput.value = '';
-
-        var msg = 'Imported ' + imported + '.';
-        if (skipped > 0) msg += ' Skipped ' + skipped + ' duplicates.';
-        if (invalidRows > 0) msg += ' Skipped ' + invalidRows + ' row(s) with missing required values.';
-        if (errors  > 0) msg += ' ' + errors + ' errors.';
-        showToast('Import done', msg, 'success');
+        var result = await getService().previewAnnualRoster(records);
+        pendingAnnualRoster = { records: records, academicYear: result.academicYear };
+        renderAnnualRosterPreview(result);
+        actionButton.disabled = false;
+        actionButton.textContent = 'Confirm & Apply Roster';
+        actionButton.className = 'btn btn-danger';
 
     } catch (err) {
-        showToast('Error', 'Failed to process XLSX: ' + err.message, 'error');
+        actionButton.disabled = false;
+        actionButton.textContent = 'Preview Import';
+        showToast('Import validation failed', err.message, 'error');
         console.error('XLSX import error:', err);
     }
+}
+
+// Make every populated Excel cell a true text cell and apply Excel's Text
+// number format so values keep the same format when the roster is edited.
+function formatStudentNumberWorksheetAsText(worksheet) {
+    if (!worksheet || !worksheet['!ref']) return worksheet;
+    var range = XLSX.utils.decode_range(worksheet['!ref']);
+    for (var row = range.s.r; row <= range.e.r; row++) {
+        for (var col = range.s.c; col <= range.e.c; col++) {
+            var address = XLSX.utils.encode_cell({ r: row, c: col });
+            var cell = worksheet[address];
+            if (!cell || cell.v == null) continue;
+            cell.v = cell.v instanceof Date ? cell.v.toISOString() : String(cell.v);
+            cell.t = 's';
+            cell.z = '@';
+            delete cell.w;
+        }
+    }
+    return worksheet;
 }
 
 // -- Export XLSX --
@@ -388,10 +495,11 @@ async function exportStudentNumbers() {
             };
         });
         var ws = XLSX.utils.json_to_sheet(exportData);
+        formatStudentNumberWorksheetAsText(ws);
         ws['!cols'] = [14,30,40,12,14,30,16].map(function(w) { return { wch: w }; });
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Student Numbers');
-        XLSX.writeFile(wb, 'student_numbers_' + new Date().toISOString().slice(0,10) + '.xlsx');
+        XLSX.writeFile(wb, 'student_numbers_' + new Date().toISOString().slice(0,10) + '.xlsx', { cellStyles: true });
         showToast('Exported', 'Download started.', 'success');
     } catch (err) {
         showToast('Error', 'Export failed: ' + err.message, 'error');
@@ -420,6 +528,9 @@ function setupEventListeners() {
     el = document.getElementById('refreshData');
     if (el) el.addEventListener('click', refreshStudentNumbers);
 
+    el = document.getElementById('csvFile');
+    if (el) el.addEventListener('change', resetAnnualRosterImport);
+
     // Add modal: institute cascade
     el = document.getElementById('newInstitute');
     if (el) el.addEventListener('change', function() {
@@ -435,7 +546,7 @@ function setupEventListeners() {
 
 // -- Bootstrap --
 document.addEventListener('DOMContentLoaded', async function() {
-    // Validate PHP session – OSA staff only
+    // Validate PHP session â€“ OSA staff only
     try {
         var res  = await fetch('../../api/auth/session.php', { credentials: 'include' });
         var json = await res.json();
@@ -462,9 +573,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     updateStudentNumbersTable();
     updateTotalCount();
     ensureNewPhonePrefix();
+
+    var query = new URLSearchParams(window.location.search);
+    if (query.get('import') === 'annual') {
+        importStudentNumbers();
+    }
 });
-
-
-
 
 
