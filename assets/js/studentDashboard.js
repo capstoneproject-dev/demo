@@ -510,6 +510,11 @@ function validatePhpSession() {
             if (!data.authenticated) {
                 localStorage.removeItem(AUTH_SESSION_KEY);
                 window.location.href = '../pages/login.html';
+                return;
+            }
+            if (data.session) {
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+                updateStudentProfileView();
             }
         })
         .catch(() => { /* silently ignore — XAMPP may be offline during dev */ });
