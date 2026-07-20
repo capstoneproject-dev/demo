@@ -839,7 +839,9 @@ CREATE TRIGGER `trg_rentals_block_unpaid_student` BEFORE INSERT ON `rentals` FOR
     FROM users
     WHERE user_id = NEW.renter_user_id;
 
-    IF v_account_type = 'student' AND v_has_unpaid_debt = 1 THEN
+    IF v_account_type = 'student'
+       AND v_has_unpaid_debt = 1
+       AND COALESCE(NEW.service_kind, 'rental') <> 'locker' THEN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'Rental blocked: student account has unpaid debt.';
     END IF;

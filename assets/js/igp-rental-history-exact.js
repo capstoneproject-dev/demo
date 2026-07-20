@@ -14,6 +14,14 @@
     let rentalHistoryCalendarCurrentDate = new Date();
     let rentalHistoryCalendarSelectedStart = null;
     let rentalHistoryCalendarSelectedEnd = null;
+    let pendingPaymentRentals = [];
+    const PAYABLE_RENTAL_STATUSES = new Set(['returned', 'overdue', 'cancelled']);
+
+    function isPayableRental(rental) {
+        const paymentStatus = String(rental?.payment_status || '').toLowerCase();
+        const rentalStatus = String(rental?.status || '').toLowerCase();
+        return paymentStatus === 'unpaid' && PAYABLE_RENTAL_STATUSES.has(rentalStatus);
+    }
 
     function formatLocalDateKey(date) {
         if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
@@ -96,7 +104,7 @@
                 <td>${r.actual_return_time ? (r.processor_name || '-') : '-'}</td>
                 <td>P${Number(r.total_cost || 0).toFixed(2)}</td>
                 <td>${r.payment_status || '-'}</td>
-                <td>${(r.payment_status === 'unpaid' && (r.status === 'returned' || r.status === 'overdue')) ? `<button class="btn btn-success btn-sm js-paid" data-id="${r.rental_id}">Mark as Paid</button>` : '-'}</td>
+                <td>${isPayableRental(r) ? `<button class="btn btn-success btn-sm js-paid" data-id="${r.rental_id}">Mark as Paid</button>` : '-'}</td>
                 <td>-</td>
             `;
             tbody.appendChild(tr);
@@ -105,7 +113,7 @@
         const totals = totalProfitAndUnpaid(rows);
         if ($('totalProfit')) $('totalProfit').textContent = `P${totals.paid.toFixed(2)}`;
         if ($('totalUnpaid')) $('totalUnpaid').textContent = `P${totals.unpaid.toFixed(2)}`;
-        if ($('payAllBtn')) $('payAllBtn').style.display = rows.some((r) => r.payment_status === 'unpaid' && (r.status === 'returned' || r.status === 'overdue')) ? '' : 'none';
+        if ($('payAllBtn')) $('payAllBtn').style.display = rows.some(isPayableRental) ? '' : 'none';
     }
 
     function applyFilters() {
@@ -401,9 +409,62 @@
         applyFilters();
     }
 
-    async function markPaid(id) {
-        await window.igpApi.markPaid(Number(id));
-        await refresh();
+    function openPaymentConfirmModal(rows) {
+        pendingPaymentRentals = (rows || []).filter(isPayableRental);
+        if (pendingPaymentRentals.length === 0 || !window.bootstrap) return;
+
+        const input = $('paymentConfirmInput');
+        const error = $('paymentConfirmError');
+        const confirmBtn = $('paymentConfirmBtn');
+        const total = pendingPaymentRentals.reduce((sum, rental) => sum + Number(rental.total_cost || 0), 0);
+        const summary = $('paymentConfirmSummary');
+
+        if (summary) {
+            summary.textContent = pendingPaymentRentals.length === 1
+                ? `Rental #${pendingPaymentRentals[0].rental_id} for ${pendingPaymentRentals[0].renter_name || 'the student'} has a balance of P${total.toFixed(2)}.`
+                : `${pendingPaymentRentals.length} rentals with a total balance of P${total.toFixed(2)} will be marked as paid.`;
+        }
+        if (input) input.value = '';
+        if (error) {
+            error.textContent = '';
+            error.style.display = 'none';
+        }
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = pendingPaymentRentals.length === 1 ? 'Mark as Paid' : 'Mark All as Paid';
+        }
+
+        const modalElement = $('paymentConfirmModal');
+        window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
+        modalElement.addEventListener('shown.bs.modal', () => input?.focus(), { once: true });
+    }
+
+    async function confirmPendingPayments() {
+        const input = $('paymentConfirmInput');
+        const error = $('paymentConfirmError');
+        const confirmBtn = $('paymentConfirmBtn');
+        if (!input || input.value.trim() !== 'Confirm' || pendingPaymentRentals.length === 0) return;
+
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Processing...';
+        if (error) error.style.display = 'none';
+
+        try {
+            for (const rental of pendingPaymentRentals) {
+                await window.igpApi.markPaid(Number(rental.rental_id));
+            }
+            window.bootstrap.Modal.getInstance($('paymentConfirmModal'))?.hide();
+            pendingPaymentRentals = [];
+            await refresh();
+        } catch (err) {
+            if (error) {
+                error.textContent = err.message || 'Could not record the payment.';
+                error.style.display = 'block';
+            }
+            confirmBtn.disabled = input.value.trim() !== 'Confirm';
+            confirmBtn.textContent = pendingPaymentRentals.length === 1 ? 'Mark as Paid' : 'Mark All as Paid';
+            await refresh();
+        }
     }
 
     function exportExcel() {
@@ -445,22 +506,36 @@
         $('exportExcel')?.addEventListener('click', exportExcel);
         $('clearHistory')?.addEventListener('click', () => alert('Clear history is disabled in DB mode.'));
         $('importExcel')?.addEventListener('change', () => alert('Import from Excel is disabled in DB mode.'));
-        $('payAllBtn')?.addEventListener('click', async () => {
-            const pending = rentals.filter((r) => r.payment_status === 'unpaid' && (r.status === 'returned' || r.status === 'overdue'));
-            for (const r of pending) {
-                await window.igpApi.markPaid(Number(r.rental_id));
-            }
-            await refresh();
+        $('payAllBtn')?.addEventListener('click', () => {
+            openPaymentConfirmModal(rentals.filter(isPayableRental));
         });
 
-        $('rentalHistoryRecords')?.addEventListener('click', async (e) => {
+        $('rentalHistoryRecords')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.js-paid');
             if (!btn) return;
-            try {
-                await markPaid(btn.dataset.id);
-            } catch (err) {
-                alert(err.message);
+            const rental = rentals.find((item) => Number(item.rental_id) === Number(btn.dataset.id));
+            if (rental) openPaymentConfirmModal([rental]);
+        });
+
+        $('paymentConfirmInput')?.addEventListener('input', (e) => {
+            const isConfirmed = e.target.value.trim() === 'Confirm';
+            if ($('paymentConfirmBtn')) $('paymentConfirmBtn').disabled = !isConfirmed;
+            if ($('paymentConfirmError')) $('paymentConfirmError').style.display = 'none';
+        });
+
+        $('paymentConfirmInput')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.value.trim() === 'Confirm') {
+                e.preventDefault();
+                $('paymentConfirmBtn')?.click();
             }
+        });
+
+        $('paymentConfirmBtn')?.addEventListener('click', confirmPendingPayments);
+        $('paymentConfirmModal')?.addEventListener('hidden.bs.modal', () => {
+            pendingPaymentRentals = [];
+            if ($('paymentConfirmInput')) $('paymentConfirmInput').value = '';
+            if ($('paymentConfirmError')) $('paymentConfirmError').style.display = 'none';
+            if ($('paymentConfirmBtn')) $('paymentConfirmBtn').disabled = true;
         });
 
         $('rentalHistoryFilterModal')?.addEventListener('click', (e) => {
