@@ -74,9 +74,15 @@ const extendedEvents = Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
 const STUDENT_EVENTS_API = '../api/student/events/list.php';
 const STUDENT_ANNOUNCEMENTS_API = '../api/student/announcements/list.php';
 const STUDENT_RECENT_ACTIVITY_API = '../api/student/dashboard/recent-activity.php';
+const STUDENT_NOTIFICATIONS_API = '../api/student/notifications/list.php';
 let databaseEvents = [];
 let databaseAnnouncements = [];
 let databaseRecentActivity = [];
+let databaseTransactionNotifications = [];
+let studentNotificationsLoaded = false;
+let studentNotificationsFailed = false;
+const studentNotificationToastQueue = [];
+let activeStudentNotificationToastCount = 0;
 let studentAnnouncementCalendarDate = new Date();
 let studentAnnouncementSelectedDate = '';
 
@@ -901,6 +907,38 @@ async function loadStudentRecentActivity() {
     return databaseRecentActivity;
 }
 
+async function loadStudentTransactionNotifications() {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        databaseTransactionNotifications = [];
+        studentNotificationsLoaded = true;
+        studentNotificationsFailed = false;
+        renderDashboard();
+        return databaseTransactionNotifications;
+    }
+
+    try {
+        const response = await fetch(STUDENT_NOTIFICATIONS_API, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load transaction notifications.');
+        }
+        databaseTransactionNotifications = Array.isArray(data.items) ? data.items : [];
+        studentNotificationsFailed = false;
+        syncStudentNotificationToasts(databaseTransactionNotifications);
+    } catch (error) {
+        console.error('[loadStudentTransactionNotifications]', error);
+        databaseTransactionNotifications = [];
+        studentNotificationsFailed = true;
+    }
+
+    studentNotificationsLoaded = true;
+    renderDashboard();
+    return databaseTransactionNotifications;
+}
+
 function formatStudentRelativeTime(dateValue) {
     const date = parseStudentAnnouncementDate(dateValue);
     if (!date) return '';
@@ -924,6 +962,172 @@ function getStudentActivityIcon(activityType) {
         membership: 'fa-user-plus'
     };
     return icons[String(activityType || '').toLowerCase()] || 'fa-clock-rotate-left';
+}
+
+function getStudentNotificationIcon(sourceType) {
+    const icons = {
+        rental: 'fa-box-open',
+        locker: 'fa-lock',
+        attendance: 'fa-calendar-check'
+    };
+    return icons[String(sourceType || '').toLowerCase()] || 'fa-bell';
+}
+
+function getStudentNotificationTypeLabel(sourceType) {
+    const labels = {
+        rental: 'Equipment',
+        locker: 'Locker',
+        attendance: 'Attendance'
+    };
+    return labels[String(sourceType || '').toLowerCase()] || 'Transaction';
+}
+
+function getStudentNotificationToastStorageKey() {
+    const session = typeof readAuthSession === 'function' ? readAuthSession() : {};
+    return `naapStudentNotificationToastsSeen:${session.user_id || 'student'}`;
+}
+
+function readSeenStudentNotificationToastIds() {
+    try {
+        const value = JSON.parse(sessionStorage.getItem(getStudentNotificationToastStorageKey()) || '[]');
+        return Array.isArray(value) ? value.map(String) : [];
+    } catch (_error) {
+        return [];
+    }
+}
+
+function syncStudentNotificationToasts(items) {
+    const seenIds = new Set(readSeenStudentNotificationToastIds());
+    const unseenItems = (Array.isArray(items) ? items : [])
+        .filter((item) => item?.id && !seenIds.has(String(item.id)));
+
+    // The feed remains the complete source of truth; cap each popup burst so a
+    // student returning after several transactions is not flooded with toasts.
+    unseenItems.slice(0, 5).forEach((item) => studentNotificationToastQueue.push(item));
+    unseenItems.forEach((item) => seenIds.add(String(item.id)));
+    try {
+        sessionStorage.setItem(
+            getStudentNotificationToastStorageKey(),
+            JSON.stringify(Array.from(seenIds).slice(-100))
+        );
+    } catch (_error) {
+        // Popups still work when session storage is unavailable.
+    }
+
+    processStudentNotificationToastQueue();
+}
+
+function processStudentNotificationToastQueue() {
+    const container = document.getElementById('studentNotificationToastContainer');
+    if (!container) return;
+
+    while (studentNotificationToastQueue.length && activeStudentNotificationToastCount < 3) {
+        const item = studentNotificationToastQueue.shift();
+        showStudentNotificationToast(item);
+    }
+}
+
+function showStudentNotificationToast(item) {
+    const container = document.getElementById('studentNotificationToastContainer');
+    if (!container || !item) return;
+
+    const severity = ['danger', 'urgent', 'warning', 'info', 'success'].includes(String(item.severity || '').toLowerCase())
+        ? String(item.severity).toLowerCase()
+        : 'info';
+    const sourceType = String(item.source_type || '').toLowerCase();
+    const icon = getStudentNotificationIcon(sourceType);
+    const toast = document.createElement('article');
+    toast.className = `student-notification-toast severity-${severity}`;
+    toast.setAttribute('role', severity === 'danger' || severity === 'urgent' ? 'alert' : 'status');
+    toast.innerHTML = `
+        <div class="student-notification-toast-icon"><i class="fa-solid ${icon}"></i></div>
+        <div class="student-notification-toast-content">
+            <div class="student-notification-toast-meta">${escapeHtml(item.organization || 'Organization')} &middot; ${escapeHtml(getStudentNotificationTypeLabel(sourceType))}</div>
+            <strong>${escapeHtml(item.title || 'Transaction update')}</strong>
+            <p>${escapeHtml(item.message || '')}</p>
+        </div>
+        <button type="button" class="student-notification-toast-close" aria-label="Dismiss notification">
+            <i class="fa-solid fa-xmark"></i>
+        </button>`;
+
+    let removed = false;
+    const dismiss = () => {
+        if (removed) return;
+        removed = true;
+        toast.classList.remove('show');
+        window.setTimeout(() => {
+            toast.remove();
+            activeStudentNotificationToastCount = Math.max(0, activeStudentNotificationToastCount - 1);
+            processStudentNotificationToastQueue();
+        }, 250);
+    };
+
+    toast.querySelector('.student-notification-toast-close')?.addEventListener('click', dismiss);
+    container.appendChild(toast);
+    activeStudentNotificationToastCount += 1;
+    window.requestAnimationFrame(() => toast.classList.add('show'));
+    window.setTimeout(dismiss, severity === 'danger' || severity === 'urgent' ? 9000 : 7000);
+}
+
+function renderStudentTransactionNotifications() {
+    let body = '';
+    if (!studentNotificationsLoaded) {
+        body = `
+            <div class="transaction-notification-state">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>Loading your transaction notices...</span>
+            </div>`;
+    } else if (studentNotificationsFailed) {
+        body = `
+            <div class="transaction-notification-state is-error">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Transaction notices are temporarily unavailable.</span>
+            </div>`;
+    } else if (!databaseTransactionNotifications.length) {
+        body = `
+            <div class="transaction-notification-state">
+                <i class="fa-regular fa-circle-check"></i>
+                <span>No rental, locker, or attendance notices right now.</span>
+            </div>`;
+    } else {
+        body = databaseTransactionNotifications.map((item) => {
+            const severity = ['danger', 'urgent', 'warning', 'info', 'success'].includes(String(item.severity || '').toLowerCase())
+                ? String(item.severity).toLowerCase()
+                : 'info';
+            const sourceType = String(item.source_type || '').toLowerCase();
+            const icon = getStudentNotificationIcon(sourceType);
+            const typeLabel = getStudentNotificationTypeLabel(sourceType);
+            const activityLabel = item.activity_at
+                ? formatStudentRelativeTime(item.activity_at)
+                : '';
+            const activityTitle = item.activity_at
+                ? formatStudentAnnouncementDateLabel(item.activity_at)
+                : '';
+
+            return `
+                <article class="list-item transaction-notification-item severity-${severity}">
+                    <div class="item-icon transaction-notification-icon"><i class="fa-solid ${icon}"></i></div>
+                    <div class="item-content">
+                        <div class="transaction-notification-meta">
+                            <span class="transaction-notification-org">${escapeHtml(item.organization || 'Organization')}</span>
+                            <span class="transaction-notification-type"><i class="fa-solid ${icon}"></i> ${escapeHtml(typeLabel)}</span>
+                        </div>
+                        <h4>${escapeHtml(item.title || 'Transaction update')}</h4>
+                        <p>${escapeHtml(item.message || '')}</p>
+                    </div>
+                    ${activityLabel ? `<span class="date-badge" title="${escapeHtml(activityTitle)}">${escapeHtml(activityLabel)}</span>` : ''}
+                </article>`;
+        }).join('');
+    }
+
+    return `
+        <section class="transaction-notification-section" aria-labelledby="student-transaction-notification-title">
+            <div class="dashboard-feed-subheading">
+                <span id="student-transaction-notification-title"><i class="fa-solid fa-bell"></i> Your Transactions</span>
+                ${databaseTransactionNotifications.length ? `<span class="transaction-notification-count">${databaseTransactionNotifications.length}</span>` : ''}
+            </div>
+            <div class="transaction-notification-list" aria-live="polite">${body}</div>
+        </section>`;
 }
 
 function renderStudentRecentActivity() {
@@ -3231,14 +3435,17 @@ function renderDashboard() {
     // 1. Render Announcements
     const annList = document.getElementById('announcements-list');
     const latestAnnouncements = getStudentScopedAnnouncements().slice(0, 5);
+    if (!annList) return;
+    const notificationMarkup = renderStudentTransactionNotifications();
+    let announcementMarkup = '';
     if (!latestAnnouncements.length) {
-        annList.innerHTML = `
+        announcementMarkup = `
             <div class="dashboard-announcement-empty">
                 No announcements have been posted yet.
             </div>
         `;
     } else {
-        annList.innerHTML = latestAnnouncements.map((item, index) => {
+        announcementMarkup = latestAnnouncements.map((item, index) => {
             const orgLabel = item.orgCode
                 ? `${item.org} (${item.orgCode})`
                 : (item.org || 'Organization');
@@ -3280,6 +3487,15 @@ function renderDashboard() {
             `;
         }).join('');
     }
+
+    annList.innerHTML = `
+        ${notificationMarkup}
+        <section class="organization-announcement-section" aria-labelledby="student-organization-announcement-title">
+            <div class="dashboard-feed-subheading">
+                <span id="student-organization-announcement-title"><i class="fa-solid fa-bullhorn"></i> Organization Announcements</span>
+            </div>
+            ${announcementMarkup}
+        </section>`;
 
     if (document.getElementById('date-picker-modal')?.classList.contains('active')) {
         renderStudentAnnouncementCalendar();
@@ -3823,6 +4039,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadOrganizationPublicProfiles();
     renderDashboard();
     loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
+    loadStudentTransactionNotifications().catch((error) => console.error(error));
     loadStudentRecentActivity().catch((error) => console.error(error));
     const eventsLoadPromise = loadStudentEventsFromApi().catch((error) => console.error(error));
 
@@ -3856,6 +4073,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     window.setInterval(() => {
         loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
+        loadStudentTransactionNotifications().catch((error) => console.error(error));
         loadStudentRecentActivity().catch((error) => console.error(error));
     }, 60000);
 
@@ -3868,6 +4086,7 @@ document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     syncStudentPagePolling();
     loadStudentAnnouncementsFromApi().catch((error) => console.error('[loadStudentAnnouncementsFromApi]', error));
+    loadStudentTransactionNotifications().catch((error) => console.error('[loadStudentTransactionNotifications]', error));
     loadStudentRecentActivity().catch((error) => console.error('[loadStudentRecentActivity]', error));
     pollActiveStudentPage().catch((error) => console.error('[pollActiveStudentPage]', error));
 });
