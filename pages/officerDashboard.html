@@ -18,7 +18,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260720-1">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -337,9 +337,14 @@
                                         Review rentals, lockers, and printing transactions for your organization in one summary.
                                     </p>
                                 </div>
-                                <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerFinancialSummary(true)">
-                                    <i class="fa-solid fa-rotate-right"></i> Refresh
-                                </button>
+                                <div class="financial-summary-header-actions">
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="switchTrackerSubView('rentals')">
+                                        <i class="fa-solid fa-arrow-left"></i> Back
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerFinancialSummary(true)">
+                                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="financial-summary-filter-grid">
@@ -462,13 +467,13 @@
 
                             <div class="card financial-summary-table-card">
                                 <div class="card-header">
-                                    <div class="card-title">Monthly Breakdown</div>
+                                    <div class="card-title">Date Breakdown</div>
                                 </div>
                                 <div class="table-container">
                                     <table>
                                         <thead>
                                             <tr>
-                                                <th>Month</th>
+                                                <th>Date</th>
                                                 <th>Total Revenue</th>
                                                 <th>Total Unpaid</th>
                                                 <th>Transactions</th>
@@ -476,9 +481,9 @@
                                                 <th>Unpaid</th>
                                             </tr>
                                         </thead>
-                                        <tbody id="financialSummaryMonthlyTable">
+                                        <tbody id="financialSummaryDateBreakdownTable">
                                             <tr>
-                                                <td colspan="6" style="text-align:center; padding:24px; color:var(--muted);">No monthly data yet.</td>
+                                                <td colspan="6" style="text-align:center; padding:24px; color:var(--muted);">No date breakdown available yet.</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -2005,7 +2010,7 @@
     <script src="../assets/js/igp-api.js"></script>
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../assets/js/officerAnalytics.js"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260710-dashboard-live"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260720-financial-item-types-1"></script>
 </body>
 
 </html>

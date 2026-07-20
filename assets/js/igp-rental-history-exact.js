@@ -487,6 +487,18 @@
     }
 
     function bind() {
+        $('financialSummaryBtn')?.addEventListener('click', (event) => {
+            try {
+                if (window.parent !== window && typeof window.parent.switchTrackerSubView === 'function') {
+                    event.preventDefault();
+                    const parentButton = window.parent.document.getElementById('trackerFinancialBtn');
+                    window.parent.switchTrackerSubView('financial-summary', parentButton);
+                }
+            } catch (error) {
+                // The link's target="_top" fallback handles inaccessible parents.
+            }
+        });
+
         $('historyFilterBtn')?.addEventListener('click', openRentalHistoryFilterModal);
         $('rentalHistoryFilterCloseBtn')?.addEventListener('click', closeRentalHistoryFilterModal);
         $('rentalHistoryFilterCancelBtn')?.addEventListener('click', closeRentalHistoryFilterModal);
