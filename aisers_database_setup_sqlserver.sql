@@ -865,7 +865,7 @@ GO
 
 -- ------------------------------------------------------------
 -- Mirrors: trg_rentals_block_unpaid_student  (MySQL BEFORE INSERT)
--- Blocks new rentals for students who have unpaid debt.
+-- Blocks new non-locker rentals for students who have unpaid debt.
 -- SQL Server: AFTER INSERT + ROLLBACK (no BEFORE INSERT support).
 -- ------------------------------------------------------------
 CREATE TRIGGER trg_rentals_block_unpaid_student ON dbo.rentals AFTER INSERT AS
@@ -877,6 +877,7 @@ BEGIN
         INNER JOIN dbo.users u ON u.user_id = i.renter_user_id
         WHERE u.account_type = 'student'
           AND u.has_unpaid_debt = 1
+          AND COALESCE(i.service_kind, 'rental') <> 'locker'
     )
     BEGIN
         ROLLBACK TRANSACTION;
