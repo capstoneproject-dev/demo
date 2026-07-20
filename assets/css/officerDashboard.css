@@ -3350,6 +3350,13 @@ body.dark .btn-outline:hover {
     gap: 16px;
 }
 
+.financial-summary-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .financial-summary-subtitle {
     color: var(--muted);
     font-size: 0.9rem;

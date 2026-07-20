@@ -88,8 +88,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             <h1 class="mb-0">Rental History</h1>
             <div>
                 <a href="index.php" class="btn btn-outline-secondary me-2">Back to Rental System</a>
-                <button class="btn btn-outline-success nav-secure-btn me-2"
-                    data-target="financial-summary.html">Financial Summary</button>
+                <a id="financialSummaryBtn" href="financial-summary.php" target="_top"
+                    class="btn btn-outline-success me-2">Financial Summary</a>
                 <button id="clearHistory" class="btn btn-danger me-2">Clear History</button>
                 <button id="exportExcel" class="btn btn-success me-2">Export to Excel</button>
                 <input type="file" id="importExcel" accept=".xlsx" style="display:inline-block; width:auto;"
@@ -320,7 +320,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-rental-history-exact.js?v=20260720-2"></script>
+    <script src="../../assets/js/igp-rental-history-exact.js?v=20260720-3"></script>
 </body>
 
 </html>

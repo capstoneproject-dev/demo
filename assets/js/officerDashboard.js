@@ -1046,9 +1046,37 @@ function isOfficerLockerEnabled() {
     return activeOrgName === 'SUPREME STUDENT COUNCIL' || activeOrgCode === 'SSC';
 }
 
+function syncOfficerFinancialServiceFilterOptions() {
+    const select = document.getElementById('financialSummaryServiceFilter');
+    if (!select) return;
+
+    const previousValue = select.value || '';
+    const options = [
+        { value: '', label: 'All Services' },
+        { value: 'rental', label: 'Rentals' },
+    ];
+    if (officerLockerEnabled) {
+        options.push({ value: 'locker', label: 'Lockers' });
+    }
+    if (officerPrintingEnabled) {
+        options.push({ value: 'printing', label: 'Printing' });
+    }
+
+    select.innerHTML = options
+        .map((option) => `<option value="${option.value}">${option.label}</option>`)
+        .join('');
+    const availableValues = new Set(options.map((option) => option.value));
+    select.value = availableValues.has(previousValue) ? previousValue : '';
+
+    if (select.value !== previousValue && officerFinancialSummaryData.length) {
+        renderOfficerFinancialSummary();
+    }
+}
+
 function setOfficerTrackerPrintingAccess(printingEnabled) {
     officerPrintingEnabled = !!printingEnabled;
     officerLockerEnabled = isOfficerLockerEnabled();
+    syncOfficerFinancialServiceFilterOptions();
 
     const trackerLayout = document.getElementById('trackerLayout');
     const printingBtn = document.getElementById('trackerPrintingBtn');
@@ -1172,9 +1200,27 @@ function getOfficerFinancialDateValue(item) {
 
 function getOfficerFinancialItemDisplayLabel(item) {
     if (String(item?.service_type || '').toLowerCase() === 'printing') {
-        return String(item?.customer_name || '').trim() || String(item?.item_label || '').trim() || '-';
+        return String(item?.item_label || '').trim() || 'Print Job';
     }
     return String(item?.item_label || '').trim() || '-';
+}
+
+function getOfficerFinancialItemFilterLabels(item) {
+    const serviceType = String(item?.service_type || '').toLowerCase();
+    if (serviceType === 'printing') return [];
+    if (serviceType === 'locker') return ['Locker'];
+
+    const rawLabel = String(item?.item_label || '').trim();
+    if (!rawLabel) return [];
+
+    const uniqueLabels = new Map();
+    rawLabel.split(',').forEach((entry) => {
+        const label = entry.replace(/\s*\[[^\]]*\]\s*$/, '').trim();
+        if (label && !uniqueLabels.has(label.toLowerCase())) {
+            uniqueLabels.set(label.toLowerCase(), label);
+        }
+    });
+    return Array.from(uniqueLabels.values());
 }
 
 function getOfficerFinancialSummaryFilters() {
@@ -1221,14 +1267,17 @@ function populateOfficerFinancialItemFilter(items) {
     const current = select.value || '';
     const filters = getOfficerFinancialSummaryFilters();
 
-    const labels = Array.from(new Set(
-        (items || [])
-            .filter((item) => !filters.service || String(item.service_type || '').toLowerCase() === filters.service)
-            .filter((item) => !filters.payment || String(item.payment_status || '').toLowerCase() === filters.payment)
-            .filter((item) => matchesOfficerFinancialDateFilter(item, filters.startDate, filters.endDate))
-            .map((item) => getOfficerFinancialItemDisplayLabel(item))
-            .filter(Boolean)
-    )).sort((a, b) => a.localeCompare(b));
+    const uniqueLabels = new Map();
+    (items || [])
+        .filter((item) => !filters.service || String(item.service_type || '').toLowerCase() === filters.service)
+        .filter((item) => !filters.payment || String(item.payment_status || '').toLowerCase() === filters.payment)
+        .filter((item) => matchesOfficerFinancialDateFilter(item, filters.startDate, filters.endDate))
+        .flatMap((item) => getOfficerFinancialItemFilterLabels(item))
+        .forEach((label) => {
+            const key = label.toLowerCase();
+            if (!uniqueLabels.has(key)) uniqueLabels.set(key, label);
+        });
+    const labels = Array.from(uniqueLabels.values()).sort((a, b) => a.localeCompare(b));
 
     select.innerHTML = '<option value="">All Items</option>' + labels
         .map((label) => `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`)
@@ -1241,9 +1290,9 @@ function getFilteredOfficerFinancialSummaryItems() {
     return officerFinancialSummaryData.filter((item) => {
         const serviceType = String(item.service_type || '').toLowerCase();
         const paymentStatus = String(item.payment_status || '').toLowerCase();
-        const itemLabel = getOfficerFinancialItemDisplayLabel(item);
+        const itemLabels = getOfficerFinancialItemFilterLabels(item);
         if (filters.service && serviceType !== filters.service) return false;
-        if (filters.item && itemLabel !== filters.item) return false;
+        if (filters.item && !itemLabels.some((label) => label.toLowerCase() === filters.item.toLowerCase())) return false;
         if (filters.payment && paymentStatus !== filters.payment) return false;
         if (!matchesOfficerFinancialDateFilter(item, filters.startDate, filters.endDate)) {
             return false;
@@ -1267,14 +1316,14 @@ function renderOfficerFinancialSummary() {
     const rows = getFilteredOfficerFinancialSummaryItems();
     const filters = getOfficerFinancialSummaryFilters();
     const transactionsBody = document.getElementById('financialSummaryTransactionsTable');
-    const monthlyBody = document.getElementById('financialSummaryMonthlyTable');
+    const dateBreakdownBody = document.getElementById('financialSummaryDateBreakdownTable');
 
     let totalRevenue = 0;
     let totalUnpaid = 0;
     let paidTransactions = 0;
     let unpaidTransactions = 0;
     const dateValues = [];
-    const monthlyMap = new Map();
+    const dailyMap = new Map();
 
     rows.forEach((item) => {
         const totalCost = Number(item.total_cost || 0);
@@ -1292,9 +1341,9 @@ function renderOfficerFinancialSummary() {
 
         if (parsedDate instanceof Date && !Number.isNaN(parsedDate.getTime())) {
             dateValues.push(parsedDate);
-            const monthKey = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}`;
-            if (!monthlyMap.has(monthKey)) {
-                monthlyMap.set(monthKey, {
+            const dateKey = formatLocalDateKey(parsedDate);
+            if (!dailyMap.has(dateKey)) {
+                dailyMap.set(dateKey, {
                     revenue: 0,
                     unpaid: 0,
                     transactions: 0,
@@ -1302,14 +1351,14 @@ function renderOfficerFinancialSummary() {
                     unpaidCount: 0,
                 });
             }
-            const monthBucket = monthlyMap.get(monthKey);
-            monthBucket.transactions += 1;
+            const dayBucket = dailyMap.get(dateKey);
+            dayBucket.transactions += 1;
             if (paymentStatus === 'paid') {
-                monthBucket.revenue += totalCost;
-                monthBucket.paid += 1;
+                dayBucket.revenue += totalCost;
+                dayBucket.paid += 1;
             } else {
-                monthBucket.unpaid += totalCost;
-                monthBucket.unpaidCount += 1;
+                dayBucket.unpaid += totalCost;
+                dayBucket.unpaidCount += 1;
             }
         }
     });
@@ -1372,19 +1421,19 @@ function renderOfficerFinancialSummary() {
         }
     }
 
-    if (monthlyBody) {
-        const monthlyRows = Array.from(monthlyMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-        if (!monthlyRows.length) {
-            monthlyBody.innerHTML = '<tr><td colspan="6" class="financial-empty-state">No monthly data available for the selected filters.</td></tr>';
+    if (dateBreakdownBody) {
+        const dailyRows = Array.from(dailyMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+        if (!dailyRows.length) {
+            dateBreakdownBody.innerHTML = '<tr><td colspan="6" class="financial-empty-state">No date breakdown available for the selected filters.</td></tr>';
         } else {
-            monthlyBody.innerHTML = monthlyRows.map(([monthKey, month]) => `
+            dateBreakdownBody.innerHTML = dailyRows.map(([dateKey, day]) => `
                 <tr>
-                    <td>${escapeHtml(monthKey)}</td>
-                    <td>${escapeHtml(formatOfficerPeso(month.revenue))}</td>
-                    <td>${escapeHtml(formatOfficerPeso(month.unpaid))}</td>
-                    <td>${month.transactions}</td>
-                    <td>${month.paid}</td>
-                    <td>${month.unpaidCount}</td>
+                    <td>${escapeHtml(formatOfficerFinancialDate(`${dateKey}T00:00:00`))}</td>
+                    <td>${escapeHtml(formatOfficerPeso(day.revenue))}</td>
+                    <td>${escapeHtml(formatOfficerPeso(day.unpaid))}</td>
+                    <td>${day.transactions}</td>
+                    <td>${day.paid}</td>
+                    <td>${day.unpaidCount}</td>
                 </tr>
             `).join('');
         }
@@ -1419,11 +1468,7 @@ function initializeOfficerFinancialSummaryDefaultDate() {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayValue = [
-        today.getFullYear(),
-        String(today.getMonth() + 1).padStart(2, '0'),
-        String(today.getDate()).padStart(2, '0'),
-    ].join('-');
+    const todayValue = formatLocalDateKey(today);
 
     officerFinancialSummaryFilters.startDate = todayValue;
     officerFinancialSummaryFilters.endDate = null;
@@ -6015,10 +6060,10 @@ window.addEventListener('DOMContentLoaded', () => {
         .catch(() => {})
         .finally(() => {
             loadOfficerDashboard(false);
+            loadOfficerFinancialSummary().catch(() => {});
             startOfficerDashboardRealtime();
             loadOfficerPrintingQueue().catch(() => {});
         });
-    loadOfficerFinancialSummary().catch(() => {});
     // Initialize repository counts
     if (typeof updateFolderCounts === 'function') {
         updateFolderCounts();
