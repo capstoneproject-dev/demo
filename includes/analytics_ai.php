@@ -125,7 +125,7 @@ function analyticsAiGenerateWithGeminiModel(array $snapshot, array $filters, str
 {
     $prompt = analyticsAiBuildPrompt($snapshot, $filters);
     $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model)
-        . ':generateContent?key=' . rawurlencode(ANALYTICS_AI_GEMINI_API_KEY);
+        . ':generateContent';
 
     $response = analyticsAiHttpJsonRequest($url, [
         'contents' => [[
@@ -138,6 +138,8 @@ function analyticsAiGenerateWithGeminiModel(array $snapshot, array $filters, str
             'temperature' => 0.4,
             'responseMimeType' => 'application/json',
         ],
+    ], [
+        'x-goog-api-key: ' . ANALYTICS_AI_GEMINI_API_KEY,
     ]);
 
     $text = $response['candidates'][0]['content']['parts'][0]['text'] ?? '';
@@ -194,7 +196,7 @@ function analyticsAiGenerateWithLlama(array $snapshot, array $filters): array
     return analyticsAiNormalizeStructuredInsights($decoded, $snapshot, $filters);
 }
 
-function analyticsAiHttpJsonRequest(string $url, array $payload): array
+function analyticsAiHttpJsonRequest(string $url, array $payload, array $headers = []): array
 {
     $ch = curl_init($url);
     if ($ch === false) {
@@ -204,7 +206,7 @@ function analyticsAiHttpJsonRequest(string $url, array $payload): array
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers),
         CURLOPT_POSTFIELDS => json_encode($payload),
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 25,
