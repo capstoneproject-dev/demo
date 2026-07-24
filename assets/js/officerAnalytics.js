@@ -16,9 +16,13 @@ const officerAnalyticsState = {
 
 const officerAnalyticsInsightsState = {
     cache: new Map(),
+    pending: new Map(),
     currentKey: '',
     latestRequestId: 0,
+    autoRefreshTimer: null,
 };
+
+const OFFICER_ANALYTICS_INSIGHTS_DEBOUNCE_MS = 2500;
 
 function parseOfficerAnalyticsDate(value) {
     if (!value) return null;
@@ -765,7 +769,7 @@ function renderOfficerAnalyticsInsights(insights) {
     const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
     if (providerBadge) {
         const providerName = String(insights?.provider || 'rule-based').toLowerCase();
-        const providerLabel = providerName === 'gemini'
+        const providerLabel = providerName.startsWith('gemini')
             ? 'Gemini'
             : (providerName === 'llama-local' ? 'Llama Local' : 'Rule-based');
         providerBadge.style.display = 'inline-flex';
@@ -776,6 +780,20 @@ function renderOfficerAnalyticsInsights(insights) {
     if (refreshButton) {
         refreshButton.disabled = false;
     }
+}
+
+function buildOfficerAnalyticsFallbackInsights() {
+    return {
+        chartSummaries: {
+            financial: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+            participation: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+            inventory: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+            documents: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+        },
+        exportSummary: 'AI-generated insights are temporarily unavailable. The export used the rule-based dashboard summary instead.',
+        provider: 'rule-based',
+        fallbackUsed: true,
+    };
 }
 
 async function getOfficerAnalyticsInsightsData(options = {}) {
@@ -793,6 +811,24 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
         return cached;
     }
 
+    if (officerAnalyticsInsightsState.pending.has(cacheKey)) {
+        try {
+            const pending = await officerAnalyticsInsightsState.pending.get(cacheKey);
+            if (render) {
+                officerAnalyticsInsightsState.currentKey = cacheKey;
+                renderOfficerAnalyticsInsights(pending);
+            }
+            return pending;
+        } catch (error) {
+            console.error('getOfficerAnalyticsInsightsData pending request failed', error);
+            const fallback = buildOfficerAnalyticsFallbackInsights();
+            if (render) {
+                renderOfficerAnalyticsInsights(fallback);
+            }
+            return fallback;
+        }
+    }
+
     const requestId = officerAnalyticsInsightsState.latestRequestId + 1;
     officerAnalyticsInsightsState.latestRequestId = requestId;
 
@@ -801,7 +837,7 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
         setOfficerAnalyticsInsightsLoading();
     }
 
-    try {
+    const request = (async () => {
         const response = await fetch('../api/analytics/generate-insights.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -815,7 +851,12 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
         if (!response.ok || !payload.ok) {
             throw new Error(payload.error || `Request failed (${response.status})`);
         }
+        return payload;
+    })();
+    officerAnalyticsInsightsState.pending.set(cacheKey, request);
 
+    try {
+        const payload = await request;
         officerAnalyticsInsightsState.cache.set(cacheKey, payload);
         if (render && officerAnalyticsInsightsState.currentKey === cacheKey && requestId === officerAnalyticsInsightsState.latestRequestId) {
             renderOfficerAnalyticsInsights(payload);
@@ -823,25 +864,40 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
         return payload;
     } catch (error) {
         console.error('getOfficerAnalyticsInsightsData failed', error);
-        const fallback = {
-            chartSummaries: {
-                financial: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
-                participation: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
-                inventory: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
-                documents: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
-            },
-            exportSummary: 'AI-generated insights are temporarily unavailable. The export used the rule-based dashboard summary instead.',
-            provider: 'rule-based',
-            fallbackUsed: true,
-        };
+        const fallback = buildOfficerAnalyticsFallbackInsights();
         if (render) {
             renderOfficerAnalyticsInsights(fallback);
         }
         return fallback;
+    } finally {
+        if (officerAnalyticsInsightsState.pending.get(cacheKey) === request) {
+            officerAnalyticsInsightsState.pending.delete(cacheKey);
+        }
     }
 }
 
+function scheduleOfficerAnalyticsInsights(snapshot) {
+    const analyticsView = document.getElementById('analytics');
+    if (!analyticsView?.classList.contains('active')) {
+        return;
+    }
+
+    if (officerAnalyticsInsightsState.autoRefreshTimer) {
+        clearTimeout(officerAnalyticsInsightsState.autoRefreshTimer);
+    }
+
+    officerAnalyticsInsightsState.autoRefreshTimer = setTimeout(() => {
+        officerAnalyticsInsightsState.autoRefreshTimer = null;
+        void getOfficerAnalyticsInsightsData({ snapshot, render: true });
+    }, OFFICER_ANALYTICS_INSIGHTS_DEBOUNCE_MS);
+}
+
 function regenerateOfficerAnalyticsInsights() {
+    if (officerAnalyticsInsightsState.autoRefreshTimer) {
+        clearTimeout(officerAnalyticsInsightsState.autoRefreshTimer);
+        officerAnalyticsInsightsState.autoRefreshTimer = null;
+    }
+
     if (!officerAnalyticsState.snapshot) {
         refreshAnalyticsCharts();
         return;
@@ -994,7 +1050,7 @@ function refreshAnalyticsCharts() {
     officerAnalyticsState.snapshot = snapshot;
     updateOfficerAnalyticsCardText(snapshot);
     renderOfficerAnalyticsCharts(snapshot);
-    void getOfficerAnalyticsInsightsData({ snapshot, render: true });
+    scheduleOfficerAnalyticsInsights(snapshot);
 }
 
 function getOfficerAnalyticsReportData(overrides = {}) {
