@@ -935,28 +935,23 @@ function upsertOfficerAnalyticsChart(key, elementId, config) {
 }
 
 function renderOfficerAnalyticsCharts(snapshot) {
-    // Determine chart type based on number of data points
-    const revenueDataPoints = snapshot.charts.revenue.values.length;
-    const useBarChart = revenueDataPoints <= 2;
-
     upsertOfficerAnalyticsChart('revenue', 'revenueChart', {
-        type: useBarChart ? 'bar' : 'line',
+        type: 'line',
         data: {
             labels: snapshot.charts.revenue.labels,
             datasets: [{
                 label: 'Revenue',
                 data: snapshot.charts.revenue.values,
                 borderColor: '#002147',
-                backgroundColor: useBarChart ? '#002147' : 'rgba(0, 33, 71, 0.08)',
-                fill: !useBarChart,
+                backgroundColor: 'rgba(0, 33, 71, 0.08)',
+                fill: true,
                 tension: 0.35,
-                borderWidth: useBarChart ? 0 : 3,
-                pointRadius: useBarChart ? 0 : 6,
-                pointHoverRadius: useBarChart ? 0 : 8,
+                borderWidth: 3,
+                pointRadius: 6,
+                pointHoverRadius: 8,
                 pointBackgroundColor: '#002147',
                 pointBorderColor: '#fff',
                 pointBorderWidth: 2,
-                borderRadius: useBarChart ? 6 : 0,
             }],
         },
         options: {
