@@ -752,8 +752,8 @@ function setOfficerAnalyticsInsightsIdle() {
     const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
     const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
     if (providerBadge) {
-        providerBadge.style.display = 'inline-flex';
-        providerBadge.textContent = 'Manual generation';
+        providerBadge.style.display = 'none';
+        providerBadge.textContent = '';
     }
     if (refreshButton) {
         refreshButton.disabled = false;
