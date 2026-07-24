@@ -8817,6 +8817,139 @@ body.dark .calendar-day.in-range {
     background: var(--border);
 }
 
+.profile-email-preferences-card {
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel-2);
+    text-align: left;
+}
+
+.profile-email-preferences-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.profile-email-preferences-icon {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(0, 33, 71, 0.1);
+    color: var(--primary);
+}
+
+.profile-email-preferences-heading h4 {
+    margin: 0 0 3px;
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.profile-email-preferences-heading p,
+.profile-email-preferences-status {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.7rem;
+    line-height: 1.4;
+}
+
+.profile-email-preferences-status {
+    min-height: 17px;
+    margin-bottom: 8px;
+}
+
+#profile .profile-email-preference-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 10px 0;
+    margin-bottom: 0;
+    border-top: 1px solid var(--border);
+    cursor: pointer;
+}
+
+.profile-email-preference-row > span:first-child {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.profile-email-preference-row > span:first-child i {
+    width: 16px;
+    color: var(--primary);
+    text-align: center;
+}
+
+#profile .profile-email-preference-row input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    opacity: 0;
+}
+
+.profile-email-toggle {
+    display: block;
+    position: relative;
+    width: 38px;
+    height: 22px;
+    flex: 0 0 38px;
+    margin-left: auto;
+    border-radius: 999px;
+    background: #cbd5e1;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-email-toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.24);
+    transition: transform 0.2s ease;
+}
+
+.profile-email-preference-row input:checked + .profile-email-toggle {
+    background-color: #2563eb;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+}
+
+.profile-email-preference-row input:checked + .profile-email-toggle::after {
+    transform: translateX(16px);
+}
+
+.profile-email-preference-row input:focus-visible + .profile-email-toggle {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.profile-email-preference-row input:disabled + .profile-email-toggle {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+body.dark .profile-email-preferences-card {
+    background: color-mix(in srgb, var(--primary) 8%, var(--panel-2));
+}
+
 .profile-details-stack {
     display: flex;
     flex-direction: column;

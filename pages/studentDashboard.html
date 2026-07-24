@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- STYLESHEET REFERENCE -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260710-5">
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260724-email-preferences-layout-2">
     <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260325-4">
 </head>
 
@@ -630,6 +630,37 @@
                         <label style="margin-bottom: 8px;">Bio / Note</label>
                         <textarea id="studentProfileBioInput" rows="3" readonly>Actively participating in student services, events, and organization initiatives.</textarea>
                     </div>
+
+                    <div class="profile-email-preferences-card" aria-labelledby="studentEmailPreferencesTitle">
+                        <div class="profile-email-preferences-heading">
+                            <span class="profile-email-preferences-icon"><i class="fa-solid fa-envelope"></i></span>
+                            <div>
+                                <h4 id="studentEmailPreferencesTitle">Email Notifications</h4>
+                                <p>Choose which transaction updates are emailed to you.</p>
+                            </div>
+                        </div>
+                        <div id="studentEmailPreferencesStatus" class="profile-email-preferences-status">Loading preferences...</div>
+                        <label class="profile-email-preference-row">
+                            <span><i class="fa-solid fa-box-open"></i> Equipment Rentals</span>
+                            <input id="studentEmailRentalEnabled" type="checkbox" disabled>
+                            <span class="profile-email-toggle" aria-hidden="true"></span>
+                        </label>
+                        <label class="profile-email-preference-row">
+                            <span><i class="fa-solid fa-lock"></i> Locker Rentals</span>
+                            <input id="studentEmailLockerEnabled" type="checkbox" disabled>
+                            <span class="profile-email-toggle" aria-hidden="true"></span>
+                        </label>
+                        <label class="profile-email-preference-row">
+                            <span><i class="fa-solid fa-calendar-check"></i> Event Attendance</span>
+                            <input id="studentEmailAttendanceEnabled" type="checkbox" disabled>
+                            <span class="profile-email-toggle" aria-hidden="true"></span>
+                        </label>
+                        <label class="profile-email-preference-row">
+                            <span><i class="fa-solid fa-print"></i> Printing Requests</span>
+                            <input id="studentEmailPrintingEnabled" type="checkbox" disabled>
+                            <span class="profile-email-toggle" aria-hidden="true"></span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="profile-details-stack">
@@ -1004,7 +1035,7 @@
     </script>
     <!-- Org-specific data config — must load before studentDashboard.js -->
     <script src="../data/orgData.js?v=20260325-4"></script>
-    <script src="../assets/js/studentDashboard.js?v=20260710-6"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260724-printing-notifications-1"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">

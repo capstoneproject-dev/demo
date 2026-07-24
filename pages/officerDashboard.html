@@ -18,7 +18,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260720-1">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260724-email-delivery-1">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -257,6 +257,40 @@
                         <div class="card-title">Latest Updates</div>
                     </div>
                     <div id="dashboard-latest-updates" style="color: var(--muted);">Loading updates...</div>
+                </div>
+
+                <!-- Email Delivery -->
+                <div class="card officer-email-delivery-card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">Email Delivery</div>
+                            <p class="officer-email-delivery-subtitle">Transaction notification delivery health</p>
+                        </div>
+                        <button id="officerEmailDeliveryToggle" class="btn btn-outline btn-sm" type="button"
+                            onclick="toggleOfficerEmailDeliveryDetails()" aria-expanded="false"
+                            aria-controls="officerEmailDeliveryDetails">
+                            Details <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                    </div>
+                    <div class="officer-email-delivery-summary">
+                        <div class="officer-email-delivery-metric is-retrying">
+                            <span id="officerEmailRetryingCount">0</span>
+                            <small>Retrying</small>
+                        </div>
+                        <div class="officer-email-delivery-metric is-failed">
+                            <span id="officerEmailFailedCount">0</span>
+                            <small>Failed</small>
+                        </div>
+                        <div id="officerEmailDeliveryHealth" class="officer-email-delivery-health is-healthy">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>Delivery healthy</span>
+                        </div>
+                    </div>
+                    <div id="officerEmailDeliveryDetails" class="officer-email-delivery-details" hidden>
+                        <div id="officerEmailDeliveryList" class="officer-email-delivery-list">
+                            <div class="officer-email-delivery-empty">No email delivery problems.</div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Upcoming Events -->
@@ -2010,7 +2044,7 @@
     <script src="../assets/js/igp-api.js"></script>
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../assets/js/officerAnalytics.js"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260720-financial-item-types-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260724-email-delivery-1"></script>
 </body>
 
 </html>

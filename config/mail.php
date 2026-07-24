@@ -19,5 +19,6 @@ function getMailConfig(): array
         'encryption' => strtolower((string)$read('SMTP_ENCRYPTION', 'tls')),
         'from_email' => $read('SMTP_FROM_EMAIL', $read('SMTP_USERNAME', '')),
         'from_name' => $read('SMTP_FROM_NAME', 'NAAP Account Security'),
+        'app_base_url' => rtrim((string)$read('APP_BASE_URL', 'http://localhost/CAPSTONE/demo'), '/'),
     ];
 }

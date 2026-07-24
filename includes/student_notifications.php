@@ -6,7 +6,7 @@
  * the same rules can later be reused by an email delivery process.
  */
 
-require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/../config/db.php';
 
 const STUDENT_NOTIFICATION_HISTORY_HOURS = 24;
 const STUDENT_NOTIFICATION_RECENT_LIMIT = 5;
@@ -53,7 +53,8 @@ function studentNotificationItem(
     string $organization,
     ?DateTimeImmutable $activityAt,
     ?DateTimeImmutable $dueAt,
-    bool $isUnresolved
+    bool $isUnresolved,
+    int $orgId = 0
 ): array {
     return [
         'id' => $id,
@@ -67,6 +68,7 @@ function studentNotificationItem(
         'activity_at' => $activityAt?->format('Y-m-d H:i:s'),
         'due_at' => $dueAt?->format('Y-m-d H:i:s'),
         'is_unresolved' => $isUnresolved,
+        'org_id' => $orgId,
     ];
 }
 
@@ -81,6 +83,7 @@ function studentNotificationRentalRows(PDO $pdo, int $userId): array
 {
     $stmt = $pdo->prepare(
         "SELECT r.rental_id,
+                r.org_id,
                 r.service_kind,
                 r.locker_period_type,
                 r.rent_time,
@@ -114,12 +117,120 @@ function studentNotificationRentalRows(PDO $pdo, int $userId): array
     return $stmt->fetchAll();
 }
 
+function studentNotificationPrintingRows(PDO $pdo, int $userId): array
+{
+    $stmt = $pdo->prepare(
+        "SELECT pj.print_job_id,
+                pj.org_id,
+                pj.user_id,
+                pj.provider_auto_assigned,
+                pj.provider_accepted_at,
+                pj.file_name,
+                pj.status,
+                pj.queue_order,
+                pj.submitted_at,
+                pj.processing_started_at,
+                pj.ready_at,
+                pj.claimed_at,
+                pj.updated_at,
+                COALESCE(o.org_code, o.org_name, 'Organization') AS organization
+         FROM print_jobs pj
+         JOIN organizations o ON o.org_id = pj.org_id
+         WHERE pj.user_id = :user_id
+         ORDER BY COALESCE(pj.claimed_at, pj.ready_at, pj.processing_started_at, pj.provider_accepted_at, pj.updated_at, pj.submitted_at) DESC"
+    );
+    $stmt->execute([':user_id' => $userId]);
+    return $stmt->fetchAll();
+}
+
+function studentNotificationBuildPrinting(array $row, DateTimeImmutable $cutoff): ?array
+{
+    $printJobId = (int)$row['print_job_id'];
+    $status = strtolower(trim((string)$row['status']));
+    $organization = (string)$row['organization'];
+    $orgId = (int)($row['org_id'] ?? 0);
+    $fileName = trim((string)($row['file_name'] ?? '')) ?: 'Your document';
+    $submittedAt = studentNotificationDate($row['submitted_at'] ?? null);
+    $acceptedAt = studentNotificationDate($row['provider_accepted_at'] ?? null);
+    $processingAt = studentNotificationDate($row['processing_started_at'] ?? null);
+    $readyAt = studentNotificationDate($row['ready_at'] ?? null);
+    $claimedAt = studentNotificationDate($row['claimed_at'] ?? null);
+    $updatedAt = studentNotificationDate($row['updated_at'] ?? null) ?? $submittedAt;
+    $isAwaitingProvider = (int)($row['provider_auto_assigned'] ?? 0) === 1;
+
+    if ($status === 'queued') {
+        if ($acceptedAt) {
+            return studentNotificationItem(
+                "printing:{$printJobId}:accepted", 'printing', $printJobId, 'accepted', 'info',
+                'Printing request accepted',
+                "{$organization} accepted {$fileName}. It is now in the printing queue.",
+                $organization, $acceptedAt, null, true, $orgId
+            );
+        }
+
+        $message = $isAwaitingProvider
+            ? "{$fileName} was submitted and is waiting for an authorized printing provider to accept it."
+            : "{$fileName} was submitted to {$organization} and added to the printing queue.";
+        return studentNotificationItem(
+            "printing:{$printJobId}:submitted", 'printing', $printJobId, 'submitted', 'info',
+            'Printing request submitted', $message,
+            $organization, $submittedAt ?? $updatedAt, null, true, $orgId
+        );
+    }
+
+    if ($status === 'processing') {
+        return studentNotificationItem(
+            "printing:{$printJobId}:processing", 'printing', $printJobId, 'processing', 'info',
+            'Document is being printed',
+            "{$organization} started processing {$fileName}.",
+            $organization, $processingAt ?? $updatedAt, null, true, $orgId
+        );
+    }
+
+    if ($status === 'ready_to_claim') {
+        return studentNotificationItem(
+            "printing:{$printJobId}:ready_to_claim", 'printing', $printJobId, 'ready_to_claim', 'urgent',
+            'Document ready to claim',
+            "{$fileName} is ready to claim from {$organization}.",
+            $organization, $readyAt ?? $updatedAt, null, true, $orgId
+        );
+    }
+
+    $completedAt = $status === 'claimed'
+        ? ($claimedAt ?? $updatedAt)
+        : $updatedAt;
+    if (!$completedAt || $completedAt < $cutoff) {
+        return null;
+    }
+
+    if ($status === 'claimed') {
+        return studentNotificationItem(
+            "printing:{$printJobId}:claimed", 'printing', $printJobId, 'claimed', 'success',
+            'Printed document claimed',
+            "{$fileName} was marked as successfully claimed from {$organization}.",
+            $organization, $completedAt, null, false, $orgId
+        );
+    }
+
+    if ($status === 'cancelled') {
+        return studentNotificationItem(
+            "printing:{$printJobId}:cancelled", 'printing', $printJobId, 'cancelled', 'warning',
+            'Printing request cancelled',
+            "The printing request for {$fileName} was cancelled.",
+            $organization, $completedAt, null, false, $orgId
+        );
+    }
+
+    return null;
+}
+
 function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, DateTimeImmutable $cutoff): ?array
 {
     $rentalId = (int)$row['rental_id'];
     $status = strtolower(trim((string)$row['status']));
     $paymentStatus = strtolower(trim((string)$row['payment_status']));
     $organization = (string)$row['organization'];
+    $orgId = (int)($row['org_id'] ?? 0);
     $items = trim((string)$row['items_label']) ?: 'your rented item';
     $rentAt = studentNotificationDate($row['rent_time'] ?? null);
     $dueAt = studentNotificationDate($row['expected_return_time'] ?? null);
@@ -135,7 +246,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
                 "rental:{$rentalId}:no_show", 'rental', $rentalId, 'no_show', 'danger',
                 'Rental reservation missed',
                 "The reservation period for {$items} ended on " . studentNotificationFormatDate($dueAt) . '. Please contact ' . $organization . ' if you need assistance.',
-                $organization, $dueAt, $dueAt, true
+                $organization, $dueAt, $dueAt, true, $orgId
             );
         }
 
@@ -143,7 +254,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
             "rental:{$rentalId}:reserved", 'rental', $rentalId, 'reserved', 'info',
             'Rental reservation confirmed',
             "{$items} is reserved from " . studentNotificationFormatDate($rentAt) . ' until ' . studentNotificationFormatDate($dueAt) . '.',
-            $organization, $updatedAt, $dueAt, true
+            $organization, $updatedAt, $dueAt, true, $orgId
         );
     }
 
@@ -154,7 +265,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
                 "rental:{$rentalId}:overtime", 'rental', $rentalId, 'overtime', 'danger',
                 'Rental is now overtime',
                 "{$items} was due on " . studentNotificationFormatDate($dueAt) . '. Return it immediately to avoid additional overtime charges.',
-                $organization, $dueAt ?? $now, $dueAt, true
+                $organization, $dueAt ?? $now, $dueAt, true, $orgId
             );
         }
         if ($secondsRemaining <= 15 * 60) {
@@ -162,7 +273,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
                 "rental:{$rentalId}:urgent", 'rental', $rentalId, 'urgent', 'urgent',
                 'Rental due within 15 minutes',
                 "{$items} must be returned by " . studentNotificationFormatDate($dueAt) . '. Please prepare to return it now.',
-                $organization, $dueAt?->modify('-15 minutes') ?? $now, $dueAt, true
+                $organization, $dueAt?->modify('-15 minutes') ?? $now, $dueAt, true, $orgId
             );
         }
         if ($secondsRemaining <= 30 * 60) {
@@ -170,7 +281,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
                 "rental:{$rentalId}:due_soon", 'rental', $rentalId, 'due_soon', 'warning',
                 'Rental due within 30 minutes',
                 "{$items} must be returned by " . studentNotificationFormatDate($dueAt) . '.',
-                $organization, $dueAt?->modify('-30 minutes') ?? $now, $dueAt, true
+                $organization, $dueAt?->modify('-30 minutes') ?? $now, $dueAt, true, $orgId
             );
         }
 
@@ -178,7 +289,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
             "rental:{$rentalId}:active", 'rental', $rentalId, 'active', 'info',
             'Equipment rental active',
             "You currently have {$items}. It is due on " . studentNotificationFormatDate($dueAt) . '.',
-            $organization, $rentAt ?? $updatedAt, $dueAt, true
+            $organization, $rentAt ?? $updatedAt, $dueAt, true, $orgId
         );
     }
 
@@ -192,7 +303,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
         return studentNotificationItem(
             "rental:{$rentalId}:returned_{$paymentStatus}", 'rental', $rentalId, 'returned',
             $paymentStatus === 'paid' ? 'success' : 'warning',
-            'Equipment returned', $message, $organization, $completedAt, $dueAt, false
+            'Equipment returned', $message, $organization, $completedAt, $dueAt, false, $orgId
         );
     }
 
@@ -201,7 +312,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
         return studentNotificationItem(
             "rental:{$rentalId}:returned_late_{$paymentStatus}", 'rental', $rentalId, 'returned_late',
             $paymentStatus === 'paid' ? 'warning' : 'danger',
-            'Equipment returned late', $message, $organization, $completedAt, $dueAt, false
+            'Equipment returned late', $message, $organization, $completedAt, $dueAt, false, $orgId
         );
     }
 
@@ -210,7 +321,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
             "rental:{$rentalId}:no_show", 'rental', $rentalId, 'no_show', 'danger',
             'Rental reservation cancelled',
             "The reservation for {$items} was cancelled or recorded as a no-show.",
-            $organization, $completedAt, $dueAt, false
+            $organization, $completedAt, $dueAt, false, $orgId
         );
     }
 
@@ -225,6 +336,7 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
     $status = $rawStatus === 'locker_released' && $periodType === 'pending' ? 'locker_rejected' : $rawStatus;
     $paymentStatus = strtolower(trim((string)$row['payment_status']));
     $organization = (string)$row['organization'];
+    $orgId = (int)($row['org_id'] ?? 0);
     $locker = trim((string)$row['items_label']) ?: 'Your locker';
     $dueAt = studentNotificationDate($row['expected_return_time'] ?? null);
     $createdAt = studentNotificationDate($row['created_at'] ?? null);
@@ -241,7 +353,7 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
             "locker:{$rentalId}:pending", 'locker', $rentalId, 'pending', 'info',
             'Locker request awaiting approval',
             "Your request for {$locker} is waiting for SSC officer approval.",
-            $organization, $updatedAt, $dueAt, true
+            $organization, $updatedAt, $dueAt, true, $orgId
         );
     }
 
@@ -253,7 +365,7 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
             : "{$locker} has exceeded its rental due date. Please coordinate with SSC immediately to settle the rental and avoid pull-out action.";
         return studentNotificationItem(
             "locker:{$rentalId}:overdue", 'locker', $rentalId, 'overdue', 'danger',
-            'Locker rental overdue', $message, $organization, $overdueAt ?? $dueAt ?? $updatedAt, $dueAt, true
+            'Locker rental overdue', $message, $organization, $overdueAt ?? $dueAt ?? $updatedAt, $dueAt, true, $orgId
         );
     }
 
@@ -267,7 +379,7 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
                 "locker:{$rentalId}:upcoming", 'locker', $rentalId, 'upcoming', 'warning',
                 'Locker rental ending soon', $message, $organization,
                 $upcomingAt ?? $dueAt?->modify('-' . STUDENT_NOTIFICATION_LOCKER_WARNING_DAYS . ' days') ?? $now,
-                $dueAt, true
+                $dueAt, true, $orgId
             );
         }
 
@@ -275,7 +387,7 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
         return studentNotificationItem(
             "locker:{$rentalId}:active_{$paymentStatus}", 'locker', $rentalId, 'active',
             $paymentStatus === 'paid' ? 'info' : 'warning',
-            'Locker rental active', $message, $organization, $updatedAt, $dueAt, true
+            'Locker rental active', $message, $organization, $updatedAt, $dueAt, true, $orgId
         );
     }
 
@@ -289,7 +401,7 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
             "locker:{$rentalId}:rejected", 'locker', $rentalId, 'rejected', 'warning',
             'Locker request not approved',
             "Your request for {$locker} was not approved. You may contact SSC for more information.",
-            $organization, $completedAt, $dueAt, false
+            $organization, $completedAt, $dueAt, false, $orgId
         );
     }
 
@@ -299,7 +411,7 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
         return studentNotificationItem(
             "locker:{$rentalId}:released_{$paymentStatus}", 'locker', $rentalId, 'released',
             $paymentStatus === 'paid' ? 'success' : 'warning',
-            'Locker rental released', $message, $organization, $completedAt, $dueAt, false
+            'Locker rental released', $message, $organization, $completedAt, $dueAt, false, $orgId
         );
     }
 
@@ -326,6 +438,7 @@ function studentNotificationAttendanceItems(
 
     $stmt = $pdo->prepare(
         "SELECT ar.record_id,
+                e.org_id,
                 ar.created_at,
                 ar.time_in,
                 ar.time_out,
@@ -344,6 +457,7 @@ function studentNotificationAttendanceItems(
     foreach ($stmt->fetchAll() as $row) {
         $recordId = (int)$row['record_id'];
         $organization = (string)$row['organization'];
+        $orgId = (int)($row['org_id'] ?? 0);
         $eventName = trim((string)$row['event_name']) ?: 'the event';
         $createdAt = studentNotificationDate($row['created_at'] ?? null);
         $timeIn = studentNotificationDate($row['time_in'] ?? null);
@@ -356,7 +470,7 @@ function studentNotificationAttendanceItems(
                 "attendance:{$recordId}:registered", 'attendance', $recordId, 'registered', 'info',
                 'Event registration confirmed',
                 "You are registered for {$eventName}.",
-                $organization, $createdAt, null, false
+                $organization, $createdAt, null, false, $orgId
             );
         }
         if ($timeIn && $timeIn >= $cutoff) {
@@ -364,7 +478,7 @@ function studentNotificationAttendanceItems(
                 "attendance:{$recordId}:checked_in", 'attendance', $recordId, 'checked_in', 'success',
                 'Attendance time-in recorded',
                 "Your attendance for {$eventName} was recorded at " . studentNotificationFormatDate($timeIn) . '.',
-                $organization, $timeIn, null, false
+                $organization, $timeIn, null, false, $orgId
             );
         }
         if ($timeOut && $timeOut >= $cutoff) {
@@ -372,7 +486,7 @@ function studentNotificationAttendanceItems(
                 "attendance:{$recordId}:checked_out", 'attendance', $recordId, 'checked_out', 'success',
                 'Attendance time-out recorded',
                 "Your checkout from {$eventName} was recorded at " . studentNotificationFormatDate($timeOut) . '.',
-                $organization, $timeOut, null, false
+                $organization, $timeOut, null, false, $orgId
             );
         }
     }
@@ -398,7 +512,12 @@ function studentNotificationSeverityRank(string $severity): int
     };
 }
 
-function studentBuildTransactionNotifications(PDO $pdo, int $userId, string $studentNumber = ''): array
+function studentBuildTransactionNotifications(
+    PDO $pdo,
+    int $userId,
+    string $studentNumber = '',
+    int $recentLimit = STUDENT_NOTIFICATION_RECENT_LIMIT
+): array
 {
     $tz = new DateTimeZone('Asia/Manila');
     $now = new DateTimeImmutable('now', $tz);
@@ -421,6 +540,18 @@ function studentBuildTransactionNotifications(PDO $pdo, int $userId, string $stu
         }
     }
 
+    foreach (studentNotificationPrintingRows($pdo, $userId) as $row) {
+        $item = studentNotificationBuildPrinting($row, $cutoff);
+        if (!$item) {
+            continue;
+        }
+        if (!empty($item['is_unresolved'])) {
+            $unresolved[] = $item;
+        } else {
+            $recent[] = $item;
+        }
+    }
+
     array_push($recent, ...studentNotificationAttendanceItems($pdo, $userId, trim($studentNumber), $cutoff));
 
     usort($unresolved, static function (array $a, array $b): int {
@@ -430,5 +561,5 @@ function studentBuildTransactionNotifications(PDO $pdo, int $userId, string $stu
     });
     usort($recent, static fn(array $a, array $b): int => studentNotificationTimestamp($b) <=> studentNotificationTimestamp($a));
 
-    return array_merge($unresolved, array_slice($recent, 0, STUDENT_NOTIFICATION_RECENT_LIMIT));
+    return array_merge($unresolved, $recentLimit > 0 ? array_slice($recent, 0, $recentLimit) : $recent);
 }
