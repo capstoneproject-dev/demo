@@ -75,6 +75,7 @@ const STUDENT_EVENTS_API = '../api/student/events/list.php';
 const STUDENT_ANNOUNCEMENTS_API = '../api/student/announcements/list.php';
 const STUDENT_RECENT_ACTIVITY_API = '../api/student/dashboard/recent-activity.php';
 const STUDENT_NOTIFICATIONS_API = '../api/student/notifications/list.php';
+const STUDENT_EMAIL_PREFERENCES_API = '../api/student/notifications/email-preferences.php';
 let databaseEvents = [];
 let databaseAnnouncements = [];
 let databaseRecentActivity = [];
@@ -968,7 +969,8 @@ function getStudentNotificationIcon(sourceType) {
     const icons = {
         rental: 'fa-box-open',
         locker: 'fa-lock',
-        attendance: 'fa-calendar-check'
+        attendance: 'fa-calendar-check',
+        printing: 'fa-print'
     };
     return icons[String(sourceType || '').toLowerCase()] || 'fa-bell';
 }
@@ -977,7 +979,8 @@ function getStudentNotificationTypeLabel(sourceType) {
     const labels = {
         rental: 'Equipment',
         locker: 'Locker',
-        attendance: 'Attendance'
+        attendance: 'Attendance',
+        printing: 'Printing'
     };
     return labels[String(sourceType || '').toLowerCase()] || 'Transaction';
 }
@@ -1087,7 +1090,7 @@ function renderStudentTransactionNotifications() {
         body = `
             <div class="transaction-notification-state">
                 <i class="fa-regular fa-circle-check"></i>
-                <span>No rental, locker, or attendance notices right now.</span>
+                <span>No rental, locker, printing, or attendance notices right now.</span>
             </div>`;
     } else {
         body = databaseTransactionNotifications.map((item) => {
@@ -1880,6 +1883,104 @@ function renderMyOrgContactSection(viewModel) {
             </div>
         </section>
     `;
+}
+
+function setStudentEmailPreferencesState(preferences, disabled = false) {
+    const fields = {
+        rental_enabled: document.getElementById('studentEmailRentalEnabled'),
+        locker_enabled: document.getElementById('studentEmailLockerEnabled'),
+        attendance_enabled: document.getElementById('studentEmailAttendanceEnabled'),
+        printing_enabled: document.getElementById('studentEmailPrintingEnabled')
+    };
+    Object.entries(fields).forEach(([key, input]) => {
+        if (!input) return;
+        if (preferences && Object.prototype.hasOwnProperty.call(preferences, key)) {
+            input.checked = Boolean(preferences[key]);
+        }
+        input.disabled = disabled;
+    });
+}
+
+function getStudentEmailPreferencesFormValue() {
+    return {
+        rental_enabled: Boolean(document.getElementById('studentEmailRentalEnabled')?.checked),
+        locker_enabled: Boolean(document.getElementById('studentEmailLockerEnabled')?.checked),
+        attendance_enabled: Boolean(document.getElementById('studentEmailAttendanceEnabled')?.checked),
+        printing_enabled: Boolean(document.getElementById('studentEmailPrintingEnabled')?.checked)
+    };
+}
+
+async function loadStudentEmailPreferences() {
+    const status = document.getElementById('studentEmailPreferencesStatus');
+    if (isOsaStudentPreviewModeFromUrl()) {
+        setStudentEmailPreferencesState({
+            rental_enabled: true,
+            locker_enabled: true,
+            attendance_enabled: true,
+            printing_enabled: true
+        }, true);
+        if (status) status.textContent = 'Email preferences are disabled in preview mode.';
+        return;
+    }
+
+    setStudentEmailPreferencesState(null, true);
+    if (status) status.textContent = 'Loading preferences...';
+    try {
+        const response = await fetch(STUDENT_EMAIL_PREFERENCES_API, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load email preferences.');
+        }
+        setStudentEmailPreferencesState(data.preferences || {}, false);
+        if (status) status.textContent = 'Changes save automatically.';
+    } catch (error) {
+        console.error('[loadStudentEmailPreferences]', error);
+        if (status) status.textContent = 'Email preferences are temporarily unavailable.';
+    }
+}
+
+async function saveStudentEmailPreferences() {
+    const status = document.getElementById('studentEmailPreferencesStatus');
+    const preferences = getStudentEmailPreferencesFormValue();
+    setStudentEmailPreferencesState(preferences, true);
+    if (status) status.textContent = 'Saving...';
+    try {
+        const response = await fetch(STUDENT_EMAIL_PREFERENCES_API, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(preferences)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not save email preferences.');
+        }
+        setStudentEmailPreferencesState(data.preferences || preferences, false);
+        if (status) status.textContent = 'Changes saved automatically.';
+        showToast('Email notification preferences updated.', 'success');
+    } catch (error) {
+        console.error('[saveStudentEmailPreferences]', error);
+        if (status) status.textContent = 'Could not save. Your previous settings are still active.';
+        showToast(error.message || 'Could not save email preferences.', 'error');
+        await loadStudentEmailPreferences();
+    }
+}
+
+function setupStudentEmailPreferences() {
+    [
+        'studentEmailRentalEnabled',
+        'studentEmailLockerEnabled',
+        'studentEmailAttendanceEnabled',
+        'studentEmailPrintingEnabled'
+    ].forEach((id) => {
+        document.getElementById(id)?.addEventListener('change', () => {
+            saveStudentEmailPreferences().catch((error) => console.error(error));
+        });
+    });
+    loadStudentEmailPreferences().catch((error) => console.error(error));
 }
 
 function renderOrgProfileEditor(viewModel) {
@@ -4058,6 +4159,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         loadStudentLockers().catch((error) => console.error(error));
         renderProfile();
         setupStudentProfileEditor();
+        setupStudentEmailPreferences();
         setupStudentPasswordForm();
         setupStudentProfilePhotoUploader();
         updateEventRegistrationModalFields();
@@ -5463,6 +5565,7 @@ async function cancelStudentPrintJob(printJobId) {
 
         showToast('Print job cancelled.');
         await loadStudentPrintJobs(true);
+        await loadStudentTransactionNotifications();
     } catch (error) {
         alert(error.message || 'Could not cancel the print job.');
     } finally {
@@ -5513,6 +5616,7 @@ async function submitStudentPrintJob() {
         if (nameLabel) nameLabel.textContent = 'No file selected.';
 
         await loadStudentPrintJobs(true);
+        await loadStudentTransactionNotifications();
     } catch (error) {
         alert(error.message || 'Could not submit print job.');
     } finally {
@@ -5901,6 +6005,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 resetUploadUI();
                 await loadStudentPrintJobs(true);
+                await loadStudentTransactionNotifications();
             } catch (error) {
                 alert(error.message || 'Could not submit print job.');
                 btnUploadSubmit.disabled = false;

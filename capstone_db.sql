@@ -699,6 +699,8 @@ CREATE TABLE `print_jobs` (
   `print_job_id` int(11) NOT NULL,
   `org_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
+  `provider_auto_assigned` tinyint(1) NOT NULL DEFAULT 0,
+  `provider_accepted_at` datetime DEFAULT NULL,
   `file_name` varchar(255) NOT NULL,
   `file_url` varchar(500) NOT NULL,
   `notes` text DEFAULT NULL,

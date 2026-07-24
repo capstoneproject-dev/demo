@@ -655,6 +655,8 @@ function renderOfficerDashboard(data) {
         `).join('') : '<div style="color:var(--muted);">No published updates yet.</div>';
     }
 
+    renderOfficerEmailDeliverySummary(data.email_delivery || {});
+
     const events = Array.isArray(data.upcoming_events) ? data.upcoming_events : [];
     const eventsContainer = document.getElementById('dashboard-upcoming-events');
     if (eventsContainer) {
@@ -690,6 +692,69 @@ function renderOfficerDashboard(data) {
             </div>
         `).join('') : '<div class="notif-item"><small>No published notifications.</small></div>';
     }
+}
+
+function toggleOfficerEmailDeliveryDetails() {
+    const details = document.getElementById('officerEmailDeliveryDetails');
+    const button = document.getElementById('officerEmailDeliveryToggle');
+    if (!details || !button) return;
+    const willOpen = details.hidden;
+    details.hidden = !willOpen;
+    button.setAttribute('aria-expanded', String(willOpen));
+    button.classList.toggle('is-open', willOpen);
+}
+
+function renderOfficerEmailDeliverySummary(summary) {
+    const retrying = Math.max(0, Number(summary.retrying || 0));
+    const failed = Math.max(0, Number(summary.failed || 0));
+    const items = Array.isArray(summary.items) ? summary.items : [];
+    setDashboardText('officerEmailRetryingCount', retrying);
+    setDashboardText('officerEmailFailedCount', failed);
+
+    const health = document.getElementById('officerEmailDeliveryHealth');
+    if (health) {
+        const hasFailure = failed > 0;
+        const hasRetry = retrying > 0;
+        health.className = `officer-email-delivery-health ${hasFailure ? 'is-failed' : (hasRetry ? 'is-retrying' : 'is-healthy')}`;
+        health.innerHTML = hasFailure
+            ? '<i class="fa-solid fa-circle-exclamation"></i><span>Action may be required</span>'
+            : (hasRetry
+                ? '<i class="fa-solid fa-rotate"></i><span>Automatic retry in progress</span>'
+                : '<i class="fa-solid fa-circle-check"></i><span>Delivery healthy</span>');
+    }
+
+    const list = document.getElementById('officerEmailDeliveryList');
+    if (!list) return;
+    if (!items.length) {
+        list.innerHTML = '<div class="officer-email-delivery-empty">No email delivery problems.</div>';
+        return;
+    }
+
+    list.innerHTML = items.map((item) => {
+        const isFinal = String(item.delivery_status || '') === 'failed_final';
+        const attempted = item.last_attempt_at ? fmtDateShort(item.last_attempt_at) : '-';
+        const category = String(item.source_type || 'transaction').replace(/_/g, ' ');
+        return `
+            <details class="officer-email-delivery-row ${isFinal ? 'is-final' : 'is-retrying'}">
+                <summary>
+                    <span class="officer-email-delivery-student">
+                        <strong>${escapeHtml(item.recipient_name || 'Student')}</strong>
+                        <small>${escapeHtml(item.recipient_email || 'Email unavailable')}</small>
+                    </span>
+                    <span class="officer-email-delivery-state">
+                        ${isFinal ? 'Failed' : 'Retrying'}
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </span>
+                </summary>
+                <div class="officer-email-delivery-row-details">
+                    <span><strong>Notification:</strong> ${escapeHtml(item.title || 'Transaction update')}</span>
+                    <span><strong>Category:</strong> ${escapeHtml(category.charAt(0).toUpperCase() + category.slice(1))}</span>
+                    <span><strong>Attempts:</strong> ${Number(item.attempt_count || 0)}</span>
+                    <span><strong>Last attempt:</strong> ${escapeHtml(attempted || '-')}</span>
+                    <p>${escapeHtml(item.last_error_message || 'The email could not be delivered.')}</p>
+                </div>
+            </details>`;
+    }).join('');
 }
 
 // Temporary dashboard-only preview data. This never calls an API or writes to the database.

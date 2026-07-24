@@ -145,6 +145,7 @@ function stEnsureSchema(PDO $pdo): void
             org_id INT NOT NULL,
             user_id INT NOT NULL,
             provider_auto_assigned TINYINT(1) NOT NULL DEFAULT 0,
+            provider_accepted_at DATETIME NULL,
             file_name VARCHAR(255) NOT NULL,
             file_url VARCHAR(255) NOT NULL,
             notes TEXT NULL,
@@ -169,7 +170,8 @@ function stEnsureSchema(PDO $pdo): void
 
     $pdo->exec(
         "ALTER TABLE print_jobs
-         ADD COLUMN IF NOT EXISTS provider_auto_assigned TINYINT(1) NOT NULL DEFAULT 0"
+         ADD COLUMN IF NOT EXISTS provider_auto_assigned TINYINT(1) NOT NULL DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS provider_accepted_at DATETIME NULL DEFAULT NULL"
     );
 
     $done = true;
@@ -873,6 +875,7 @@ function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $upd
             "UPDATE print_jobs
              SET org_id = :org_id,
                  provider_auto_assigned = 0,
+                 provider_accepted_at = NOW(),
                  queue_order = :queue_order,
                  last_updated_by_user_id = :updated_by
              WHERE print_job_id = :print_job_id

@@ -701,6 +701,213 @@ td {
     flex-wrap: wrap;
 }
 
+/* Organization-scoped transaction email delivery health. */
+.officer-email-delivery-subtitle {
+    margin: 3px 0 0;
+    color: var(--muted);
+    font-size: 0.76rem;
+}
+
+#officerEmailDeliveryToggle i {
+    margin-left: 5px;
+    transition: transform 0.2s ease;
+}
+
+#officerEmailDeliveryToggle.is-open i {
+    transform: rotate(180deg);
+}
+
+.officer-email-delivery-summary {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+}
+
+.officer-email-delivery-metric {
+    display: flex;
+    min-width: 76px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 11px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--panel-2);
+}
+
+.officer-email-delivery-metric span {
+    color: var(--text);
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.officer-email-delivery-metric small {
+    color: var(--muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+}
+
+.officer-email-delivery-metric.is-retrying span {
+    color: #d97706;
+}
+
+.officer-email-delivery-metric.is-failed span {
+    color: #dc2626;
+}
+
+.officer-email-delivery-health {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 11px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.officer-email-delivery-health.is-healthy {
+    background: rgba(21, 128, 61, 0.1);
+    color: #15803d;
+}
+
+.officer-email-delivery-health.is-retrying {
+    background: rgba(217, 119, 6, 0.1);
+    color: #b45309;
+}
+
+.officer-email-delivery-health.is-failed {
+    background: rgba(220, 38, 38, 0.1);
+    color: #b91c1c;
+}
+
+.officer-email-delivery-details {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.officer-email-delivery-list {
+    display: grid;
+    gap: 8px;
+}
+
+.officer-email-delivery-row {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-left: 4px solid #d97706;
+    border-radius: 10px;
+    background: var(--panel-2);
+}
+
+.officer-email-delivery-row.is-final {
+    border-left-color: #dc2626;
+}
+
+.officer-email-delivery-row summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.officer-email-delivery-row summary::-webkit-details-marker {
+    display: none;
+}
+
+.officer-email-delivery-student {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.officer-email-delivery-student strong,
+.officer-email-delivery-student small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.officer-email-delivery-student strong {
+    color: var(--text);
+    font-size: 0.8rem;
+}
+
+.officer-email-delivery-student small {
+    color: var(--muted);
+    font-size: 0.69rem;
+}
+
+.officer-email-delivery-state {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    color: #b45309;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.officer-email-delivery-row.is-final .officer-email-delivery-state {
+    color: #dc2626;
+}
+
+.officer-email-delivery-state i {
+    transition: transform 0.2s ease;
+}
+
+.officer-email-delivery-row[open] .officer-email-delivery-state i {
+    transform: rotate(180deg);
+}
+
+.officer-email-delivery-row-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    padding: 0 12px 12px;
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.officer-email-delivery-row-details p {
+    grid-column: 1 / -1;
+    margin: 4px 0 0;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(220, 38, 38, 0.07);
+    color: var(--text);
+}
+
+.officer-email-delivery-empty {
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-align: center;
+}
+
+@media (max-width: 620px) {
+    .officer-email-delivery-summary {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .officer-email-delivery-health {
+        grid-column: 1 / -1;
+    }
+
+    .officer-email-delivery-row-details {
+        grid-template-columns: 1fr;
+    }
+}
+
 #docs-status-view .date-filters-bar {
     gap: 12px;
     padding: 10px 18px;
