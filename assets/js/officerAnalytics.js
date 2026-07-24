@@ -19,10 +19,7 @@ const officerAnalyticsInsightsState = {
     pending: new Map(),
     currentKey: '',
     latestRequestId: 0,
-    autoRefreshTimer: null,
 };
-
-const OFFICER_ANALYTICS_INSIGHTS_DEBOUNCE_MS = 2500;
 
 function parseOfficerAnalyticsDate(value) {
     if (!value) return null;
@@ -751,6 +748,25 @@ function setOfficerAnalyticsInsightsLoading() {
     });
 }
 
+function setOfficerAnalyticsInsightsIdle() {
+    const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
+    const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
+    if (providerBadge) {
+        providerBadge.style.display = 'inline-flex';
+        providerBadge.textContent = 'Manual generation';
+    }
+    if (refreshButton) {
+        refreshButton.disabled = false;
+    }
+
+    ['analyticsInsightFinancial', 'analyticsInsightParticipation', 'analyticsInsightInventory', 'analyticsInsightDocuments'].forEach((id) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = 'Click Regenerate Insights to generate an AI analysis.';
+        }
+    });
+}
+
 function renderOfficerAnalyticsInsights(insights) {
     const mappings = {
         analyticsInsightFinancial: insights?.chartSummaries?.financial || 'No financial insight available.',
@@ -809,6 +825,13 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
             renderOfficerAnalyticsInsights(cached);
         }
         return cached;
+    }
+
+    // Gemini requests are manual-only while the project is on a small free
+    // quota. Non-interactive consumers such as exports may reuse cached
+    // insights, but they must not create a new provider request.
+    if (!forceRefresh && options.allowRequest !== true) {
+        return buildOfficerAnalyticsFallbackInsights();
     }
 
     if (officerAnalyticsInsightsState.pending.has(cacheKey)) {
@@ -876,32 +899,14 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
     }
 }
 
-function scheduleOfficerAnalyticsInsights(snapshot) {
-    const analyticsView = document.getElementById('analytics');
-    if (!analyticsView?.classList.contains('active')) {
-        return;
-    }
-
-    if (officerAnalyticsInsightsState.autoRefreshTimer) {
-        clearTimeout(officerAnalyticsInsightsState.autoRefreshTimer);
-    }
-
-    officerAnalyticsInsightsState.autoRefreshTimer = setTimeout(() => {
-        officerAnalyticsInsightsState.autoRefreshTimer = null;
-        void getOfficerAnalyticsInsightsData({ snapshot, render: true });
-    }, OFFICER_ANALYTICS_INSIGHTS_DEBOUNCE_MS);
-}
-
 function regenerateOfficerAnalyticsInsights() {
-    if (officerAnalyticsInsightsState.autoRefreshTimer) {
-        clearTimeout(officerAnalyticsInsightsState.autoRefreshTimer);
-        officerAnalyticsInsightsState.autoRefreshTimer = null;
-    }
-
     if (!officerAnalyticsState.snapshot) {
         refreshAnalyticsCharts();
+    }
+    if (!officerAnalyticsState.snapshot) {
         return;
     }
+
     const cacheKey = buildOfficerAnalyticsInsightsCacheKey(officerAnalyticsState.snapshot);
     officerAnalyticsInsightsState.cache.delete(cacheKey);
     void getOfficerAnalyticsInsightsData({
@@ -1047,10 +1052,15 @@ function renderOfficerAnalyticsCharts(snapshot) {
 
 function refreshAnalyticsCharts() {
     const snapshot = getOfficerAnalyticsSnapshot();
+    const cacheKey = buildOfficerAnalyticsInsightsCacheKey(snapshot);
     officerAnalyticsState.snapshot = snapshot;
     updateOfficerAnalyticsCardText(snapshot);
     renderOfficerAnalyticsCharts(snapshot);
-    scheduleOfficerAnalyticsInsights(snapshot);
+
+    if (officerAnalyticsInsightsState.currentKey !== cacheKey) {
+        officerAnalyticsInsightsState.currentKey = cacheKey;
+        setOfficerAnalyticsInsightsIdle();
+    }
 }
 
 function getOfficerAnalyticsReportData(overrides = {}) {
