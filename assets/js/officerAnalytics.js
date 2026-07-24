@@ -762,7 +762,7 @@ function setOfficerAnalyticsInsightsIdle() {
     ['analyticsInsightFinancial', 'analyticsInsightParticipation', 'analyticsInsightInventory', 'analyticsInsightDocuments'].forEach((id) => {
         const element = document.getElementById(id);
         if (element) {
-            element.textContent = 'Click Regenerate Insights to generate an AI analysis.';
+            element.textContent = 'Click Generate Insights to generate an AI analysis.';
         }
     });
 }
