@@ -1,4 +1,7 @@
-config/analytics_ai.php
 composer.phar
 composer-setup.php
 /vendor/
+/.env
+/.env.*
+!/.env.example
+/storage/cache/analytics_ai/
