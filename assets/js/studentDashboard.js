@@ -86,6 +86,7 @@ const studentNotificationToastQueue = [];
 let activeStudentNotificationToastCount = 0;
 let studentAnnouncementCalendarDate = new Date();
 let studentAnnouncementSelectedDate = '';
+let areDashboardAnnouncementsHidden = false;
 
 const ORG_BANNER_ASSET_VERSION = "20260527";
 const ORG_PROFILE_OVERRIDES_KEY = "naapOrgProfileOverrides";
@@ -3532,6 +3533,25 @@ function getEventsForDate(year, month, day) {
 }
 
 
+function toggleAllDashboardAnnouncements(button) {
+    const announcementItems = document.getElementById('dashboard-organization-announcements');
+    if (!announcementItems) return;
+
+    areDashboardAnnouncementsHidden = !areDashboardAnnouncementsHidden;
+    announcementItems.hidden = areDashboardAnnouncementsHidden;
+
+    if (button) {
+        button.setAttribute('aria-expanded', String(!areDashboardAnnouncementsHidden));
+        button.setAttribute(
+            'aria-label',
+            areDashboardAnnouncementsHidden ? 'Show all organization announcements' : 'Hide all organization announcements'
+        );
+        button.innerHTML = areDashboardAnnouncementsHidden
+            ? '<i class="fa-regular fa-eye"></i><span>Show All Announcements</span>'
+            : '<i class="fa-regular fa-eye-slash"></i><span>Hide All Announcements</span>';
+    }
+}
+
 function renderDashboard() {
     // 1. Render Announcements
     const annList = document.getElementById('announcements-list');
@@ -3594,8 +3614,18 @@ function renderDashboard() {
         <section class="organization-announcement-section" aria-labelledby="student-organization-announcement-title">
             <div class="dashboard-feed-subheading">
                 <span id="student-organization-announcement-title"><i class="fa-solid fa-bullhorn"></i> Organization Announcements</span>
+                <button type="button" class="dashboard-announcements-toggle"
+                    aria-controls="dashboard-organization-announcements"
+                    aria-expanded="${String(!areDashboardAnnouncementsHidden)}"
+                    aria-label="${areDashboardAnnouncementsHidden ? 'Show all organization announcements' : 'Hide all organization announcements'}"
+                    onclick="toggleAllDashboardAnnouncements(this)">
+                    <i class="fa-regular ${areDashboardAnnouncementsHidden ? 'fa-eye' : 'fa-eye-slash'}"></i>
+                    <span>${areDashboardAnnouncementsHidden ? 'Show All Announcements' : 'Hide All Announcements'}</span>
+                </button>
             </div>
-            ${announcementMarkup}
+            <div id="dashboard-organization-announcements"${areDashboardAnnouncementsHidden ? ' hidden' : ''}>
+                ${announcementMarkup}
+            </div>
         </section>`;
 
     if (document.getElementById('date-picker-modal')?.classList.contains('active')) {

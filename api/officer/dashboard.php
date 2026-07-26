@@ -4,7 +4,6 @@ require_once __DIR__ . '/../../includes/announcements.php';
 require_once __DIR__ . '/../../includes/documents.php';
 require_once __DIR__ . '/../../includes/igp.php';
 require_once __DIR__ . '/../../includes/qr_attendance.php';
-require_once __DIR__ . '/../../includes/notification_email_delivery.php';
 
 header('Content-Type: application/json');
 apiGuard();
@@ -118,7 +117,6 @@ try {
         'previous_count' => null,
     ];
 
-    $emailDelivery = notificationEmailGetOrgFailureSummary($pdo, $orgId);
     if (count($completedEvents) >= 2) {
         $latest = $completedEvents[0];
         $previous = $completedEvents[1];
@@ -157,7 +155,6 @@ try {
         'latest_updates' => array_slice($latestUpdates, 0, 2),
         'notifications' => $latestUpdates,
         'upcoming_events' => array_slice($upcomingEvents, 0, 3),
-        'email_delivery' => $emailDelivery,
     ]);
 } catch (IgpAuthorizationException|DocumentAuthorizationException|AnnouncementAuthorizationException|QrAttendanceAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
