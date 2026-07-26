@@ -344,6 +344,9 @@
                                     <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerFinancialSummary(true)">
                                         <i class="fa-solid fa-rotate-right"></i> Refresh
                                     </button>
+                                    <button class="btn btn-primary btn-sm" type="button" onclick="exportOfficerFinancialSummaryXlsx()">
+                                        <i class="fa-solid fa-file-excel"></i> Export XLSX
+                                    </button>
                                 </div>
                             </div>
 
@@ -2009,8 +2012,9 @@
     <script src="../data/orgData.js"></script>
     <script src="../assets/js/igp-api.js"></script>
     <script src="../assets/js/pdfViewer.js"></script>
+    <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260727-dashboard-cleanup-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260727-financial-xlsx-1"></script>
 </body>
 
 </html>

@@ -1447,6 +1447,156 @@ function renderOfficerFinancialSummary() {
     }
 }
 
+function exportOfficerFinancialSummaryXlsx() {
+    if (!window.XLSX) {
+        showToast('The XLSX export library could not be loaded.', 'error');
+        return;
+    }
+
+    const rows = getFilteredOfficerFinancialSummaryItems();
+    const session = readAuthSession();
+    const organization = session.active_org_name || session.active_org_code || 'Organization';
+    const dateRange = document.getElementById('financialSummaryDateRange')?.textContent?.trim() || '-';
+    const serviceLabel = document.getElementById('financialSummaryServiceFilter')?.selectedOptions?.[0]?.textContent || 'All Services';
+    const itemLabel = document.getElementById('financialSummaryItemFilter')?.selectedOptions?.[0]?.textContent || 'All Items';
+    const paymentLabel = document.getElementById('financialSummaryPaymentFilter')?.selectedOptions?.[0]?.textContent || 'All';
+
+    let totalRevenue = 0;
+    let totalUnpaid = 0;
+    let paidTransactions = 0;
+    let unpaidTransactions = 0;
+    const dailyMap = new Map();
+
+    rows.forEach((item) => {
+        const totalCost = Number(item.total_cost || 0);
+        const isPaid = String(item.payment_status || '').toLowerCase() === 'paid';
+        if (isPaid) {
+            totalRevenue += totalCost;
+            paidTransactions += 1;
+        } else {
+            totalUnpaid += totalCost;
+            unpaidTransactions += 1;
+        }
+
+        const parsedDate = new Date(getOfficerFinancialDateValue(item));
+        if (Number.isNaN(parsedDate.getTime())) return;
+        const dateKey = formatLocalDateKey(parsedDate);
+        if (!dailyMap.has(dateKey)) {
+            dailyMap.set(dateKey, {
+                revenue: 0,
+                unpaid: 0,
+                transactions: 0,
+                paid: 0,
+                unpaidCount: 0,
+            });
+        }
+        const day = dailyMap.get(dateKey);
+        day.transactions += 1;
+        if (isPaid) {
+            day.revenue += totalCost;
+            day.paid += 1;
+        } else {
+            day.unpaid += totalCost;
+            day.unpaidCount += 1;
+        }
+    });
+
+    const summaryRows = [
+        ['Financial Summary'],
+        ['Organization', organization],
+        ['Exported At', new Date().toLocaleString('en-PH')],
+        [],
+        ['Selected Filters'],
+        ['Service', serviceLabel],
+        ['Item / Job', itemLabel],
+        ['Payment', paymentLabel],
+        ['Date Range', dateRange],
+        [],
+        ['Metric', 'Value'],
+        ['Total Revenue', totalRevenue],
+        ['Total Unpaid', totalUnpaid],
+        ['Total Transactions', rows.length],
+        ['Paid Transactions', paidTransactions],
+        ['Unpaid Transactions', unpaidTransactions],
+        ['Average Paid Value', paidTransactions ? totalRevenue / paidTransactions : 0],
+    ];
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+    summarySheet['!cols'] = [{ wch: 24 }, { wch: 34 }];
+    ['B12', 'B13', 'B17'].forEach((cell) => {
+        if (summarySheet[cell]) summarySheet[cell].z = '"P"#,##0.00';
+    });
+
+    const sortedRows = [...rows].sort((a, b) => {
+        const aTime = new Date(getOfficerFinancialDateValue(a) || 0).getTime();
+        const bTime = new Date(getOfficerFinancialDateValue(b) || 0).getTime();
+        return bTime - aTime;
+    });
+    const transactionRows = [
+        ['Date', 'Service', 'Item / Job', 'Customer', 'Customer ID', 'Processed By', 'Base Cost', 'Overtime', 'Total Cost', 'Status', 'Payment'],
+        ...sortedRows.map((item) => [
+            formatOfficerFinancialDate(getOfficerFinancialDateValue(item)),
+            getOfficerFinancialServiceLabel(item.service_type),
+            getOfficerFinancialItemDisplayLabel(item),
+            item.customer_name || '-',
+            item.customer_identifier || '-',
+            item.processed_by || '-',
+            Number(item.base_cost || 0),
+            Number(item.overtime_cost || 0),
+            Number(item.total_cost || 0),
+            getOfficerFinancialStatusLabel(item.status),
+            String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid',
+        ]),
+    ];
+    const transactionsSheet = XLSX.utils.aoa_to_sheet(transactionRows);
+    transactionsSheet['!cols'] = [
+        { wch: 14 }, { wch: 12 }, { wch: 28 }, { wch: 24 }, { wch: 18 },
+        { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 12 },
+    ];
+    for (let rowIndex = 2; rowIndex <= transactionRows.length; rowIndex += 1) {
+        ['G', 'H', 'I'].forEach((column) => {
+            const cell = transactionsSheet[`${column}${rowIndex}`];
+            if (cell) cell.z = '"P"#,##0.00';
+        });
+    }
+
+    const breakdownRows = [
+        ['Date', 'Total Revenue', 'Total Unpaid', 'Transactions', 'Paid', 'Unpaid'],
+        ...Array.from(dailyMap.entries())
+            .sort((a, b) => b[0].localeCompare(a[0]))
+            .map(([dateKey, day]) => [
+                formatOfficerFinancialDate(`${dateKey}T00:00:00`),
+                day.revenue,
+                day.unpaid,
+                day.transactions,
+                day.paid,
+                day.unpaidCount,
+            ]),
+    ];
+    const breakdownSheet = XLSX.utils.aoa_to_sheet(breakdownRows);
+    breakdownSheet['!cols'] = [
+        { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
+    ];
+    for (let rowIndex = 2; rowIndex <= breakdownRows.length; rowIndex += 1) {
+        ['B', 'C'].forEach((column) => {
+            const cell = breakdownSheet[`${column}${rowIndex}`];
+            if (cell) cell.z = '"P"#,##0.00';
+        });
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+    XLSX.utils.book_append_sheet(workbook, transactionsSheet, 'Transactions');
+    XLSX.utils.book_append_sheet(workbook, breakdownSheet, 'Date Breakdown');
+
+    const safeOrganization = String(organization)
+        .replace(/[^a-z0-9]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'organization';
+    const fileDate = formatLocalDateKey(new Date());
+    XLSX.writeFile(workbook, `${safeOrganization}-financial-summary-${fileDate}.xlsx`);
+    showToast(`Exported ${rows.length} filtered transaction${rows.length === 1 ? '' : 's'}.`, 'success');
+}
+
 function clearOfficerFinancialSummaryFilters() {
     const serviceFilter = document.getElementById('financialSummaryServiceFilter');
     const itemFilter = document.getElementById('financialSummaryItemFilter');
