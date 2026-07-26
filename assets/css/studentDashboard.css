@@ -6690,6 +6690,7 @@ body.dark #organizations .card .btn-share.active {
 
 .dashboard-feed-subheading {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
@@ -6705,6 +6706,39 @@ body.dark #organizations .card .btn-share.active {
     display: inline-flex;
     align-items: center;
     gap: 7px;
+}
+
+.dashboard-announcements-toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    padding: 6px 9px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--primary);
+    font: inherit;
+    font-size: 0.68rem;
+    letter-spacing: 0;
+    text-transform: none;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.dashboard-announcements-toggle:hover {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, var(--panel-2));
+}
+
+.dashboard-announcements-toggle:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+#dashboard-organization-announcements[hidden] {
+    display: none;
 }
 
 .transaction-notification-count {
