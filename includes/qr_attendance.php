@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/upload_security.php';
 
 class QrAttendanceValidationException extends RuntimeException {}
 class QrAttendanceAuthorizationException extends RuntimeException {}
@@ -70,41 +71,30 @@ function qrSaveEventPhotoFromData(string $photoValue): string
     }
 
     if (!str_starts_with($raw, 'data:')) {
+        if (!preg_match('#^uploads/events/[A-Za-z0-9._-]+$#', $raw)) {
+            throw new QrAttendanceValidationException('Invalid event photo path.');
+        }
         return $raw;
     }
 
-    if (!preg_match('#^data:(image/(png|jpeg|jpg|webp|gif));base64,(.+)$#i', $raw, $matches)) {
-        throw new QrAttendanceValidationException('Invalid event photo data.');
-    }
-
-    $mime = strtolower($matches[1]);
-    $encoded = $matches[3];
-    $binary = base64_decode($encoded, true);
-    if ($binary === false) {
-        throw new QrAttendanceValidationException('Invalid event photo encoding.');
-    }
-
-    $extensionMap = [
+    $allowed = [
         'image/png' => 'png',
         'image/jpeg' => 'jpg',
-        'image/jpg' => 'jpg',
         'image/webp' => 'webp',
         'image/gif' => 'gif',
     ];
-    $extension = $extensionMap[$mime] ?? 'png';
-
-    $targetDir = dirname(__DIR__) . '/uploads/events';
-    if (!is_dir($targetDir) && !mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
-        throw new RuntimeException('Could not prepare event photo directory.');
+    try {
+        return uploadStoreImageDataUrl(
+            $raw,
+            'events',
+            'event',
+            $allowed,
+            5 * 1024 * 1024,
+            8000
+        );
+    } catch (UploadValidationException $e) {
+        throw new QrAttendanceValidationException($e->getMessage(), 0, $e);
     }
-
-    $fileName = 'event_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
-    $targetPath = $targetDir . '/' . $fileName;
-    if (file_put_contents($targetPath, $binary) === false) {
-        throw new RuntimeException('Could not save event photo.');
-    }
-
-    return 'uploads/events/' . $fileName;
 }
 
 function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
@@ -239,8 +229,8 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         : trim((string)$eventDateValue);
     $isPublished = !empty($data['is_published']) ? 1 : 0;
     $photoValues = $data['photos'] ?? $data['event_photos'] ?? null;
-    if (!is_array($photoValues)) {
-        $singlePhoto = trim((string)($data['photo'] ?? ''));
+    $singlePhoto = trim((string)($data['photo'] ?? ''));
+    if (!is_array($photoValues) || (!$photoValues && $singlePhoto !== '')) {
         $photoValues = $singlePhoto !== '' ? [$singlePhoto] : [];
     }
     $photoPath = '';

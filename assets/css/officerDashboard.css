@@ -1874,6 +1874,19 @@ body.dark .sub-nav-btn.active {
     font-weight: 700;
 }
 
+.announcement-audience-badge {
+    max-width: 100%;
+    line-height: 1.35;
+}
+
+.announcement-audience-badge > i {
+    flex: 0 0 auto;
+}
+
+.announcement-audience-badge > span {
+    overflow-wrap: anywhere;
+}
+
 .announcement-archived-badge {
     background: color-mix(in srgb, #d97706 12%, var(--panel) 88%);
     color: #b45309;

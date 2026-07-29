@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/organization_public_profile_columns.php';
+require_once __DIR__ . '/../../../includes/upload_security.php';
 
 header('Content-Type: application/json');
 apiGuard();
@@ -32,27 +33,8 @@ function orgProfileStoreSingleImage(string $field, int $orgId): ?string
         return null;
     }
 
-    $file = $_FILES[$field];
-    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+    if (($_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
         return null;
-    }
-    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        jsonError('Could not upload one of the selected images.', 422);
-    }
-
-    $tmpPath = (string)($file['tmp_name'] ?? '');
-    if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
-        jsonError('Invalid image upload.', 422);
-    }
-
-    $maxBytes = 5 * 1024 * 1024;
-    if ((int)($file['size'] ?? 0) > $maxBytes) {
-        jsonError('Images must be 5MB or smaller.', 422);
-    }
-
-    $imageInfo = @getimagesize($tmpPath);
-    if (!$imageInfo || empty($imageInfo['mime'])) {
-        jsonError('Uploaded file is not a valid image.', 422);
     }
 
     $allowed = [
@@ -60,29 +42,21 @@ function orgProfileStoreSingleImage(string $field, int $orgId): ?string
         'image/png' => 'png',
         'image/webp' => 'webp',
     ];
-    $mime = (string)$imageInfo['mime'];
-    if (!isset($allowed[$mime])) {
-        jsonError('Only JPG, PNG, and WEBP images are allowed.', 422);
-    }
-
-    $uploadRoot = realpath(__DIR__ . '/../../../uploads');
-    if ($uploadRoot === false) {
-        jsonError('Uploads directory is missing.', 500);
-    }
-
-    $orgDir = $uploadRoot . DIRECTORY_SEPARATOR . 'org-public' . DIRECTORY_SEPARATOR . $orgId;
-    if (!is_dir($orgDir) && !mkdir($orgDir, 0775, true) && !is_dir($orgDir)) {
-        jsonError('Could not create organization upload directory.', 500);
-    }
-
     $prefix = $field === 'logoFile' ? 'logo' : 'banner';
-    $filename = sprintf('%s_%d_%s.%s', $prefix, $orgId, bin2hex(random_bytes(8)), $allowed[$mime]);
-    $targetPath = $orgDir . DIRECTORY_SEPARATOR . $filename;
-    if (!move_uploaded_file($tmpPath, $targetPath)) {
-        jsonError('Failed to store uploaded image.', 500);
+    try {
+        $relativePath = uploadStoreImageFile(
+            $_FILES[$field],
+            'org-public/' . $orgId,
+            $prefix . '_' . $orgId,
+            $allowed,
+            5 * 1024 * 1024,
+            8000
+        );
+    } catch (UploadValidationException $e) {
+        jsonError($e->getMessage(), 422);
     }
 
-    return '/CAPSTONE/demo/uploads/org-public/' . $orgId . '/' . $filename;
+    return uploadPublicUrl($relativePath);
 }
 
 function orgProfileStoreImageFile(array $file, string $prefix, int $orgId): ?string
@@ -90,52 +64,25 @@ function orgProfileStoreImageFile(array $file, string $prefix, int $orgId): ?str
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
         return null;
     }
-    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        jsonError('Could not upload one of the selected images.', 422);
-    }
-
-    $tmpPath = (string)($file['tmp_name'] ?? '');
-    if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
-        jsonError('Invalid image upload.', 422);
-    }
-
-    $maxBytes = 5 * 1024 * 1024;
-    if ((int)($file['size'] ?? 0) > $maxBytes) {
-        jsonError('Images must be 5MB or smaller.', 422);
-    }
-
-    $imageInfo = @getimagesize($tmpPath);
-    if (!$imageInfo || empty($imageInfo['mime'])) {
-        jsonError('Uploaded file is not a valid image.', 422);
-    }
-
     $allowed = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
         'image/webp' => 'webp',
     ];
-    $mime = (string)$imageInfo['mime'];
-    if (!isset($allowed[$mime])) {
-        jsonError('Only JPG, PNG, and WEBP images are allowed.', 422);
+    try {
+        $relativePath = uploadStoreImageFile(
+            $file,
+            'org-public/' . $orgId,
+            $prefix . '_' . $orgId,
+            $allowed,
+            5 * 1024 * 1024,
+            8000
+        );
+    } catch (UploadValidationException $e) {
+        jsonError($e->getMessage(), 422);
     }
 
-    $uploadRoot = realpath(__DIR__ . '/../../../uploads');
-    if ($uploadRoot === false) {
-        jsonError('Uploads directory is missing.', 500);
-    }
-
-    $orgDir = $uploadRoot . DIRECTORY_SEPARATOR . 'org-public' . DIRECTORY_SEPARATOR . $orgId;
-    if (!is_dir($orgDir) && !mkdir($orgDir, 0775, true) && !is_dir($orgDir)) {
-        jsonError('Could not create organization upload directory.', 500);
-    }
-
-    $filename = sprintf('%s_%d_%s.%s', $prefix, $orgId, bin2hex(random_bytes(8)), $allowed[$mime]);
-    $targetPath = $orgDir . DIRECTORY_SEPARATOR . $filename;
-    if (!move_uploaded_file($tmpPath, $targetPath)) {
-        jsonError('Failed to store uploaded image.', 500);
-    }
-
-    return '/CAPSTONE/demo/uploads/org-public/' . $orgId . '/' . $filename;
+    return uploadPublicUrl($relativePath);
 }
 
 function orgProfileStoreMultipleImages(string $field, int $orgId): array

@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/upload_security.php';
 
 class AnnouncementValidationException extends RuntimeException {}
 class AnnouncementAuthorizationException extends RuntimeException {}
@@ -136,40 +137,30 @@ function annSaveAnnouncementPhotoFromData(string $photoValue): string
     }
 
     if (!str_starts_with($raw, 'data:')) {
+        if (!preg_match('#^uploads/announcements/[A-Za-z0-9._-]+$#', $raw)) {
+            throw new AnnouncementValidationException('Invalid announcement photo path.');
+        }
         return $raw;
     }
 
-    if (!preg_match('#^data:(image/(png|jpeg|jpg|webp|gif));base64,(.+)$#i', $raw, $matches)) {
-        throw new AnnouncementValidationException('Invalid announcement photo data.');
-    }
-
-    $mime = strtolower($matches[1]);
-    $binary = base64_decode($matches[3], true);
-    if ($binary === false) {
-        throw new AnnouncementValidationException('Invalid announcement photo encoding.');
-    }
-
-    $extensionMap = [
+    $allowed = [
         'image/png' => 'png',
         'image/jpeg' => 'jpg',
-        'image/jpg' => 'jpg',
         'image/webp' => 'webp',
         'image/gif' => 'gif',
     ];
-    $extension = $extensionMap[$mime] ?? 'png';
-
-    $targetDir = dirname(__DIR__) . '/uploads/announcements';
-    if (!is_dir($targetDir) && !mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
-        throw new RuntimeException('Could not prepare announcement photo directory.');
+    try {
+        return uploadStoreImageDataUrl(
+            $raw,
+            'announcements',
+            'announcement',
+            $allowed,
+            5 * 1024 * 1024,
+            8000
+        );
+    } catch (UploadValidationException $e) {
+        throw new AnnouncementValidationException($e->getMessage(), 0, $e);
     }
-
-    $fileName = 'announcement_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
-    $targetPath = $targetDir . '/' . $fileName;
-    if (file_put_contents($targetPath, $binary) === false) {
-        throw new RuntimeException('Could not save announcement photo.');
-    }
-
-    return 'uploads/announcements/' . $fileName;
 }
 
 function annSaveAnnouncementPhotoValue(array $data): string

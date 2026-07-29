@@ -4515,7 +4515,7 @@ function renderAnnouncements() {
     feed.innerHTML = scopedAnnouncements.map((ann) => {
         const hasSyncedEvent = Boolean(ann.event_datetime || ann.event_location);
         const photos = parseAnnouncementPhotoGallery(ann.announcement_photo);
-        const audienceLabel = formatAnnouncementAudienceLabel(ann.audience_type);
+        const audienceLabel = formatAnnouncementAudienceLabel(ann.audience_type, ann.target_programs);
         const updated = parseOfficerSqlDateTime(ann.updated_at);
         const created = parseOfficerSqlDateTime(ann.created_at || ann.published_at);
         const wasUpdated = Boolean(updated && created && updated.getTime() - created.getTime() > 1000);
@@ -4540,7 +4540,10 @@ function renderAnnouncements() {
             </header>
             <div class="announcement-feed-badges">
                 <span class="announcement-type-badge"><i class="fa-solid ${hasSyncedEvent ? 'fa-calendar-days' : 'fa-bullhorn'}"></i>${hasSyncedEvent ? 'Event' : 'Announcement'}</span>
-                <span class="announcement-audience-badge"><i class="fa-solid fa-users"></i>${escapeHtml(audienceLabel)}</span>
+                <span class="announcement-audience-badge">
+                    <i class="fa-solid fa-users"></i>
+                    <span>${escapeHtml(audienceLabel)}</span>
+                </span>
                 ${ann.archived_at ? '<span class="announcement-archived-badge"><i class="fa-solid fa-box-archive"></i>Archived</span>' : ''}
             </div>
             <h3>${escapeHtml(ann.title || 'Untitled Announcement')}</h3>
@@ -4657,10 +4660,24 @@ function resolveAnnouncementPhotoPath(photoPath) {
         : `../${rawPath.replace(/^\/+/, '')}`;
 }
 
-function formatAnnouncementAudienceLabel(audience) {
+function formatAnnouncementAudienceLabel(audience, targetPrograms = []) {
+    if (audience === 'specific_courses') {
+        const courseCodes = (Array.isArray(targetPrograms) ? targetPrograms : [])
+            .map(target => String(
+                target?.program_code
+                || target?.programCode
+                || target?.code
+                || ''
+            ).trim())
+            .filter(Boolean);
+        const uniqueCourseCodes = [...new Set(courseCodes)];
+        return uniqueCourseCodes.length
+            ? `Specific Courses: ${uniqueCourseCodes.join(', ')}`
+            : 'Specific Courses';
+    }
+
     const labels = {
         all_students: 'All Students',
-        specific_courses: 'Specific Courses',
         org_members: 'Org Members Only',
         officers: 'Officers'
     };
@@ -4897,7 +4914,10 @@ function openAnnouncementDetailModalForAnnouncement(announcement) {
                 <i class="fa-solid fa-users"></i>
                 <div>
                     <span>Audience</span>
-                    <strong>${escapeHtml(formatAnnouncementAudienceLabel(announcement.audience_type))}</strong>
+                    <strong>${escapeHtml(formatAnnouncementAudienceLabel(
+                        announcement.audience_type,
+                        announcement.target_programs
+                    ))}</strong>
                 </div>
             </div>
             <div class="announcement-detail-info-item">
