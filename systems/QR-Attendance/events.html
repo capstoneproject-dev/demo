@@ -1100,6 +1100,8 @@
                     status: 'active',
                     firstDate: event.data.date,
                     lastDate: event.data.date,
+                    photo: event.data.photo || '',
+                    gallery: Array.isArray(event.data.photos) ? event.data.photos : [],
                     records: []
                 };
 

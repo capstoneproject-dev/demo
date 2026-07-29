@@ -2678,6 +2678,10 @@ document.addEventListener('click', (e) => {
     if (announcementDetailModal && e.target === announcementDetailModal) {
         closeAnnouncementDetailModal();
     }
+    const announcementPhotoModal = document.getElementById('announcementPhotoModal');
+    if (announcementPhotoModal && e.target === announcementPhotoModal) {
+        closeAnnouncementPhotoCarousel();
+    }
     const announcementComposerModal = document.getElementById('announcementComposerModal');
     if (announcementComposerModal && e.target === announcementComposerModal) {
         closeAnnouncementComposer();
@@ -2711,6 +2715,11 @@ document.addEventListener('keydown', (e) => {
         const announcementDetailModal = document.getElementById('announcementDetailModal');
         if (announcementDetailModal && announcementDetailModal.classList.contains('show')) {
             closeAnnouncementDetailModal();
+        }
+        const announcementPhotoModal = document.getElementById('announcementPhotoModal');
+        if (announcementPhotoModal && announcementPhotoModal.classList.contains('show')) {
+            closeAnnouncementPhotoCarousel();
+            return;
         }
         const announcementComposerModal = document.getElementById('announcementComposerModal');
         if (announcementComposerModal && announcementComposerModal.classList.contains('show')) {
@@ -4537,7 +4546,7 @@ function renderAnnouncements() {
             <h3>${escapeHtml(ann.title || 'Untitled Announcement')}</h3>
             <p class="announcement-feed-content">${escapeHtml(ann.content || '')}</p>
             ${photos.length ? `
-                <button type="button" class="announcement-feed-photo" onclick="viewManagedAnnouncement(${id})" aria-label="View announcement photos">
+                <button type="button" class="announcement-feed-photo" onclick="openAnnouncementPhotoCarousel(${id})" aria-label="View announcement photos">
                     <img src="${escapeHtml(photos[0])}" alt="${escapeHtml(ann.title || 'Announcement photo')}">
                     ${photos.length > 1 ? `<span><i class="fa-regular fa-images"></i> ${photos.length} photos</span>` : ''}
                 </button>` : ''}
@@ -4555,6 +4564,73 @@ function renderAnnouncements() {
 function viewManagedAnnouncement(announcementId) {
     const index = getOfficerScopedAnnouncements().findIndex(item => Number(item.id || item.announcement_id) === Number(announcementId));
     if (index >= 0) openAnnouncementDetailModal(index);
+}
+
+const announcementPhotoCarouselState = {
+    photos: [],
+    index: 0,
+    title: ''
+};
+
+function openAnnouncementPhotoCarousel(announcementId, startIndex = 0) {
+    const announcement = getOfficerScopedAnnouncements()
+        .find(item => Number(item.id || item.announcement_id) === Number(announcementId));
+    const photos = parseAnnouncementPhotoGallery(announcement?.announcement_photo);
+    const modal = document.getElementById('announcementPhotoModal');
+    if (!announcement || !photos.length || !modal) return;
+
+    announcementPhotoCarouselState.photos = photos;
+    announcementPhotoCarouselState.index = Math.max(0, Math.min(Number(startIndex) || 0, photos.length - 1));
+    announcementPhotoCarouselState.title = announcement.title || 'Announcement';
+    renderAnnouncementPhotoCarousel();
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function renderAnnouncementPhotoCarousel() {
+    const image = document.getElementById('announcement-photo-lightbox-img');
+    const dots = document.getElementById('announcement-photo-lightbox-dots');
+    const count = document.getElementById('announcement-photo-lightbox-count');
+    const modal = document.getElementById('announcementPhotoModal');
+    const { photos, index, title } = announcementPhotoCarouselState;
+    if (!image || !dots || !count || !modal || !photos.length) return;
+
+    image.src = photos[index];
+    image.alt = `${title} photo ${index + 1}`;
+    count.textContent = `${index + 1} / ${photos.length}`;
+    dots.innerHTML = photos.map((_, dotIndex) => `
+        <button type="button" class="${dotIndex === index ? 'active' : ''}"
+            onclick="setAnnouncementPhotoCarouselIndex(${dotIndex})"
+            aria-label="Show photo ${dotIndex + 1}"></button>
+    `).join('');
+    modal.querySelectorAll('.announcement-photo-lightbox-arrow').forEach(button => {
+        button.hidden = photos.length < 2;
+    });
+    dots.hidden = photos.length < 2;
+}
+
+function moveAnnouncementPhotoCarousel(direction) {
+    const total = announcementPhotoCarouselState.photos.length;
+    if (!total) return;
+    announcementPhotoCarouselState.index = (announcementPhotoCarouselState.index + direction + total) % total;
+    renderAnnouncementPhotoCarousel();
+}
+
+function setAnnouncementPhotoCarouselIndex(index) {
+    if (index < 0 || index >= announcementPhotoCarouselState.photos.length) return;
+    announcementPhotoCarouselState.index = index;
+    renderAnnouncementPhotoCarousel();
+}
+
+function closeAnnouncementPhotoCarousel() {
+    const modal = document.getElementById('announcementPhotoModal');
+    if (modal) modal.classList.remove('show');
+    const image = document.getElementById('announcement-photo-lightbox-img');
+    if (image) image.removeAttribute('src');
+    announcementPhotoCarouselState.photos = [];
+    announcementPhotoCarouselState.index = 0;
+    announcementPhotoCarouselState.title = '';
+    document.body.style.overflow = '';
 }
 
 function parseAnnouncementPhotoGallery(rawPhotoValue) {
@@ -4954,7 +5030,7 @@ function toggleEventSyncFields() {
     const checkbox = document.getElementById('sync-event');
     const container = document.getElementById('event-sync-fields');
     if (!checkbox || !container) return;
-    container.style.display = checkbox.checked ? 'block' : 'none';
+    container.style.display = checkbox.checked ? 'grid' : 'none';
 }
 
 function readFileAsDataUrl(file) {
@@ -5410,7 +5486,8 @@ async function postAnnouncement(e) {
                 date: eventDate || new Date().toISOString().split('T')[0],
                 time: eventTimeRange || eventTimeStart,
                 location: eventLocation || 'TBA',
-                photo: announcementPhotoDataUrls[0] || ''
+                photo: announcementPhotoDataUrls[0] || '',
+                photos: announcementPhotoDataUrls
             };
 
             const sendToEventsFrame = () => {
