@@ -448,6 +448,31 @@ function getActiveOfficerOrgName() {
     return normalizeOfficerOrgName(session.active_org_name || '');
 }
 
+function resolveOfficerAnnouncementOrgIcon(item) {
+    const savedLogo = String(item?.org_logo_url || '').trim();
+    if (savedLogo) {
+        return /^(https?:)?\/\//i.test(savedLogo) || savedLogo.startsWith('/')
+            ? savedLogo
+            : `../${savedLogo.replace(/^\/+/, '')}`;
+    }
+
+    const iconByCode = {
+        SSC: '../assets/photos/studentDashboard/Organization/SSC.png',
+        AISERS: '../assets/photos/studentDashboard/Organization/AISERS.png',
+        ELITECH: '../assets/photos/studentDashboard/Organization/ELITECH.png',
+        ILASSO: '../assets/photos/studentDashboard/Organization/ILASSO.png',
+        'AERO-ATSO': '../assets/photos/studentDashboard/Organization/AEROATSO.png',
+        AETSO: '../assets/photos/studentDashboard/Organization/AET.png',
+        AMTSO: '../assets/photos/studentDashboard/Organization/AMT.png',
+        RCYC: '../assets/photos/studentDashboard/Organization/RCYC.png',
+        CYC: '../assets/photos/studentDashboard/Organization/CYC.png',
+        SCHOLARS: '../assets/photos/studentDashboard/Organization/PSG.png',
+        AERONAUTICA: '../assets/photos/studentDashboard/Organization/AERONAUTICA.png'
+    };
+    const orgCode = String(item?.org_code || '').trim().toUpperCase();
+    return iconByCode[orgCode] || '';
+}
+
 function officerOrgMatch(orgValue) {
     const session = readAuthSession();
     const activeName = normalizeOfficerOrgName(session.active_org_name || '');
@@ -4521,11 +4546,18 @@ function renderAnnouncements() {
         const wasUpdated = Boolean(updated && created && updated.getTime() - created.getTime() > 1000);
         const orgName = ann.org || getActiveOfficerOrgName() || 'Organization';
         const orgInitials = orgName.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
+        const orgIcon = resolveOfficerAnnouncementOrgIcon(ann);
         const id = Number(ann.id || ann.announcement_id || 0);
         return `
         <article class="announcement-feed-card ${ann.archived_at ? 'archived' : ''}">
             <header class="announcement-feed-card-header">
-                <div class="announcement-org-avatar">${escapeHtml(orgInitials || 'ORG')}</div>
+                <div class="announcement-org-avatar">
+                    ${orgIcon
+                        ? `<img src="${escapeHtml(orgIcon)}" alt="${escapeHtml(orgName)} logo"
+                            onerror="this.hidden=true; this.nextElementSibling.hidden=false">
+                           <span hidden>${escapeHtml(orgInitials || 'ORG')}</span>`
+                        : `<span>${escapeHtml(orgInitials || 'ORG')}</span>`}
+                </div>
                 <div class="announcement-feed-identity">
                     <strong>${escapeHtml(orgName)}</strong>
                     <span>${escapeHtml(formatAnnouncementDate(ann.date))}${wasUpdated ? ' · Edited' : ''}</span>
@@ -5238,6 +5270,7 @@ async function fetchAnnouncementsFromApi({ append = false } = {}) {
     if (announcementFeedState.loading) return;
     announcementFeedState.loading = true;
     const feed = document.getElementById('announcement-feed');
+    updateAnnouncementLoadMoreButton();
     const loadMore = document.getElementById('announcement-load-more');
     if (!append && feed) {
         feed.innerHTML = '<div class="announcement-feed-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading announcements...</div>';
@@ -5272,11 +5305,33 @@ async function fetchAnnouncementsFromApi({ append = false } = {}) {
         }
     } finally {
         announcementFeedState.loading = false;
-        if (loadMore) {
-            loadMore.disabled = false;
-            loadMore.hidden = !announcementFeedState.hasMore;
-        }
+        updateAnnouncementLoadMoreButton();
     }
+}
+
+function updateAnnouncementLoadMoreButton() {
+    const wrapper = document.getElementById('announcement-load-more-wrap');
+    if (!wrapper) return;
+
+    const shouldRender = Boolean(
+        announcementFeedState.hasMore && announcementFeedState.cursor
+    );
+    if (!shouldRender) {
+        wrapper.replaceChildren();
+        return;
+    }
+
+    let button = document.getElementById('announcement-load-more');
+    if (!button) {
+        button = document.createElement('button');
+        button.type = 'button';
+        button.id = 'announcement-load-more';
+        button.className = 'btn btn-outline';
+        button.textContent = 'Load More';
+        button.addEventListener('click', loadMoreAnnouncements);
+        wrapper.appendChild(button);
+    }
+    button.disabled = announcementFeedState.loading;
 }
 
 function updateAnnouncementFeedControls() {
@@ -5294,6 +5349,7 @@ function resetAnnouncementFeed() {
     announcementFeedState.cursor = '';
     announcementFeedState.hasMore = false;
     announcementsData = [];
+    updateAnnouncementLoadMoreButton();
     fetchAnnouncementsFromApi();
 }
 

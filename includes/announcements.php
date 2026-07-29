@@ -757,6 +757,9 @@ function annListAnnouncementsPage(PDO $pdo, int $orgId, array $filters = []): ar
                    a.archived_by_user_id,
                    a.created_at,
                    a.updated_at,
+                   o.org_name,
+                   o.org_code,
+                   o.logo_url AS org_logo_url,
                    COALESCE(a.published_at, a.created_at) AS sort_at,
                    (
                        SELECT e.event_datetime FROM events e
@@ -771,6 +774,7 @@ function annListAnnouncementsPage(PDO $pdo, int $orgId, array $filters = []): ar
                        ORDER BY e.event_id DESC LIMIT 1
                    ) AS event_location
             FROM announcements a
+            JOIN organizations o ON o.org_id = a.org_id
             WHERE " . implode(' AND ', $where) . "
             ORDER BY sort_at DESC, a.announcement_id DESC
             LIMIT {$fetchLimit}";
