@@ -685,7 +685,7 @@ async function loadOfficerActionCenter(showFeedback = false) {
             body.innerHTML = `
                 <div class="notif-state">
                     <i class="fa-solid fa-spinner fa-spin"></i>
-                    <span>Refreshing action center...</span>
+                <span>Refreshing alerts...</span>
                 </div>`;
         }
         try {
@@ -695,7 +695,7 @@ async function loadOfficerActionCenter(showFeedback = false) {
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.ok) {
-                throw new Error(data.error || 'Could not load the action center.');
+                throw new Error(data.error || 'Could not load alerts.');
             }
             renderOfficerActionCenter(data);
         } catch (error) {
@@ -704,12 +704,12 @@ async function loadOfficerActionCenter(showFeedback = false) {
                 body.innerHTML = `
                     <div class="notif-state">
                         <i class="fa-solid fa-triangle-exclamation"></i>
-                        <strong>Action center unavailable</strong>
+                        <strong>Alerts unavailable</strong>
                         <span>${escapeHtml(error.message || 'Please try again.')}</span>
                         <button type="button" onclick="loadOfficerActionCenter(true)">Try again</button>
                     </div>`;
             }
-            if (showFeedback) showToast(error.message || 'Could not refresh the action center.', 'error');
+            if (showFeedback) showToast(error.message || 'Could not refresh alerts.', 'error');
         } finally {
             officerActionCenterRequest = null;
         }
@@ -5896,7 +5896,7 @@ window.addEventListener('message', (event) => {
     if (event.data?.type === 'OFFICER_ACTION_CENTER_REFRESH') {
         loadOfficerActionCenter(false);
     } else if (event.data?.type === 'OFFICER_NAVIGATION_TARGET_MISSING') {
-        showToast('That item is no longer available. The action center has been refreshed.', 'info');
+        showToast('That item is no longer available. Alerts have been refreshed.', 'info');
         loadOfficerActionCenter(false);
     }
 });
