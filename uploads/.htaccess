@@ -1,0 +1,11 @@
+# Runtime uploads are public files, never executable application code.
+Options -Indexes -ExecCGI
+
+<IfModule mod_mime.c>
+    RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl .py .sh
+    RemoveType .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl .py .sh
+</IfModule>
+
+<FilesMatch "\.(?i:php[0-9]*|phtml|phar|cgi|pl|py|sh|bash|cmd|bat|exe|com|htaccess|env)(?:\.|$)">
+    Require all denied
+</FilesMatch>

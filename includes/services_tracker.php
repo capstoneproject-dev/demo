@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/upload_security.php';
 /**
  * Services tracker + printing queue domain services.
  */
@@ -532,41 +533,15 @@ function stResolveOrganizationByRef(PDO $pdo, $orgRef): ?array
 
 function stStoreUploadedPrintFile(array $file): array
 {
-    if (empty($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        throw new ServiceTrackerValidationException('A PDF file is required.');
-    }
-
-    $originalName = trim((string)($file['name'] ?? ''));
-    $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-    if ($extension !== 'pdf') {
-        throw new ServiceTrackerValidationException('Only PDF files are allowed.');
-    }
-
-    $mime = (string)($file['type'] ?? '');
-    if ($mime !== '' && stripos($mime, 'pdf') === false) {
-        throw new ServiceTrackerValidationException('Only PDF files are allowed.');
-    }
-
-    $targetDir = dirname(__DIR__) . '/uploads/documents';
-    if (!is_dir($targetDir) && !mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
-        throw new RuntimeException('Could not create upload directory.');
-    }
-
-    $safeBase = preg_replace('/[^A-Za-z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
-    $safeBase = trim($safeBase, '._-');
-    if ($safeBase === '') {
-        $safeBase = 'print_job';
-    }
-
-    $generatedName = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '_' . $safeBase . '.pdf';
-    $targetPath = $targetDir . '/' . $generatedName;
-    if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
-        throw new RuntimeException('Could not store the uploaded file.');
+    try {
+        $stored = uploadStorePdfFile($file, 'documents', 20 * 1024 * 1024);
+    } catch (UploadValidationException $e) {
+        throw new ServiceTrackerValidationException($e->getMessage(), 0, $e);
     }
 
     return [
-        'file_name' => $originalName,
-        'file_url' => 'uploads/documents/' . $generatedName,
+        'file_name' => $stored['original_name'],
+        'file_url' => $stored['relative_path'],
     ];
 }
 
