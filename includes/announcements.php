@@ -273,18 +273,11 @@ function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
     return $rows;
 }
 
-function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = []): array
-{
-    annEnsureProgramTargetsTable($pdo);
-
-    $where = [
-        'a.is_published = 1',
-        'a.archived_at IS NULL',
-        "COALESCE(o.status, 'active') = 'active'",
-    ];
-    $params = [];
-
-    $studentProgramId = (int)($filters['student_program_id'] ?? 0);
+function annStudentAnnouncementVisibility(
+    int $studentProgramId,
+    array &$where,
+    array &$params
+): void {
     if ($studentProgramId > 0) {
         $where[] = "(
             a.audience_type = 'all_students'
@@ -299,9 +292,24 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
             )
         )";
         $params[':student_program_id'] = $studentProgramId;
-    } else {
-        $where[] = "a.audience_type = 'all_students'";
+        return;
     }
+    $where[] = "a.audience_type = 'all_students'";
+}
+
+function annListPublishedAnnouncementsPageForStudents(PDO $pdo, array $filters = []): array
+{
+    annEnsureProgramTargetsTable($pdo);
+
+    $where = [
+        'a.is_published = 1',
+        'a.archived_at IS NULL',
+        "COALESCE(o.status, 'active') = 'active'",
+    ];
+    $params = [];
+
+    $studentProgramId = (int)($filters['student_program_id'] ?? 0);
+    annStudentAnnouncementVisibility($studentProgramId, $where, $params);
 
     $q = trim((string)($filters['q'] ?? ''));
     if ($q !== '') {
@@ -313,8 +321,38 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
         $params[':q_org_code'] = $qLike;
     }
 
+    $orgId = (int)($filters['org_id'] ?? 0);
+    if ($orgId > 0) {
+        $where[] = 'a.org_id = :filter_org_id';
+        $params[':filter_org_id'] = $orgId;
+    }
+
+    $eventExists = "EXISTS (
+        SELECT 1 FROM events event_filter
+        WHERE event_filter.org_id = a.org_id
+          AND event_filter.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+          AND event_filter.is_published = 1
+    )";
+    $type = strtolower(trim((string)($filters['type'] ?? '')));
+    if ($type === 'event') {
+        $where[] = $eventExists;
+    } elseif ($type === 'announcement') {
+        $where[] = "NOT {$eventExists}";
+    }
+
+    $cursor = annDecodeCursor(trim((string)($filters['cursor'] ?? '')));
+    if ($cursor) {
+        $where[] = "(COALESCE(a.published_at, a.created_at) < :cursor_at
+            OR (COALESCE(a.published_at, a.created_at) = :cursor_at_equal
+                AND a.announcement_id < :cursor_id))";
+        $params[':cursor_at'] = $cursor['sort_at'];
+        $params[':cursor_at_equal'] = $cursor['sort_at'];
+        $params[':cursor_id'] = $cursor['id'];
+    }
+
     $limit = isset($filters['limit']) ? (int)$filters['limit'] : 10;
     $limit = max(1, min(50, $limit));
+    $fetchLimit = $limit + 1;
 
     $sql = "
         SELECT a.announcement_id,
@@ -332,31 +370,38 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
                a.updated_at,
                o.org_name,
                o.org_code,
+               COALESCE(a.published_at, a.created_at) AS sort_at,
+               linked_event.event_id,
+               linked_event.description AS event_description,
+               linked_event.event_datetime,
+               linked_event.location AS event_location,
+               linked_event.event_photo,
                (
-                   SELECT e.event_datetime
-                   FROM events e
-                   WHERE e.org_id = a.org_id
-                     AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
-                   ORDER BY e.event_id DESC
-                   LIMIT 1
-               ) AS event_datetime,
-               (
-                   SELECT e.location
-                   FROM events e
-                   WHERE e.org_id = a.org_id
-                     AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
-                   ORDER BY e.event_id DESC
-                   LIMIT 1
-               ) AS event_location
+                   SELECT COUNT(*)
+                   FROM attendance_records ar
+                   WHERE ar.event_id = linked_event.event_id
+               ) AS event_participants
         FROM announcements a
         JOIN organizations o ON o.org_id = a.org_id
+        LEFT JOIN events linked_event
+          ON linked_event.event_id = (
+              SELECT MAX(event_match.event_id)
+              FROM events event_match
+              WHERE event_match.org_id = a.org_id
+                AND event_match.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                AND event_match.is_published = 1
+          )
         WHERE " . implode(' AND ', $where) . "
         ORDER BY COALESCE(a.published_at, a.created_at) DESC, a.announcement_id DESC
-        LIMIT {$limit}";
+        LIMIT {$fetchLimit}";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
+    $hasMore = count($rows) > $limit;
+    if ($hasMore) {
+        array_pop($rows);
+    }
 
     foreach ($rows as &$row) {
         $row['announcement_id'] = (int)$row['announcement_id'];
@@ -364,10 +409,57 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
         $row['created_by_user_id'] = (int)$row['created_by_user_id'];
         $row['is_published'] = (int)$row['is_published'];
         $row['archived_by_user_id'] = $row['archived_by_user_id'] !== null ? (int)$row['archived_by_user_id'] : null;
+        $row['event_id'] = $row['event_id'] !== null ? (int)$row['event_id'] : null;
+        $row['event_participants'] = (int)($row['event_participants'] ?? 0);
     }
+    unset($row);
     annAttachProgramTargets($pdo, $rows);
 
-    return $rows;
+    $nextCursor = null;
+    if ($hasMore && $rows) {
+        $last = $rows[count($rows) - 1];
+        $nextCursor = annEncodeCursor((string)$last['sort_at'], (int)$last['announcement_id']);
+    }
+
+    $organizationWhere = [
+        'a.is_published = 1',
+        'a.archived_at IS NULL',
+        "COALESCE(o.status, 'active') = 'active'",
+    ];
+    $organizationParams = [];
+    annStudentAnnouncementVisibility(
+        $studentProgramId,
+        $organizationWhere,
+        $organizationParams
+    );
+    $organizationStmt = $pdo->prepare(
+        "SELECT DISTINCT o.org_id, o.org_name, o.org_code
+         FROM announcements a
+         JOIN organizations o ON o.org_id = a.org_id
+         WHERE " . implode(' AND ', $organizationWhere) . "
+         ORDER BY o.org_name ASC"
+    );
+    $organizationStmt->execute($organizationParams);
+    $organizations = array_map(static function (array $row): array {
+        return [
+            'org_id' => (int)$row['org_id'],
+            'org_name' => (string)$row['org_name'],
+            'org_code' => (string)$row['org_code'],
+        ];
+    }, $organizationStmt->fetchAll());
+
+    return [
+        'items' => $rows,
+        'next_cursor' => $nextCursor,
+        'has_more' => $hasMore,
+        'organizations' => $organizations,
+    ];
+}
+
+function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = []): array
+{
+    $page = annListPublishedAnnouncementsPageForStudents($pdo, $filters);
+    return $page['items'];
 }
 
 function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): array

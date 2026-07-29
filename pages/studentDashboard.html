@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- STYLESHEET REFERENCE -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260724-email-preferences-layout-2">
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260729-student-announcement-feed-1">
     <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260325-4">
 </head>
 
@@ -29,6 +29,12 @@
                 <a href="#" class="nav-link active" onclick="navigate('dashboard', this)">
                     <i class="fa-solid fa-table-columns nav-icon"></i>
                     <span class="nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('announcements', this)">
+                    <i class="fa-solid fa-bullhorn nav-icon"></i>
+                    <span class="nav-label">Announcements</span>
                 </a>
             </li>
             <li class="nav-item">
@@ -112,8 +118,8 @@
                         <div class="card-header">
                             <div class="card-title">Latest Announcements</div>
                             <button type="button" class="announcement-view-all-btn"
-                                onclick="openStudentAnnouncementCalendar()">
-                                View All <i class="fa-regular fa-calendar-days"></i>
+                                onclick="navigate('announcements')">
+                                View All <i class="fa-solid fa-arrow-right"></i>
                             </button>
                         </div>
                         <div id="announcements-list">
@@ -204,6 +210,51 @@
                 </div>
             </div>
 
+        </div>
+
+        <!-- ANNOUNCEMENTS VIEW -->
+        <div id="announcements" class="section-view">
+            <div class="student-announcement-feed-page">
+                <div class="student-announcement-feed-header">
+                    <div>
+                        <h2>Announcement Feed</h2>
+                        <p>Updates, notices, and events selected for you.</p>
+                    </div>
+                    <button type="button" class="btn btn-outline" onclick="openStudentAnnouncementCalendar()">
+                        <i class="fa-regular fa-calendar-days"></i> Calendar View
+                    </button>
+                </div>
+
+                <div class="student-announcement-feed-toolbar">
+                    <div class="student-announcement-search">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="search" id="student-announcement-search"
+                            placeholder="Search announcements or organizations..."
+                            aria-label="Search announcements">
+                    </div>
+                    <select id="student-announcement-organization-filter" aria-label="Filter by organization">
+                        <option value="">All organizations</option>
+                    </select>
+                    <select id="student-announcement-type-filter" aria-label="Filter by announcement type">
+                        <option value="">All types</option>
+                        <option value="announcement">Announcements</option>
+                        <option value="event">Events</option>
+                    </select>
+                </div>
+
+                <div id="student-announcement-feed" class="student-announcement-feed" aria-live="polite">
+                    <div class="student-announcement-feed-state">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <span>Loading announcements...</span>
+                    </div>
+                </div>
+                <div class="student-announcement-load-more-wrap">
+                    <button type="button" id="student-announcement-load-more" class="btn btn-outline"
+                        onclick="loadMoreStudentAnnouncements()" hidden>
+                        Load More
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- ORGANIZATIONS VIEW -->
@@ -1016,6 +1067,47 @@
         </div>
     </div>
 
+    <!-- Read-only announcement details -->
+    <div id="announcementDetailModal" class="modal-overlay" aria-hidden="true" role="dialog"
+        aria-modal="true" aria-labelledby="announcement-detail-title">
+        <div class="modal-content announcement-detail-modal">
+            <div class="modal-header">
+                <h3 id="announcement-detail-title">Announcement Details</h3>
+                <button class="close-modal" type="button" onclick="closeStudentAnnouncementDetail()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="announcement-detail-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="closeStudentAnnouncementDetail()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo-only announcement carousel -->
+    <div id="studentAnnouncementPhotoModal" class="modal-overlay student-announcement-photo-overlay"
+        aria-hidden="true" role="dialog" aria-modal="true" aria-label="Announcement photos">
+        <div class="modal-content student-announcement-photo-modal">
+            <button type="button" class="student-announcement-photo-close"
+                onclick="closeStudentAnnouncementPhotos()" aria-label="Close photo carousel">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="student-announcement-photo-lightbox">
+                <img id="student-announcement-photo-image" src="" alt="Announcement photo">
+                <button type="button" class="student-announcement-photo-arrow previous"
+                    onclick="moveStudentAnnouncementPhoto(-1)" aria-label="Previous photo">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <button type="button" class="student-announcement-photo-arrow next"
+                    onclick="moveStudentAnnouncementPhoto(1)" aria-label="Next photo">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <div id="student-announcement-photo-dots" class="student-announcement-photo-dots"></div>
+                <div id="student-announcement-photo-count" class="student-announcement-photo-count"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- TOAST NOTIFICATION -->
     <div id="toast" class="toast-notification">
         <div class="toast-content">
@@ -1036,7 +1128,7 @@
     </script>
     <!-- Org-specific data config — must load before studentDashboard.js -->
     <script src="../data/orgData.js?v=20260325-4"></script>
-    <script src="../assets/js/studentDashboard.js?v=20260724-printing-notifications-1"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260729-student-announcement-feed-1"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">

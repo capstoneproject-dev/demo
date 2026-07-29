@@ -23,11 +23,14 @@ try {
 
     $filters = [
         'q' => trim((string)($_GET['q'] ?? '')),
+        'org_id' => isset($_GET['org_id']) ? (int)$_GET['org_id'] : 0,
+        'type' => trim((string)($_GET['type'] ?? '')),
         'limit' => isset($_GET['limit']) ? (int)$_GET['limit'] : 10,
+        'cursor' => trim((string)($_GET['cursor'] ?? '')),
         'student_program_id' => $studentProgramId,
     ];
-    $items = annListPublishedAnnouncementsForStudents($pdo, $filters);
-    jsonOk(['items' => $items]);
+    $page = annListPublishedAnnouncementsPageForStudents($pdo, $filters);
+    jsonOk($page);
 } catch (PDOException $e) {
     error_log('[api/student/announcements/list] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
