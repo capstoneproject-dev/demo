@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- CSS Reference -->
-    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260325-3">
+    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260729-osa-alerts-1">
 
     <!-- PDF.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -111,12 +111,49 @@
                     <i class="fa-solid fa-arrow-right-from-bracket"></i>
                 </a>
 
+                <!-- OSA Alerts -->
+                <div class="notif-wrapper" id="osa-alerts">
+                    <button class="notif-btn" id="osa-notif-trigger" type="button"
+                        aria-label="Open alerts" aria-haspopup="dialog" aria-expanded="false"
+                        onclick="toggleOsaAlerts(event)">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notif-badge" id="osa-notif-count" hidden>0</span>
+                    </button>
+                    <div class="notif-backdrop" id="osa-notif-backdrop"
+                        onclick="closeOsaAlerts()" hidden></div>
+                    <aside class="notif-dropdown" id="osa-notif-dropdown" role="dialog"
+                        aria-modal="true" aria-labelledby="osa-notif-drawer-title" aria-hidden="true">
+                        <div class="notif-drawer-header">
+                            <h2 id="osa-notif-drawer-title">Alerts</h2>
+                            <button class="notif-close-btn" type="button" onclick="closeOsaAlerts()"
+                                aria-label="Close alerts">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="notif-drawer-body" id="osa-notif-drawer-body">
+                            <div class="notif-state">
+                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                <span>Loading alerts...</span>
+                            </div>
+                        </div>
+                        <div class="notif-drawer-footer">
+                            <span id="osa-notif-last-updated">Waiting for updates</span>
+                            <button type="button" class="notif-refresh-btn" onclick="loadOsaAlerts(true)">
+                                <i class="fa-solid fa-rotate"></i> Refresh
+                            </button>
+                        </div>
+                    </aside>
+                </div>
+
                 <!-- User Profile -->
-                <a href="#" class="user-profile" onclick="navigate('profile'); return false;">
-                    <img id="osaHeaderAvatar" src="https://picsum.photos/seed/osaadmin/100/100" alt="Student" class="avatar">
-                    <div class="user-info">
-                        <span style="display: block; font-size: 0.85rem; font-weight: 600;">Dir. Maria Santos</span>
-                        <small style="color: var(--muted); font-size: 0.75rem;">OSA Head</small>
+                <a href="#" class="user-profile" onclick="navigate('profile'); return false;"
+                    aria-label="Open my profile">
+                    <div class="user-profile-box">
+                        <img id="osaHeaderAvatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E" alt="OSA staff" class="avatar">
+                        <div class="user-info">
+                            <span>Dir. Maria Santos</span>
+                            <small>OSA Head</small>
+                        </div>
                     </div>
                 </a>
             </div>
@@ -1044,7 +1081,7 @@
 
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
-    <script src="../assets/js/osaDashboard.js?v=20260611-8"></script>
+    <script src="../assets/js/osaDashboard.js?v=20260729-osa-alerts-1"></script>
     <script src="../assets/js/pdfViewer.js?v=pdf-highlight-sidebar-color-1"></script>
 </body>
 

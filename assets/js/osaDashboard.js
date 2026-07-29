@@ -1,4 +1,5 @@
 const AUTH_SESSION_KEY = 'naapAuthSession';
+const OSA_ALERTS_API = '../api/osa/notifications/list.php';
 
 function readAuthSession() {
     try {
@@ -8,9 +9,13 @@ function readAuthSession() {
     }
 }
 
-const DEFAULT_OSA_AVATAR = 'https://picsum.photos/seed/osaadmin/150/150';
+const DEFAULT_OSA_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E";
 let osaProfileEditMode = false;
 let osaProfileSnapshot = null;
+let osaAlertItems = new Map();
+let osaAlertsRequest = null;
+let osaAlertsPreviousFocus = null;
+let osaAlertsRefreshTimer = null;
 
 function updateOsaProfileView(session = readAuthSession()) {
     const fullName = session.display_name || 'OSA Staff';
@@ -48,6 +53,260 @@ function updateOsaProfileView(session = readAuthSession()) {
     if (phoneInput) phoneInput.value = phone;
     if (dateJoinedInput) dateJoinedInput.value = joined;
 }
+
+function formatOsaAlertRelativeTime(value) {
+    const date = new Date(String(value || '').replace(' ', 'T'));
+    if (Number.isNaN(date.getTime())) return '';
+    const seconds = Math.round((date.getTime() - Date.now()) / 1000);
+    const ranges = [
+        ['year', 31536000],
+        ['month', 2592000],
+        ['week', 604800],
+        ['day', 86400],
+        ['hour', 3600],
+        ['minute', 60],
+    ];
+    const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+    for (const [unit, size] of ranges) {
+        if (Math.abs(seconds) >= size) {
+            return formatter.format(Math.round(seconds / size), unit);
+        }
+    }
+    return 'just now';
+}
+
+function formatOsaAlertStatus(status) {
+    return String(status || 'pending')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function renderOsaAlertSection(title, items, emptyMessage, totalCount = null) {
+    const safeItems = Array.isArray(items) ? items : [];
+    const visibleTotal = totalCount === null
+        ? safeItems.length
+        : Math.max(safeItems.length, Number(totalCount) || 0);
+    const countLabel = visibleTotal > safeItems.length
+        ? `${safeItems.length} of ${visibleTotal}`
+        : String(visibleTotal);
+
+    return `
+        <section class="notif-section" aria-label="${escapeDashboardHtml(title)}">
+            <div class="notif-section-heading">
+                <h3>${escapeDashboardHtml(title)}</h3>
+                <span class="notif-section-count">${countLabel}</span>
+            </div>
+            ${safeItems.length ? safeItems.map((item) => `
+                <button type="button" class="notif-item" data-osa-alert-key="${escapeDashboardHtml(item.key || '')}"
+                    data-severity="${escapeDashboardHtml(item.severity || 'info')}">
+                    <span class="notif-item-icon"><i class="fa-solid fa-file-circle-check"></i></span>
+                    <span class="notif-item-copy">
+                        <strong>${escapeDashboardHtml(item.title || 'Document update')}</strong>
+                        <p>${escapeDashboardHtml(item.summary || '')}</p>
+                        <small>${escapeDashboardHtml(formatOsaAlertRelativeTime(item.occurred_at))} &middot; ${escapeDashboardHtml(formatOsaAlertStatus(item.status))}</small>
+                    </span>
+                    <i class="fa-solid fa-chevron-right notif-item-arrow" aria-hidden="true"></i>
+                </button>
+            `).join('') : `<div class="notif-empty-section">${escapeDashboardHtml(emptyMessage)}</div>`}
+        </section>`;
+}
+
+function renderOsaAlerts(data) {
+    const attentionItems = Array.isArray(data.attention_items) ? data.attention_items : [];
+    const recentItems = Array.isArray(data.recent_items) ? data.recent_items : [];
+    osaAlertItems = new Map(
+        [...attentionItems, ...recentItems].map((item) => [String(item.key || ''), item])
+    );
+
+    const attentionCount = Math.max(0, Number(data.attention_count) || 0);
+    const countEl = document.getElementById('osa-notif-count');
+    if (countEl) {
+        countEl.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+        countEl.hidden = attentionCount === 0;
+        countEl.setAttribute(
+            'aria-label',
+            `${attentionCount} document${attentionCount === 1 ? '' : 's'} awaiting review`
+        );
+    }
+
+    const body = document.getElementById('osa-notif-drawer-body');
+    if (body) {
+        body.innerHTML = [
+            renderOsaAlertSection(
+                'Needs attention',
+                attentionItems,
+                'No document submissions require review.',
+                attentionCount
+            ),
+            renderOsaAlertSection(
+                'Recent activity',
+                recentItems,
+                'No approval decisions in the last seven days.'
+            ),
+        ].join('');
+    }
+
+    const generatedAt = data.generated_at ? new Date(data.generated_at) : new Date();
+    const updatedEl = document.getElementById('osa-notif-last-updated');
+    if (updatedEl) {
+        updatedEl.textContent = Number.isNaN(generatedAt.getTime())
+            ? 'Updated just now'
+            : `Updated ${generatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+    }
+}
+
+async function loadOsaAlerts(showFeedback = false) {
+    if (osaAlertsRequest) return osaAlertsRequest;
+    osaAlertsRequest = (async () => {
+        const body = document.getElementById('osa-notif-drawer-body');
+        if (showFeedback && body) {
+            body.innerHTML = `
+                <div class="notif-state">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span>Refreshing alerts...</span>
+                </div>`;
+        }
+
+        try {
+            const response = await fetch(`${OSA_ALERTS_API}?limit=30`, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load alerts.');
+            }
+            renderOsaAlerts(data);
+        } catch (error) {
+            console.error('[loadOsaAlerts]', error);
+            if (body) {
+                body.innerHTML = `
+                    <div class="notif-state">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <strong>Alerts unavailable</strong>
+                        <span>${escapeDashboardHtml(error.message || 'Please try again.')}</span>
+                        <button type="button" onclick="loadOsaAlerts(true)">Try again</button>
+                    </div>`;
+            }
+            if (showFeedback) showToast(error.message || 'Could not refresh alerts.', 'error');
+        } finally {
+            osaAlertsRequest = null;
+        }
+    })();
+    return osaAlertsRequest;
+}
+
+function toggleOsaAlerts(event) {
+    event?.stopPropagation();
+    const drawer = document.getElementById('osa-notif-dropdown');
+    if (drawer?.classList.contains('show')) closeOsaAlerts();
+    else openOsaAlerts();
+}
+
+function openOsaAlerts() {
+    const drawer = document.getElementById('osa-notif-dropdown');
+    const backdrop = document.getElementById('osa-notif-backdrop');
+    const trigger = document.getElementById('osa-notif-trigger');
+    if (!drawer || !backdrop || !trigger) return;
+
+    osaAlertsPreviousFocus = document.activeElement;
+    drawer.classList.add('show');
+    drawer.setAttribute('aria-hidden', 'false');
+    trigger.classList.add('is-active');
+    trigger.setAttribute('aria-expanded', 'true');
+    backdrop.hidden = false;
+    document.body.classList.add('notif-drawer-open');
+    window.requestAnimationFrame(() => drawer.querySelector('.notif-close-btn')?.focus());
+}
+
+function closeOsaAlerts() {
+    const drawer = document.getElementById('osa-notif-dropdown');
+    const backdrop = document.getElementById('osa-notif-backdrop');
+    const trigger = document.getElementById('osa-notif-trigger');
+    if (!drawer) return;
+
+    drawer.classList.remove('show');
+    drawer.setAttribute('aria-hidden', 'true');
+    trigger?.classList.remove('is-active');
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('notif-drawer-open');
+
+    if (osaAlertsPreviousFocus instanceof HTMLElement) osaAlertsPreviousFocus.focus();
+    osaAlertsPreviousFocus = null;
+}
+
+function focusOsaAlertTarget(element) {
+    if (!element) return false;
+    element.classList.add('osa-alert-target');
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => element.classList.remove('osa-alert-target'), 2600);
+    return true;
+}
+
+async function openOsaAlertTarget(item) {
+    const submissionId = Number(item?.target?.entity_id || 0);
+    closeOsaAlerts();
+    if (!submissionId) return;
+
+    navigate('requests');
+    try {
+        await loadRequestsFromApi();
+        const requestItem = requests.find((request) =>
+            Number(request.submissionId || request.id) === submissionId
+        );
+        if (!requestItem) throw new Error('This document submission is no longer available.');
+
+        clearRequestFilters(false);
+        const desiredStatus = requestItem.status || 'all';
+        const statusTab = Array.from(document.querySelectorAll('.req-tab')).find((button) =>
+            desiredStatus === 'all'
+                ? button.textContent.includes('Overview')
+                : button.textContent.trim() === desiredStatus
+        );
+        if (statusTab) switchReqStatus(desiredStatus, statusTab);
+
+        const row = document.querySelector(`[data-submission-id="${submissionId}"]`);
+        focusOsaAlertTarget(row);
+        openPdfViewer(requestItem.viewerId || `submission_${submissionId}`);
+    } catch (error) {
+        showToast(error.message || 'Could not open this alert.', 'error');
+        loadOsaAlerts();
+    }
+}
+
+document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-osa-alert-key]');
+    if (!button) return;
+    const item = osaAlertItems.get(String(button.dataset.osaAlertKey || ''));
+    if (item) openOsaAlertTarget(item);
+});
+
+document.addEventListener('keydown', (event) => {
+    const drawer = document.getElementById('osa-notif-dropdown');
+    if (!drawer?.classList.contains('show')) return;
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeOsaAlerts();
+        return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = Array.from(drawer.querySelectorAll(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter((element) => !element.hidden);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+});
 
 function setOsaProfileEditMode(isEditing) {
     osaProfileEditMode = isEditing;
@@ -379,7 +638,12 @@ async function submitReviewDecision(submissionId, decision, notes = '') {
         if (!data.ok) {
             throw new Error(data.error || 'Failed to review document.');
         }
-        await Promise.all([loadDocsFromApi(), loadRepoFromApi()]);
+        await Promise.all([
+            loadDocsFromApi(),
+            loadRepoFromApi(),
+            loadRequestsFromApi(),
+            loadOsaAlerts(),
+        ]);
     } catch (error) {
         console.error(error);
         alert(error.message || 'Failed to review document.');
@@ -2343,6 +2607,7 @@ function renderRequests() {
         const name = senderParts.length > 1 ? senderParts.slice(1).join(' ') : senderText;
 
         const tr = document.createElement('tr');
+        tr.setAttribute('data-submission-id', req.submissionId || req.id);
         tr.innerHTML = `
             <td><span class="status-badge status-submitted">${req.type}</span></td>
             <td style="font-weight: 600;">${req.org}</td>
@@ -3105,7 +3370,7 @@ function clearMonitoringActivityDateFilter() {
     showToast('Organization activity date filter cleared', 'success');
 }
 
-function clearRequestFilters() {
+function clearRequestFilters(showFeedback = true) {
     // Reset all filters
     document.getElementById('req-type-filter').value = 'all';
     document.getElementById('req-org-filter').value = 'all';
@@ -3127,7 +3392,7 @@ function clearRequestFilters() {
 
     // Re-render
     renderRequests();
-    showToast('Filters cleared', 'success');
+    if (showFeedback) showToast('Filters cleared', 'success');
 }
 
 // function filterRequests() {} // Removed as it is replaced by renderRequests internal logic
@@ -3222,6 +3487,12 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
     startOsaSectionPolling();
+    loadOsaAlerts().catch((error) => console.error(error));
+    if (!osaAlertsRefreshTimer) {
+        osaAlertsRefreshTimer = window.setInterval(() => {
+            loadOsaAlerts().catch((error) => console.error(error));
+        }, 30000);
+    }
 });
 
 document.addEventListener('pdfviewer:ready', () => {
@@ -3232,6 +3503,7 @@ document.addEventListener('pdfviewer:ready', () => {
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
         runActiveOsaSectionPoll();
+        loadOsaAlerts().catch((error) => console.error('[loadOsaAlerts]', error));
     }
 });
 

@@ -71,8 +71,12 @@ let databaseEvents = [];
 let databaseAnnouncements = [];
 let databaseRecentActivity = [];
 let databaseTransactionNotifications = [];
+let studentAlertItems = [];
 let studentNotificationsLoaded = false;
 let studentNotificationsFailed = false;
+let studentAlertsRequest = null;
+let studentAlertsPreviousFocus = null;
+let studentAlertsRefreshTimer = null;
 const studentNotificationToastQueue = [];
 let activeStudentNotificationToastCount = 0;
 let studentAnnouncementCalendarDate = new Date();
@@ -341,6 +345,11 @@ function applyOrganizationPreviewModeChrome() {
     }
 
     if (isOsaStudentPreviewModeFromUrl()) {
+        const alertsControl = document.getElementById('student-alerts');
+        if (alertsControl) {
+            alertsControl.style.display = 'none';
+        }
+
         document.querySelectorAll('.sidebar .nav-link').forEach((link) => {
             const isOrganizationsLink = link.getAttribute('onclick')?.includes('organizations');
             if (!isOrganizationsLink) {
@@ -1453,37 +1462,133 @@ async function loadStudentRecentActivity() {
     return databaseRecentActivity;
 }
 
-async function loadStudentTransactionNotifications() {
+function formatStudentAlertStatus(status) {
+    return String(status || 'active')
+        .replace(/^locker_/, '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function renderStudentAlertSection(title, items, emptyMessage) {
+    const safeItems = Array.isArray(items) ? items : [];
+    return `
+        <section class="notif-section" aria-label="${escapeHtml(title)}">
+            <div class="notif-section-heading">
+                <h3>${escapeHtml(title)}</h3>
+                <span class="notif-section-count">${safeItems.length}</span>
+            </div>
+            ${safeItems.length ? safeItems.map((item) => `
+                <button type="button" class="notif-item" data-student-alert-id="${escapeHtml(item.id || '')}"
+                    data-severity="${escapeHtml(item.severity || 'info')}">
+                    <span class="notif-item-icon">
+                        <i class="fa-solid ${getStudentNotificationIcon(item.source_type)}"></i>
+                    </span>
+                    <span class="notif-item-copy">
+                        <strong>${escapeHtml(item.title || 'Transaction update')}</strong>
+                        <p>${escapeHtml(item.message || '')}</p>
+                        <small>${escapeHtml(formatStudentRelativeTime(item.activity_at))} &middot; ${escapeHtml(formatStudentAlertStatus(item.status))}</small>
+                    </span>
+                    <i class="fa-solid fa-chevron-right notif-item-arrow" aria-hidden="true"></i>
+                </button>
+            `).join('') : `<div class="notif-empty-section">${escapeHtml(emptyMessage)}</div>`}
+        </section>`;
+}
+
+function renderStudentAlerts(items) {
+    studentAlertItems = Array.isArray(items) ? items : [];
+    const attentionItems = studentAlertItems.filter((item) => Boolean(item?.is_unresolved));
+    const recentItems = studentAlertItems.filter((item) =>
+        !item?.is_unresolved && isStudentNotificationFromToday(item)
+    );
+
+    const countEl = document.getElementById('student-notif-count');
+    if (countEl) {
+        const count = attentionItems.length;
+        countEl.textContent = count > 99 ? '99+' : String(count);
+        countEl.hidden = count === 0;
+        countEl.setAttribute('aria-label', `${count} item${count === 1 ? '' : 's'} need attention`);
+    }
+
+    const body = document.getElementById('student-notif-drawer-body');
+    if (body) {
+        body.innerHTML = [
+            renderStudentAlertSection('Needs attention', attentionItems, 'Nothing requires your attention right now.'),
+            renderStudentAlertSection('Recent activity', recentItems, 'No completed transaction updates today.'),
+        ].join('');
+    }
+
+    const updatedEl = document.getElementById('student-notif-last-updated');
+    if (updatedEl) {
+        updatedEl.textContent = `Updated ${new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit'
+        })}`;
+    }
+}
+
+async function loadStudentTransactionNotifications(showFeedback = false) {
     if (isOsaStudentPreviewModeFromUrl()) {
         databaseTransactionNotifications = [];
+        studentAlertItems = [];
         studentNotificationsLoaded = true;
         studentNotificationsFailed = false;
         renderDashboard();
         return databaseTransactionNotifications;
     }
 
-    try {
-        const response = await fetch(STUDENT_NOTIFICATIONS_API, {
-            method: 'GET',
-            credentials: 'same-origin'
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.ok) {
-            throw new Error(data.error || 'Could not load transaction notifications.');
+    if (studentAlertsRequest) return studentAlertsRequest;
+    studentAlertsRequest = (async () => {
+        const drawerBody = document.getElementById('student-notif-drawer-body');
+        if (showFeedback && drawerBody) {
+            drawerBody.innerHTML = `
+                <div class="notif-state">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span>Refreshing alerts...</span>
+                </div>`;
         }
-        databaseTransactionNotifications = (Array.isArray(data.items) ? data.items : [])
-            .filter(isStudentNotificationFromToday);
-        studentNotificationsFailed = false;
-        syncStudentNotificationToasts(databaseTransactionNotifications);
-    } catch (error) {
-        console.error('[loadStudentTransactionNotifications]', error);
-        databaseTransactionNotifications = [];
-        studentNotificationsFailed = true;
-    }
 
-    studentNotificationsLoaded = true;
-    renderDashboard();
-    return databaseTransactionNotifications;
+        try {
+            const response = await fetch(STUDENT_NOTIFICATIONS_API, {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load transaction notifications.');
+            }
+
+            const allItems = Array.isArray(data.items) ? data.items : [];
+            databaseTransactionNotifications = allItems.filter(isStudentNotificationFromToday);
+            studentNotificationsFailed = false;
+            renderStudentAlerts(allItems);
+            syncStudentNotificationToasts(databaseTransactionNotifications);
+        } catch (error) {
+            console.error('[loadStudentTransactionNotifications]', error);
+            databaseTransactionNotifications = [];
+            studentNotificationsFailed = true;
+            if (drawerBody) {
+                drawerBody.innerHTML = `
+                    <div class="notif-state">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <strong>Alerts unavailable</strong>
+                        <span>${escapeHtml(error.message || 'Please try again.')}</span>
+                        <button type="button" onclick="loadStudentTransactionNotifications(true)">Try again</button>
+                    </div>`;
+            }
+            if (showFeedback) {
+                showToast(error.message || 'Could not refresh alerts.', 'error');
+            }
+        } finally {
+            studentNotificationsLoaded = true;
+            renderDashboard();
+            studentAlertsRequest = null;
+        }
+
+        return databaseTransactionNotifications;
+    })();
+
+    return studentAlertsRequest;
 }
 
 function formatStudentRelativeTime(dateValue) {
@@ -1516,6 +1621,144 @@ function getStudentManilaDateKey(dateValue) {
 function isStudentNotificationFromToday(item) {
     return getStudentManilaDateKey(item?.activity_at) === getStudentManilaDateKey(new Date());
 }
+
+function toggleStudentAlerts(event) {
+    event?.stopPropagation();
+    const drawer = document.getElementById('student-notif-dropdown');
+    if (drawer?.classList.contains('show')) {
+        closeStudentAlerts();
+    } else {
+        openStudentAlerts();
+    }
+}
+
+function openStudentAlerts() {
+    const drawer = document.getElementById('student-notif-dropdown');
+    const backdrop = document.getElementById('student-notif-backdrop');
+    const trigger = document.getElementById('student-notif-trigger');
+    if (!drawer || !backdrop || !trigger) return;
+
+    studentAlertsPreviousFocus = document.activeElement;
+    drawer.classList.add('show');
+    drawer.setAttribute('aria-hidden', 'false');
+    trigger.classList.add('is-active');
+    trigger.setAttribute('aria-expanded', 'true');
+    backdrop.hidden = false;
+    document.body.classList.add('notif-drawer-open');
+    window.requestAnimationFrame(() => {
+        drawer.querySelector('.notif-close-btn')?.focus();
+    });
+}
+
+function closeStudentAlerts() {
+    const drawer = document.getElementById('student-notif-dropdown');
+    const backdrop = document.getElementById('student-notif-backdrop');
+    const trigger = document.getElementById('student-notif-trigger');
+    if (!drawer) return;
+
+    drawer.classList.remove('show');
+    drawer.setAttribute('aria-hidden', 'true');
+    trigger?.classList.remove('is-active');
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('notif-drawer-open');
+
+    if (studentAlertsPreviousFocus instanceof HTMLElement) {
+        studentAlertsPreviousFocus.focus();
+    }
+    studentAlertsPreviousFocus = null;
+}
+
+function focusStudentAlertTarget(target) {
+    if (!target) return false;
+    target.classList.add('student-alert-target');
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => target.classList.remove('student-alert-target'), 2600);
+    return true;
+}
+
+async function openStudentAlertTarget(item) {
+    const target = item?.target || {};
+    const entityId = Number(target.entity_id || item?.source_id || 0);
+    closeStudentAlerts();
+
+    try {
+        if (target.action === 'open_event') {
+            if (!databaseEvents.length) await loadStudentEventsFromApi();
+            const eventItem = databaseEvents.find((entry) =>
+                Number(entry.id) === entityId
+                || String(entry.title || '') === String(target.entity_name || '')
+            );
+            if (!eventItem) throw new Error('This event is no longer available.');
+            navigateToEventDetails(eventItem.title);
+            return;
+        }
+
+        if (!['open_rental', 'open_locker', 'open_printing'].includes(target.action)) return;
+        navigate('services');
+
+        const rentalsModuleButton = document.querySelector('#servicesModuleNav [data-module="rentals"]');
+        if (rentalsModuleButton) switchServiceModule('rentals', rentalsModuleButton);
+
+        const recentButton = document.querySelector('#services .tab-btn[onclick*="my-rentals"]');
+        if (recentButton) switchServiceTab('my-rentals', recentButton);
+
+        await Promise.all([
+            loadCurrentRentals(),
+            loadRentalHistory(),
+            loadStudentPrintJobs().catch(() => []),
+        ]);
+        renderRentalHistory();
+
+        const selector = target.action === 'open_printing'
+            ? `[data-print-job-id="${entityId}"]`
+            : `[data-rental-id="${entityId}"]`;
+        const matchingRecords = Array.from(document.querySelectorAll(selector));
+        const record = matchingRecords.find((element) => element.offsetParent !== null)
+            || matchingRecords[0];
+        if (!focusStudentAlertTarget(record)) {
+            throw new Error('This transaction is no longer available.');
+        }
+    } catch (error) {
+        showToast(error.message || 'Could not open this alert.', 'error');
+        loadStudentTransactionNotifications();
+    }
+}
+
+document.addEventListener('click', (event) => {
+    const alertButton = event.target.closest('[data-student-alert-id]');
+    if (!alertButton) return;
+    const item = studentAlertItems.find((entry) =>
+        String(entry.id || '') === String(alertButton.dataset.studentAlertId || '')
+    );
+    if (item) openStudentAlertTarget(item);
+});
+
+document.addEventListener('keydown', (event) => {
+    const drawer = document.getElementById('student-notif-dropdown');
+    if (!drawer?.classList.contains('show')) return;
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeStudentAlerts();
+        return;
+    }
+
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(drawer.querySelectorAll(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter((element) => !element.hidden);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+});
 
 function getStudentActivityIcon(activityType) {
     const icons = {
@@ -4778,12 +5021,14 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     window.setInterval(() => {
         loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
-        loadStudentTransactionNotifications().catch((error) => console.error(error));
         loadStudentRecentActivity().catch((error) => console.error(error));
         if (document.getElementById('announcements')?.classList.contains('active')) {
             fetchStudentAnnouncementFeed({ silent: true }).catch((error) => console.error(error));
         }
     }, 60000);
+    studentAlertsRefreshTimer = window.setInterval(() => {
+        loadStudentTransactionNotifications().catch((error) => console.error(error));
+    }, 30000);
 
     // Initialize Dashboard Carousel for the new layout
     initDashboardCarousel();
@@ -5977,6 +6222,7 @@ async function requestStudentLocker(itemId) {
         closeStudentLockerConfirmModal();
         closeStudentLockerModal();
         showToast('Locker request submitted. Proceed to the SSC office to process the rental.');
+        await loadStudentTransactionNotifications();
     } catch (error) {
         const confirmBtn = document.getElementById('studentLockerConfirmBtn');
         if (confirmBtn) {
@@ -5999,7 +6245,7 @@ function renderStudentPrintJobCards(jobs, options = {}) {
         const canCancel = showCancelButton && status === 'queued';
         const isCancelling = studentCancellingPrintJobs.has(Number(job.print_job_id));
         return `
-            <div class="printing-job-card">
+            <div class="printing-job-card" data-print-job-id="${Number(job.print_job_id)}">
                 <div class="printing-job-header">
                     <div>
                         <h4>${escapeStudentHtml(job.file_name || 'Untitled PDF')}</h4>
@@ -7252,6 +7498,7 @@ async function confirmRental() {
         renderServices((document.getElementById('serviceSearch') || {}).value || '');
         await loadCurrentRentals();
         showToast(`Reservation Confirmed: ${currentSelectedService} on ${rentalData.date} at ${rentalData.startTime}`);
+        await loadStudentTransactionNotifications();
         closeServiceModal();
     } catch (err) {
         showError(err.message || 'Could not create rental.');
@@ -7825,6 +8072,7 @@ function createRentalCard(rental) {
     if (String(rental.service_kind || '').toLowerCase() === 'locker') {
         const card = document.createElement('div');
         card.className = 'rental-card locker-rental-card';
+        card.setAttribute('data-rental-id', rental.rental_id);
         const lockerCode = String(rental.items_label || rental.barcodes || 'Locker').replace(/\s*\(\d+x\)/g, '').trim();
         const statusClass = getLockerActivityStatusClass(rental.status, rental);
         const statusText = getLockerActivityStatusLabel(rental.status, rental);
@@ -8092,6 +8340,7 @@ function createRentalHistoryRow(rental) {
     const row = document.createElement('tr');
 
     if (rental && rental._activityType === 'printing') {
+        row.setAttribute('data-print-job-id', rental.print_job_id);
         const submittedDate = formatDate(rental.submitted_at || rental.updated_at);
         const fileName = String(rental.file_name || 'Untitled PDF').trim();
         const orgName = rental.org_name || 'Unknown';
@@ -8117,6 +8366,7 @@ function createRentalHistoryRow(rental) {
     }
 
     if (String(rental.service_kind || '').toLowerCase() === 'locker') {
+        row.setAttribute('data-rental-id', rental.rental_id);
         const activityDate = formatDate(rental.rent_time || rental.updated_at);
         const lockerCode = String(rental.items_label || rental.barcodes || 'Locker').replace(/\s*\(\d+x\)/g, '').trim();
         const details = rental.locker_notice_message
@@ -8137,6 +8387,7 @@ function createRentalHistoryRow(rental) {
     }
 
     // Format dates
+    row.setAttribute('data-rental-id', rental.rental_id);
     const rentDate = formatDate(rental.rent_time);
     const items = String(rental.items_label || 'No items').replace(/\s*\(\d+x\)/g, '').trim();
     const orgName = rental.org_name || 'Unknown';

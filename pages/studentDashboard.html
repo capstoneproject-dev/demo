@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- STYLESHEET REFERENCE -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260729-student-announcement-feed-1">
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260729-student-alerts-1">
     <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260325-4">
 </head>
 
@@ -92,8 +92,44 @@
                     <i class="fa-solid fa-arrow-right-from-bracket"></i>
                 </a>
 
+                <!-- Student Alerts -->
+                <div class="notif-wrapper" id="student-alerts">
+                    <button class="notif-btn" id="student-notif-trigger" type="button"
+                        aria-label="Open alerts" aria-haspopup="dialog" aria-expanded="false"
+                        onclick="toggleStudentAlerts(event)">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notif-badge" id="student-notif-count" hidden>0</span>
+                    </button>
+                    <div class="notif-backdrop" id="student-notif-backdrop"
+                        onclick="closeStudentAlerts()" hidden></div>
+                    <aside class="notif-dropdown" id="student-notif-dropdown" role="dialog"
+                        aria-modal="true" aria-labelledby="student-notif-drawer-title" aria-hidden="true">
+                        <div class="notif-drawer-header">
+                            <h2 id="student-notif-drawer-title">Alerts</h2>
+                            <button class="notif-close-btn" type="button" onclick="closeStudentAlerts()"
+                                aria-label="Close alerts">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="notif-drawer-body" id="student-notif-drawer-body">
+                            <div class="notif-state">
+                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                <span>Loading alerts...</span>
+                            </div>
+                        </div>
+                        <div class="notif-drawer-footer">
+                            <span id="student-notif-last-updated">Waiting for updates</span>
+                            <button type="button" class="notif-refresh-btn"
+                                onclick="loadStudentTransactionNotifications(true)">
+                                <i class="fa-solid fa-rotate"></i> Refresh
+                            </button>
+                        </div>
+                    </aside>
+                </div>
+
                 <!-- User Profile -->
-                <div class="user-profile" onclick="navigate('profile')">
+                <a href="#" class="user-profile" onclick="navigate('profile'); return false;"
+                    aria-label="Open my profile">
                     <div class="user-profile-box">
                         <img id="studentHeaderAvatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E" alt="Student" class="avatar">
                         <div class="user-info">
@@ -101,7 +137,7 @@
                             <small id="studentHeaderCourse">BSCS - Year 3</small>
                         </div>
                     </div>
-                </div>
+                </a>
             </div>
         </header>
 
@@ -1128,7 +1164,7 @@
     </script>
     <!-- Org-specific data config — must load before studentDashboard.js -->
     <script src="../data/orgData.js?v=20260325-4"></script>
-    <script src="../assets/js/studentDashboard.js?v=20260729-student-announcement-feed-1"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260729-student-alerts-1"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">
