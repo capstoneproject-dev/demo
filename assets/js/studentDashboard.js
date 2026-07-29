@@ -78,6 +78,28 @@ let activeStudentNotificationToastCount = 0;
 let studentAnnouncementCalendarDate = new Date();
 let studentAnnouncementSelectedDate = '';
 let areDashboardAnnouncementsHidden = false;
+const studentAnnouncementFeedState = {
+    items: [],
+    organizations: [],
+    query: '',
+    orgId: '',
+    type: '',
+    cursor: '',
+    hasMore: false,
+    loading: false,
+    initialized: false,
+    searchTimer: null,
+    requestId: 0
+};
+const studentAnnouncementPhotoState = {
+    photos: [],
+    index: 0,
+    title: ''
+};
+const announcementDetailCarouselState = {
+    photos: [],
+    index: 0
+};
 
 const ORG_BANNER_ASSET_VERSION = "20260527";
 const ORG_PROFILE_OVERRIDES_KEY = "naapOrgProfileOverrides";
@@ -823,8 +845,10 @@ function mapOsaEventPreviewPayload(payload) {
 function mapDatabaseAnnouncement(item) {
     const orgName = item.org_name || item.org_code || 'Organization';
     const publishedAt = item.published_at || item.created_at || item.updated_at || '';
+    const gallery = parseEventPhotoGallery(item.announcement_photo);
     return {
         id: item.announcement_id || null,
+        org_id: Number(item.org_id || 0),
         title: item.title || 'Untitled Announcement',
         content: item.content || '',
         org: orgName,
@@ -832,9 +856,17 @@ function mapDatabaseAnnouncement(item) {
         date: formatStudentAnnouncementDateLabel(publishedAt),
         dateRaw: publishedAt,
         announcement_photo: item.announcement_photo || '',
+        gallery,
         audience_type: item.audience_type || 'all_students',
+        target_programs: Array.isArray(item.target_programs) ? item.target_programs : [],
+        event_id: Number(item.event_id || 0) || null,
+        event_description: item.event_description || '',
         event_datetime: item.event_datetime || '',
         event_location: item.event_location || '',
+        event_photo: item.event_photo || '',
+        event_participants: Number(item.event_participants || 0),
+        created_at: item.created_at || '',
+        updated_at: item.updated_at || '',
         isPublished: Number(item.is_published || 0) === 1
     };
 }
@@ -856,6 +888,527 @@ async function loadStudentAnnouncementsFromApi() {
         databaseAnnouncements = [];
     }
 }
+
+function getStudentAnnouncementFeedItem(announcementId) {
+    return studentAnnouncementFeedState.items.find(
+        item => Number(item.id) === Number(announcementId)
+    ) || null;
+}
+
+function getStudentAnnouncementAudienceLabel(item) {
+    return item?.audience_type === 'specific_courses' ? 'For Your Course' : 'All Students';
+}
+
+function getStudentAnnouncementOrganizationLogo(item) {
+    const savedProfile = getOrgProfileOverride(item?.org);
+    const visual = getAnnouncementOrganizationVisual(item);
+    return savedProfile.logo || visual?.image || '';
+}
+
+function getStudentAnnouncementEvent(item) {
+    if (!item?.event_id) return null;
+    const databaseEvent = getStudentScopedExtendedEvents().find(
+        event => Number(event.id) === Number(item.event_id)
+    );
+    if (databaseEvent) return databaseEvent;
+
+    const eventGallery = parseEventPhotoGallery(item.event_photo);
+    const gallery = item.gallery?.length ? item.gallery : eventGallery;
+    const image = gallery[0] || getStudentAnnouncementOrganizationLogo(item);
+    return {
+        id: item.event_id,
+        title: item.title,
+        date: formatStudentEventDateLabel(item.event_datetime),
+        dateRaw: item.event_datetime,
+        org: item.org,
+        desc: item.event_description || item.content,
+        description: item.event_description || item.content,
+        time: formatStudentEventTimeLabel(item.event_datetime),
+        venue: item.event_location || 'TBA',
+        location: item.event_location || 'TBA',
+        participants: Number(item.event_participants || 0),
+        img: image,
+        gallery: gallery.length ? gallery : [image].filter(Boolean),
+        isPublished: true
+    };
+}
+
+function renderStudentAnnouncementOrganizationFilter() {
+    const select = document.getElementById('student-announcement-organization-filter');
+    if (!select) return;
+    const currentValue = studentAnnouncementFeedState.orgId;
+    select.innerHTML = '<option value="">All organizations</option>' +
+        studentAnnouncementFeedState.organizations.map(org => {
+            const label = org.org_code
+                ? `${org.org_name} (${org.org_code})`
+                : org.org_name;
+            return `<option value="${Number(org.org_id)}">${escapeHtml(label)}</option>`;
+        }).join('');
+    select.value = currentValue;
+}
+
+function renderStudentAnnouncementFeed() {
+    const feed = document.getElementById('student-announcement-feed');
+    const loadMore = document.getElementById('student-announcement-load-more');
+    if (!feed) return;
+
+    const items = studentAnnouncementFeedState.items;
+    if (!items.length) {
+        feed.innerHTML = `
+            <div class="student-announcement-feed-state">
+                <i class="fa-regular fa-folder-open"></i>
+                <strong>No announcements found</strong>
+                <span>Try changing your search or filters.</span>
+            </div>`;
+        if (loadMore) loadMore.hidden = true;
+        return;
+    }
+
+    feed.innerHTML = items.map(item => {
+        const isEvent = Boolean(item.event_id);
+        const photos = Array.isArray(item.gallery) ? item.gallery : [];
+        const logo = getStudentAnnouncementOrganizationLogo(item);
+        const initials = String(item.orgCode || item.org || 'ORG')
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map(word => word[0])
+            .join('')
+            .toUpperCase();
+        const published = parseStudentAnnouncementDate(item.dateRaw);
+        const updated = parseStudentAnnouncementDate(item.updated_at);
+        const wasEdited = Boolean(
+            published && updated && updated.getTime() - published.getTime() > 1000
+        );
+        const registered = isEvent && isEventRegistered(item.title);
+        return `
+            <article class="student-announcement-card">
+                <header class="student-announcement-card-header">
+                    <div class="student-announcement-org-avatar">
+                        ${logo
+                            ? `<img src="${escapeHtml(logo)}" alt="${escapeHtml(item.org)} logo"
+                                onerror="this.hidden=true; this.nextElementSibling.hidden=false">
+                               <span hidden>${escapeHtml(initials || 'ORG')}</span>`
+                            : `<span>${escapeHtml(initials || 'ORG')}</span>`}
+                    </div>
+                    <div class="student-announcement-identity">
+                        <strong>${escapeHtml(item.org)}</strong>
+                        <span>${escapeHtml(item.date)}${wasEdited ? ' · Edited' : ''}</span>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm"
+                        onclick="openStudentAnnouncementDetail(${Number(item.id)})">
+                        <i class="fa-regular fa-eye"></i> View Details
+                    </button>
+                </header>
+                <div class="student-announcement-badges">
+                    <span class="student-announcement-type-badge ${isEvent ? 'is-event' : ''}">
+                        <i class="fa-solid ${isEvent ? 'fa-calendar-days' : 'fa-bullhorn'}"></i>
+                        ${isEvent ? 'Event' : 'Announcement'}
+                    </span>
+                    <span class="student-announcement-audience-badge">
+                        <i class="fa-solid fa-users"></i>
+                        ${escapeHtml(getStudentAnnouncementAudienceLabel(item))}
+                    </span>
+                </div>
+                <h3>${escapeHtml(item.title)}</h3>
+                <p class="student-announcement-card-content">${escapeHtml(item.content)}</p>
+                ${photos.length ? `
+                    <button type="button" class="student-announcement-feed-photo"
+                        onclick="openStudentAnnouncementPhotos(${Number(item.id)})"
+                        aria-label="View announcement photos">
+                        <img src="${escapeHtml(photos[0])}" alt="${escapeHtml(item.title)} photo">
+                        ${photos.length > 1 ? `
+                            <span><i class="fa-regular fa-images"></i> ${photos.length} photos</span>
+                        ` : ''}
+                    </button>
+                ` : ''}
+                ${isEvent ? `
+                    <div class="student-announcement-event-details">
+                        <span><i class="fa-regular fa-calendar"></i>${escapeHtml(item.event_datetime ? formatStudentAnnouncementDateLabel(item.event_datetime) : 'Date TBA')}</span>
+                        <span><i class="fa-regular fa-clock"></i>${escapeHtml(formatStudentEventTimeLabel(item.event_datetime))}</span>
+                        <span><i class="fa-solid fa-location-dot"></i>${escapeHtml(item.event_location || 'Venue TBA')}</span>
+                    </div>
+                    <div class="student-announcement-event-actions">
+                        <button type="button" class="btn btn-outline btn-sm"
+                            onclick="openStudentAnnouncementEvent(${Number(item.id)})">
+                            <i class="fa-regular fa-calendar-check"></i> View Event
+                        </button>
+                        <button type="button"
+                            class="btn btn-primary btn-sm ${registered ? 'registered' : ''}"
+                            data-registration-title="${escapeHtml(item.title)}"
+                            onclick="registerForStudentAnnouncementEvent(${Number(item.id)})"
+                            ${registered ? 'disabled' : ''}>
+                            ${registered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}
+                        </button>
+                    </div>
+                ` : ''}
+            </article>`;
+    }).join('');
+
+    if (loadMore) {
+        loadMore.hidden = !studentAnnouncementFeedState.hasMore;
+        loadMore.disabled = studentAnnouncementFeedState.loading;
+    }
+}
+
+async function fetchStudentAnnouncementFeed({ append = false, silent = false } = {}) {
+    if (studentAnnouncementFeedState.loading && append) return;
+    const requestId = ++studentAnnouncementFeedState.requestId;
+    studentAnnouncementFeedState.loading = true;
+    const feed = document.getElementById('student-announcement-feed');
+    const loadMore = document.getElementById('student-announcement-load-more');
+    if (!append && !silent && feed) {
+        feed.innerHTML = `
+            <div class="student-announcement-feed-state">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>Loading announcements...</span>
+            </div>`;
+    }
+    if (loadMore) loadMore.disabled = true;
+
+    try {
+        const params = new URLSearchParams({ limit: '10' });
+        if (studentAnnouncementFeedState.query) params.set('q', studentAnnouncementFeedState.query);
+        if (studentAnnouncementFeedState.orgId) params.set('org_id', studentAnnouncementFeedState.orgId);
+        if (studentAnnouncementFeedState.type) params.set('type', studentAnnouncementFeedState.type);
+        if (append && studentAnnouncementFeedState.cursor) {
+            params.set('cursor', studentAnnouncementFeedState.cursor);
+        }
+
+        const response = await fetch(`${STUDENT_ANNOUNCEMENTS_API}?${params.toString()}`, {
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load announcements.');
+        }
+        if (requestId !== studentAnnouncementFeedState.requestId) return;
+
+        const incoming = (Array.isArray(data.items) ? data.items : []).map(mapDatabaseAnnouncement);
+        if (append) {
+            const existingIds = new Set(studentAnnouncementFeedState.items.map(item => Number(item.id)));
+            studentAnnouncementFeedState.items.push(
+                ...incoming.filter(item => !existingIds.has(Number(item.id)))
+            );
+        } else {
+            studentAnnouncementFeedState.items = incoming;
+        }
+        studentAnnouncementFeedState.cursor = data.next_cursor || '';
+        studentAnnouncementFeedState.hasMore = Boolean(data.has_more);
+        studentAnnouncementFeedState.organizations = Array.isArray(data.organizations)
+            ? data.organizations
+            : studentAnnouncementFeedState.organizations;
+        studentAnnouncementFeedState.initialized = true;
+        renderStudentAnnouncementOrganizationFilter();
+        renderStudentAnnouncementFeed();
+    } catch (error) {
+        if (requestId !== studentAnnouncementFeedState.requestId) return;
+        console.error('[fetchStudentAnnouncementFeed]', error);
+        if (!append && !silent && feed) {
+            feed.innerHTML = `
+                <div class="student-announcement-feed-state is-error">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <strong>Announcements could not be loaded</strong>
+                    <span>${escapeHtml(error.message || 'Please try again.')}</span>
+                    <button type="button" class="btn btn-outline btn-sm"
+                        onclick="fetchStudentAnnouncementFeed()">Try Again</button>
+                </div>`;
+        } else if (append && typeof showToast === 'function') {
+            showToast(error.message || 'Could not load more announcements.');
+        }
+    } finally {
+        if (requestId !== studentAnnouncementFeedState.requestId) return;
+        studentAnnouncementFeedState.loading = false;
+        if (loadMore) loadMore.disabled = false;
+    }
+}
+
+function resetStudentAnnouncementFeed() {
+    studentAnnouncementFeedState.cursor = '';
+    studentAnnouncementFeedState.hasMore = false;
+    fetchStudentAnnouncementFeed();
+}
+
+function loadMoreStudentAnnouncements() {
+    if (!studentAnnouncementFeedState.hasMore) return;
+    fetchStudentAnnouncementFeed({ append: true });
+}
+
+function setupStudentAnnouncementFeed() {
+    const search = document.getElementById('student-announcement-search');
+    const organizationFilter = document.getElementById('student-announcement-organization-filter');
+    const typeFilter = document.getElementById('student-announcement-type-filter');
+
+    search?.addEventListener('input', () => {
+        clearTimeout(studentAnnouncementFeedState.searchTimer);
+        studentAnnouncementFeedState.searchTimer = setTimeout(() => {
+            studentAnnouncementFeedState.query = search.value.trim();
+            resetStudentAnnouncementFeed();
+        }, 300);
+    });
+    organizationFilter?.addEventListener('change', () => {
+        studentAnnouncementFeedState.orgId = organizationFilter.value;
+        resetStudentAnnouncementFeed();
+    });
+    typeFilter?.addEventListener('change', () => {
+        studentAnnouncementFeedState.type = typeFilter.value;
+        resetStudentAnnouncementFeed();
+    });
+}
+
+function openStudentAnnouncementDetail(announcementId) {
+    const item = getStudentAnnouncementFeedItem(announcementId);
+    const modal = document.getElementById('announcementDetailModal');
+    const title = document.getElementById('announcement-detail-title');
+    const content = document.getElementById('announcement-detail-content');
+    if (!item || !modal || !title || !content) return;
+
+    const isEvent = Boolean(item.event_id);
+    const photos = Array.isArray(item.gallery) ? item.gallery : [];
+    announcementDetailCarouselState.photos = photos;
+    announcementDetailCarouselState.index = 0;
+    title.textContent = item.title;
+
+    const heroMarkup = photos.length
+        ? `<div class="announcement-detail-hero">
+                <img id="announcement-detail-hero-img" src="${escapeHtml(photos[0])}" alt="Announcement photo 1">
+                <button type="button" class="announcement-detail-arrow announcement-detail-prev"
+                    onclick="moveAnnouncementDetailPhoto(-1)" aria-label="Previous photo">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <button type="button" class="announcement-detail-arrow announcement-detail-next"
+                    onclick="moveAnnouncementDetailPhoto(1)" aria-label="Next photo">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <div class="announcement-detail-dots" id="announcement-detail-dots"></div>
+            </div>`
+        : `<div class="announcement-detail-hero announcement-detail-hero-empty">
+                <i class="fa-regular fa-image"></i>
+            </div>`;
+
+    const eventDetailsMarkup = isEvent ? `
+        <div class="announcement-detail-event">
+            <h4>Event Details</h4>
+            <div class="announcement-detail-info-grid">
+                <div class="announcement-detail-info-item">
+                    <i class="fa-regular fa-calendar"></i>
+                    <div>
+                        <span>Date</span>
+                        <strong>${escapeHtml(item.event_datetime ? formatStudentAnnouncementDateLabel(item.event_datetime) : 'TBA')}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-regular fa-clock"></i>
+                    <div>
+                        <span>Time</span>
+                        <strong>${escapeHtml(formatStudentEventTimeLabel(item.event_datetime))}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <div>
+                        <span>Venue</span>
+                        <strong>${escapeHtml(item.event_location || 'TBA')}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-solid fa-users"></i>
+                    <div>
+                        <span>Participants</span>
+                        <strong>${Number(item.event_participants || 0)} Registered</strong>
+                    </div>
+                </div>
+            </div>
+        </div>` : '';
+
+    content.innerHTML = `
+        ${heroMarkup}
+        <div class="announcement-detail-info-grid">
+            <div class="announcement-detail-info-item">
+                <i class="fa-regular fa-calendar"></i>
+                <div>
+                    <span>Published</span>
+                    <strong>${escapeHtml(item.date)}</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-solid fa-bullhorn"></i>
+                <div>
+                    <span>Status</span>
+                    <strong>Published</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-solid fa-users"></i>
+                <div>
+                    <span>Audience</span>
+                    <strong>${escapeHtml(getStudentAnnouncementAudienceLabel(item))}</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-solid fa-sitemap"></i>
+                <div>
+                    <span>Organization</span>
+                    <strong>${escapeHtml(item.org)}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="announcement-detail-about">
+            <h4>About this Announcement</h4>
+            <p>${escapeHtml(item.content)}</p>
+        </div>
+        ${eventDetailsMarkup}
+        <div class="announcement-detail-photo-summary">
+            ${photos.length ? `${photos.length} photo${photos.length === 1 ? '' : 's'} attached` : 'No photos attached'}
+        </div>`;
+    renderAnnouncementDetailCarousel();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function renderAnnouncementDetailCarousel() {
+    const modal = document.getElementById('announcementDetailModal');
+    const image = document.getElementById('announcement-detail-hero-img');
+    const dots = document.getElementById('announcement-detail-dots');
+    const prevButton = modal?.querySelector('.announcement-detail-prev');
+    const nextButton = modal?.querySelector('.announcement-detail-next');
+    const { photos, index } = announcementDetailCarouselState;
+    if (!image || !dots || !photos.length) return;
+
+    image.src = photos[index];
+    image.alt = `Announcement photo ${index + 1}`;
+    dots.innerHTML = photos.map((_, dotIndex) => `
+        <button type="button" class="${dotIndex === index ? 'active' : ''}"
+            onclick="setAnnouncementDetailPhoto(${dotIndex})"
+            aria-label="Show photo ${dotIndex + 1}"></button>
+    `).join('');
+    const hasMultiplePhotos = photos.length > 1;
+    if (prevButton) prevButton.hidden = !hasMultiplePhotos;
+    if (nextButton) nextButton.hidden = !hasMultiplePhotos;
+}
+
+function moveAnnouncementDetailPhoto(direction) {
+    const total = announcementDetailCarouselState.photos.length;
+    if (!total) return;
+    announcementDetailCarouselState.index =
+        (announcementDetailCarouselState.index + direction + total) % total;
+    renderAnnouncementDetailCarousel();
+}
+
+function setAnnouncementDetailPhoto(index) {
+    if (index < 0 || index >= announcementDetailCarouselState.photos.length) return;
+    announcementDetailCarouselState.index = index;
+    renderAnnouncementDetailCarousel();
+}
+
+function closeStudentAnnouncementDetail() {
+    const modal = document.getElementById('announcementDetailModal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    announcementDetailCarouselState.photos = [];
+    announcementDetailCarouselState.index = 0;
+    document.body.style.overflow = '';
+}
+
+function openStudentAnnouncementPhotos(announcementId, startIndex = 0) {
+    const item = getStudentAnnouncementFeedItem(announcementId);
+    const modal = document.getElementById('studentAnnouncementPhotoModal');
+    if (!item?.gallery?.length || !modal) return;
+    studentAnnouncementPhotoState.photos = item.gallery;
+    studentAnnouncementPhotoState.index = Math.max(
+        0,
+        Math.min(Number(startIndex) || 0, item.gallery.length - 1)
+    );
+    studentAnnouncementPhotoState.title = item.title;
+    renderStudentAnnouncementPhotoCarousel();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function renderStudentAnnouncementPhotoCarousel() {
+    const image = document.getElementById('student-announcement-photo-image');
+    const dots = document.getElementById('student-announcement-photo-dots');
+    const count = document.getElementById('student-announcement-photo-count');
+    const modal = document.getElementById('studentAnnouncementPhotoModal');
+    const { photos, index, title } = studentAnnouncementPhotoState;
+    if (!image || !dots || !count || !modal || !photos.length) return;
+
+    image.src = photos[index];
+    image.alt = `${title} photo ${index + 1}`;
+    count.textContent = `${index + 1} / ${photos.length}`;
+    dots.innerHTML = photos.map((_, dotIndex) => `
+        <button type="button" class="${dotIndex === index ? 'active' : ''}"
+            onclick="setStudentAnnouncementPhoto(${dotIndex})"
+            aria-label="Show photo ${dotIndex + 1}"></button>
+    `).join('');
+    modal.querySelectorAll('.student-announcement-photo-arrow').forEach(button => {
+        button.hidden = photos.length < 2;
+    });
+    dots.hidden = photos.length < 2;
+}
+
+function moveStudentAnnouncementPhoto(direction) {
+    const total = studentAnnouncementPhotoState.photos.length;
+    if (!total) return;
+    studentAnnouncementPhotoState.index =
+        (studentAnnouncementPhotoState.index + direction + total) % total;
+    renderStudentAnnouncementPhotoCarousel();
+}
+
+function setStudentAnnouncementPhoto(index) {
+    if (index < 0 || index >= studentAnnouncementPhotoState.photos.length) return;
+    studentAnnouncementPhotoState.index = index;
+    renderStudentAnnouncementPhotoCarousel();
+}
+
+function closeStudentAnnouncementPhotos() {
+    const modal = document.getElementById('studentAnnouncementPhotoModal');
+    const image = document.getElementById('student-announcement-photo-image');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    if (image) image.removeAttribute('src');
+    studentAnnouncementPhotoState.photos = [];
+    studentAnnouncementPhotoState.index = 0;
+    studentAnnouncementPhotoState.title = '';
+    document.body.style.overflow =
+        document.getElementById('announcementDetailModal')?.classList.contains('open')
+            ? 'hidden'
+            : '';
+}
+
+function openStudentAnnouncementEvent(announcementId) {
+    const event = getStudentAnnouncementEvent(getStudentAnnouncementFeedItem(announcementId));
+    if (event) openEventDetailsModal(event);
+}
+
+function registerForStudentAnnouncementEvent(announcementId) {
+    const item = getStudentAnnouncementFeedItem(announcementId);
+    if (!item?.event_id) return;
+    openRegistrationModal(item.title, item.event_id);
+}
+
+document.addEventListener('click', (event) => {
+    const detailModal = document.getElementById('announcementDetailModal');
+    const photoModal = document.getElementById('studentAnnouncementPhotoModal');
+    if (event.target === detailModal) closeStudentAnnouncementDetail();
+    if (event.target === photoModal) closeStudentAnnouncementPhotos();
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const photoModal = document.getElementById('studentAnnouncementPhotoModal');
+    const detailModal = document.getElementById('announcementDetailModal');
+    if (photoModal?.classList.contains('open')) {
+        closeStudentAnnouncementPhotos();
+    } else if (detailModal?.classList.contains('open')) {
+        closeStudentAnnouncementDetail();
+    }
+});
 
 async function loadStudentEventsFromApi() {
     try {
@@ -2758,11 +3311,16 @@ function navigate(viewId, element) {
     // Update Page Title
     const titleMap = {
         'dashboard': 'Dashboard',
+        'announcements': 'Announcements',
         'organizations': 'Organizations',
         'services': 'Services',
         'profile': 'My Profile'
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'Student Hub';
+
+    if (viewId === 'announcements' && !studentAnnouncementFeedState.initialized) {
+        fetchStudentAnnouncementFeed();
+    }
 
     // Clear rental timer when leaving services view
     if (viewId !== 'services') {
@@ -4182,6 +4740,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     setDate();
     await loadOrganizationPublicProfiles();
+    setupStudentAnnouncementFeed();
     renderDashboard();
     loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
     loadStudentTransactionNotifications().catch((error) => console.error(error));
@@ -4221,6 +4780,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
         loadStudentTransactionNotifications().catch((error) => console.error(error));
         loadStudentRecentActivity().catch((error) => console.error(error));
+        if (document.getElementById('announcements')?.classList.contains('active')) {
+            fetchStudentAnnouncementFeed({ silent: true }).catch((error) => console.error(error));
+        }
     }, 60000);
 
     // Initialize Dashboard Carousel for the new layout
