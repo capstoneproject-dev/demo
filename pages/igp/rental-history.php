@@ -321,7 +321,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-rental-history-exact.js?v=20260720-3"></script>
+    <script src="../../assets/js/igp-rental-history-exact.js?v=20260729-action-center-1"></script>
 </body>
 
 </html>

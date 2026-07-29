@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260729-announcement-feed-3">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260729-action-center-8">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -121,15 +121,40 @@
                     <i class="fa-solid fa-arrow-right-from-bracket"></i>
                 </a>
 
-                <!-- Desktop Notifications -->
-                <div class="notif-wrapper" onclick="toggleNotifs()">
-                    <div class="notif-btn">
+                <!-- Global Officer Action Center -->
+                <div class="notif-wrapper" id="officer-action-center">
+                    <button class="notif-btn" id="notif-trigger" type="button"
+                        aria-label="Open officer action center" aria-haspopup="dialog" aria-expanded="false"
+                        onclick="toggleNotifs(event)">
                         <i class="fa-regular fa-bell"></i>
                         <span class="notif-badge" id="notif-count" hidden>0</span>
-                    </div>
-                    <div class="notif-dropdown" id="notif-dropdown">
-                        <div class="notif-item"><small>Loading notifications...</small></div>
-                    </div>
+                    </button>
+                    <div class="notif-backdrop" id="notif-backdrop" onclick="closeNotifs()" hidden></div>
+                    <aside class="notif-dropdown" id="notif-dropdown" role="dialog" aria-modal="true"
+                        aria-labelledby="notif-drawer-title" aria-hidden="true">
+                        <div class="notif-drawer-header">
+                            <div>
+                                <h2 id="notif-drawer-title">Action Center</h2>
+                                <p>Operational updates for your organization</p>
+                            </div>
+                            <button class="notif-close-btn" type="button" onclick="closeNotifs()"
+                                aria-label="Close action center">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="notif-drawer-body" id="notif-drawer-body">
+                            <div class="notif-state">
+                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                <span>Loading action center...</span>
+                            </div>
+                        </div>
+                        <div class="notif-drawer-footer">
+                            <span id="notif-last-updated">Waiting for updates</span>
+                            <button type="button" class="notif-refresh-btn" onclick="loadOfficerActionCenter(true)">
+                                <i class="fa-solid fa-rotate"></i> Refresh
+                            </button>
+                        </div>
+                    </aside>
                 </div>
 
                 <!-- User Profile -->
@@ -2048,7 +2073,7 @@
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260729-announcement-feed-3"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260729-action-center-1"></script>
 </body>
 
 </html>

@@ -350,7 +350,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../assets/js/igp-api.js?v=20260227n"></script>
-    <script src="../../assets/js/igp-index-exact.js?v=20260227n"></script>
+    <script src="../../assets/js/igp-index-exact.js?v=20260729-action-center-1"></script>
 </body>
 
 </html>

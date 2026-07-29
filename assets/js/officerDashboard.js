@@ -602,6 +602,235 @@ function formatDashboardRelativeTime(value) {
     return 'just now';
 }
 
+let officerActionCenterRequest = null;
+let officerActionCenterItems = new Map();
+let officerActionCenterPreviousFocus = null;
+
+function getOfficerActionCenterIcon(category) {
+    const icons = {
+        rental: 'fa-boxes-stacked',
+        printing: 'fa-print',
+        locker: 'fa-door-closed',
+        document: 'fa-file-circle-exclamation',
+        event: 'fa-calendar-day',
+    };
+    return icons[String(category || '').toLowerCase()] || 'fa-circle-info';
+}
+
+function renderOfficerActionCenterSection(title, items, emptyMessage, totalCount = null) {
+    const safeItems = Array.isArray(items) ? items : [];
+    const visibleTotal = totalCount === null ? safeItems.length : Math.max(safeItems.length, Number(totalCount) || 0);
+    const countLabel = visibleTotal > safeItems.length ? `${safeItems.length} of ${visibleTotal}` : String(visibleTotal);
+    return `
+        <section class="notif-section" aria-label="${escapeHtml(title)}">
+            <div class="notif-section-heading">
+                <h3>${escapeHtml(title)}</h3>
+                <span class="notif-section-count">${countLabel}</span>
+            </div>
+            ${safeItems.length ? safeItems.map((item) => `
+                <button type="button" class="notif-item" data-notification-key="${escapeHtml(item.key || '')}"
+                    data-severity="${escapeHtml(item.severity || 'info')}">
+                    <span class="notif-item-icon">
+                        <i class="fa-solid ${getOfficerActionCenterIcon(item.category)}"></i>
+                    </span>
+                    <span class="notif-item-copy">
+                        <strong>${escapeHtml(item.title || 'Operational update')}</strong>
+                        <p>${escapeHtml(item.summary || '')}</p>
+                        <small>${escapeHtml(formatDashboardRelativeTime(item.occurred_at))} · ${escapeHtml(formatDashboardStatus(item.status))}</small>
+                    </span>
+                    <i class="fa-solid fa-chevron-right notif-item-arrow" aria-hidden="true"></i>
+                </button>
+            `).join('') : `<div class="notif-empty-section">${escapeHtml(emptyMessage)}</div>`}
+        </section>
+    `;
+}
+
+function renderOfficerActionCenter(data) {
+    const attentionItems = Array.isArray(data.attention_items) ? data.attention_items : [];
+    const recentItems = Array.isArray(data.recent_items) ? data.recent_items : [];
+    const allItems = [...attentionItems, ...recentItems];
+    officerActionCenterItems = new Map(allItems.map((item) => [String(item.key || ''), item]));
+
+    const count = Math.max(0, Number(data.attention_count) || 0);
+    const countEl = document.getElementById('notif-count');
+    if (countEl) {
+        countEl.textContent = count > 99 ? '99+' : String(count);
+        countEl.hidden = count === 0;
+        countEl.setAttribute('aria-label', `${count} item${count === 1 ? '' : 's'} need attention`);
+    }
+    const body = document.getElementById('notif-drawer-body');
+    if (body) {
+        body.innerHTML = [
+            renderOfficerActionCenterSection('Needs attention', attentionItems, 'Nothing requires action right now.', count),
+            renderOfficerActionCenterSection('Recent activity', recentItems, 'No operational changes in the last seven days.'),
+        ].join('');
+    }
+
+    const generatedAt = data.generated_at ? new Date(data.generated_at) : new Date();
+    const updatedEl = document.getElementById('notif-last-updated');
+    if (updatedEl) {
+        updatedEl.textContent = Number.isNaN(generatedAt.getTime())
+            ? 'Updated just now'
+            : `Updated ${generatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+    }
+}
+
+async function loadOfficerActionCenter(showFeedback = false) {
+    if (isOfficerAnnouncementPreviewMode()) return;
+    if (officerActionCenterRequest) return officerActionCenterRequest;
+
+    officerActionCenterRequest = (async () => {
+        const body = document.getElementById('notif-drawer-body');
+        if (showFeedback && body) {
+            body.innerHTML = `
+                <div class="notif-state">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span>Refreshing action center...</span>
+                </div>`;
+        }
+        try {
+            const response = await fetch('../api/officer/notifications/list.php?limit=30', {
+                credentials: 'same-origin',
+                cache: 'no-store',
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load the action center.');
+            }
+            renderOfficerActionCenter(data);
+        } catch (error) {
+            console.error('[loadOfficerActionCenter]', error);
+            if (body) {
+                body.innerHTML = `
+                    <div class="notif-state">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <strong>Action center unavailable</strong>
+                        <span>${escapeHtml(error.message || 'Please try again.')}</span>
+                        <button type="button" onclick="loadOfficerActionCenter(true)">Try again</button>
+                    </div>`;
+            }
+            if (showFeedback) showToast(error.message || 'Could not refresh the action center.', 'error');
+        } finally {
+            officerActionCenterRequest = null;
+        }
+    })();
+    return officerActionCenterRequest;
+}
+
+function focusOfficerActionCenterItem(target) {
+    if (!target) return false;
+    target.classList.add('action-center-target');
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => target.classList.remove('action-center-target'), 2600);
+    return true;
+}
+
+function sendOfficerModuleMessage(frame, payload) {
+    if (!frame) return false;
+    const send = () => frame.contentWindow?.postMessage(payload, window.location.origin);
+    try {
+        if (frame.contentDocument?.readyState === 'complete') {
+            send();
+        } else {
+            frame.addEventListener('load', send, { once: true });
+            send();
+        }
+        return true;
+    } catch (_error) {
+        return false;
+    }
+}
+
+async function openOfficerActionCenterTarget(item) {
+    const target = item?.target || {};
+    const entityId = Number(target.entity_id || 0);
+    closeNotifs();
+
+    if (!target.view) return;
+    navigate(target.view);
+
+    if (target.action === 'open_printing') {
+        switchTrackerSubView('printing');
+        try {
+            await loadOfficerPrintingQueue();
+            if (['claimed', 'cancelled'].includes(String(item.status || '').toLowerCase())) {
+                showAllOfficerPrintingHistoryDates();
+                showOfficerPrintingHistoryView();
+            } else {
+                showOfficerPrintingQueueView();
+            }
+            const row = document.querySelector(`[data-print-job-id="${entityId}"]`);
+            if (!focusOfficerActionCenterItem(row)) throw new Error('This printing request is no longer available.');
+        } catch (error) {
+            showToast(error.message || 'Could not open the printing request.', 'error');
+            loadOfficerActionCenter();
+        }
+        return;
+    }
+
+    if (target.action === 'open_locker') {
+        switchTrackerSubView('lockers');
+        try {
+            await loadOfficerLockerBoard(true);
+            const locker = officerLockerBoard.find((entry) =>
+                Number(entry.current_request?.rental_id || 0) === entityId
+                || String(entry.locker_code || '') === String(target.item_label || '')
+            );
+            if (!locker) throw new Error('This locker request is no longer available.');
+            const tile = Array.from(document.querySelectorAll('.locker-tile')).find((entry) =>
+                entry.textContent.includes(String(locker.locker_code || ''))
+            );
+            focusOfficerActionCenterItem(tile);
+            openLockerDetail(locker.locker_code);
+        } catch (error) {
+            showToast(error.message || 'Could not open the locker request.', 'error');
+            loadOfficerActionCenter();
+        }
+        return;
+    }
+
+    if (target.action === 'open_document') {
+        await loadDocsFromApi();
+        const documentItem = docsData.find((entry) => Number(entry.submission_id) === entityId);
+        if (!documentItem) {
+            showToast('This document is no longer available.', 'error');
+            loadOfficerActionCenter();
+            return;
+        }
+        const card = document.querySelector(`[data-submission-id="${entityId}"]`);
+        focusOfficerActionCenterItem(card);
+        openPdfViewer(documentItem.viewerId);
+        return;
+    }
+
+    if (target.action === 'open_event') {
+        const frame = document.querySelector('#events iframe');
+        if (!sendOfficerModuleMessage(frame, {
+            type: 'OPEN_EVENT_DETAILS',
+            eventId: entityId,
+            eventName: target.entity_name || '',
+        })) {
+            showToast('The Events tab could not be reached.', 'error');
+        }
+        return;
+    }
+
+    if (target.action === 'open_rental') {
+        switchTrackerSubView('rentals');
+        const frame = document.querySelector('#tracker-rentals-view iframe');
+        if (['returned', 'cancelled'].includes(String(item.status || '').toLowerCase()) && frame) {
+            frame.src = `../pages/igp/rental-history.php?action_center_rental_id=${entityId}`;
+            return;
+        }
+        if (!sendOfficerModuleMessage(frame, {
+            type: 'OPEN_RENTAL_RECORD',
+            rentalId: entityId,
+        })) {
+            showToast('The Rentals tab could not be reached.', 'error');
+        }
+    }
+}
+
 function formatDashboardStatus(status) {
     return String(status || 'active')
         .replace(/^locker_/, '')
@@ -704,21 +933,6 @@ function renderOfficerDashboard(data) {
         }).join('') : '<div style="color:var(--muted);">No upcoming published events.</div>';
     }
 
-    const notifications = Array.isArray(data.notifications) ? data.notifications : [];
-    const notificationCount = document.getElementById('notif-count');
-    const notificationDropdown = document.getElementById('notif-dropdown');
-    if (notificationCount) {
-        notificationCount.textContent = String(notifications.length);
-        notificationCount.hidden = notifications.length === 0;
-    }
-    if (notificationDropdown) {
-        notificationDropdown.innerHTML = notifications.length ? notifications.map(item => `
-            <div class="notif-item">
-                <strong>${escapeHtml(item.title || 'Update')}</strong>
-                <small>${escapeHtml(formatDashboardRelativeTime(item.published_at))}</small>
-            </div>
-        `).join('') : '<div class="notif-item"><small>No published notifications.</small></div>';
-    }
 }
 
 // Temporary dashboard-only preview data. This never calls an API or writes to the database.
@@ -787,7 +1001,6 @@ function showOfficerDashboardMockData() {
         },
         documents: { period: monthLabel, pending: randomInt(0, 8), approved: randomInt(6, 28), rejected: randomInt(0, 4) },
         latest_updates: updates,
-        notifications: updates.map(({ id, title, published_at }) => ({ id, title, published_at })),
         upcoming_events: eventOptions.map(([name, location], index) => ({
             id: `mock-event-${index}`,
             name,
@@ -828,7 +1041,10 @@ async function loadOfficerDashboard(showFeedback = false) {
 function startOfficerDashboardRealtime() {
     if (officerDashboardRefreshTimer) clearInterval(officerDashboardRefreshTimer);
     officerDashboardRefreshTimer = setInterval(() => {
-        if (!document.hidden && !officerDashboardMockPreviewActive) loadOfficerDashboard(false);
+        if (!document.hidden && !officerDashboardMockPreviewActive) {
+            loadOfficerDashboard(false);
+            loadOfficerActionCenter(false);
+        }
     }, 30000);
 }
 
@@ -2246,7 +2462,7 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
         }
 
         return `
-            <tr>
+            <tr data-print-job-id="${Number(job.print_job_id)}">
                 <td>${queueLabel}</td>
                 <td>
                     <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
@@ -2306,7 +2522,7 @@ function renderOfficerPendingPrintRequests(printingEnabled = true) {
             : '';
 
         return `
-            <tr>
+            <tr data-print-job-id="${Number(job.print_job_id)}">
                 <td>
                     <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
                     ${job.notes ? `<div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.notes)}</div>` : ''}
@@ -2427,7 +2643,7 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
         const jobUrl = resolvePdfUrl(job.file_url);
         const completedAt = job.claimed_at || job.updated_at || '';
         return `
-            <tr>
+            <tr data-print-job-id="${Number(job.print_job_id)}">
                 <td>${Number(job.queue_order || job.queue_position || 0) || '-'}</td>
                 <td>
                     <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
@@ -2833,6 +3049,7 @@ async function acceptOfficerPendingPrintRequest(printJobId) {
         }
 
         await loadOfficerPrintingQueue(true);
+        loadOfficerActionCenter(false);
     } catch (error) {
         alert(error.message || 'Could not accept the print request.');
         await loadOfficerPendingPrintRequests(true).catch(() => {});
@@ -2855,6 +3072,7 @@ async function updateOfficerPrintJobStatus(printJobId, status) {
             throw new Error(data.error || 'Could not update print job status.');
         }
         await loadOfficerPrintingQueue(true);
+        loadOfficerActionCenter(false);
     } catch (error) {
         alert(error.message || 'Could not update print job status.');
     }
@@ -3483,6 +3701,7 @@ async function submitManualLockerAssignment() {
         renderOfficerLockerBoard();
         closeLockerAssignStudentModal();
         openLockerDetail(lockerCode);
+        loadOfficerActionCenter(false);
     } catch (error) {
         alert(error.message || 'Could not assign the locker.');
     }
@@ -3642,6 +3861,7 @@ async function approveLockerAssignment() {
         officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
         closeLockerDetailModal();
+        loadOfficerActionCenter(false);
     } catch (error) {
         alert(error.message || 'Could not approve locker assignment.');
     }
@@ -3666,6 +3886,7 @@ async function releaseLockerAssignment() {
         renderOfficerLockerBoard();
         closeLockerReleaseConfirmModal();
         closeLockerDetailModal();
+        loadOfficerActionCenter(false);
     } catch (error) {
         alert(error.message || 'Could not release locker assignment.');
     }
@@ -4396,7 +4617,7 @@ function renderDocs(filter = 'All', btnElement = null) {
         }
 
         return `
-        <div class="list-item" onclick="openPdfViewer('${doc.viewerId}')">
+        <div class="list-item" data-submission-id="${Number(doc.submission_id || doc.id || 0)}" onclick="openPdfViewer('${doc.viewerId}')">
             <div class="col-name" style="display: flex; gap: 15px; align-items: center;">
                 <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
                     <i class="fa-solid fa-file-pdf"></i>
@@ -5387,11 +5608,53 @@ function setupAnnouncementFeedFilters() {
 
 // --- ACTIONS ---
 
-function toggleNotifs() {
-    document.getElementById('notif-dropdown').classList.toggle('show');
-    // Close export if open
+function toggleNotifs(event) {
+    event?.stopPropagation();
+    const dropdown = document.getElementById('notif-dropdown');
+    if (!dropdown) return;
+    if (dropdown.classList.contains('show')) {
+        closeNotifs();
+    } else {
+        openNotifs();
+    }
+}
+
+function openNotifs() {
+    const dropdown = document.getElementById('notif-dropdown');
+    const trigger = document.getElementById('notif-trigger');
+    const backdrop = document.getElementById('notif-backdrop');
+    if (!dropdown || !trigger) return;
+
+    officerActionCenterPreviousFocus = document.activeElement;
+    dropdown.classList.add('show');
+    dropdown.setAttribute('aria-hidden', 'false');
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.classList.add('is-active');
+    if (backdrop) backdrop.hidden = false;
+    document.body.classList.add('notif-drawer-open');
+
     const exportDropdown = document.getElementById('export-dropdown');
     if (exportDropdown) exportDropdown.classList.remove('show');
+    loadOfficerActionCenter();
+    setTimeout(() => dropdown.querySelector('.notif-close-btn')?.focus(), 50);
+}
+
+function closeNotifs() {
+    const dropdown = document.getElementById('notif-dropdown');
+    const trigger = document.getElementById('notif-trigger');
+    const backdrop = document.getElementById('notif-backdrop');
+    if (!dropdown || !trigger) return;
+
+    const wasOpen = dropdown.classList.contains('show');
+    dropdown.classList.remove('show');
+    dropdown.setAttribute('aria-hidden', 'true');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.classList.remove('is-active');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('notif-drawer-open');
+    if (wasOpen && officerActionCenterPreviousFocus instanceof HTMLElement) {
+        officerActionCenterPreviousFocus.focus();
+    }
 }
 
 function toggleExportMenu() {
@@ -5404,15 +5667,6 @@ function toggleExportMenu() {
 
 // Close dropdown if clicked outside
 window.onclick = function (event) {
-    if (!event.target.closest('.notif-wrapper')) {
-        var dropdowns = document.getElementsByClassName("notif-dropdown");
-        for (var i = 0; i < dropdowns.length; i++) {
-            var openDropdown = dropdowns[i];
-            if (openDropdown.classList.contains('show')) {
-                openDropdown.classList.remove('show');
-            }
-        }
-    }
     if (!event.target.closest('.export-wrapper')) {
         var exports = document.getElementsByClassName("export-dropdown");
         for (var i = 0; i < exports.length; i++) {
@@ -5600,6 +5854,52 @@ async function postAnnouncement(e) {
         if (submitButton) submitButton.disabled = false;
     }
 }
+
+document.addEventListener('click', (event) => {
+    const itemButton = event.target.closest('[data-notification-key]');
+    if (!itemButton) return;
+    const item = officerActionCenterItems.get(String(itemButton.dataset.notificationKey || ''));
+    if (item) openOfficerActionCenterTarget(item);
+});
+
+document.addEventListener('keydown', (event) => {
+    const dropdown = document.getElementById('notif-dropdown');
+    if (!dropdown?.classList.contains('show')) return;
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeNotifs();
+        return;
+    }
+
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(dropdown.querySelectorAll(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter((element) => element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+});
+
+window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return;
+    const embeddedFrames = Array.from(document.querySelectorAll('#events iframe, #tracker iframe'));
+    if (!embeddedFrames.some((frame) => frame.contentWindow === event.source)) return;
+
+    if (event.data?.type === 'OFFICER_ACTION_CENTER_REFRESH') {
+        loadOfficerActionCenter(false);
+    } else if (event.data?.type === 'OFFICER_NAVIGATION_TARGET_MISSING') {
+        showToast('That item is no longer available. The action center has been refreshed.', 'info');
+        loadOfficerActionCenter(false);
+    }
+});
 
 async function archiveAnnouncement(announcementId) {
     const item = getOfficerScopedAnnouncements().find(announcement => Number(announcement.id || announcement.announcement_id) === Number(announcementId));
@@ -6609,6 +6909,7 @@ window.addEventListener('DOMContentLoaded', () => {
         .catch(() => {})
         .finally(() => {
             loadOfficerDashboard(false);
+            loadOfficerActionCenter(false);
             loadOfficerFinancialSummary().catch(() => {});
             startOfficerDashboardRealtime();
             loadOfficerPrintingQueue().catch(() => {});
@@ -6622,6 +6923,7 @@ window.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !officerDashboardMockPreviewActive && !isOfficerAnnouncementPreviewMode()) {
         loadOfficerDashboard(false);
+        loadOfficerActionCenter(false);
     }
 });
 
