@@ -202,9 +202,12 @@ CREATE TABLE dbo.announcements (
     created_by_user_id INT           NOT NULL,
     title              VARCHAR(255)  NOT NULL,
     content            NVARCHAR(MAX) NOT NULL,
+    announcement_photo NVARCHAR(MAX) NULL,
     audience_type      VARCHAR(20)   NOT NULL CONSTRAINT df_announcements_audience_type DEFAULT 'all_students',
     is_published       BIT           NOT NULL CONSTRAINT df_announcements_is_published  DEFAULT 0,
     published_at       DATETIME2(0)  NULL,
+    archived_at        DATETIME2(0)  NULL,
+    archived_by_user_id INT          NULL,
     created_at         DATETIME2(0)  NOT NULL CONSTRAINT df_announcements_created_at DEFAULT SYSDATETIME(),
     updated_at         DATETIME2(0)  NOT NULL CONSTRAINT df_announcements_updated_at DEFAULT SYSDATETIME(),
     CONSTRAINT pk_announcements PRIMARY KEY (announcement_id)
@@ -396,7 +399,9 @@ GO
 
 -- announcements
 CREATE INDEX idx_announcements_org_published ON dbo.announcements(org_id, is_published, published_at);
+CREATE INDEX idx_announcements_org_archive_sort ON dbo.announcements(org_id, archived_at, published_at, announcement_id);
 CREATE INDEX fk_announce_creator             ON dbo.announcements(created_by_user_id);
+CREATE INDEX fk_announce_archiver            ON dbo.announcements(archived_by_user_id);
 GO
 
 -- attendance_records
@@ -518,6 +523,8 @@ GO
 ALTER TABLE dbo.announcements
     ADD CONSTRAINT fk_announce_creator
             FOREIGN KEY (created_by_user_id) REFERENCES dbo.users(user_id),
+        CONSTRAINT fk_announce_archiver
+            FOREIGN KEY (archived_by_user_id) REFERENCES dbo.users(user_id) ON DELETE SET NULL,
         CONSTRAINT fk_announce_org
             FOREIGN KEY (org_id) REFERENCES dbo.organizations(org_id) ON DELETE CASCADE;
 GO

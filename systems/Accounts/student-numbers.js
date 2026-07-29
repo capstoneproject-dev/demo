@@ -256,7 +256,11 @@ async function handleEditStudentNumber(e) {
 async function deleteStudentNumber(studentId) {
     var s = studentNumbers.find(function(s) { return s.studentId === studentId; });
     if (!s) return;
-    if (!confirm('Delete ' + studentId + ' (' + s.studentName + ')?')) return;
+    if (!await appConfirm('Delete ' + studentId + ' (' + s.studentName + ')?', {
+        title: 'Delete student number',
+        confirmText: 'Delete',
+        danger: true
+    })) return;
     try {
         await getService().deleteStudentNumber(s.studentId);
         studentNumbers = studentNumbers.filter(function(x) { return x.studentId !== studentId; });

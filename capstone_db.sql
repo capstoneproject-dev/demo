@@ -79,6 +79,8 @@ CREATE TABLE `announcements` (
   `audience_type` varchar(20) NOT NULL DEFAULT 'all_students',
   `is_published` tinyint(1) NOT NULL DEFAULT 0,
   `published_at` datetime DEFAULT NULL,
+  `archived_at` datetime DEFAULT NULL,
+  `archived_by_user_id` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ;
@@ -1110,6 +1112,8 @@ ALTER TABLE `academic_programs`
 ALTER TABLE `announcements`
   ADD PRIMARY KEY (`announcement_id`),
   ADD KEY `fk_announce_creator` (`created_by_user_id`),
+  ADD KEY `fk_announce_archiver` (`archived_by_user_id`),
+  ADD KEY `idx_announcements_org_archive_sort` (`org_id`,`archived_at`,`published_at`,`announcement_id`),
   ADD KEY `idx_announcements_org_published` (`org_id`,`is_published`,`published_at`);
 
 --
@@ -1418,6 +1422,7 @@ ALTER TABLE `academic_programs`
 --
 ALTER TABLE `announcements`
   ADD CONSTRAINT `fk_announce_creator` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `fk_announce_archiver` FOREIGN KEY (`archived_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_announce_org` FOREIGN KEY (`org_id`) REFERENCES `organizations` (`org_id`) ON DELETE CASCADE;
 
 --

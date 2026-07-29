@@ -404,7 +404,11 @@ async function handleEditStudent(e) {
 }
 
 async function deleteStudent(studentId) {
-    if (!confirm('Delete student ' + studentId + '?')) return;
+    if (!await appConfirm('Delete student ' + studentId + '?', {
+        title: 'Delete student account',
+        confirmText: 'Delete',
+        danger: true
+    })) return;
     var idx = students.findIndex(function(s) { return s.studentId === studentId; });
     if (idx === -1) return;
     try {
@@ -519,7 +523,11 @@ async function handleEditOfficer(e) {
 async function deleteOfficerRecord(officerId) {
     var o = officers.find(function(o) { return o.id === officerId; });
     if (!o) return;
-    if (!confirm('Remove ' + o.studentName + ' from ' + o.orgCode + '?')) return;
+    if (!await appConfirm('Remove ' + o.studentName + ' from ' + o.orgCode + '?', {
+        title: 'Remove organization officer',
+        confirmText: 'Remove',
+        danger: true
+    })) return;
     try {
         await getService().deleteOfficer(officerId);
         lastFingerprint = null;

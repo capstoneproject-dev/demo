@@ -78,7 +78,11 @@
             const del = e.target.closest('.js-del');
             if (!del) return;
             const id = Number(del.dataset.id);
-            if (!confirm('Delete this inventory item?')) return;
+            if (!await appConfirm('Delete this inventory item?', {
+                title: 'Delete inventory item',
+                confirmText: 'Delete',
+                danger: true
+            })) return;
             try {
                 await window.igpApi.deleteInventory(id);
                 await refresh();

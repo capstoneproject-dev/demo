@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+    <script src="../../assets/js/app-dialog.js?v=20260729-1"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rental History</title>
@@ -634,7 +635,11 @@
                     }
                 }
                 if (newRecords.length) {
-                    if (confirm('Importing will overwrite all current rental history in local storage. Continue?')) {
+                    if (await appConfirm('Importing will overwrite all current rental history in local storage. Continue?', {
+                        title: 'Overwrite rental history',
+                        confirmText: 'Import and overwrite',
+                        danger: true
+                    })) {
                         localStorage.setItem('rentalRecords', JSON.stringify(newRecords));
                         rentalRecords = newRecords;
                         updateRentalHistoryTableStandalone();

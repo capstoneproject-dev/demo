@@ -9,6 +9,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="../../assets/js/app-dialog.js?v=20260729-1"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IGP Rental - Import</title>

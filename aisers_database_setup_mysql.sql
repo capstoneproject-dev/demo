@@ -242,14 +242,19 @@ CREATE TABLE announcements (
     created_by_user_id INT NOT NULL,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
+    announcement_photo LONGTEXT NULL,
     audience_type VARCHAR(20) NOT NULL DEFAULT 'all_students',
     is_published TINYINT(1) NOT NULL DEFAULT 0,
     published_at DATETIME NULL,
+    archived_at DATETIME NULL,
+    archived_by_user_id INT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_announce_audience CHECK (audience_type IN ('all_students', 'members_only', 'officers_only')),
+    CONSTRAINT chk_announce_audience CHECK (audience_type IN ('all_students', 'specific_courses', 'members_only', 'officers_only')),
     CONSTRAINT fk_announce_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
-    CONSTRAINT fk_announce_creator FOREIGN KEY (created_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT
+    CONSTRAINT fk_announce_creator FOREIGN KEY (created_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_announce_archiver FOREIGN KEY (archived_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_announcements_org_archive_sort (org_id, archived_at, published_at, announcement_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE attendance_records (
