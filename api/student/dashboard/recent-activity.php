@@ -11,7 +11,8 @@ try {
         jsonError('Not authenticated.', 401);
     }
 
-    $limit = max(1, min(10, (int)($_GET['limit'] ?? 5)));
+    // The dashboard card is intentionally fixed to the five most recent activities.
+    $limit = 5;
     $pdo = getPdo();
     $queries = [
         "SELECT 'printing' AS activity_type,

@@ -1657,14 +1657,22 @@
                                 <span class="sync-text"><i class="fa-solid fa-calendar-plus"></i> Also create this as an Event</span>
                             </label>
                         </div>
-                        <div id="event-sync-fields" style="display:none; margin-top:10px; border:1px dashed var(--border); padding:10px; border-radius:8px;">
-                            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:10px;">
-                                <div><label style="margin-bottom:4px;">Event Date</label><input type="date" id="event-date"></div>
-                                <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                                    <div style="flex:1; min-width:120px;"><label style="margin-bottom:4px;">Start</label><input type="time" id="event-time-start"></div>
-                                    <div style="flex:1; min-width:120px;"><label style="margin-bottom:4px;">End</label><input type="time" id="event-time-end"></div>
-                                </div>
-                                <div><label style="margin-bottom:4px;">Location</label><input type="text" id="event-location" placeholder="e.g., Auditorium A"></div>
+                        <div id="event-sync-fields" class="announcement-event-fields">
+                            <div class="announcement-event-field event-date-field">
+                                <label for="event-date">Event Date</label>
+                                <input type="date" id="event-date">
+                            </div>
+                            <div class="announcement-event-field event-start-field">
+                                <label for="event-time-start">Start</label>
+                                <input type="time" id="event-time-start">
+                            </div>
+                            <div class="announcement-event-field event-location-field">
+                                <label for="event-location">Location</label>
+                                <input type="text" id="event-location" placeholder="e.g., Auditorium A">
+                            </div>
+                            <div class="announcement-event-field event-end-field">
+                                <label for="event-time-end">End</label>
+                                <input type="time" id="event-time-end">
                             </div>
                         </div>
                     </div>
@@ -1675,6 +1683,25 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <div id="announcementPhotoModal" class="modal-overlay announcement-photo-overlay">
+            <div class="modal-content announcement-photo-modal" role="dialog" aria-modal="true" aria-label="Announcement photos">
+                <button type="button" class="announcement-photo-modal-close" onclick="closeAnnouncementPhotoCarousel()" aria-label="Close photo carousel">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="announcement-photo-lightbox">
+                    <img id="announcement-photo-lightbox-img" src="" alt="Announcement photo">
+                    <button type="button" class="announcement-photo-lightbox-arrow previous" onclick="moveAnnouncementPhotoCarousel(-1)" aria-label="Previous photo">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="announcement-photo-lightbox-arrow next" onclick="moveAnnouncementPhotoCarousel(1)" aria-label="Next photo">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <div id="announcement-photo-lightbox-dots" class="announcement-photo-lightbox-dots"></div>
+                    <div id="announcement-photo-lightbox-count" class="announcement-photo-lightbox-count"></div>
+                </div>
             </div>
         </div>
 

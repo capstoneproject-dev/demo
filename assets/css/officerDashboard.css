@@ -1925,6 +1925,116 @@ body.dark .sub-nav-btn.active {
     font-weight: 700;
 }
 
+.announcement-photo-overlay {
+    padding: 24px;
+    background: rgba(3, 7, 18, 0.88);
+    backdrop-filter: blur(8px);
+}
+
+.modal-content.announcement-photo-modal {
+    position: relative;
+    width: min(1100px, 96vw);
+    max-width: 1100px;
+    height: min(780px, 90vh);
+    max-height: 90vh;
+    overflow: hidden;
+    border: 0;
+    border-radius: 16px;
+    background: #080d18;
+}
+
+.announcement-photo-lightbox {
+    position: relative;
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+}
+
+.announcement-photo-lightbox img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.announcement-photo-modal-close,
+.announcement-photo-lightbox-arrow {
+    position: absolute;
+    z-index: 2;
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    background: rgba(8, 13, 24, 0.76);
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+}
+
+.announcement-photo-modal-close {
+    top: 16px;
+    right: 16px;
+}
+
+.announcement-photo-lightbox-arrow {
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.announcement-photo-lightbox-arrow.previous {
+    left: 16px;
+}
+
+.announcement-photo-lightbox-arrow.next {
+    right: 16px;
+}
+
+.announcement-photo-modal-close:hover,
+.announcement-photo-lightbox-arrow:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.announcement-photo-lightbox-dots {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    z-index: 2;
+    display: flex;
+    gap: 7px;
+    transform: translateX(-50%);
+}
+
+.announcement-photo-lightbox-dots button {
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+}
+
+.announcement-photo-lightbox-dots button.active {
+    background: #fff;
+    transform: scale(1.25);
+}
+
+.announcement-photo-lightbox-count {
+    position: absolute;
+    right: 20px;
+    bottom: 18px;
+    z-index: 2;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(8, 13, 24, 0.72);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
 .announcement-feed-event-details {
     display: flex;
     flex-wrap: wrap;
@@ -1993,6 +2103,49 @@ body.dark .sub-nav-btn.active {
     margin-top: 0;
 }
 
+.announcement-event-fields {
+    display: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+        "date start"
+        "location end";
+    gap: 12px 16px;
+    padding: 14px;
+    margin-top: 10px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: var(--panel-2);
+}
+
+.announcement-event-field {
+    min-width: 0;
+}
+
+.announcement-event-field label {
+    margin: 0 0 5px;
+}
+
+.announcement-event-field input {
+    width: 100%;
+    margin: 0;
+}
+
+.event-date-field {
+    grid-area: date;
+}
+
+.event-start-field {
+    grid-area: start;
+}
+
+.event-location-field {
+    grid-area: location;
+}
+
+.event-end-field {
+    grid-area: end;
+}
+
 @media (max-width: 720px) {
     .announcement-management-header,
     .announcement-feed-card-header {
@@ -2019,6 +2172,33 @@ body.dark .sub-nav-btn.active {
 
     .announcement-feed-card {
         padding: 15px;
+    }
+
+    .announcement-event-fields {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "date"
+            "location"
+            "start"
+            "end";
+    }
+
+    .announcement-photo-overlay {
+        padding: 10px;
+    }
+
+    .modal-content.announcement-photo-modal {
+        width: 100%;
+        height: 86vh;
+        border-radius: 12px;
+    }
+
+    .announcement-photo-lightbox-arrow.previous {
+        left: 8px;
+    }
+
+    .announcement-photo-lightbox-arrow.next {
+        right: 8px;
     }
 
     .announcement-org-avatar {

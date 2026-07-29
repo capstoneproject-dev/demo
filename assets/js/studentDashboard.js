@@ -66,6 +66,7 @@ const STUDENT_ANNOUNCEMENTS_API = '../api/student/announcements/list.php';
 const STUDENT_RECENT_ACTIVITY_API = '../api/student/dashboard/recent-activity.php';
 const STUDENT_NOTIFICATIONS_API = '../api/student/notifications/list.php';
 const STUDENT_EMAIL_PREFERENCES_API = '../api/student/notifications/email-preferences.php';
+const STUDENT_RECENT_ACTIVITY_DISPLAY_LIMIT = 5;
 let databaseEvents = [];
 let databaseAnnouncements = [];
 let databaseRecentActivity = [];
@@ -769,7 +770,9 @@ function mapDatabaseEvent(item) {
     const orgName = normalizeOrgName(item.org_name || item.org_code || '');
     const orgVisual = getOrganizationVisual(orgName);
     const dateValue = item.event_datetime || item.event_date || item.created_at || '';
-    const gallery = parseEventPhotoGallery(item.event_photo);
+    const eventGallery = parseEventPhotoGallery(item.event_photo);
+    const syncedAnnouncementGallery = parseEventPhotoGallery(item.synced_announcement_photo);
+    const gallery = syncedAnnouncementGallery.length ? syncedAnnouncementGallery : eventGallery;
     const image = gallery[0] || orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/event_${item.event_id}/800/450`;
 
     return {
@@ -879,7 +882,7 @@ async function loadStudentEventsFromApi() {
 
 async function loadStudentRecentActivity() {
     try {
-        const response = await fetch(`${STUDENT_RECENT_ACTIVITY_API}?limit=5`, {
+        const response = await fetch(`${STUDENT_RECENT_ACTIVITY_API}?limit=${STUDENT_RECENT_ACTIVITY_DISPLAY_LIMIT}`, {
             method: 'GET',
             credentials: 'same-origin'
         });
@@ -887,7 +890,8 @@ async function loadStudentRecentActivity() {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not load recent activity.');
         }
-        databaseRecentActivity = Array.isArray(data.items) ? data.items : [];
+        databaseRecentActivity = (Array.isArray(data.items) ? data.items : [])
+            .slice(0, STUDENT_RECENT_ACTIVITY_DISPLAY_LIMIT);
     } catch (error) {
         console.error('[loadStudentRecentActivity]', error);
         databaseRecentActivity = [];
@@ -914,7 +918,8 @@ async function loadStudentTransactionNotifications() {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not load transaction notifications.');
         }
-        databaseTransactionNotifications = Array.isArray(data.items) ? data.items : [];
+        databaseTransactionNotifications = (Array.isArray(data.items) ? data.items : [])
+            .filter(isStudentNotificationFromToday);
         studentNotificationsFailed = false;
         syncStudentNotificationToasts(databaseTransactionNotifications);
     } catch (error) {
@@ -940,6 +945,23 @@ function formatStudentRelativeTime(dateValue) {
     const days = Math.floor(hours / 24);
     if (days < 7) return `${days}d ago`;
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getStudentManilaDateKey(dateValue) {
+    const date = dateValue instanceof Date ? dateValue : parseStudentAnnouncementDate(dateValue);
+    if (!date) return '';
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isStudentNotificationFromToday(item) {
+    return getStudentManilaDateKey(item?.activity_at) === getStudentManilaDateKey(new Date());
 }
 
 function getStudentActivityIcon(activityType) {
@@ -1078,7 +1100,7 @@ function renderStudentTransactionNotifications() {
         body = `
             <div class="transaction-notification-state">
                 <i class="fa-regular fa-circle-check"></i>
-                <span>No rental, locker, printing, or attendance notices right now.</span>
+                <span>No rental, locker, printing, or attendance notices for today.</span>
             </div>`;
     } else {
         body = databaseTransactionNotifications.map((item) => {
@@ -1133,7 +1155,9 @@ function renderStudentRecentActivity() {
         return;
     }
 
-    container.innerHTML = databaseRecentActivity.map(item => `
+    container.innerHTML = databaseRecentActivity
+        .slice(0, STUDENT_RECENT_ACTIVITY_DISPLAY_LIMIT)
+        .map(item => `
         <div class="list-item dashboard-activity-item">
             <div class="item-icon"><i class="fa-solid ${getStudentActivityIcon(item.activity_type)}"></i></div>
             <div class="item-content">
@@ -1142,7 +1166,7 @@ function renderStudentRecentActivity() {
             </div>
             <span class="date-badge" title="${escapeHtml(formatStudentAnnouncementDateLabel(item.activity_at))}">${escapeHtml(formatStudentRelativeTime(item.activity_at))}</span>
         </div>
-    `).join('');
+        `).join('');
 }
 
 function getStudentYearLevel(sectionText) {

@@ -184,6 +184,14 @@ function qrListPublishedEventsForStudents(PDO $pdo, array $filters = []): array
                e.location,
                e.event_datetime,
                e.event_photo,
+               (
+                   SELECT a.announcement_photo
+                   FROM announcements a
+                   WHERE a.org_id = e.org_id
+                     AND a.title COLLATE utf8mb4_unicode_ci = e.event_name COLLATE utf8mb4_unicode_ci
+                   ORDER BY a.announcement_id DESC
+                   LIMIT 1
+               ) AS synced_announcement_photo,
                e.event_datetime AS event_date,
                e.is_published,
                e.created_at,
@@ -230,7 +238,11 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         ? null
         : trim((string)$eventDateValue);
     $isPublished = !empty($data['is_published']) ? 1 : 0;
-    $photoDataUrl = trim((string)($data['photo'] ?? ''));
+    $photoValues = $data['photos'] ?? $data['event_photos'] ?? null;
+    if (!is_array($photoValues)) {
+        $singlePhoto = trim((string)($data['photo'] ?? ''));
+        $photoValues = $singlePhoto !== '' ? [$singlePhoto] : [];
+    }
     $photoPath = '';
 
     if ($eventName === '') {
@@ -240,8 +252,17 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         throw new QrAttendanceValidationException('Invalid processor user.');
     }
 
-    if ($photoDataUrl !== '') {
-        $photoPath = qrSaveEventPhotoFromData($photoDataUrl);
+    if ($photoValues) {
+        $savedPhotos = [];
+        foreach ($photoValues as $photoValue) {
+            $savedPath = qrSaveEventPhotoFromData((string)$photoValue);
+            if ($savedPath !== '') {
+                $savedPhotos[] = $savedPath;
+            }
+        }
+        if ($savedPhotos) {
+            $photoPath = json_encode(array_values(array_unique($savedPhotos)), JSON_UNESCAPED_SLASHES);
+        }
     }
 
     $tz = new DateTimeZone('Asia/Manila');

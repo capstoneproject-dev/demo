@@ -1127,6 +1127,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             event_datetime: eventDateTime,
                             location: event.data.location || 'TBA',
                             photo: event.data.photo || '',
+                            photos: Array.isArray(event.data.photos) ? event.data.photos : [],
                             time_range: timeRangeRaw,
                             is_published: 1
                         })
