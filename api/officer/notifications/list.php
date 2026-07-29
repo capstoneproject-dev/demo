@@ -334,8 +334,8 @@ try {
     jsonError($e->getMessage(), 403);
 } catch (PDOException $e) {
     error_log('[api/officer/notifications/list] ' . $e->getMessage());
-    jsonError('A database error occurred while loading the action center.', 500);
+    jsonError('A database error occurred while loading alerts.', 500);
 } catch (Throwable $e) {
     error_log('[api/officer/notifications/list] ' . $e->getMessage());
-    jsonError('Could not load the officer action center.', 500);
+    jsonError('Could not load officer alerts.', 500);
 }
