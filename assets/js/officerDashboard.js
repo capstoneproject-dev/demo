@@ -1,7 +1,7 @@
 const AUTH_SESSION_KEY = 'naapAuthSession';
 const OFFICER_ACADEMIC_TERM_API = '../api/settings/academic-term.php';
 let officerOrgSyncPromise = Promise.resolve();
-const DEFAULT_OFFICER_AVATAR = 'https://picsum.photos/seed/officer1/150/150';
+const DEFAULT_OFFICER_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E";
 const OFFICER_ANNOUNCEMENT_PREVIEW_KEY_PREFIX = 'osaAnnouncementPreview_';
 let officerAnnouncementPreviewPayloadCache = undefined;
 
@@ -90,10 +90,34 @@ function showToast(message, type = 'info') {
 let officerProfileEditMode = false;
 let officerProfileSnapshot = null;
 
+function getOfficerOrganizationShortName(session = {}) {
+    const storedCode = String(session.active_org_code || '').trim();
+    if (storedCode) return storedCode.toUpperCase();
+
+    const organizationName = String(session.active_org_name || '').trim();
+    const comparableName = organizationName
+        .replace(/\s+organization$/i, '')
+        .trim()
+        .toUpperCase();
+    if (typeof ORG_DATA !== 'undefined') {
+        const matchedOrganization = Object.entries(ORG_DATA).find(([, organization]) => {
+            const fullName = String(organization?.fullName || '')
+                .replace(/\s+organization$/i, '')
+                .trim()
+                .toUpperCase();
+            return fullName === comparableName;
+        });
+        if (matchedOrganization) return String(matchedOrganization[0]).toUpperCase();
+    }
+
+    return organizationName || 'Organization';
+}
+
 function updateOfficerProfileView(session = readAuthSession()) {
     const fullName = session.display_name || 'Organization Officer';
     const roleLabel = session.active_role_name || 'officer';
     const orgLabel = session.active_org_name || 'Organization';
+    const headerOrgLabel = getOfficerOrganizationShortName(session);
     const studentNumber = session.student_number || session.employee_number || 'N/A';
     const email = session.email || '';
     const phone = session.phone || 'N/A';
@@ -105,7 +129,7 @@ function updateOfficerProfileView(session = readAuthSession()) {
     const headerAvatar = document.getElementById('officerHeaderAvatar');
     const profileAvatar = document.getElementById('officerProfileAvatar');
     if (headerName) headerName.innerText = fullName;
-    if (headerRole) headerRole.innerText = `${roleLabel} - ${orgLabel}`;
+    if (headerRole) headerRole.innerText = `${roleLabel} - ${headerOrgLabel}`;
     if (headerAvatar) headerAvatar.src = profilePhoto;
     if (profileAvatar) profileAvatar.src = profilePhoto;
 

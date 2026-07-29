@@ -54,8 +54,24 @@ function studentNotificationItem(
     ?DateTimeImmutable $activityAt,
     ?DateTimeImmutable $dueAt,
     bool $isUnresolved,
-    int $orgId = 0
+    int $orgId = 0,
+    ?array $target = null
 ): array {
+    if ($target === null) {
+        $actionBySource = [
+            'rental' => 'open_rental',
+            'locker' => 'open_locker',
+            'printing' => 'open_printing',
+        ];
+        $target = isset($actionBySource[$sourceType])
+            ? [
+                'view' => 'services',
+                'action' => $actionBySource[$sourceType],
+                'entity_id' => $sourceId,
+            ]
+            : null;
+    }
+
     return [
         'id' => $id,
         'source_type' => $sourceType,
@@ -69,6 +85,7 @@ function studentNotificationItem(
         'due_at' => $dueAt?->format('Y-m-d H:i:s'),
         'is_unresolved' => $isUnresolved,
         'org_id' => $orgId,
+        'target' => $target,
     ];
 }
 
@@ -438,6 +455,7 @@ function studentNotificationAttendanceItems(
 
     $stmt = $pdo->prepare(
         "SELECT ar.record_id,
+                e.event_id,
                 e.org_id,
                 ar.created_at,
                 ar.time_in,
@@ -456,6 +474,7 @@ function studentNotificationAttendanceItems(
     $items = [];
     foreach ($stmt->fetchAll() as $row) {
         $recordId = (int)$row['record_id'];
+        $eventId = (int)($row['event_id'] ?? 0);
         $organization = (string)$row['organization'];
         $orgId = (int)($row['org_id'] ?? 0);
         $eventName = trim((string)$row['event_name']) ?: 'the event';
@@ -470,7 +489,13 @@ function studentNotificationAttendanceItems(
                 "attendance:{$recordId}:registered", 'attendance', $recordId, 'registered', 'info',
                 'Event registration confirmed',
                 "You are registered for {$eventName}.",
-                $organization, $createdAt, null, false, $orgId
+                $organization, $createdAt, null, false, $orgId,
+                [
+                    'view' => 'organizations',
+                    'action' => 'open_event',
+                    'entity_id' => $eventId,
+                    'entity_name' => $eventName,
+                ]
             );
         }
         if ($timeIn && $timeIn >= $cutoff) {
@@ -478,7 +503,13 @@ function studentNotificationAttendanceItems(
                 "attendance:{$recordId}:checked_in", 'attendance', $recordId, 'checked_in', 'success',
                 'Attendance time-in recorded',
                 "Your attendance for {$eventName} was recorded at " . studentNotificationFormatDate($timeIn) . '.',
-                $organization, $timeIn, null, false, $orgId
+                $organization, $timeIn, null, false, $orgId,
+                [
+                    'view' => 'organizations',
+                    'action' => 'open_event',
+                    'entity_id' => $eventId,
+                    'entity_name' => $eventName,
+                ]
             );
         }
         if ($timeOut && $timeOut >= $cutoff) {
@@ -486,7 +517,13 @@ function studentNotificationAttendanceItems(
                 "attendance:{$recordId}:checked_out", 'attendance', $recordId, 'checked_out', 'success',
                 'Attendance time-out recorded',
                 "Your checkout from {$eventName} was recorded at " . studentNotificationFormatDate($timeOut) . '.',
-                $organization, $timeOut, null, false, $orgId
+                $organization, $timeOut, null, false, $orgId,
+                [
+                    'view' => 'organizations',
+                    'action' => 'open_event',
+                    'entity_id' => $eventId,
+                    'entity_name' => $eventName,
+                ]
             );
         }
     }

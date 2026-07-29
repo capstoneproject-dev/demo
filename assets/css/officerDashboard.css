@@ -622,6 +622,11 @@ body.notif-drawer-open {
 /* User Profile */
 .user-profile {
     cursor: pointer;
+    text-decoration: none;
+    transition: transform 0.2s;
+}
+
+.user-profile-box {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -630,8 +635,6 @@ body.notif-drawer-open {
     border-radius: 30px;
     box-shadow: var(--shadow);
     border: 1px solid var(--border);
-    text-decoration: none;
-    transition: 0.2s;
 }
 
 .user-profile:hover {
@@ -3546,17 +3549,18 @@ body.dark .sub-nav-btn.active {
     margin: 10px 0;
 }
 
-/* Mobile Adjustments */
 .mobile-only {
     display: none;
 }
 
-.user-info {
-    display: none;
-}
+@media (max-width: 768px) {
+    .user-info {
+        display: none;
+    }
 
-.user-profile {
-    padding: 5px;
+    .user-profile-box {
+        padding: 5px;
+    }
 }
 
 

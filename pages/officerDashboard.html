@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260729-action-center-9">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260729-profile-pill-1">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -157,11 +157,14 @@
                 </div>
 
                 <!-- User Profile -->
-                <a href="#" class="user-profile" onclick="navigate('profile'); return false;">
-                    <img id="officerHeaderAvatar" src="https://picsum.photos/seed/officer1/100/100" alt="Officer" class="avatar">
-                    <div class="user-info">
-                        <span>Admin Officer</span>
-                        <small>Head of Operations</small>
+                <a href="#" class="user-profile" onclick="navigate('profile'); return false;"
+                    aria-label="Open my profile">
+                    <div class="user-profile-box">
+                        <img id="officerHeaderAvatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E" alt="Officer" class="avatar">
+                        <div class="user-info">
+                            <span>Admin Officer</span>
+                            <small>Head of Operations</small>
+                        </div>
                     </div>
                 </a>
             </div>
@@ -2072,7 +2075,7 @@
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260729-action-center-2"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260729-profile-pill-2"></script>
 </body>
 
 </html>
