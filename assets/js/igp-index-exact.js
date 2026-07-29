@@ -26,6 +26,12 @@
         return d.toLocaleString();
     }
 
+    function notifyParentActionCenterRefresh() {
+        if (window.parent !== window) {
+            window.parent.postMessage({ type: 'OFFICER_ACTION_CENTER_REFRESH' }, window.location.origin);
+        }
+    }
+
     function dueClock(expectedReturn) {
         if (!expectedReturn) return '-';
         const now = Date.now();
@@ -138,6 +144,7 @@
             const isExpiredNoShow = isExpiredReservedRental(r);
             
             const row = document.createElement('tr');
+            row.dataset.rentalId = String(r.rental_id || '');
             row.innerHTML = `
                 <td>${isReserved
                     ? `<div class="d-flex gap-1 flex-wrap">
@@ -553,6 +560,7 @@
             });
             if (modal) modal.hide();
             await refresh();
+            notifyParentActionCenterRefresh();
             setScanResult(`Rental recorded for ${pendingRent.item.item_name} [${pendingRent.item.barcode}] for ${hours} hour(s).`, 'success');
             resetScanContext();
             pendingRent = null;
@@ -635,6 +643,7 @@
             const res = await window.igpApi.returnRental(Number(pendingReturn.rental.rental_id));
             if (modal) modal.hide();
             await refresh();
+            notifyParentActionCenterRefresh();
             setScanResult(`Return recorded for ${pendingReturn.item.item_name} [${pendingReturn.item.barcode}]. Officer: ${officer.officer_name || officer.student_number}`, 'success');
             resetScanContext();
             openPaymentModal(res, res.rental_id || pendingReturn.rental.rental_id);
@@ -652,6 +661,7 @@
             const modal = getModalInstance('returnPaymentModal');
             if (modal) modal.hide();
             await refresh();
+            notifyParentActionCenterRefresh();
             setScanResult('Payment marked as paid.', 'success');
             pendingPaymentRentalId = 0;
         } catch (err) {
@@ -676,6 +686,7 @@
             }
             if (modal) modal.hide();
             await refresh();
+            notifyParentActionCenterRefresh();
             pendingReservedAction = null;
         } catch (err) {
             if (modal) modal.hide();
@@ -841,6 +852,40 @@
             setInterval(renderCurrent, 1000);
         } catch (err) {
             setScanResult(err.message, 'error');
+        }
+    });
+
+    window.addEventListener('message', async (event) => {
+        if (event.origin !== window.location.origin || event.source !== window.parent) return;
+        if (event.data?.type !== 'OPEN_RENTAL_RECORD') return;
+
+        const rentalId = Number(event.data.rentalId || 0);
+        if (!rentalId) return;
+        try {
+            await refresh();
+            const row = document.querySelector(`[data-rental-id="${rentalId}"]`);
+            if (!row) {
+                window.parent.postMessage({
+                    type: 'OFFICER_NAVIGATION_TARGET_MISSING',
+                    category: 'rental',
+                    entityId: rentalId,
+                }, window.location.origin);
+                return;
+            }
+            document.getElementById('rental-records')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.style.outline = '3px solid #f59e0b';
+            row.style.outlineOffset = '-2px';
+            setTimeout(() => {
+                row.style.outline = '';
+                row.style.outlineOffset = '';
+            }, 2600);
+        } catch (_error) {
+            window.parent.postMessage({
+                type: 'OFFICER_NAVIGATION_TARGET_MISSING',
+                category: 'rental',
+                entityId: rentalId,
+            }, window.location.origin);
         }
     });
 })();

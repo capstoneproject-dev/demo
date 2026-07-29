@@ -1103,6 +1103,39 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </script>
     <script>
         window.addEventListener('message', async function (event) {
+            if (event.origin !== window.location.origin || event.source !== window.parent) {
+                return;
+            }
+
+            if (event.data && event.data.type === 'OPEN_EVENT_DETAILS') {
+                const eventId = Number(event.data.eventId || 0);
+                const eventName = normalizeEventName(event.data.eventName || '');
+                try {
+                    await loadEventsFromApi();
+                    if (typeof updateEventsList === 'function') updateEventsList();
+                    const matchedEvent = events.find((item) =>
+                        (eventId > 0 && Number(item.id || 0) === eventId)
+                        || (eventName && normalizeEventName(item.name) === eventName)
+                    );
+                    if (!matchedEvent) {
+                        window.parent.postMessage({
+                            type: 'OFFICER_NAVIGATION_TARGET_MISSING',
+                            category: 'event',
+                            entityId: eventId
+                        }, window.location.origin);
+                        return;
+                    }
+                    showEventDetails(matchedEvent.name);
+                } catch (_error) {
+                    window.parent.postMessage({
+                        type: 'OFFICER_NAVIGATION_TARGET_MISSING',
+                        category: 'event',
+                        entityId: eventId
+                    }, window.location.origin);
+                }
+                return;
+            }
+
             // Only act if the message type is CREATE_EVENT
             if (event.data && event.data.type === 'CREATE_EVENT') {
                 console.log("Received Cross-Post Request (Events Tab):", event.data);

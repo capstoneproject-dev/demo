@@ -153,7 +153,6 @@ try {
             'rejected' => $documentCounts['rejected'],
         ],
         'latest_updates' => array_slice($latestUpdates, 0, 2),
-        'notifications' => $latestUpdates,
         'upcoming_events' => array_slice($upcomingEvents, 0, 3),
     ]);
 } catch (IgpAuthorizationException|DocumentAuthorizationException|AnnouncementAuthorizationException|QrAttendanceAuthorizationException $e) {

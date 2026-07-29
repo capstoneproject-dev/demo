@@ -89,6 +89,7 @@
         tbody.innerHTML = '';
         rows.forEach((r) => {
             const tr = document.createElement('tr');
+            tr.dataset.rentalId = String(r.rental_id || '');
             tr.innerHTML = `
                 <td>${r.rental_id}</td>
                 <td>${r.items_label || '-'}</td>
@@ -562,6 +563,26 @@
         updateRentalHistoryFilterLabel();
         try {
             await refresh();
+            const targetRentalId = Number(new URLSearchParams(window.location.search).get('action_center_rental_id') || 0);
+            if (targetRentalId) {
+                clearAllRentalHistoryFilters();
+                const row = document.querySelector(`[data-rental-id="${targetRentalId}"]`);
+                if (row) {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.style.outline = '3px solid #f59e0b';
+                    row.style.outlineOffset = '-2px';
+                    setTimeout(() => {
+                        row.style.outline = '';
+                        row.style.outlineOffset = '';
+                    }, 2600);
+                } else if (window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'OFFICER_NAVIGATION_TARGET_MISSING',
+                        category: 'rental',
+                        entityId: targetRentalId,
+                    }, window.location.origin);
+                }
+            }
         } catch (err) {
             alert(err.message);
         }
