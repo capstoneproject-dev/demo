@@ -696,7 +696,6 @@ async function handleLogout(e) {
         title: 'Log out',
         confirmText: 'Log out'
     })) {
-        showToast('Logging out...', 'info');
         localStorage.removeItem(AUTH_SESSION_KEY);
         setTimeout(() => {
             window.location.href = '../pages/login.html'; // Change to your login page
