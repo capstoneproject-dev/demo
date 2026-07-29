@@ -636,7 +636,11 @@ function renderOfficerDashboard(data) {
     if (table) {
         table.innerHTML = serviceItems.length ? serviceItems.map(item => `
             <tr>
-                <td>${escapeHtml(item.item || item.service_type || '-')}</td>
+                <td>${escapeHtml(
+                    String(item.service_type || '').toLowerCase() === 'printing'
+                        ? 'Printing Service'
+                        : (item.item || item.service_type || '-')
+                )}</td>
                 <td>${escapeHtml(item.borrower || '-')}</td>
                 <td>${escapeHtml(fmtDateShort(item.date) || '-')}</td>
                 <td><span class="status-badge ${getRentalDashboardStatusClass(item.status)}">${escapeHtml(formatDashboardStatus(item.status))}</span></td>
