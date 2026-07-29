@@ -810,7 +810,10 @@ function startOfficerDashboardRealtime() {
 // --- LOGOUT HANDLER ---
 async function handleLogout(e) {
     e.preventDefault();
-    if (confirm('Are you sure you want to logout?')) {
+    if (await appConfirm('Are you sure you want to log out?', {
+        title: 'Log out',
+        confirmText: 'Log out'
+    })) {
         try { await fetch('../api/auth/logout.php', { credentials: 'same-origin' }); } catch (_) {}
         localStorage.removeItem(AUTH_SESSION_KEY);
         window.location.href = '../pages/login.html';
@@ -2675,6 +2678,10 @@ document.addEventListener('click', (e) => {
     if (announcementDetailModal && e.target === announcementDetailModal) {
         closeAnnouncementDetailModal();
     }
+    const announcementComposerModal = document.getElementById('announcementComposerModal');
+    if (announcementComposerModal && e.target === announcementComposerModal) {
+        closeAnnouncementComposer();
+    }
 });
 
 document.addEventListener('keydown', (e) => {
@@ -2704,6 +2711,10 @@ document.addEventListener('keydown', (e) => {
         const announcementDetailModal = document.getElementById('announcementDetailModal');
         if (announcementDetailModal && announcementDetailModal.classList.contains('show')) {
             closeAnnouncementDetailModal();
+        }
+        const announcementComposerModal = document.getElementById('announcementComposerModal');
+        if (announcementComposerModal && announcementComposerModal.classList.contains('show')) {
+            closeAnnouncementComposer();
         }
     }
 });
@@ -4466,35 +4477,84 @@ function getTemporaryAnnouncementParticipants(announcement) {
     return 80 + ((seed * 37) % 171);
 }
 
+const announcementFeedState = {
+    status: 'active',
+    query: '',
+    audience: '',
+    type: '',
+    cursor: '',
+    hasMore: false,
+    loading: false,
+    editingId: null,
+    counts: { active: 0, archived: 0 }
+};
+
 function renderAnnouncements() {
     const feed = document.getElementById('announcement-feed');
     if (!feed) return;
     const scopedAnnouncements = getOfficerScopedAnnouncements();
     if (!scopedAnnouncements.length) {
-        feed.innerHTML = `<div style="padding: 12px; color: var(--muted);">No announcements yet.</div>`;
+        const label = announcementFeedState.status === 'archived' ? 'archived announcements' : 'active announcements';
+        feed.innerHTML = `
+            <div class="announcement-feed-empty">
+                <i class="fa-regular fa-folder-open"></i>
+                <h3>No ${label} found</h3>
+                <p>Try changing the filters${announcementFeedState.status === 'active' ? ' or publish a new announcement' : ''}.</p>
+            </div>`;
         return;
     }
-    feed.innerHTML = scopedAnnouncements.map((ann, index) => {
+    feed.innerHTML = scopedAnnouncements.map((ann) => {
         const hasSyncedEvent = Boolean(ann.event_datetime || ann.event_location);
+        const photos = parseAnnouncementPhotoGallery(ann.announcement_photo);
+        const audienceLabel = formatAnnouncementAudienceLabel(ann.audience_type);
+        const updated = parseOfficerSqlDateTime(ann.updated_at);
+        const created = parseOfficerSqlDateTime(ann.created_at || ann.published_at);
+        const wasUpdated = Boolean(updated && created && updated.getTime() - created.getTime() > 1000);
+        const orgName = ann.org || getActiveOfficerOrgName() || 'Organization';
+        const orgInitials = orgName.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
+        const id = Number(ann.id || ann.announcement_id || 0);
         return `
-        <div class="announcement-card ${hasSyncedEvent ? 'announcement-card-event' : 'announcement-card-general'}">
-            <div class="announcement-meta">
-                <strong>${escapeHtml(ann.title)}</strong>
-                <div class="announcement-meta-actions">
-                    <span class="announcement-type-badge">
-                        <i class="fa-solid ${hasSyncedEvent ? 'fa-calendar-days' : 'fa-bullhorn'}"></i>
-                        ${hasSyncedEvent ? 'Event' : 'Announcement'}
-                    </span>
-                    <span>${formatAnnouncementDate(ann.date)}</span>
-                    <button type="button" class="announcement-view-btn" onclick="openAnnouncementDetailModal(${index})" aria-label="View announcement details">
-                        <i class="fa-regular fa-eye"></i>
-                    </button>
+        <article class="announcement-feed-card ${ann.archived_at ? 'archived' : ''}">
+            <header class="announcement-feed-card-header">
+                <div class="announcement-org-avatar">${escapeHtml(orgInitials || 'ORG')}</div>
+                <div class="announcement-feed-identity">
+                    <strong>${escapeHtml(orgName)}</strong>
+                    <span>${escapeHtml(formatAnnouncementDate(ann.date))}${wasUpdated ? ' · Edited' : ''}</span>
                 </div>
+                <div class="announcement-feed-card-actions">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="viewManagedAnnouncement(${id})"><i class="fa-regular fa-eye"></i> View</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="openAnnouncementComposer(${id})"><i class="fa-regular fa-pen-to-square"></i> Edit</button>
+                    ${ann.archived_at
+                        ? `<button type="button" class="btn btn-primary btn-sm" onclick="restoreAnnouncement(${id})"><i class="fa-solid fa-rotate-left"></i> Restore</button>`
+                        : `<button type="button" class="btn btn-outline btn-sm announcement-archive-btn" onclick="archiveAnnouncement(${id})"><i class="fa-solid fa-box-archive"></i> Archive</button>`}
+                </div>
+            </header>
+            <div class="announcement-feed-badges">
+                <span class="announcement-type-badge"><i class="fa-solid ${hasSyncedEvent ? 'fa-calendar-days' : 'fa-bullhorn'}"></i>${hasSyncedEvent ? 'Event' : 'Announcement'}</span>
+                <span class="announcement-audience-badge"><i class="fa-solid fa-users"></i>${escapeHtml(audienceLabel)}</span>
+                ${ann.archived_at ? '<span class="announcement-archived-badge"><i class="fa-solid fa-box-archive"></i>Archived</span>' : ''}
             </div>
-            <p style="font-size: 0.9rem;">${escapeHtml(ann.content)}</p>
-        </div>
+            <h3>${escapeHtml(ann.title || 'Untitled Announcement')}</h3>
+            <p class="announcement-feed-content">${escapeHtml(ann.content || '')}</p>
+            ${photos.length ? `
+                <button type="button" class="announcement-feed-photo" onclick="viewManagedAnnouncement(${id})" aria-label="View announcement photos">
+                    <img src="${escapeHtml(photos[0])}" alt="${escapeHtml(ann.title || 'Announcement photo')}">
+                    ${photos.length > 1 ? `<span><i class="fa-regular fa-images"></i> ${photos.length} photos</span>` : ''}
+                </button>` : ''}
+            ${hasSyncedEvent ? `
+                <div class="announcement-feed-event-details">
+                    <span><i class="fa-regular fa-calendar"></i>${escapeHtml(formatAnnouncementEventDate(ann.event_datetime))}</span>
+                    <span><i class="fa-regular fa-clock"></i>${escapeHtml(formatAnnouncementEventTime(ann.event_datetime))}</span>
+                    <span><i class="fa-solid fa-location-dot"></i>${escapeHtml(ann.event_location || 'TBA')}</span>
+                </div>` : ''}
+        </article>
     `;
     }).join('');
+}
+
+function viewManagedAnnouncement(announcementId) {
+    const index = getOfficerScopedAnnouncements().findIndex(item => Number(item.id || item.announcement_id) === Number(announcementId));
+    if (index >= 0) openAnnouncementDetailModal(index);
 }
 
 function parseAnnouncementPhotoGallery(rawPhotoValue) {
@@ -4754,7 +4814,7 @@ function openAnnouncementDetailModalForAnnouncement(announcement) {
                 <i class="fa-solid fa-bullhorn"></i>
                 <div>
                     <span>Status</span>
-                    <strong>Published</strong>
+                    <strong>${announcement.archived_at ? 'Archived' : 'Published'}</strong>
                 </div>
             </div>
             <div class="announcement-detail-info-item">
@@ -4799,6 +4859,61 @@ function closeAnnouncementDetailModal() {
             }
         }, 150);
     }
+}
+
+function openAnnouncementComposer(announcementId = null) {
+    const modal = document.getElementById('announcementComposerModal');
+    const form = document.getElementById('announcement-form');
+    if (!modal || !form) return;
+    form.reset();
+    clearAnnouncementPhotoPreview();
+    announcementFeedState.editingId = announcementId ? Number(announcementId) : null;
+    const editing = announcementFeedState.editingId
+        ? getOfficerScopedAnnouncements().find(item => Number(item.id || item.announcement_id) === announcementFeedState.editingId)
+        : null;
+    if (announcementFeedState.editingId && !editing) {
+        showToast('That announcement is not loaded in the current feed.', 'error');
+        return;
+    }
+
+    const title = document.getElementById('announcement-composer-title');
+    const submit = document.getElementById('announcement-submit-btn');
+    const eventOption = document.getElementById('announcement-event-sync-option');
+    if (title) title.textContent = editing ? 'Edit Announcement' : 'New Announcement';
+    if (submit) submit.innerHTML = editing
+        ? '<i class="fa-regular fa-floppy-disk"></i> Save Changes'
+        : '<i class="fa-regular fa-paper-plane"></i> Publish';
+    if (eventOption) eventOption.hidden = Boolean(editing);
+    if (editing) {
+        document.getElementById('ann-title').value = editing.title || '';
+        document.getElementById('ann-content').value = editing.content || '';
+        document.getElementById('ann-audience').value = editing.audience_type || 'all_students';
+        setExistingAnnouncementPhotos(editing.announcement_photo);
+        const selectedIds = new Set((editing.target_programs || []).map(target => Number(target.program_id)));
+        document.querySelectorAll('#ann-course-target-list input[type="checkbox"]').forEach(input => {
+            input.checked = selectedIds.has(Number(input.value));
+        });
+        updateAnnouncementCourseToggleLabel();
+    }
+    toggleAnnouncementCourseTargets();
+    toggleEventSyncFields();
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => {
+        resizeAnnouncementContentBox();
+        document.getElementById('ann-title')?.focus();
+    }, 0);
+}
+
+function closeAnnouncementComposer() {
+    const modal = document.getElementById('announcementComposerModal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = '';
+    announcementFeedState.editingId = null;
+    document.getElementById('announcement-form')?.reset();
+    clearAnnouncementPhotoPreview();
+    toggleAnnouncementCourseTargets();
+    toggleEventSyncFields();
 }
 
 function openOfficerAnnouncementPreviewFromUrl() {
@@ -4858,6 +4973,7 @@ function readFilesAsDataUrls(files) {
 const announcementPhotoPreviewState = {
     files: [],
     urls: [],
+    retainedPaths: [],
     index: 0
 };
 
@@ -4866,14 +4982,17 @@ function syncAnnouncementPhotoInputFiles() {
     if (!input) return;
 
     const transfer = new DataTransfer();
-    announcementPhotoPreviewState.files.forEach(file => transfer.items.add(file));
+    announcementPhotoPreviewState.files.filter(Boolean).forEach(file => transfer.items.add(file));
     input.files = transfer.files;
 }
 
 function clearAnnouncementPhotoPreview() {
-    announcementPhotoPreviewState.urls.forEach(url => URL.revokeObjectURL(url));
+    announcementPhotoPreviewState.urls.forEach(url => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+    });
     announcementPhotoPreviewState.files = [];
     announcementPhotoPreviewState.urls = [];
+    announcementPhotoPreviewState.retainedPaths = [];
     announcementPhotoPreviewState.index = 0;
 
     const carousel = document.getElementById('announcement-photo-carousel');
@@ -4926,6 +5045,7 @@ function addAnnouncementPhotoFiles(files) {
 
     announcementPhotoPreviewState.files.push(...imageFiles);
     announcementPhotoPreviewState.urls.push(...imageFiles.map(file => URL.createObjectURL(file)));
+    announcementPhotoPreviewState.retainedPaths.push(...imageFiles.map(() => null));
     announcementPhotoPreviewState.index = announcementPhotoPreviewState.urls.length - imageFiles.length;
     syncAnnouncementPhotoInputFiles();
     renderAnnouncementPhotoPreview();
@@ -4936,9 +5056,12 @@ function removeCurrentAnnouncementPhoto() {
     if (!total) return;
 
     const removeIndex = announcementPhotoPreviewState.index;
-    URL.revokeObjectURL(announcementPhotoPreviewState.urls[removeIndex]);
+    if (announcementPhotoPreviewState.urls[removeIndex].startsWith('blob:')) {
+        URL.revokeObjectURL(announcementPhotoPreviewState.urls[removeIndex]);
+    }
     announcementPhotoPreviewState.urls.splice(removeIndex, 1);
     announcementPhotoPreviewState.files.splice(removeIndex, 1);
+    announcementPhotoPreviewState.retainedPaths.splice(removeIndex, 1);
     announcementPhotoPreviewState.index = Math.min(removeIndex, announcementPhotoPreviewState.urls.length - 1);
     syncAnnouncementPhotoInputFiles();
     renderAnnouncementPhotoPreview();
@@ -4959,6 +5082,28 @@ function setupAnnouncementPhotoPreviewCarousel() {
     document.querySelector('.announcement-photo-next')?.addEventListener('click', () => moveAnnouncementPhotoPreview(1));
 }
 
+function setExistingAnnouncementPhotos(rawPhotoValue) {
+    clearAnnouncementPhotoPreview();
+    const paths = parseAnnouncementPhotoGallery(rawPhotoValue);
+    announcementPhotoPreviewState.urls = [...paths];
+    announcementPhotoPreviewState.files = paths.map(() => null);
+    announcementPhotoPreviewState.retainedPaths = annRawPhotoPaths(rawPhotoValue);
+    announcementPhotoPreviewState.index = 0;
+    renderAnnouncementPhotoPreview();
+}
+
+function annRawPhotoPaths(rawPhotoValue) {
+    const raw = String(rawPhotoValue || '').trim();
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+    } catch (_error) {
+        // Legacy single-photo value.
+    }
+    return [raw];
+}
+
 function getVisibleOuterHeight(element) {
     if (!element || element.hidden || element.offsetParent === null) return 0;
     const style = window.getComputedStyle(element);
@@ -4967,24 +5112,8 @@ function getVisibleOuterHeight(element) {
 
 function resizeAnnouncementContentBox() {
     const textarea = document.getElementById('ann-content');
-    const form = document.getElementById('announcement-form');
-    const card = form?.closest('.card');
-    if (!textarea || !form || !card) return;
-
-    const followingHeight = Array.from(form.children).reduce((total, child) => {
-        if (child === textarea) return total;
-        if (textarea.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING) {
-            return total + getVisibleOuterHeight(child);
-        }
-        return total;
-    }, 0);
-
-    const cardRect = card.getBoundingClientRect();
-    const textareaRect = textarea.getBoundingClientRect();
-    const cardStyle = window.getComputedStyle(card);
-    const bottomPadding = parseFloat(cardStyle.paddingBottom || 0);
-    const maxHeight = Math.max(130, cardRect.bottom - textareaRect.top - followingHeight - bottomPadding - 12);
-
+    if (!textarea) return;
+    const maxHeight = Math.min(320, Math.max(160, window.innerHeight * 0.32));
     textarea.style.height = 'auto';
     const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
     textarea.style.height = `${nextHeight}px`;
@@ -4999,28 +5128,109 @@ function setupAnnouncementContentAutoResize() {
     resizeAnnouncementContentBox();
 }
 
-async function fetchAnnouncementsFromApi() {
+function mapOfficerAnnouncement(item) {
+    return {
+        ...item,
+        id: item.announcement_id,
+        date: item.published_at || item.created_at,
+        org: getActiveOfficerOrgName(),
+        org_id: item.org_id
+    };
+}
+
+async function fetchAnnouncementsFromApi({ append = false } = {}) {
+    if (announcementFeedState.loading) return;
+    announcementFeedState.loading = true;
+    const feed = document.getElementById('announcement-feed');
+    const loadMore = document.getElementById('announcement-load-more');
+    if (!append && feed) {
+        feed.innerHTML = '<div class="announcement-feed-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading announcements...</div>';
+    }
+    if (loadMore) loadMore.disabled = true;
     try {
-        const res = await fetch('../api/announcements/list.php', { credentials: 'same-origin' });
+        const params = new URLSearchParams({
+            status: announcementFeedState.status,
+            limit: '10'
+        });
+        if (announcementFeedState.query) params.set('q', announcementFeedState.query);
+        if (announcementFeedState.audience) params.set('audience', announcementFeedState.audience);
+        if (announcementFeedState.type) params.set('type', announcementFeedState.type);
+        if (append && announcementFeedState.cursor) params.set('cursor', announcementFeedState.cursor);
+
+        const res = await fetch(`../api/announcements/list.php?${params.toString()}`, { credentials: 'same-origin' });
         const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Failed to load announcements');
-        announcementsData = (data.items || []).map(item => ({
-            id: item.announcement_id,
-            title: item.title,
-            content: item.content,
-            audience_type: item.audience_type,
-            target_programs: item.target_programs || [],
-            announcement_photo: item.announcement_photo || '',
-            event_datetime: item.event_datetime || '',
-            event_location: item.event_location || '',
-            date: item.created_at || item.published_at,
-            org: getActiveOfficerOrgName(),
-            org_id: item.org_id
-        }));
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to load announcements');
+        const incoming = (data.items || []).map(mapOfficerAnnouncement);
+        announcementsData = append ? announcementsData.concat(incoming) : incoming;
+        announcementFeedState.cursor = data.next_cursor || '';
+        announcementFeedState.hasMore = Boolean(data.has_more);
+        announcementFeedState.counts = data.counts || { active: 0, archived: 0 };
+        updateAnnouncementFeedControls();
         renderAnnouncements();
     } catch (err) {
         console.error('Failed to load announcements', err);
+        if (!append && feed) {
+            feed.innerHTML = `<div class="announcement-feed-empty"><i class="fa-solid fa-triangle-exclamation"></i><h3>Could not load announcements</h3><p>${escapeHtml(err.message || 'Please try again.')}</p><button class="btn btn-outline btn-sm" onclick="fetchAnnouncementsFromApi()">Retry</button></div>`;
+        } else {
+            showToast(err.message || 'Could not load more announcements.', 'error');
+        }
+    } finally {
+        announcementFeedState.loading = false;
+        if (loadMore) {
+            loadMore.disabled = false;
+            loadMore.hidden = !announcementFeedState.hasMore;
+        }
     }
+}
+
+function updateAnnouncementFeedControls() {
+    const activeTab = document.getElementById('announcement-tab-active');
+    const archivedTab = document.getElementById('announcement-tab-archived');
+    activeTab?.classList.toggle('active', announcementFeedState.status === 'active');
+    archivedTab?.classList.toggle('active', announcementFeedState.status === 'archived');
+    const activeCount = document.getElementById('announcement-active-count');
+    const archivedCount = document.getElementById('announcement-archived-count');
+    if (activeCount) activeCount.textContent = String(announcementFeedState.counts.active || 0);
+    if (archivedCount) archivedCount.textContent = String(announcementFeedState.counts.archived || 0);
+}
+
+function resetAnnouncementFeed() {
+    announcementFeedState.cursor = '';
+    announcementFeedState.hasMore = false;
+    announcementsData = [];
+    fetchAnnouncementsFromApi();
+}
+
+function setAnnouncementFeedStatus(status) {
+    if (!['active', 'archived'].includes(status) || announcementFeedState.status === status) return;
+    announcementFeedState.status = status;
+    updateAnnouncementFeedControls();
+    resetAnnouncementFeed();
+}
+
+function loadMoreAnnouncements() {
+    if (announcementFeedState.hasMore && announcementFeedState.cursor) {
+        fetchAnnouncementsFromApi({ append: true });
+    }
+}
+
+function setupAnnouncementFeedFilters() {
+    let searchTimer = null;
+    document.getElementById('announcement-search')?.addEventListener('input', (event) => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            announcementFeedState.query = event.target.value.trim();
+            resetAnnouncementFeed();
+        }, 350);
+    });
+    document.getElementById('announcement-audience-filter')?.addEventListener('change', (event) => {
+        announcementFeedState.audience = event.target.value;
+        resetAnnouncementFeed();
+    });
+    document.getElementById('announcement-type-filter')?.addEventListener('change', (event) => {
+        announcementFeedState.type = event.target.value;
+        resetAnnouncementFeed();
+    });
 }
 
 // --- ACTIONS ---
@@ -5126,19 +5336,24 @@ function formatTimeRange(start, end) {
 
 async function postAnnouncement(e) {
     e.preventDefault();
-    const title = document.getElementById('ann-title').value;
-    const content = document.getElementById('ann-content').value;
+    const title = document.getElementById('ann-title').value.trim();
+    const content = document.getElementById('ann-content').value.trim();
     const audience = document.getElementById('ann-audience') ? document.getElementById('ann-audience').value : 'all_students';
     const targetProgramIds = audience === 'specific_courses' ? getSelectedAnnouncementProgramIds() : [];
-    const syncEvent = document.getElementById('sync-event').checked; // Get checkbox state
+    const editingId = announcementFeedState.editingId;
+    const syncEvent = !editingId && document.getElementById('sync-event').checked;
     const eventDate = document.getElementById('event-date')?.value || '';
     const eventTimeStart = (document.getElementById('event-time-start')?.value || '').trim();
     const eventTimeEnd   = (document.getElementById('event-time-end')?.value || '').trim();
     const eventTimeRange = formatTimeRange(eventTimeStart, eventTimeEnd);
     const eventLocation = document.getElementById('event-location')?.value || '';
-    const announcementPhotoFiles = document.getElementById('announcement-photos')?.files || [];
+    const announcementPhotoFiles = announcementPhotoPreviewState.files.filter(Boolean);
     let announcementPhotoDataUrls = [];
 
+    if (!title || !content) {
+        alert('Headline and content are required.');
+        return;
+    }
     if (syncEvent) {
         if (!eventDate || !eventTimeStart || !eventTimeEnd) {
             alert('Please select Event Date, Start Time, and End Time.');
@@ -5161,41 +5376,31 @@ async function postAnnouncement(e) {
     }
 
     try {
-        const res = await fetch('../api/announcements/create.php', {
+        const endpoint = editingId ? '../api/announcements/update.php' : '../api/announcements/create.php';
+        const payload = {
+            title,
+            content,
+            audience_type: audience,
+            target_program_ids: targetProgramIds,
+            announcement_photos: announcementPhotoDataUrls
+        };
+        if (editingId) {
+            payload.announcement_id = editingId;
+            payload.retained_photo_paths = announcementPhotoPreviewState.retainedPaths.filter(Boolean);
+        } else {
+            payload.publish = true;
+        }
+        const submitButton = document.getElementById('announcement-submit-btn');
+        if (submitButton) submitButton.disabled = true;
+        const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({
-                title,
-                content,
-                audience_type: audience,
-                target_program_ids: targetProgramIds,
-                announcement_photos: announcementPhotoDataUrls,
-                publish: true
-            })
+            body: JSON.stringify(payload)
         });
-        const data = await res.json();
-        if (!data.ok) {
-            throw new Error(data.error || 'Failed to post announcement');
-        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || `Failed to ${editingId ? 'update' : 'post'} announcement`);
 
-        const item = data.item || {};
-        announcementsData.unshift({
-            id: item.announcement_id || null,
-            title: item.title || title,
-            content: item.content || content,
-            audience_type: item.audience_type || audience,
-            target_programs: item.target_programs || [],
-            announcement_photo: item.announcement_photo || '',
-            event_datetime: item.event_datetime || '',
-            event_location: item.event_location || '',
-            date: item.created_at || item.published_at || new Date().toISOString(),
-            org: getActiveOfficerOrgName(),
-            org_id: item.org_id || (readAuthSession().active_org_id || 0)
-        });
-        renderAnnouncements();
-
-        // 2. CROSS-POSTING LOGIC
         if (syncEvent) {
             const eventsFrame = document.querySelector('#events iframe');
             const payload = {
@@ -5211,46 +5416,79 @@ async function postAnnouncement(e) {
             const sendToEventsFrame = () => {
                 try {
                     eventsFrame.contentWindow.postMessage(payload, '*');
-                    alert(`Announcement Posted & Event "${title}" created in Attendance System!`);
+                    showToast(`Announcement published and event "${title}" created.`, 'success');
                 } catch (_err) {
-                    alert("Announcement posted, but could not sync to Events tab (Frame not loaded).");
+                    showToast('Announcement published, but the Events tab could not be reached.', 'error');
                 }
             };
 
             if (eventsFrame) {
-                // Ensure iframe is loaded before posting
                 if (eventsFrame.contentWindow && eventsFrame.contentDocument?.readyState === 'complete') {
                     sendToEventsFrame();
                 } else {
                     eventsFrame.addEventListener('load', sendToEventsFrame, { once: true });
-                    // If src is empty, set it to events page to trigger load
                     if (!eventsFrame.src) {
                         eventsFrame.src = "../pages/qr-attendance/events.php";
                     }
                 }
             } else {
-                alert("Announcement posted, but Events frame is missing.");
+                showToast('Announcement published, but the Events tab is unavailable.', 'error');
             }
         } else {
-            alert("Announcement Posted!");
+            showToast(editingId ? 'Announcement updated.' : 'Announcement published.', 'success');
         }
-
+        closeAnnouncementComposer();
+        resetAnnouncementFeed();
     } catch (error) {
         console.error(error);
-        alert(error.message || 'Failed to post announcement. Please try again.');
+        alert(error.message || `Failed to ${editingId ? 'update' : 'post'} announcement. Please try again.`);
+    } finally {
+        const submitButton = document.getElementById('announcement-submit-btn');
+        if (submitButton) submitButton.disabled = false;
     }
-
-    e.target.reset();
-    toggleAnnouncementCourseTargets();
-    clearAnnouncementPhotoPreview();
-    resizeAnnouncementContentBox();
 }
 
-function returnItem(index) {
+async function archiveAnnouncement(announcementId) {
+    const item = getOfficerScopedAnnouncements().find(announcement => Number(announcement.id || announcement.announcement_id) === Number(announcementId));
+    if (!item || !await appConfirm(
+        `Archive "${item.title}"? Students will no longer see it, and officers can restore it later.`,
+        { title: 'Archive announcement', confirmText: 'Archive', danger: true }
+    )) return;
+    await setAnnouncementArchivedState(announcementId, true);
+}
+
+async function restoreAnnouncement(announcementId) {
+    await setAnnouncementArchivedState(announcementId, false);
+}
+
+async function setAnnouncementArchivedState(announcementId, archived) {
+    try {
+        const response = await fetch(`../api/announcements/${archived ? 'archive' : 'restore'}.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ announcement_id: announcementId })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || `Could not ${archived ? 'archive' : 'restore'} announcement.`);
+        }
+        showToast(`Announcement ${archived ? 'archived' : 'restored'}.`, 'success');
+        resetAnnouncementFeed();
+    } catch (error) {
+        console.error('[setAnnouncementArchivedState]', error);
+        showToast(error.message || 'Could not update announcement.', 'error');
+    }
+}
+
+async function returnItem(index) {
     const scopedRentals = getOfficerScopedRentals();
     const item = scopedRentals[index];
     if (!item) return;
-    if (confirm(`Mark ${item.item} as returned by ${item.renter}?`)) {
+    if (await appConfirm(`Mark ${item.item} as returned by ${item.renter}?`, {
+        title: 'Confirm item return',
+        confirmText: 'Mark returned'
+    })) {
         const absoluteIndex = rentalsData.findIndex(r => r.item === item.item && r.renter === item.renter && r.due === item.due);
         if (absoluteIndex > -1) rentalsData.splice(absoluteIndex, 1);
         renderRentals(); // Re-render both tables
@@ -6148,8 +6386,11 @@ async function exportPDF(options = {}) {
 }
 
 // --- WORKFLOW ACTION: Submit to OSA ---
-function submitToOSA(index) {
-    if (confirm('Submit this approved document to OSA for final review?')) {
+async function submitToOSA(index) {
+    if (await appConfirm('Submit this approved document to OSA for final review?', {
+        title: 'Submit document',
+        confirmText: 'Submit'
+    })) {
         // Update the document status
         const scopedDocs = getOfficerScopedDocs();
         if (scopedDocs[index]) {
@@ -6197,6 +6438,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     setupAnnouncementPhotoPreviewCarousel();
     setupAnnouncementContentAutoResize();
+    setupAnnouncementFeedFilters();
     loadAnnouncementCourseTargets();
     toggleAnnouncementCourseTargets();
     initTrackerSidebarBehavior();

@@ -1,6 +1,4 @@
-// --- DATA SIMULATION ---
-// servicesData, announcementsData, and extendedEvents are built from ORG_DATA (data/orgData.js).
-// To add or change org-specific content, edit data/orgData.js — NOT this file.
+// Services and event previews may use ORG_DATA, but announcements are loaded only from the database API.
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -23,14 +21,6 @@ const eventsData = [
     { title: "Annual Tech Summit", date: "Oct 25", org: "AISERS", desc: "A gathering of tech enthusiasts." },
     { title: "Sports Fest 2023", date: "Nov 02", org: "SSC", desc: "Inter-department sports league." },
     { title: "Aero Workshop", date: "Nov 10", org: "AERO-ATSO", desc: "Drone flying basics." }
-];
-
-// Flat announcements list: system-wide first, then org-specific items tagged with their org key.
-const announcementsData = [
-    ...SHARED_ANNOUNCEMENTS,
-    ...Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
-        d.announcements.map(a => ({ ...a, org: orgKey }))
-    )
 ];
 
 const transactionsData = [
@@ -208,7 +198,7 @@ function collectOrganizationMediaGallery(orgName, bannerGalleryImages, events = 
         .map(item => String(item || "").trim())
         .filter(Boolean);
 
-    const announcementImages = announcementsData
+    const announcementImages = databaseAnnouncements
         .filter(announcement => normalizeOrgName(announcement.org) === normalizedOrgName)
         .flatMap(collectAnnouncementPhotos)
         .filter(Boolean);
@@ -241,7 +231,7 @@ function getOrganizationGalleryGroups(orgName) {
         }))
         .filter(group => group.images.length);
 
-    const announcementGroups = announcementsData
+    const announcementGroups = databaseAnnouncements
         .filter(announcement => normalizeOrgName(announcement.org) === normalizedOrgName)
         .map(announcement => ({
             title: announcement.title || 'Announcement Photos',
@@ -683,10 +673,7 @@ function getStudentScopedExtendedEvents() {
 }
 
 function getStudentScopedAnnouncements() {
-    if (databaseAnnouncements.length) {
-        return databaseAnnouncements;
-    }
-    return announcementsData.filter(item => studentCanAccessOrg(item.org));
+    return databaseAnnouncements;
 }
 
 function getStudentScopedTransactions() {
@@ -3927,7 +3914,10 @@ function toggleThemeMobile() {
 // Logout Handler
 async function handleLogout(e) {
     e.preventDefault();
-    if (confirm('Are you sure you want to logout?')) {
+    if (await appConfirm('Are you sure you want to log out?', {
+        title: 'Log out',
+        confirmText: 'Log out'
+    })) {
         try { await fetch('../api/auth/logout.php', { credentials: 'same-origin' }); } catch (_) {}
         localStorage.removeItem(AUTH_SESSION_KEY);
         window.location.href = '../pages/login.html';
@@ -5570,7 +5560,11 @@ async function cancelStudentPrintJob(printJobId) {
         return;
     }
 
-    if (!window.confirm(`Cancel the print job for "${targetJob.file_name || 'Untitled PDF'}"?`)) {
+    if (!await appConfirm(`Cancel the print job for "${targetJob.file_name || 'Untitled PDF'}"?`, {
+        title: 'Cancel print job',
+        confirmText: 'Cancel job',
+        danger: true
+    })) {
         return;
     }
 

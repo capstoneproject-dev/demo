@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+    <script src="../assets/js/app-dialog.js?v=20260729-1"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Organization Management Dashboard</title>
@@ -18,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260727-dashboard-cleanup-1">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260729-announcement-feed-1">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -1562,13 +1563,58 @@
 
         <!-- ANNOUNCEMENTS VIEW -->
         <div id="announcements" class="section-view">
-            <div class="content-row">
-                <!-- Create Post -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Create Announcement</div>
+            <div class="announcement-management">
+                <div class="announcement-management-header">
+                    <div>
+                        <h2>Announcement Feed</h2>
                     </div>
-                    <form id="announcement-form" onsubmit="postAnnouncement(event)">
+                    <button type="button" class="btn btn-primary" onclick="openAnnouncementComposer()">
+                        <i class="fa-solid fa-plus"></i> New Announcement
+                    </button>
+                </div>
+                <div class="announcement-feed-toolbar">
+                    <div class="announcement-status-tabs" role="tablist" aria-label="Announcement status">
+                        <button type="button" id="announcement-tab-active" class="announcement-status-tab active" onclick="setAnnouncementFeedStatus('active')">
+                            Active <span id="announcement-active-count">0</span>
+                        </button>
+                        <button type="button" id="announcement-tab-archived" class="announcement-status-tab" onclick="setAnnouncementFeedStatus('archived')">
+                            Archived <span id="announcement-archived-count">0</span>
+                        </button>
+                    </div>
+                    <div class="announcement-feed-filters">
+                        <div class="announcement-search">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="search" id="announcement-search" placeholder="Search announcements..." aria-label="Search announcements">
+                        </div>
+                        <select id="announcement-audience-filter" aria-label="Filter by audience">
+                            <option value="">All audiences</option>
+                            <option value="all_students">All Students</option>
+                            <option value="specific_courses">Specific Courses</option>
+                        </select>
+                        <select id="announcement-type-filter" aria-label="Filter by type">
+                            <option value="">All types</option>
+                            <option value="announcement">Announcements</option>
+                            <option value="event">Events</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="announcement-feed" class="announcement-management-feed" aria-live="polite"></div>
+                <div class="announcement-load-more-wrap">
+                    <button type="button" id="announcement-load-more" class="btn btn-outline" onclick="loadMoreAnnouncements()" hidden>
+                        Load More
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="announcementComposerModal" class="modal-overlay">
+            <div class="modal-content announcement-composer-modal">
+                <div class="modal-header">
+                    <h3 id="announcement-composer-title">New Announcement</h3>
+                    <button class="close-modal" type="button" onclick="closeAnnouncementComposer()">&times;</button>
+                </div>
+                <form id="announcement-form" onsubmit="postAnnouncement(event)">
+                    <div class="modal-body announcement-composer-body">
                         <label>Target Audience</label>
                         <select id="ann-audience" onchange="toggleAnnouncementCourseTargets()">
                             <option value="all_students">All Students</option>
@@ -1583,13 +1629,10 @@
                                 <div class="announcement-course-empty">Loading courses...</div>
                             </div>
                         </div>
-
                         <label>Headline</label>
                         <input type="text" id="ann-title" placeholder="Enter headline..." required>
-
                         <label>Content</label>
                         <textarea id="ann-content" rows="6" placeholder="Type details here..." required></textarea>
-
                         <label>Announcement Photos (optional)</label>
                         <input type="file" id="announcement-photos" accept="image/*" multiple>
                         <div id="announcement-photo-carousel" class="announcement-photo-carousel" hidden>
@@ -1603,67 +1646,35 @@
                                 <i class="fa-solid fa-chevron-right"></i>
                             </button>
                             <div class="announcement-photo-actions">
-                                <button type="button" class="btn btn-outline btn-sm" id="announcement-photo-add">
-                                    <i class="fa-solid fa-plus"></i> Add
-                                </button>
-                                <button type="button" class="btn btn-outline btn-sm" id="announcement-photo-remove">
-                                    <i class="fa-regular fa-trash-can"></i> Remove
-                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" id="announcement-photo-add"><i class="fa-solid fa-plus"></i> Add</button>
+                                <button type="button" class="btn btn-outline btn-sm" id="announcement-photo-remove"><i class="fa-regular fa-trash-can"></i> Remove</button>
                             </div>
                             <div class="announcement-photo-count" id="announcement-photo-count">0 / 0</div>
                         </div>
-
-                        <div class="sync-option">
+                        <div class="sync-option" id="announcement-event-sync-option">
                             <label>
                                 <input type="checkbox" id="sync-event" onclick="toggleEventSyncFields()">
-                                <span class="sync-text">
-                                    <i class="fa-solid fa-calendar-plus"></i>
-                                    Also create this as an Event
-                                </span>
+                                <span class="sync-text"><i class="fa-solid fa-calendar-plus"></i> Also create this as an Event</span>
                             </label>
                         </div>
                         <div id="event-sync-fields" style="display:none; margin-top:10px; border:1px dashed var(--border); padding:10px; border-radius:8px;">
                             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:10px;">
-                                <div>
-                                    <label style="margin-bottom:4px;">Event Date</label>
-                                    <input type="date" id="event-date">
-                                </div>
+                                <div><label style="margin-bottom:4px;">Event Date</label><input type="date" id="event-date"></div>
                                 <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                                    <div style="flex:1; min-width:120px;">
-                                        <label style="margin-bottom:4px;">Start</label>
-                                        <input type="time" id="event-time-start">
-                                    </div>
-                                    <div style="flex:1; min-width:120px;">
-                                        <label style="margin-bottom:4px;">End</label>
-                                        <input type="time" id="event-time-end">
-                                    </div>
+                                    <div style="flex:1; min-width:120px;"><label style="margin-bottom:4px;">Start</label><input type="time" id="event-time-start"></div>
+                                    <div style="flex:1; min-width:120px;"><label style="margin-bottom:4px;">End</label><input type="time" id="event-time-end"></div>
                                 </div>
-                                <div>
-                                    <label style="margin-bottom:4px;">Location</label>
-                                    <input type="text" id="event-location" placeholder="e.g., Auditorium A">
-                                </div>
+                                <div><label style="margin-bottom:4px;">Location</label><input type="text" id="event-location" placeholder="e.g., Auditorium A"></div>
                             </div>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <label style="margin: 0; font-weight: 400; font-size: 0.85rem;">
-                                <input type="checkbox" style="width: auto; margin-right: 5px;"> Mark as Urgent
-                            </label>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fa-regular fa-paper-plane"></i> Publish
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Feed Preview -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">Live Feed</div>
                     </div>
-                    <div id="announcement-feed">
-                        <!-- Populated JS -->
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeAnnouncementComposer()">Cancel</button>
+                        <button type="submit" id="announcement-submit-btn" class="btn btn-primary">
+                            <i class="fa-regular fa-paper-plane"></i> Publish
+                        </button>
                     </div>
-                </div>
+                </form>
             </div>
         </div>
 
@@ -2014,7 +2025,7 @@
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260727-financial-xlsx-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260729-announcement-feed-1"></script>
 </body>
 
 </html>

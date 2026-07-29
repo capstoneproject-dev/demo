@@ -10,8 +10,58 @@ require_once __DIR__ . '/../config/db.php';
 class AnnouncementValidationException extends RuntimeException {}
 class AnnouncementAuthorizationException extends RuntimeException {}
 
+function annEnsureManagementColumns(PDO $pdo): void
+{
+    $columns = [
+        'archived_at' => "ALTER TABLE announcements ADD COLUMN archived_at DATETIME NULL AFTER published_at",
+        'archived_by_user_id' => "ALTER TABLE announcements ADD COLUMN archived_by_user_id INT NULL AFTER archived_at",
+    ];
+    $stmt = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'announcements'
+           AND COLUMN_NAME = :column_name"
+    );
+    foreach ($columns as $column => $alterSql) {
+        $stmt->execute([':column_name' => $column]);
+        if ((int)$stmt->fetchColumn() === 0) {
+            $pdo->exec($alterSql);
+        }
+    }
+    $indexStmt = $pdo->query(
+        "SELECT COUNT(*)
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'announcements'
+           AND INDEX_NAME = 'idx_announcements_org_archive_sort'"
+    );
+    if ((int)$indexStmt->fetchColumn() === 0) {
+        $pdo->exec(
+            "ALTER TABLE announcements
+             ADD INDEX idx_announcements_org_archive_sort (org_id, archived_at, published_at, announcement_id)"
+        );
+    }
+    $constraintStmt = $pdo->query(
+        "SELECT COUNT(*)
+         FROM information_schema.TABLE_CONSTRAINTS
+         WHERE CONSTRAINT_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'announcements'
+           AND CONSTRAINT_NAME = 'fk_announce_archiver'
+           AND CONSTRAINT_TYPE = 'FOREIGN KEY'"
+    );
+    if ((int)$constraintStmt->fetchColumn() === 0) {
+        $pdo->exec(
+            "ALTER TABLE announcements
+             ADD CONSTRAINT fk_announce_archiver
+             FOREIGN KEY (archived_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL"
+        );
+    }
+}
+
 function annEnsureProgramTargetsTable(PDO $pdo): void
 {
+    annEnsureManagementColumns($pdo);
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS announcement_program_targets (
             target_id INT NOT NULL AUTO_INCREMENT,
@@ -177,8 +227,9 @@ function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
 
     if (!empty($filters['q'])) {
         $q = '%' . trim((string)$filters['q']) . '%';
-        $where[] = '(a.title LIKE :q OR a.content LIKE :q)';
-        $params[':q'] = $q;
+        $where[] = '(a.title LIKE :q_title OR a.content LIKE :q_content)';
+        $params[':q_title'] = $q;
+        $params[':q_content'] = $q;
     }
 
     $sql = "
@@ -191,6 +242,8 @@ function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
                a.audience_type,
                a.is_published,
                a.published_at,
+               a.archived_at,
+               a.archived_by_user_id,
                a.created_at,
                a.updated_at,
                (
@@ -222,6 +275,7 @@ function annListAnnouncements(PDO $pdo, int $orgId, array $filters = []): array
         $row['org_id']            = (int)$row['org_id'];
         $row['created_by_user_id']= (int)$row['created_by_user_id'];
         $row['is_published']      = (int)$row['is_published'];
+        $row['archived_by_user_id'] = $row['archived_by_user_id'] !== null ? (int)$row['archived_by_user_id'] : null;
     }
     annAttachProgramTargets($pdo, $rows);
 
@@ -234,6 +288,7 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
 
     $where = [
         'a.is_published = 1',
+        'a.archived_at IS NULL',
         "COALESCE(o.status, 'active') = 'active'",
     ];
     $params = [];
@@ -280,6 +335,8 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
                a.audience_type,
                a.is_published,
                a.published_at,
+               a.archived_at,
+               a.archived_by_user_id,
                a.created_at,
                a.updated_at,
                o.org_name,
@@ -315,6 +372,7 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
         $row['org_id'] = (int)$row['org_id'];
         $row['created_by_user_id'] = (int)$row['created_by_user_id'];
         $row['is_published'] = (int)$row['is_published'];
+        $row['archived_by_user_id'] = $row['archived_by_user_id'] !== null ? (int)$row['archived_by_user_id'] : null;
     }
     annAttachProgramTargets($pdo, $rows);
 
@@ -323,6 +381,7 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
 
 function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): array
 {
+    annEnsureProgramTargetsTable($pdo);
     $title   = trim((string)($data['title'] ?? ''));
     $content = trim((string)($data['content'] ?? ''));
     $audience= trim((string)($data['audience_type'] ?? 'all_students'));
@@ -409,6 +468,8 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
                 audience_type,
                 is_published,
                 published_at,
+                archived_at,
+                archived_by_user_id,
                 created_at,
                 updated_at,
                 (
@@ -441,9 +502,353 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
     $row['org_id']             = (int)$row['org_id'];
     $row['created_by_user_id'] = (int)$row['created_by_user_id'];
     $row['is_published']       = (int)$row['is_published'];
+    $row['archived_by_user_id'] = $row['archived_by_user_id'] !== null ? (int)$row['archived_by_user_id'] : null;
     $rows = [$row];
     annAttachProgramTargets($pdo, $rows);
     $row = $rows[0];
 
     return $row;
+}
+
+function annDecodePhotoPaths(?string $value): array
+{
+    $raw = trim((string)$value);
+    if ($raw === '') return [];
+    $decoded = json_decode($raw, true);
+    $values = is_array($decoded) ? $decoded : [$raw];
+    return array_values(array_unique(array_filter(array_map(
+        static fn($path) => trim((string)$path),
+        $values
+    ))));
+}
+
+function annNormalizeRow(array &$row): void
+{
+    $row['announcement_id'] = (int)$row['announcement_id'];
+    $row['org_id'] = (int)$row['org_id'];
+    $row['created_by_user_id'] = (int)$row['created_by_user_id'];
+    $row['is_published'] = (int)$row['is_published'];
+    $row['archived_by_user_id'] = $row['archived_by_user_id'] !== null
+        ? (int)$row['archived_by_user_id']
+        : null;
+}
+
+function annFetchAnnouncementForOrg(PDO $pdo, int $orgId, int $announcementId): array
+{
+    annEnsureProgramTargetsTable($pdo);
+    $stmt = $pdo->prepare(
+        "SELECT a.announcement_id,
+                a.org_id,
+                a.created_by_user_id,
+                a.title,
+                a.content,
+                a.announcement_photo,
+                a.audience_type,
+                a.is_published,
+                a.published_at,
+                a.archived_at,
+                a.archived_by_user_id,
+                a.created_at,
+                a.updated_at,
+                (
+                    SELECT e.event_datetime
+                    FROM events e
+                    WHERE e.org_id = a.org_id
+                      AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                    ORDER BY e.event_id DESC
+                    LIMIT 1
+                ) AS event_datetime,
+                (
+                    SELECT e.location
+                    FROM events e
+                    WHERE e.org_id = a.org_id
+                      AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                    ORDER BY e.event_id DESC
+                    LIMIT 1
+                ) AS event_location
+         FROM announcements a
+         WHERE a.announcement_id = :announcement_id
+           AND a.org_id = :org_id
+         LIMIT 1"
+    );
+    $stmt->execute([
+        ':announcement_id' => $announcementId,
+        ':org_id' => $orgId,
+    ]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        throw new AnnouncementAuthorizationException('Announcement not found for this organization.');
+    }
+    annNormalizeRow($row);
+    $rows = [$row];
+    annAttachProgramTargets($pdo, $rows);
+    return $rows[0];
+}
+
+function annEncodeCursor(string $sortAt, int $announcementId): string
+{
+    return rtrim(strtr(base64_encode(json_encode([
+        'sort_at' => $sortAt,
+        'id' => $announcementId,
+    ], JSON_UNESCAPED_SLASHES)), '+/', '-_'), '=');
+}
+
+function annDecodeCursor(string $cursor): ?array
+{
+    if ($cursor === '') return null;
+    $padding = strlen($cursor) % 4;
+    if ($padding) $cursor .= str_repeat('=', 4 - $padding);
+    $decoded = json_decode((string)base64_decode(strtr($cursor, '-_', '+/'), true), true);
+    if (!is_array($decoded) || empty($decoded['sort_at']) || (int)($decoded['id'] ?? 0) <= 0) {
+        throw new AnnouncementValidationException('Invalid announcement cursor.');
+    }
+    return [
+        'sort_at' => (string)$decoded['sort_at'],
+        'id' => (int)$decoded['id'],
+    ];
+}
+
+function annListAnnouncementsPage(PDO $pdo, int $orgId, array $filters = []): array
+{
+    annEnsureProgramTargetsTable($pdo);
+    $where = ['a.org_id = :org'];
+    $params = [':org' => $orgId];
+    $status = strtolower(trim((string)($filters['status'] ?? 'active')));
+
+    if ($status === 'archived') {
+        $where[] = 'a.archived_at IS NOT NULL';
+    } elseif ($status === 'unpublished') {
+        $where[] = 'a.archived_at IS NULL';
+        $where[] = 'a.is_published = 0';
+    } else {
+        $status = 'active';
+        $where[] = 'a.archived_at IS NULL';
+        $where[] = 'a.is_published = 1';
+    }
+    if (isset($filters['published'])) {
+        $where[] = 'a.is_published = :published';
+        $params[':published'] = (int)$filters['published'] ? 1 : 0;
+    }
+    $q = trim((string)($filters['q'] ?? ''));
+    if ($q !== '') {
+        $where[] = '(a.title LIKE :q_title OR a.content LIKE :q_content)';
+        $params[':q_title'] = '%' . $q . '%';
+        $params[':q_content'] = '%' . $q . '%';
+    }
+    $audience = trim((string)($filters['audience'] ?? ''));
+    if (in_array($audience, ['all_students', 'specific_courses'], true)) {
+        $where[] = 'a.audience_type = :audience';
+        $params[':audience'] = $audience;
+    }
+    $type = strtolower(trim((string)($filters['type'] ?? '')));
+    $eventExists = "EXISTS (
+        SELECT 1 FROM events e
+        WHERE e.org_id = a.org_id
+          AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+    )";
+    if ($type === 'event') $where[] = $eventExists;
+    if ($type === 'announcement') $where[] = "NOT {$eventExists}";
+
+    $cursor = annDecodeCursor(trim((string)($filters['cursor'] ?? '')));
+    if ($cursor) {
+        $where[] = "(COALESCE(a.published_at, a.created_at) < :cursor_at
+            OR (COALESCE(a.published_at, a.created_at) = :cursor_at_equal
+                AND a.announcement_id < :cursor_id))";
+        $params[':cursor_at'] = $cursor['sort_at'];
+        $params[':cursor_at_equal'] = $cursor['sort_at'];
+        $params[':cursor_id'] = $cursor['id'];
+    }
+
+    $limit = max(1, min(50, (int)($filters['limit'] ?? 10)));
+    $fetchLimit = $limit + 1;
+    $sql = "SELECT a.announcement_id,
+                   a.org_id,
+                   a.created_by_user_id,
+                   a.title,
+                   a.content,
+                   a.announcement_photo,
+                   a.audience_type,
+                   a.is_published,
+                   a.published_at,
+                   a.archived_at,
+                   a.archived_by_user_id,
+                   a.created_at,
+                   a.updated_at,
+                   COALESCE(a.published_at, a.created_at) AS sort_at,
+                   (
+                       SELECT e.event_datetime FROM events e
+                       WHERE e.org_id = a.org_id
+                         AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                       ORDER BY e.event_id DESC LIMIT 1
+                   ) AS event_datetime,
+                   (
+                       SELECT e.location FROM events e
+                       WHERE e.org_id = a.org_id
+                         AND e.event_name COLLATE utf8mb4_unicode_ci = a.title COLLATE utf8mb4_unicode_ci
+                       ORDER BY e.event_id DESC LIMIT 1
+                   ) AS event_location
+            FROM announcements a
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY sort_at DESC, a.announcement_id DESC
+            LIMIT {$fetchLimit}";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    $hasMore = count($rows) > $limit;
+    if ($hasMore) array_pop($rows);
+    foreach ($rows as &$row) annNormalizeRow($row);
+    unset($row);
+    annAttachProgramTargets($pdo, $rows);
+
+    $nextCursor = null;
+    if ($hasMore && $rows) {
+        $last = $rows[count($rows) - 1];
+        $nextCursor = annEncodeCursor((string)$last['sort_at'], (int)$last['announcement_id']);
+    }
+    $countStmt = $pdo->prepare(
+        "SELECT
+            SUM(CASE WHEN archived_at IS NULL AND is_published = 1 THEN 1 ELSE 0 END) AS active_count,
+            SUM(CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END) AS archived_count
+         FROM announcements
+         WHERE org_id = :org"
+    );
+    $countStmt->execute([':org' => $orgId]);
+    $counts = $countStmt->fetch() ?: [];
+
+    return [
+        'items' => $rows,
+        'next_cursor' => $nextCursor,
+        'has_more' => $hasMore,
+        'counts' => [
+            'active' => (int)($counts['active_count'] ?? 0),
+            'archived' => (int)($counts['archived_count'] ?? 0),
+        ],
+    ];
+}
+
+function annValidateTargetPrograms(PDO $pdo, string $audience, array $values): array
+{
+    $ids = annNormalizeProgramIds($values);
+    if ($audience !== 'specific_courses') return [];
+    if (!$ids) {
+        throw new AnnouncementValidationException('Select at least one course for this announcement.');
+    }
+    $stmt = $pdo->prepare(
+        "SELECT program_id FROM academic_programs
+         WHERE is_active = 1
+           AND program_id IN (" . implode(',', array_fill(0, count($ids), '?')) . ")"
+    );
+    $stmt->execute($ids);
+    $valid = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    sort($valid);
+    sort($ids);
+    if ($valid !== $ids) {
+        throw new AnnouncementValidationException('One or more selected courses are not available.');
+    }
+    return $valid;
+}
+
+function annDeleteLocalPhoto(string $path): void
+{
+    if (!preg_match('#^uploads/announcements/[A-Za-z0-9._-]+$#', $path)) return;
+    $root = realpath(dirname(__DIR__) . '/uploads/announcements');
+    $file = realpath(dirname(__DIR__) . '/' . $path);
+    if ($root && $file && str_starts_with($file, $root . DIRECTORY_SEPARATOR) && is_file($file)) {
+        @unlink($file);
+    }
+}
+
+function annUpdateAnnouncement(PDO $pdo, int $orgId, int $announcementId, array $data): array
+{
+    $current = annFetchAnnouncementForOrg($pdo, $orgId, $announcementId);
+    $title = trim((string)($data['title'] ?? ''));
+    $content = trim((string)($data['content'] ?? ''));
+    $audience = trim((string)($data['audience_type'] ?? 'all_students'));
+    if ($title === '' || $content === '') {
+        throw new AnnouncementValidationException('Headline and content are required.');
+    }
+    if (!in_array($audience, ['all_students', 'specific_courses'], true)) {
+        throw new AnnouncementValidationException('Invalid target audience.');
+    }
+    $programIds = annValidateTargetPrograms($pdo, $audience, (array)($data['target_program_ids'] ?? []));
+    $existingPaths = annDecodePhotoPaths($current['announcement_photo'] ?? '');
+    $retained = array_values(array_unique(array_map('strval', (array)($data['retained_photo_paths'] ?? []))));
+    foreach ($retained as $path) {
+        if (!in_array($path, $existingPaths, true)) {
+            throw new AnnouncementAuthorizationException('An attached photo does not belong to this announcement.');
+        }
+    }
+    $newPaths = [];
+    try {
+        foreach ((array)($data['announcement_photos'] ?? []) as $photo) {
+            $path = annSaveAnnouncementPhotoFromData((string)$photo);
+            if ($path !== '') $newPaths[] = $path;
+        }
+        $allPaths = array_values(array_merge($retained, $newPaths));
+        $photoValue = $allPaths ? json_encode($allPaths, JSON_UNESCAPED_SLASHES) : null;
+
+        $pdo->beginTransaction();
+        $update = $pdo->prepare(
+            "UPDATE announcements
+             SET title = :title,
+                 content = :content,
+                 audience_type = :audience,
+                 announcement_photo = :photo
+             WHERE announcement_id = :announcement_id
+               AND org_id = :org_id"
+        );
+        $update->execute([
+            ':title' => $title,
+            ':content' => $content,
+            ':audience' => $audience,
+            ':photo' => $photoValue,
+            ':announcement_id' => $announcementId,
+            ':org_id' => $orgId,
+        ]);
+        $pdo->prepare("DELETE FROM announcement_program_targets WHERE announcement_id = :id")
+            ->execute([':id' => $announcementId]);
+        if ($programIds) {
+            $insert = $pdo->prepare(
+                "INSERT INTO announcement_program_targets (announcement_id, program_id)
+                 VALUES (:announcement_id, :program_id)"
+            );
+            foreach ($programIds as $programId) {
+                $insert->execute([
+                    ':announcement_id' => $announcementId,
+                    ':program_id' => $programId,
+                ]);
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        foreach ($newPaths as $path) annDeleteLocalPhoto($path);
+        throw $e;
+    }
+    foreach (array_diff($existingPaths, $retained) as $path) annDeleteLocalPhoto($path);
+    return annFetchAnnouncementForOrg($pdo, $orgId, $announcementId);
+}
+
+function annSetArchivedState(PDO $pdo, int $orgId, int $userId, int $announcementId, bool $archived): array
+{
+    annFetchAnnouncementForOrg($pdo, $orgId, $announcementId);
+    $sql = $archived
+        ? "UPDATE announcements
+           SET is_published = 0,
+               archived_at = CURRENT_TIMESTAMP,
+               archived_by_user_id = :user_id
+           WHERE announcement_id = :announcement_id AND org_id = :org_id"
+        : "UPDATE announcements
+           SET is_published = 1,
+               archived_at = NULL,
+               archived_by_user_id = NULL
+           WHERE announcement_id = :announcement_id AND org_id = :org_id";
+    $stmt = $pdo->prepare($sql);
+    $params = [
+        ':announcement_id' => $announcementId,
+        ':org_id' => $orgId,
+    ];
+    if ($archived) $params[':user_id'] = $userId;
+    $stmt->execute($params);
+    return annFetchAnnouncementForOrg($pdo, $orgId, $announcementId);
 }

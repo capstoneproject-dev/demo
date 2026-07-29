@@ -426,9 +426,12 @@ function switchThemeLogic() {
 }
 
 // Logout handler
-function handleLogout(e) {
+async function handleLogout(e) {
     e.preventDefault();
-    if (confirm('Are you sure you want to logout?')) {
+    if (await appConfirm('Are you sure you want to log out?', {
+        title: 'Log out',
+        confirmText: 'Log out'
+    })) {
         showToast('Logging out...', 'info');
         localStorage.removeItem(AUTH_SESSION_KEY);
         setTimeout(() => {
@@ -2582,8 +2585,11 @@ function resetDateFilters() {
 
 
 
-function submitToOSA(index) {
-    if (confirm('Submit this approved document to OSA for final review?')) {
+async function submitToOSA(index) {
+    if (await appConfirm('Submit this approved document to OSA for final review?', {
+        title: 'Submit document',
+        confirmText: 'Submit'
+    })) {
         if (docsData[index]) {
             docsData[index].status = "Sent to OSA";
             renderDocs(currentDocFilter);
