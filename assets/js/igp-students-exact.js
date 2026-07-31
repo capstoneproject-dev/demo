@@ -105,11 +105,7 @@
                 const ref = window.encodeStudentData ? window.encodeStudentData(student.studentId) : student.studentId;
                 const safeRef = ref.replace(/[^A-Za-z0-9_-]/g, '_');
                 const programLabel = student.programCode.trim() !== '' ? student.programCode : 'Unassigned';
-                const actionHtml = student.isOrgProgram
-                    ? `<button class="btn btn-sm btn-danger delete-student" title="Delete Student" data-studentid="${student.studentId}">
-                            <i class="fa-solid fa-trash"></i>
-                       </button>`
-                    : `<span class="badge bg-secondary">Read-only</span>`;
+                const actionHtml = `<span class="badge bg-secondary">Read-only</span>`;
                 const card = document.createElement('div');
                 card.className = 'student-card row align-items-center';
                 card.innerHTML = `

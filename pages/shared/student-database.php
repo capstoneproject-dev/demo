@@ -108,16 +108,8 @@ if ($returnTo === '' || strpos($returnTo, '..') !== 0) {
     <div class="container main-content">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <a href="<?php echo htmlspecialchars($returnTo, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">&larr; Back</a>
-            <div>
-                <button id="clearAll" class="btn btn-danger me-2">Clear All</button>
-                <button id="exportExcel" class="btn btn-success">Export to Excel</button>
-            </div>
         </div>
         <h1 class="mb-4">Student Barcode Database</h1>
-        <div class="mb-3">
-            <label for="excelInput" class="form-label">Import Excel File (.xlsx):</label>
-            <input type="file" id="excelInput" accept=".xlsx" class="form-control" />
-        </div>
         <div class="row g-2 mb-3">
             <div class="col-md-4">
                 <select id="programFilter" class="form-select">
@@ -136,65 +128,12 @@ if ($returnTo === '' || strpos($returnTo, '..') !== 0) {
         <div id="database"></div>
     </div>
 
-    <!-- Clear All Confirmation Modal -->
-    <div class="modal fade" id="clearAllModal" tabindex="-1" aria-labelledby="clearAllModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="clearAllModalLabel">Delete All Students</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-danger" role="alert">
-                        <strong>Warning:</strong> This action cannot be undone. All students will be permanently
-                        deleted.
-                    </div>
-                    <p>To confirm, please type <strong>"Delete"</strong> in the box below:</p>
-                    <input type="text" id="deleteConfirmInput" class="form-control"
-                        placeholder="Type 'Delete' to confirm">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="confirmDeleteAll" disabled>Delete All
-                        Students</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Delete Single Student Confirmation Modal -->
-    <div class="modal fade" id="deleteStudentModal" tabindex="-1" aria-labelledby="deleteStudentModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteStudentModalLabel">Delete Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-danger" role="alert">
-                        <strong>Warning:</strong> This action cannot be undone. This student will be permanently
-                        deleted.
-                    </div>
-                    <p>To confirm, please type <strong>"Delete"</strong> in the box below:</p>
-                    <input type="text" id="deleteStudentConfirmInput" class="form-control"
-                        placeholder="Type 'Delete' to confirm">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="confirmDeleteStudent" disabled>Delete
-                        Student</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/JsBarcode.all.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/encoder.js"></script>
     <script src="../../assets/js/igp-api.js?v=20260227e"></script>
-    <script src="../../assets/js/igp-students-exact.js?v=20260227e"></script>
+    <script src="../../assets/js/igp-students-exact.js?v=20260731-readonly-1"></script>
 </body>
 
 </html>
