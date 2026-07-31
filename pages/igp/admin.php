@@ -104,84 +104,16 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <div class="container main-content">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <a href="index.php" class="btn btn-secondary">&larr; Back</a>
-            <div>
-                <button id="clearAll" class="btn btn-danger me-2">Clear All</button>
-                <button id="exportExcel" class="btn btn-success">Export to Excel</button>
-            </div>
         </div>
         <h1 class="mb-4">Officer Barcode Database</h1>
-        <form id="addOfficerForm" class="row g-2 mb-3">
-            <div class="col-md-3">
-                <input type="text" class="form-control" id="addOfficerId" placeholder="Officer ID" required>
-            </div>
-            <div class="col-md-4">
-                <input type="text" class="form-control" id="addOfficerName" placeholder="Officer Name" required>
-            </div>
-            <div class="col-md-3">
-                <input type="text" class="form-control" id="addOfficerDepartment" placeholder="Department" required>
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary w-100">Add / Update Officer</button>
-            </div>
-        </form>
-        <div class="mb-3">
-            <label for="excelInput" class="form-label">Import Excel File (.xlsx):</label>
-            <input type="file" id="excelInput" accept=".xlsx" class="form-control" />
-        </div>
         <div class="mb-3">
             <div class="input-group">
                 <input type="text" id="searchInput" class="form-control"
-                    placeholder="Search by ID, name, or department...">
+                    placeholder="Search by ID or name">
                 <button class="btn btn-outline-secondary" type="button" id="clearSearch">Clear</button>
             </div>
         </div>
         <div id="database"></div>
-    </div>
-
-    <!-- Delete All Confirmation Modal -->
-    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Delete</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Type <strong>Delete</strong> to confirm clearing all officer data. This cannot be undone.</p>
-                    <input type="text" class="form-control" id="deleteConfirmInput"
-                        placeholder="Type 'Delete' to confirm">
-                    <div id="deleteConfirmError" class="text-danger mt-2" style="display:none;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="deleteConfirmBtn">Delete</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Delete Individual Officer Confirmation Modal -->
-    <div class="modal fade" id="deleteOfficerModal" tabindex="-1" aria-labelledby="deleteOfficerModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteOfficerModalLabel">Confirm Delete</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Type <strong>Delete</strong> to confirm deleting this officer. This cannot be undone.</p>
-                    <input type="text" class="form-control" id="deleteOfficerConfirmInput"
-                        placeholder="Type 'Delete' to confirm">
-                    <div id="deleteOfficerConfirmError" class="text-danger mt-2" style="display:none;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="deleteOfficerConfirmBtn">Delete</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
@@ -189,7 +121,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/encoder.js"></script>
     <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-admin-exact.js"></script>
+    <script src="../../assets/js/igp-admin-exact.js?v=20260731-no-delete-1"></script>
 </body>
 
 </html>

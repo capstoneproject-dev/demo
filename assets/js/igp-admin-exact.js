@@ -66,9 +66,7 @@
                         <small class="text-muted">Unique ID: ${officer.officerId}</small>
                     </div>
                     <div class="col-md-1 col-12 text-end">
-                        <button class="btn btn-sm btn-danger delete-officer" title="Delete Officer" data-id="${officer.id}">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
+                        <span class="badge bg-secondary">Read-only</span>
                     </div>
                 `;
                 departmentDiv.appendChild(card);
