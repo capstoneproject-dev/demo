@@ -37,6 +37,9 @@
               </button>
             </div>
             <button type="button" id="loginBtn">LOGIN</button>
+            <button type="button" id="localOsaOtpBypassBtn" class="secondary-btn" hidden>
+              LOGIN WITHOUT OTP (LOCAL TESTING)
+            </button>
 
             <div class="nav-links">
               <!-- Added onclick event to trigger switch -->
@@ -317,6 +320,31 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="osaLoginOtpModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Verify OSA Login</h3>
+        <button class="close-modal" onclick="closeOsaLoginOtpModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="otp-helper" id="osaLoginOtpStatus">Enter the 6-digit code sent to the email registered to this OSA account.</p>
+        <div class="otp-input-group" id="osaLoginOtpInputs">
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" autocomplete="one-time-code" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+          <input type="text" class="otp-char" maxlength="1" inputmode="numeric" />
+        </div>
+        <p class="otp-feedback" id="osaLoginOtpFeedback" aria-live="polite"></p>
+        <div class="otp-actions">
+          <button type="button" id="osaLoginOtpVerifyBtn">VERIFY OTP</button>
+          <button type="button" id="osaLoginOtpResendBtn" class="secondary-btn">RESEND OTP</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="registrationOtpModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -360,7 +388,7 @@
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20260731b"></script>
+  <script src="../assets/js/login.js?v=20260731-osa-login-otp-3"></script>
 
 </body>
 

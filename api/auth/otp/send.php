@@ -11,6 +11,12 @@ $email = trim((string)($body['email'] ?? ''));
 $identifier = trim((string)($body['identifier'] ?? ''));
 $invitationToken = trim((string)($body['invitation_token'] ?? ''));
 
+// OSA login codes are issued only after the password has been validated by
+// login.php. Do not expose that purpose through this public-purpose endpoint.
+if ($purpose === 'osa_login') {
+    jsonError('Invalid OTP purpose.', 422);
+}
+
 try {
     $challenge = createOtpChallenge($purpose, $email, $identifier, $invitationToken);
     jsonOk([
