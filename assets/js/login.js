@@ -1598,6 +1598,10 @@ async function registerStudent() {
     alert('Passwords do not match.');
     return;
   }
+  if (password.length < 8) {
+    alert('Password must be at least 8 characters.');
+    return;
+  }
   if (!hasPrivacyConsent('student-privacy-consent')) return;
 
   startRegistrationOtpFlow('student', email, studentNumber, 'student_registration', async (verificationToken) => {
@@ -1655,6 +1659,10 @@ async function registerOrgOfficer() {
     alert('Passwords do not match.');
     return;
   }
+  if (password.length < 8) {
+    alert('Password must be at least 8 characters.');
+    return;
+  }
   if (!hasPrivacyConsent('org-privacy-consent')) return;
 
   startRegistrationOtpFlow('organization', email, studentNumber, 'org_registration', async (verificationToken) => {
@@ -1701,6 +1709,10 @@ async function registerOsa() {
   }
   if (password !== confirmPassword) {
     alert('Passwords do not match.');
+    return;
+  }
+  if (password.length < 8) {
+    alert('Password must be at least 8 characters.');
     return;
   }
   if (!hasPrivacyConsent('osa-privacy-consent')) return;

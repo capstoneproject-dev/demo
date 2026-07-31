@@ -68,6 +68,10 @@ function revealPrimaryOsaFeatures() {
     document.querySelectorAll('.primary-osa-only').forEach(function(el) { el.hidden = false; });
 }
 
+function showPrimaryOsaNotice(message, type) {
+    return appAlert(message, { type: type || 'info' });
+}
+
 async function loadOsaStaffManagement() {
     if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
     var data = await primaryApi('staff/list.php');
@@ -87,10 +91,12 @@ function renderOsaStaffManagement() {
             var actions = isPrimary
                 ? '<span class="text-muted small">Transfer authority first</span>'
                 : '<button class="btn btn-outline-' + (isActive ? 'danger' : 'success') + ' btn-sm me-1" data-osa-status="' + staff.user_id + '" data-active="' + (isActive ? '0' : '1') + '">' + (isActive ? 'Deactivate' : 'Activate') + '</button>'
-                  + (isActive ? '<button class="btn btn-warning btn-sm" data-transfer-primary="' + staff.user_id + '">Make Primary</button>' : '');
+                  + (isActive
+                      ? '<button class="btn btn-warning btn-sm" data-transfer-primary="' + staff.user_id + '">Make Primary</button>'
+                      : '<button class="btn btn-outline-danger btn-sm" data-remove-osa-staff="' + staff.user_id + '">Remove</button>');
             return '<tr><td>' + escHtml(name) + '</td><td>' + escHtml(staff.employee_number) + '</td>'
                 + '<td>' + escHtml(staff.email) + '</td><td><span class="badge bg-' + (isActive ? 'success' : 'secondary') + '">' + (isActive ? 'Active' : 'Inactive') + '</span></td>'
-                + '<td>' + (isPrimary ? '<span class="badge bg-primary">Primary</span>' : 'Regular OSA') + '</td><td>' + actions + '</td></tr>';
+                + '<td>' + (isPrimary ? '<span class="badge bg-primary">Primary</span>' : 'OSA Staff') + '</td><td>' + actions + '</td></tr>';
         }).join('') : '<tr><td colspan="6" class="text-center text-muted">No OSA staff accounts</td></tr>';
     }
     if (inviteBody) {
@@ -160,11 +166,13 @@ function setupPrimaryOsaManagement() {
                 })
             });
             inviteForm.reset();
-            showToast('OSA invitation sent.', 'success');
+            await showPrimaryOsaNotice('OSA invitation sent.', 'success');
         } catch (error) {
-            showToast(error.message, 'danger');
+            await showPrimaryOsaNotice(error.message, 'error');
         }
-        await loadOsaStaffManagement().catch(function(error) { showToast(error.message, 'danger'); });
+        await loadOsaStaffManagement().catch(function(error) {
+            return showPrimaryOsaNotice(error.message, 'error');
+        });
     });
 
     document.getElementById('osaStaffPanel').addEventListener('click', async function(event) {
@@ -172,26 +180,67 @@ function setupPrimaryOsaManagement() {
         var revoke = event.target.closest('[data-revoke-invite]');
         var status = event.target.closest('[data-osa-status]');
         var transfer = event.target.closest('[data-transfer-primary]');
+        var removeStaff = event.target.closest('[data-remove-osa-staff]');
         try {
-            if (resend) await primaryApi('staff/invitations/resend.php', { method: 'POST', body: JSON.stringify({ invitation_id: resend.dataset.resendInvite }) });
-            if (revoke && confirm('Revoke this invitation?')) await primaryApi('staff/invitations/revoke.php', { method: 'POST', body: JSON.stringify({ invitation_id: revoke.dataset.revokeInvite }) });
-            if (status && confirm((status.dataset.active === '1' ? 'Activate' : 'Deactivate') + ' this OSA account?')) {
-                await primaryApi('staff/status.php', { method: 'POST', body: JSON.stringify({ user_id: status.dataset.osaStatus, is_active: status.dataset.active === '1' }) });
+            if (resend) {
+                var resendResult = await primaryApi('staff/invitations/resend.php', { method: 'POST', body: JSON.stringify({ invitation_id: resend.dataset.resendInvite }) });
+                await showPrimaryOsaNotice(resendResult.message || 'Invitation resent.', 'success');
             }
-            if (transfer && confirm('Transfer Primary OSA authority? You will immediately lose staff-management and audit access.')) {
-                await primaryApi('staff/transfer-primary.php', { method: 'POST', body: JSON.stringify({ user_id: transfer.dataset.transferPrimary }) });
+            if (revoke) {
+                if (!await appConfirm('Revoke this invitation?', {
+                    title: 'Revoke OSA invitation',
+                    confirmText: 'Revoke',
+                    type: 'warning',
+                    danger: true
+                })) return;
+                var revokeResult = await primaryApi('staff/invitations/revoke.php', { method: 'POST', body: JSON.stringify({ invitation_id: revoke.dataset.revokeInvite }) });
+                await showPrimaryOsaNotice(revokeResult.message || 'Invitation revoked.', 'success');
+            }
+            if (status) {
+                var activating = status.dataset.active === '1';
+                if (!await appConfirm((activating ? 'Activate' : 'Deactivate') + ' this OSA account?', {
+                    title: (activating ? 'Activate' : 'Deactivate') + ' OSA account',
+                    confirmText: activating ? 'Activate' : 'Deactivate',
+                    type: activating ? 'info' : 'warning',
+                    danger: !activating
+                })) return;
+                var statusResult = await primaryApi('staff/status.php', { method: 'POST', body: JSON.stringify({ user_id: status.dataset.osaStatus, is_active: activating }) });
+                await showPrimaryOsaNotice(statusResult.message || 'OSA account updated.', 'success');
+            }
+            if (transfer) {
+                if (!await appConfirm('Transfer Primary OSA authority? You will immediately lose staff-management and audit access.', {
+                    title: 'Transfer Primary authority',
+                    confirmText: 'Transfer authority',
+                    type: 'warning',
+                    danger: true
+                })) return;
+                var transferResult = await primaryApi('staff/transfer-primary.php', { method: 'POST', body: JSON.stringify({ user_id: transfer.dataset.transferPrimary }) });
+                await showPrimaryOsaNotice(transferResult.message || 'Primary OSA authority transferred.', 'success');
                 window.top.location.reload();
                 return;
             }
+            if (removeStaff) {
+                if (!await appConfirm('Permanently remove this inactive OSA staff account? This cannot be undone.', {
+                    title: 'Remove inactive OSA staff',
+                    confirmText: 'Remove account',
+                    type: 'warning',
+                    danger: true
+                })) return;
+                var removeResult = await primaryApi('staff/delete.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ user_id: removeStaff.dataset.removeOsaStaff })
+                });
+                await showPrimaryOsaNotice(removeResult.message || 'Inactive OSA staff account removed.', 'success');
+            }
             await loadOsaStaffManagement();
         } catch (error) {
-            showToast(error.message, 'danger');
+            await showPrimaryOsaNotice(error.message, 'error');
         }
     });
 
     document.getElementById('auditFilterForm').addEventListener('submit', function(event) {
         event.preventDefault();
-        loadAuditLogs(1).catch(function(error) { showToast(error.message, 'danger'); });
+        loadAuditLogs(1).catch(function(error) { return showPrimaryOsaNotice(error.message, 'error'); });
     });
     document.getElementById('auditPreviousPage').addEventListener('click', function() { loadAuditLogs(auditPage - 1); });
     document.getElementById('auditNextPage').addEventListener('click', function() { loadAuditLogs(auditPage + 1); });
@@ -203,14 +252,14 @@ function setupPrimaryOsaManagement() {
             document.getElementById('auditDetailContent').textContent = JSON.stringify(data.log, null, 2);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('auditDetailModal')).show();
         } catch (error) {
-            showToast(error.message, 'danger');
+            await showPrimaryOsaNotice(error.message, 'error');
         }
     });
     document.getElementById('osa-staff-tab').addEventListener('shown.bs.tab', function() {
-        loadOsaStaffManagement().catch(function(error) { showToast(error.message, 'danger'); });
+        loadOsaStaffManagement().catch(function(error) { return showPrimaryOsaNotice(error.message, 'error'); });
     });
     document.getElementById('audit-log-tab').addEventListener('shown.bs.tab', function() {
-        loadAuditLogs(1).catch(function(error) { showToast(error.message, 'danger'); });
+        loadAuditLogs(1).catch(function(error) { return showPrimaryOsaNotice(error.message, 'error'); });
     });
 }
 
