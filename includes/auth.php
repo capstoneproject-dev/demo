@@ -104,6 +104,33 @@ function apiGuard(): void
     if (!isLoggedIn()) {
         jsonError('Not authenticated.', 401);
     }
+
+    $session = getPhpSession();
+    if (($session['account_type'] ?? '') === 'osa_staff') {
+        $userId = (int)($session['user_id'] ?? $_SESSION['user_id'] ?? 0);
+        try {
+            $stmt = getPdo()->prepare(
+                "SELECT account_type, is_active, is_primary_osa
+                 FROM users WHERE user_id = :user_id LIMIT 1"
+            );
+            $stmt->execute([':user_id' => $userId]);
+            $current = $stmt->fetch();
+        } catch (PDOException $e) {
+            error_log('[auth/osa-session-refresh] ' . $e->getMessage());
+            jsonError('Authorization could not be verified.', 500);
+        }
+
+        if (
+            !$current
+            || ($current['account_type'] ?? '') !== 'osa_staff'
+            || (int)($current['is_active'] ?? 0) !== 1
+        ) {
+            destroySession();
+            jsonError('Not authenticated.', 401);
+        }
+
+        $_SESSION['naap_session']['is_primary_osa'] = (int)($current['is_primary_osa'] ?? 0) === 1;
+    }
 }
 
 /**
@@ -145,6 +172,38 @@ function apiRequireOsaSystemAdministrator(): array
         || ($user['account_type'] ?? '') !== 'osa_staff'
     ) {
         jsonError('You are not authorized to perform this action.', 403);
+    }
+
+    return $session;
+}
+
+/**
+ * Require the sole active Primary OSA. The flag is always read from the
+ * database; a browser session or localStorage value can never grant access.
+ */
+function apiRequirePrimaryOsaAdministrator(): array
+{
+    $session = apiRequireOsaSystemAdministrator();
+    $userId = (int)($session['user_id'] ?? $_SESSION['user_id'] ?? 0);
+
+    try {
+        $stmt = getPdo()->prepare(
+            "SELECT is_primary_osa
+             FROM users
+             WHERE user_id = :user_id
+               AND account_type = 'osa_staff'
+               AND is_active = 1
+             LIMIT 1"
+        );
+        $stmt->execute([':user_id' => $userId]);
+        $isPrimary = $stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log('[auth/primary-osa] ' . $e->getMessage());
+        jsonError('Authorization could not be verified.', 500);
+    }
+
+    if ((int)$isPrimary !== 1) {
+        jsonError('Primary OSA authorization is required.', 403);
     }
 
     return $session;

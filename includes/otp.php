@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/osa_staff.php';
 
 const OTP_EXPIRES_SECONDS = 600;
 const OTP_RESEND_SECONDS = 60;
@@ -48,7 +49,13 @@ function isAllowedOtpPurpose(string $purpose): bool
  * Check whether a code should actually be delivered. Ineligible requests are
  * still answered generically by the API so account existence is not exposed.
  */
-function otpRecipientIsEligible(PDO $pdo, string $purpose, string $email, string $identifier): bool
+function otpRecipientIsEligible(
+    PDO $pdo,
+    string $purpose,
+    string $email,
+    string $identifier,
+    string $invitationToken = ''
+): bool
 {
     if ($purpose === 'student_registration') {
         $stmt = $pdo->prepare(
@@ -87,10 +94,14 @@ function otpRecipientIsEligible(PDO $pdo, string $purpose, string $email, string
     }
 
     if ($purpose === 'osa_registration') {
+        try {
+            requireMatchingOsaInvitation($pdo, $invitationToken, $email, $identifier);
+        } catch (InvalidArgumentException $e) {
+            return false;
+        }
         $stmt = $pdo->prepare(
-            "SELECT 1
-             WHERE NOT EXISTS (SELECT 1 FROM users WHERE LOWER(email) = :email)
-               AND NOT EXISTS (SELECT 1 FROM users WHERE employee_number = :identifier)"
+            "SELECT NOT EXISTS (SELECT 1 FROM users WHERE LOWER(email) = :email)
+                    AND NOT EXISTS (SELECT 1 FROM users WHERE employee_number = :identifier)"
         );
         $stmt->execute([':email' => $email, ':identifier' => $identifier]);
         return (bool)$stmt->fetchColumn();
@@ -105,7 +116,12 @@ function otpRecipientIsEligible(PDO $pdo, string $purpose, string $email, string
     return (bool)$stmt->fetchColumn();
 }
 
-function createOtpChallenge(string $purpose, string $email, string $identifier): array
+function createOtpChallenge(
+    string $purpose,
+    string $email,
+    string $identifier,
+    string $invitationToken = ''
+): array
 {
     $email = normalizeOtpEmail($email);
     $identifier = trim($identifier);
@@ -140,8 +156,11 @@ function createOtpChallenge(string $purpose, string $email, string $identifier):
         }
     }
 
-    $eligible = otpRecipientIsEligible($pdo, $purpose, $email, $identifier);
+    $eligible = otpRecipientIsEligible($pdo, $purpose, $email, $identifier, $invitationToken);
     if (!$eligible && $purpose !== 'password_reset') {
+        if ($purpose === 'osa_registration') {
+            throw new InvalidArgumentException(OSA_INVITATION_GENERIC_ERROR);
+        }
         throw new InvalidArgumentException('These registration details are not eligible for email verification. Check the identifier or contact the OSA.');
     }
     $otp = (string)random_int(100000, 999999);

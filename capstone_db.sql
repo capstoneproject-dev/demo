@@ -1032,11 +1032,13 @@ CREATE TABLE `users` (
   `profile_photo` varchar(500) DEFAULT NULL,
   `password_hash` varchar(255) NOT NULL,
   `account_type` varchar(20) NOT NULL DEFAULT 'student',
+  `is_primary_osa` tinyint(1) NOT NULL DEFAULT 0,
   `has_unpaid_debt` tinyint(1) NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `last_login_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp(),
+  CONSTRAINT `chk_users_primary_osa` CHECK (`is_primary_osa` = 0 OR (`account_type` = 'osa_staff' AND `is_active` = 1))
 ) ;
 
 --
@@ -1052,6 +1054,8 @@ INSERT INTO `users` (`user_id`, `student_number`, `program_id`, `institute_id`, 
 (9, 'ITstudent', 1, 1, 'ITstudent', 'ITstudent', NULL, 'ITstudent@gmail.com', '+63 1234567890', NULL, '$2y$10$RH8GmvgHTHJGS20BD4x69O2HSV/33cQtSfzmm62j6jRJXupt2/I9O', 'student', 0, 1, '2026-03-25 20:00:17', '2026-03-18 21:05:46', '2026-03-25 20:00:17'),
 (10, 'AETstudent', 3, 2, 'AETstudent', 'AETstudent', NULL, 'AETstudent@gmail.com', '+63 1234567890', NULL, '$2y$10$Pf0QzbAfnqQBMTUy1nn/4.xkxO7AeVIhxB.OsBQWR45lV4CXrLjI6', 'student', 0, 1, '2026-03-24 23:37:35', '2026-03-18 21:20:54', '2026-03-24 23:37:35'),
 (11, 'elitech', 1, 1, 'elitech', 'elitech', NULL, 'elitech@gmail.com', '+63 1234567890', NULL, '$2y$10$IYHhWOTf2dIs6FfOiVX99.iDQ8sRYvRi4HGtEuOWg/tuS0vPC0cw2', 'student', 1, 1, '2026-03-24 23:33:54', '2026-03-18 21:26:31', '2026-03-24 23:33:54');
+
+UPDATE `users` SET `is_primary_osa` = 1 WHERE `user_id` = 1;
 
 --
 -- Triggers `users`
@@ -1089,6 +1093,70 @@ DELIMITER ;
 DELIMITER $$
 CREATE TRIGGER `trg_users_updated_at` BEFORE UPDATE ON `users` FOR EACH ROW BEGIN
     SET NEW.updated_at = CURRENT_TIMESTAMP;
+END
+$$
+DELIMITER ;
+
+-- --------------------------------------------------------
+-- Secure OSA staff invitations and append-only audit history
+-- --------------------------------------------------------
+
+CREATE TABLE `osa_staff_invitations` (
+  `invitation_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `employee_number` varchar(20) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `token_hash` char(64) NOT NULL,
+  `status` enum('pending','accepted','revoked','expired') NOT NULL DEFAULT 'pending',
+  `delivery_status` enum('pending','sent','failed') NOT NULL DEFAULT 'pending',
+  `delivery_error` varchar(255) DEFAULT NULL,
+  `invited_by_user_id` int(11) NOT NULL,
+  `accepted_by_user_id` int(11) DEFAULT NULL,
+  `revoked_by_user_id` int(11) DEFAULT NULL,
+  `expires_at` datetime NOT NULL,
+  `last_sent_at` datetime DEFAULT NULL,
+  `accepted_at` datetime DEFAULT NULL,
+  `revoked_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`invitation_id`),
+  UNIQUE KEY `uq_osa_invitation_token` (`token_hash`),
+  KEY `idx_osa_invitation_email_status` (`email`,`status`),
+  KEY `idx_osa_invitation_employee_status` (`employee_number`,`status`),
+  KEY `idx_osa_invitation_expiry` (`status`,`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `audit_logs` (
+  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `actor_user_id` int(11) DEFAULT NULL,
+  `actor_name` varchar(201) DEFAULT NULL,
+  `actor_email` varchar(255) DEFAULT NULL,
+  `actor_employee_number` varchar(20) DEFAULT NULL,
+  `action` varchar(100) NOT NULL,
+  `target_type` varchar(50) NOT NULL,
+  `target_id` varchar(100) DEFAULT NULL,
+  `target_name` varchar(201) DEFAULT NULL,
+  `target_email` varchar(255) DEFAULT NULL,
+  `target_employee_number` varchar(20) DEFAULT NULL,
+  `before_state` json DEFAULT NULL,
+  `after_state` json DEFAULT NULL,
+  `request_ip` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  `result` varchar(20) NOT NULL DEFAULT 'success',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`audit_id`),
+  KEY `idx_audit_action_created` (`action`,`created_at`),
+  KEY `idx_audit_actor_created` (`actor_user_id`,`created_at`),
+  KEY `idx_audit_target` (`target_type`,`target_id`),
+  KEY `idx_audit_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DELIMITER $$
+CREATE TRIGGER `trg_audit_logs_append_only_update` BEFORE UPDATE ON `audit_logs` FOR EACH ROW BEGIN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Audit log entries are append-only and cannot be updated';
+END
+$$
+CREATE TRIGGER `trg_audit_logs_append_only_delete` BEFORE DELETE ON `audit_logs` FOR EACH ROW BEGIN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Audit log entries are append-only and cannot be deleted';
 END
 $$
 DELIMITER ;
@@ -1280,6 +1348,7 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `student_number` (`student_number`),
   ADD UNIQUE KEY `employee_number` (`employee_number`),
   ADD KEY `idx_users_email` (`email`),
+  ADD KEY `idx_users_osa_status` (`account_type`,`is_active`,`is_primary_osa`),
   ADD KEY `idx_users_program_id` (`program_id`),
   ADD KEY `idx_users_institute_id` (`institute_id`);
 
@@ -1484,6 +1553,14 @@ ALTER TABLE `organization_members`
   ADD CONSTRAINT `fk_org_members_org_role` FOREIGN KEY (`org_id`,`role_id`) REFERENCES `org_roles` (`org_id`, `role_id`),
   ADD CONSTRAINT `fk_org_members_role` FOREIGN KEY (`role_id`) REFERENCES `org_roles` (`role_id`),
   ADD CONSTRAINT `fk_org_members_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `osa_staff_invitations`
+--
+ALTER TABLE `osa_staff_invitations`
+  ADD CONSTRAINT `fk_osa_invitation_inviter` FOREIGN KEY (`invited_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `fk_osa_invitation_accepted_user` FOREIGN KEY (`accepted_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_osa_invitation_revoker` FOREIGN KEY (`revoked_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `org_roles`

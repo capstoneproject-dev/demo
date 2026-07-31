@@ -85,6 +85,8 @@ jsonOk([
     'user'          => [
         'user_id'         => (int)$user['user_id'],
         'account_type'    => $user['account_type'],
+        'is_primary_osa'  => ($user['account_type'] ?? '') === 'osa_staff'
+                                && (int)($user['is_primary_osa'] ?? 0) === 1,
         'first_name'      => $user['first_name'],
         'last_name'       => $user['last_name'],
         'email'           => $user['email'],

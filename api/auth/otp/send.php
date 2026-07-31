@@ -9,9 +9,10 @@ $body = getRequestBody();
 $purpose = trim((string)($body['purpose'] ?? ''));
 $email = trim((string)($body['email'] ?? ''));
 $identifier = trim((string)($body['identifier'] ?? ''));
+$invitationToken = trim((string)($body['invitation_token'] ?? ''));
 
 try {
-    $challenge = createOtpChallenge($purpose, $email, $identifier);
+    $challenge = createOtpChallenge($purpose, $email, $identifier, $invitationToken);
     jsonOk([
         ...$challenge,
         'message' => 'If the supplied details are eligible, a verification code has been sent.',
