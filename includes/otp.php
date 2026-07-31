@@ -135,6 +135,8 @@ function createOtpChallenge(
         "SELECT TIMESTAMPDIFF(SECOND, CURRENT_TIMESTAMP, resend_available_at) AS retry_after
          FROM email_otp_challenges
          WHERE email = :email AND purpose = :purpose
+           AND consumed_at IS NULL
+           AND verified_at IS NULL
            AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 SECOND)
          ORDER BY challenge_id DESC LIMIT 1"
     );

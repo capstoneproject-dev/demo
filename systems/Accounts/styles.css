@@ -178,6 +178,43 @@ body {
     background: #ffffff;
 }
 
+.audit-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 16px;
+}
+
+.audit-pagination-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.audit-pagination-actions .btn {
+    min-width: 88px;
+}
+
+@media (max-width: 575.98px) {
+    .audit-pagination {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .audit-pagination-actions {
+        justify-content: center;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .audit-pagination-actions .btn {
+        flex: 1 1 0;
+        max-width: 112px;
+    }
+}
+
 .table th {
     color: var(--muted);
     font-weight: 500;
