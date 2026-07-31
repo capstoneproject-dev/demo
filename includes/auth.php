@@ -106,6 +106,50 @@ function apiGuard(): void
     }
 }
 
+/**
+ * Require the combined OSA/System Administrator account role.
+ *
+ * The database is checked on every protected request so an inactive,
+ * deleted, or demoted account cannot retain administrative access through
+ * an older session payload.
+ *
+ * @return array The authenticated PHP session payload.
+ */
+function apiRequireOsaSystemAdministrator(): array
+{
+    apiGuard();
+
+    $session = getPhpSession();
+    $userId = (int)($session['user_id'] ?? $_SESSION['user_id'] ?? 0);
+    if ($userId <= 0) {
+        jsonError('You are not authorized to perform this action.', 403);
+    }
+
+    try {
+        $stmt = getPdo()->prepare(
+            "SELECT account_type, is_active
+             FROM users
+             WHERE user_id = :user_id
+             LIMIT 1"
+        );
+        $stmt->execute([':user_id' => $userId]);
+        $user = $stmt->fetch();
+    } catch (PDOException $e) {
+        error_log('[auth/osa-system-administrator] ' . $e->getMessage());
+        jsonError('Authorization could not be verified.', 500);
+    }
+
+    if (
+        !$user
+        || (int)($user['is_active'] ?? 0) !== 1
+        || ($user['account_type'] ?? '') !== 'osa_staff'
+    ) {
+        jsonError('You are not authorized to perform this action.', 403);
+    }
+
+    return $session;
+}
+
 // ---------------------------------------------------------------------------
 // JSON response helpers (for API endpoints)
 // ---------------------------------------------------------------------------
