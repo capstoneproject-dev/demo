@@ -18,6 +18,7 @@
 
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/otp.php';
 
 header('Content-Type: application/json');
 
@@ -26,6 +27,8 @@ requirePost();
 $body       = getRequestBody();
 $identifier = trim($body['identifier'] ?? '');
 $password   = $body['password'] ?? '';
+$verificationToken = trim((string)($body['verification_token'] ?? ''));
+$testingBypassOtp = filter_var($body['testing_bypass_otp'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
 if (!$identifier || !$password) {
     jsonError('Please enter your email / ID and password.');
@@ -46,6 +49,54 @@ if (!$user['is_active']) {
 
 if (!password_verify($password, $user['password_hash'])) {
     jsonError('Invalid password. Please try again.');
+}
+
+$requestHost = strtolower(trim((string)($_SERVER['HTTP_HOST'] ?? '')));
+$requestHost = preg_replace('/:\d+$/', '', $requestHost);
+$requestIp = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+$localTestingRequest = in_array($requestHost, ['localhost', '127.0.0.1', '::1'], true)
+    && in_array($requestIp, ['127.0.0.1', '::1'], true);
+
+if ($testingBypassOtp && !$localTestingRequest) {
+    jsonError('The OSA OTP testing bypass is available only on localhost.', 403);
+}
+
+if ($testingBypassOtp && ($user['account_type'] ?? '') === 'osa_staff') {
+    error_log(sprintf(
+        '[api/auth/login] LOCAL TESTING ONLY: OTP bypass used for OSA user_id=%d from %s.',
+        (int)$user['user_id'],
+        $requestIp
+    ));
+}
+
+// Every OSA account, including the primary account and all staff accounts,
+// must complete a fresh email OTP challenge before a session is created.
+if (($user['account_type'] ?? '') === 'osa_staff' && !$testingBypassOtp) {
+    $otpIdentifier = (string)(int)$user['user_id'];
+    $otpEmail = strtolower(trim((string)$user['email']));
+
+    if ($verificationToken === '') {
+        $challenge = createOtpChallenge('osa_login', $otpEmail, $otpIdentifier);
+        jsonOk([
+            'otp_required' => true,
+            'challenge_token' => $challenge['challenge_token'],
+            'expires_in' => $challenge['expires_in'],
+            'resend_after' => $challenge['resend_after'],
+            'message' => 'Enter the verification code sent to the email registered to this OSA account.',
+        ]);
+    }
+
+    $pdo = getPdo();
+    $pdo->beginTransaction();
+    try {
+        consumeOtpVerification($pdo, $verificationToken, 'osa_login', $otpEmail, $otpIdentifier);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }
 
 // --- Build memberships ---
@@ -109,4 +160,17 @@ jsonOk([
 } catch (PDOException $e) {
     error_log('[api/auth/login] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
+} catch (InvalidArgumentException $e) {
+    jsonError($e->getMessage(), 422);
+} catch (OtpRateLimitException $e) {
+    http_response_code(429);
+    echo json_encode([
+        'ok' => false,
+        'error' => $e->getMessage(),
+        'retry_after' => $e->retryAfter,
+    ]);
+    exit;
+} catch (RuntimeException $e) {
+    error_log('[api/auth/login] ' . $e->getMessage());
+    jsonError('Could not send the verification code right now.', 503);
 }

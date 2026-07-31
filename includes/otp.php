@@ -41,6 +41,7 @@ function isAllowedOtpPurpose(string $purpose): bool
         'student_registration',
         'org_registration',
         'osa_registration',
+        'osa_login',
         'password_reset',
     ], true);
 }
@@ -104,6 +105,23 @@ function otpRecipientIsEligible(
                     AND NOT EXISTS (SELECT 1 FROM users WHERE employee_number = :identifier)"
         );
         $stmt->execute([':email' => $email, ':identifier' => $identifier]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    if ($purpose === 'osa_login') {
+        $stmt = $pdo->prepare(
+            "SELECT 1
+             FROM users
+             WHERE user_id = :user_id
+               AND LOWER(email) = :email
+               AND account_type = 'osa_staff'
+               AND is_active = 1
+             LIMIT 1"
+        );
+        $stmt->execute([
+            ':user_id' => (int)$identifier,
+            ':email' => $email,
+        ]);
         return (bool)$stmt->fetchColumn();
     }
 

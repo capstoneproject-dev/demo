@@ -104,6 +104,7 @@ function sendOtpEmail(string $recipient, string $otp, string $purpose): void
         'student_registration' => 'student registration',
         'org_registration' => 'organization registration',
         'osa_registration' => 'OSA registration',
+        'osa_login' => 'OSA account login',
         'password_reset' => 'password reset',
     ];
     $label = $labels[$purpose] ?? 'account verification';

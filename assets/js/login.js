@@ -1830,7 +1830,216 @@ async function initializeOsaInvitation() {
 /* =====================
    LOGIN HANDLER
    ===================== */
-async function handleLogin() {
+const osaLoginOtpState = {
+  identifier: '', password: '', challengeToken: '', resendTimer: null, isSubmitting: false
+};
+
+function getOsaLoginOtpInputs() {
+  return Array.from(document.querySelectorAll('#osaLoginOtpInputs .otp-char'));
+}
+
+function getOsaLoginOtpValue() {
+  return getOsaLoginOtpInputs().map((input) => String(input.value || '').trim()).join('');
+}
+
+function setOsaLoginOtpFeedback(message, isSuccess = false) {
+  const feedback = document.getElementById('osaLoginOtpFeedback');
+  if (!feedback) return;
+  feedback.textContent = message || '';
+  feedback.classList.toggle('success', !!isSuccess);
+}
+
+function resetOsaLoginOtpInputs() {
+  getOsaLoginOtpInputs().forEach((input) => { input.value = ''; });
+}
+
+function openOsaLoginOtpModal() {
+  document.getElementById('osaLoginOtpModal')?.classList.add('open');
+}
+
+function closeOsaLoginOtpModal() {
+  document.getElementById('osaLoginOtpModal')?.classList.remove('open');
+  if (osaLoginOtpState.resendTimer) clearInterval(osaLoginOtpState.resendTimer);
+  Object.assign(osaLoginOtpState, {
+    identifier: '', password: '', challengeToken: '', resendTimer: null, isSubmitting: false
+  });
+  resetOsaLoginOtpInputs();
+  setOsaLoginOtpFeedback('');
+}
+
+function setupOsaLoginOtpInputs() {
+  const inputs = getOsaLoginOtpInputs();
+  inputs.forEach((input, index) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/\D/g, '').slice(-1);
+      setOsaLoginOtpFeedback('');
+      if (input.value && index < inputs.length - 1) inputs[index + 1].focus();
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Backspace' && !input.value && index > 0) inputs[index - 1].focus();
+      if (event.key === 'ArrowLeft' && index > 0) inputs[index - 1].focus();
+      if (event.key === 'ArrowRight' && index < inputs.length - 1) inputs[index + 1].focus();
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        verifyOsaLoginOtp();
+      }
+    });
+    input.addEventListener('paste', (event) => {
+      event.preventDefault();
+      const digits = (event.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+      digits.split('').forEach((digit, digitIndex) => { inputs[digitIndex].value = digit; });
+      if (digits.length) inputs[Math.min(digits.length, 6) - 1]?.focus();
+    });
+  });
+}
+
+async function requestLogin(identifier, password, verificationToken = '', testingBypassOtp = false) {
+  const response = await fetch('../api/auth/login.php', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier,
+      password,
+      verification_token: verificationToken || undefined,
+      testing_bypass_otp: !!testingBypassOtp
+    })
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    const error = new Error(data.error || 'Login failed. Please check your credentials.');
+    error.retryAfter = Number(data.retry_after) || 0;
+    throw error;
+  }
+  return data;
+}
+
+function beginOsaLoginOtp(identifier, password, data) {
+  osaLoginOtpState.identifier = identifier;
+  osaLoginOtpState.password = password;
+  osaLoginOtpState.challengeToken = data.challenge_token || '';
+  osaLoginOtpState.isSubmitting = false;
+  resetOsaLoginOtpInputs();
+  setOsaLoginOtpFeedback(data.message || 'Verification code sent.', true);
+  const status = document.getElementById('osaLoginOtpStatus');
+  if (status) status.textContent = 'Enter the 6-digit code sent to the email registered to this OSA account.';
+  openOsaLoginOtpModal();
+  startOtpResendCountdown(document.getElementById('osaLoginOtpResendBtn'), data.resend_after || 60, osaLoginOtpState);
+  getOsaLoginOtpInputs()[0]?.focus();
+}
+
+async function resendOsaLoginOtp() {
+  if (!osaLoginOtpState.identifier || !osaLoginOtpState.password || osaLoginOtpState.isSubmitting) return;
+  osaLoginOtpState.isSubmitting = true;
+  setOsaLoginOtpFeedback('Sending a new verification code...', true);
+  try {
+    const data = await requestLogin(osaLoginOtpState.identifier, osaLoginOtpState.password);
+    if (!data.otp_required) throw new Error('OSA verification was not requested.');
+    beginOsaLoginOtp(osaLoginOtpState.identifier, osaLoginOtpState.password, data);
+  } catch (error) {
+    setOsaLoginOtpFeedback(error.message || 'Could not resend the verification code.');
+    if (error.retryAfter) {
+      startOtpResendCountdown(document.getElementById('osaLoginOtpResendBtn'), error.retryAfter, osaLoginOtpState);
+    }
+  } finally {
+    osaLoginOtpState.isSubmitting = false;
+  }
+}
+
+async function verifyOsaLoginOtp() {
+  const otp = getOsaLoginOtpValue();
+  if (osaLoginOtpState.isSubmitting) return;
+  if (!osaLoginOtpState.challengeToken) {
+    setOsaLoginOtpFeedback('Request a new verification code.');
+    return;
+  }
+  if (!/^\d{6}$/.test(otp)) {
+    setOsaLoginOtpFeedback('Enter the complete 6-digit OTP.');
+    return;
+  }
+
+  const verifyBtn = document.getElementById('osaLoginOtpVerifyBtn');
+  osaLoginOtpState.isSubmitting = true;
+  if (verifyBtn) verifyBtn.disabled = true;
+  setOsaLoginOtpFeedback('Verifying OTP...', true);
+
+  try {
+    const response = await fetch('../api/auth/otp/verify.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge_token: osaLoginOtpState.challengeToken, otp })
+    });
+    const verification = await response.json();
+    if (!response.ok || !verification.ok) {
+      throw new Error(verification.error || 'Invalid or expired verification code.');
+    }
+    const loginData = await requestLogin(
+      osaLoginOtpState.identifier,
+      osaLoginOtpState.password,
+      verification.verification_token
+    );
+    closeOsaLoginOtpModal();
+    completeAuthenticatedLogin(loginData);
+  } catch (error) {
+    setOsaLoginOtpFeedback(error.message || 'Could not verify the code.');
+  } finally {
+    osaLoginOtpState.isSubmitting = false;
+    if (verifyBtn) verifyBtn.disabled = false;
+  }
+}
+
+function completeAuthenticatedLogin(data) {
+  const { user, memberships } = data;
+  const baseSession = {
+    user_id: user.user_id,
+    account_type: user.account_type,
+    is_primary_osa: !!user.is_primary_osa,
+    display_name: `${user.first_name} ${user.last_name}`.trim(),
+    email: user.email,
+    student_number: user.student_number || null,
+    employee_number: user.employee_number || null,
+    phone: user.phone || null,
+    profile_photo: user.profile_photo || null,
+    authenticated_at: new Date().toISOString(),
+    officer_memberships: memberships || [],
+    program_id: user.program_id || null,
+    program_code: user.program_code || null,
+    section: user.section || null,
+    mapped_org_id: user.mapped_org_id || null,
+    mapped_org_name: user.mapped_org_name || null
+  };
+
+  if (data.legacyProfile) localStorage.setItem(LEGACY_STUDENT_PROFILE_KEY, JSON.stringify(data.legacyProfile));
+
+  if (user.account_type === 'osa_staff') {
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({
+      ...baseSession,
+      login_role: 'osa',
+      active_org_id: null,
+      active_org_name: 'Office of Student Affairs',
+      active_role_name: 'osa_staff'
+    }));
+    window.location.href = 'osaDashboard.html';
+    return;
+  }
+
+  if (!memberships || memberships.length === 0) {
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({
+      ...baseSession,
+      login_role: 'student',
+      active_org_id: null,
+      active_org_name: null
+    }));
+    window.location.href = 'studentDashboard.html';
+    return;
+  }
+
+  pendingOrgLogin = { user, memberships, baseSession };
+  openDashboardChoiceModal();
+}
+
+async function handleLogin(testingBypassOtp = false) {
   const identifier = (document.getElementById('loginIdentifier') || {}).value?.trim() || '';
   const password = (document.getElementById('loginPassword') || {}).value || '';
 
@@ -1843,16 +2052,9 @@ async function handleLogin() {
   if (loginBtn) loginBtn.disabled = true;
 
   try {
-    const resp = await fetch('../api/auth/login.php', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password })
-    });
-    const data = await resp.json();
-
-    if (!data.ok) {
-      alert(data.error || 'Login failed. Please check your credentials.');
+    const data = await requestLogin(identifier, password, '', testingBypassOtp === true);
+    if (data.otp_required) {
+      beginOsaLoginOtp(identifier, password, data);
       return;
     }
 
@@ -1917,7 +2119,7 @@ async function handleLogin() {
 
   } catch (err) {
     console.error('[handleLogin] error:', err);
-    alert('Could not connect to the server. Make sure XAMPP is running.');
+    alert(err.message || 'Could not connect to the server. Make sure XAMPP is running.');
   } finally {
     if (loginBtn) loginBtn.disabled = false;
   }
@@ -1936,12 +2138,14 @@ document.addEventListener('DOMContentLoaded', () => {
   resetOrgRegistrationState();
   setupForgotPasswordFlow();
   setupRegistrationOtpFlow();
+  setupOsaLoginOtpInputs();
   initializeOsaInvitation();
 
   const studentRegisterBtn = document.getElementById('studentRegisterBtn');
   const orgRegisterBtn = document.getElementById('orgRegisterBtn');
   const osaRegisterBtn = document.getElementById('osaRegisterBtn');
   const loginBtn = document.getElementById('loginBtn');
+  const localOsaOtpBypassBtn = document.getElementById('localOsaOtpBypassBtn');
 
   const studentForm = document.getElementById('form-student');
   const orgForm = document.getElementById('form-org');
@@ -1952,6 +2156,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (orgRegisterBtn) orgRegisterBtn.addEventListener('click', registerOrgOfficer);
   if (osaRegisterBtn) osaRegisterBtn.addEventListener('click', registerOsa);
   if (loginBtn) loginBtn.addEventListener('click', handleLogin);
+  if (localOsaOtpBypassBtn) {
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+    localOsaOtpBypassBtn.hidden = !localHosts.has(window.location.hostname.toLowerCase());
+    localOsaOtpBypassBtn.addEventListener('click', () => handleLogin(true));
+  }
+  document.getElementById('osaLoginOtpVerifyBtn')?.addEventListener('click', verifyOsaLoginOtp);
+  document.getElementById('osaLoginOtpResendBtn')?.addEventListener('click', resendOsaLoginOtp);
 
   const enterSubmit = (form, action) => {
     if (!form) return;
