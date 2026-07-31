@@ -132,6 +132,8 @@ function buildSessionPayload(
     return [
         'user_id'             => (int)$user['user_id'],
         'account_type'        => $user['account_type'],
+        'is_primary_osa'      => ($user['account_type'] ?? '') === 'osa_staff'
+                                    && (int)($user['is_primary_osa'] ?? 0) === 1,
         'display_name'        => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
         'email'               => $user['email'],
         'phone'               => $user['phone'] ?? null,
@@ -203,7 +205,8 @@ function employeeNumberExists(string $en): bool
  */
 function createOsaUser(array $data): int
 {
-    $stmt = getPdo()->prepare(
+    $pdo = $data['pdo'] ?? getPdo();
+    $stmt = $pdo->prepare(
         "INSERT INTO users
             (employee_number, email, password_hash, first_name, last_name, phone, account_type)
          VALUES
@@ -217,7 +220,7 @@ function createOsaUser(array $data): int
         ':ln'    => $data['last_name'],
         ':phone' => $data['phone'] ?? null,
     ]);
-    return (int)getPdo()->lastInsertId();
+    return (int)$pdo->lastInsertId();
 }
 
 // ---------------------------------------------------------------------------

@@ -6,6 +6,8 @@ const AUTH_SESSION_KEY = 'naapAuthSession';
 const LEGACY_STUDENT_PROFILE_KEY = 'naapStudentProfile';
 const ACCOUNTS_APPROVED_KEY = 'AccountsSystem_studentAccounts';
 const PENDING_REQUESTS_KEY = 'AccountsSystem_pendingRequests';
+const OSA_INVITATION_SESSION_KEY = 'naapOsaInvitationToken';
+let activeOsaInvitationToken = '';
 
 const COURSE_INSTITUTE_MAP = {
   BSAIT: 'Institute of Computer Studies',
@@ -667,6 +669,7 @@ const registrationOtpState = {
   pendingIdentifier: '',
   pendingPurpose: '',
   pendingLabel: '',
+  invitationToken: '',
   isSubmitting: false,
   isSending: false,
   resendTimer: null
@@ -1052,6 +1055,7 @@ function closeRegistrationOtpModal() {
   registrationOtpState.pendingIdentifier = '';
   registrationOtpState.pendingPurpose = '';
   registrationOtpState.pendingLabel = '';
+  registrationOtpState.invitationToken = '';
   registrationOtpState.challengeToken = '';
   registrationOtpState.verificationToken = '';
   registrationOtpState.isSubmitting = false;
@@ -1092,7 +1096,8 @@ async function sendRegistrationOtp() {
       body: JSON.stringify({
         purpose: registrationOtpState.pendingPurpose,
         email: registrationOtpState.pendingEmail,
-        identifier: registrationOtpState.pendingIdentifier
+        identifier: registrationOtpState.pendingIdentifier,
+        invitation_token: registrationOtpState.invitationToken || undefined
       })
     });
     const data = await response.json();
@@ -1195,12 +1200,13 @@ function setupRegistrationOtpInputs() {
   });
 }
 
-function startRegistrationOtpFlow(label, email, identifier, purpose, action) {
+function startRegistrationOtpFlow(label, email, identifier, purpose, action, invitationToken = '') {
   registrationOtpState.pendingAction = action;
   registrationOtpState.pendingEmail = String(email || '').trim();
   registrationOtpState.pendingIdentifier = String(identifier || '').trim();
   registrationOtpState.pendingPurpose = purpose;
   registrationOtpState.pendingLabel = label;
+  registrationOtpState.invitationToken = invitationToken;
   sendRegistrationOtp();
 }
 
@@ -1699,6 +1705,11 @@ async function registerOsa() {
   }
   if (!hasPrivacyConsent('osa-privacy-consent')) return;
 
+  if (!activeOsaInvitationToken) {
+    alert('A valid OSA staff invitation is required.');
+    return;
+  }
+
   startRegistrationOtpFlow('OSA', email, employeeNumber, 'osa_registration', async (verificationToken) => {
     const parsedName = splitName(fullName);
     const btn = document.getElementById('osaRegisterBtn');
@@ -1716,7 +1727,9 @@ async function registerOsa() {
           phone,
           password,
           confirm_password: confirmPassword,
-          verification_token: verificationToken
+          verification_token: verificationToken,
+          invitation_token: activeOsaInvitationToken,
+          privacy_consent: true
         })
       });
       const data = await resp.json();
@@ -1729,6 +1742,7 @@ async function registerOsa() {
       const session = {
         user_id: user.user_id,
         account_type: 'osa_staff',
+        is_primary_osa: false,
         display_name: `${user.first_name} ${user.last_name}`.trim(),
         email: user.email,
         student_number: null,
@@ -1743,6 +1757,7 @@ async function registerOsa() {
         active_role_name: 'osa_staff'
       };
       localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      sessionStorage.removeItem(OSA_INVITATION_SESSION_KEY);
       window.location.href = 'osaDashboard.html';
     } catch (err) {
       console.error('[registerOsa] error:', err);
@@ -1751,7 +1766,53 @@ async function registerOsa() {
     } finally {
       if (btn) btn.disabled = false;
     }
-  });
+  }, activeOsaInvitationToken);
+}
+
+async function initializeOsaInvitation() {
+  const hashMatch = String(window.location.hash || '').match(/(?:^#|&)osa-invite=([a-f0-9]{64})(?:&|$)/i);
+  if (hashMatch) {
+    activeOsaInvitationToken = hashMatch[1].toLowerCase();
+    sessionStorage.setItem(OSA_INVITATION_SESSION_KEY, activeOsaInvitationToken);
+    history.replaceState(null, document.title, window.location.pathname + window.location.search);
+  } else {
+    activeOsaInvitationToken = sessionStorage.getItem(OSA_INVITATION_SESSION_KEY) || '';
+  }
+  if (!activeOsaInvitationToken) return;
+
+  const status = document.getElementById('osa-invitation-status');
+  try {
+    const response = await fetch('../api/auth/osa-invitations/inspect.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invitation_token: activeOsaInvitationToken })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok || !data.invitation) {
+      throw new Error(data.error || 'This OSA invitation is invalid or no longer available.');
+    }
+    const osaTab = document.getElementById('osaRegistrationTab');
+    const employeeInput = document.getElementById('osa-employee-number-input');
+    const emailInput = document.getElementById('osa-email-input');
+    if (osaTab) osaTab.hidden = false;
+    if (employeeInput) employeeInput.value = data.invitation.employee_number;
+    if (emailInput) emailInput.value = data.invitation.email;
+    if (status) {
+      status.textContent = `Invitation verified for ${data.invitation.email}. Complete the locked OSA registration form.`;
+      status.classList.add('success');
+    }
+    switchTab('osa');
+    if (container && !container.classList.contains('right-panel-active')) toggleSlide();
+  } catch (error) {
+    activeOsaInvitationToken = '';
+    sessionStorage.removeItem(OSA_INVITATION_SESSION_KEY);
+    setLoginStatusMessage(error.message || 'This OSA invitation is invalid or no longer available.', false);
+    if (status) {
+      status.textContent = error.message;
+      status.classList.add('error');
+    }
+  }
 }
 
 /* =====================
@@ -1789,6 +1850,7 @@ async function handleLogin() {
     const baseSession = {
       user_id: user.user_id,
       account_type: user.account_type,
+      is_primary_osa: !!user.is_primary_osa,
       display_name: `${user.first_name} ${user.last_name}`.trim(),
       email: user.email,
       student_number: user.student_number || null,
@@ -1862,6 +1924,7 @@ document.addEventListener('DOMContentLoaded', () => {
   resetOrgRegistrationState();
   setupForgotPasswordFlow();
   setupRegistrationOtpFlow();
+  initializeOsaInvitation();
 
   const studentRegisterBtn = document.getElementById('studentRegisterBtn');
   const orgRegisterBtn = document.getElementById('orgRegisterBtn');

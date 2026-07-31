@@ -98,7 +98,7 @@
         <div class="register-tabs">
           <button class="tab-btn active" onclick="switchTab('student')">Student</button>
           <button class="tab-btn" onclick="switchTab('org')">Organization</button>
-          <button class="tab-btn" onclick="switchTab('osa')">OSA</button>
+          <button class="tab-btn" id="osaRegistrationTab" onclick="switchTab('osa')" hidden>OSA</button>
         </div>
 
         <!-- Student Fields -->
@@ -121,9 +121,10 @@
 
         <!-- OSA Fields -->
         <form id="form-osa" class="reg-fields">
-          <input type="text" id="osa-employee-number-input" placeholder="Employee Number" />
+          <p id="osa-invitation-status" class="org-lookup-message" aria-live="polite"></p>
+          <input type="text" id="osa-employee-number-input" placeholder="Employee Number" readonly />
           <input type="text" id="osa-name-input" placeholder="Name" />
-          <input type="email" id="osa-email-input" placeholder="Email" />
+          <input type="email" id="osa-email-input" placeholder="Email" readonly />
           <input type="tel" id="osa-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
           <div class="password-field"><input type="password" id="osa-password-input" placeholder="Password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
           <div class="password-field"><input type="password" id="osa-confirm-password-input" placeholder="Re-enter Password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>

@@ -45,6 +45,16 @@
                 Officers <span class="badge bg-secondary ms-1" id="officersTotalBadge">0</span>
             </button>
         </li>
+        <li class="nav-item primary-osa-only" role="presentation" hidden>
+            <button class="nav-link" id="osa-staff-tab"
+                data-bs-toggle="tab" data-bs-target="#osaStaffPanel"
+                type="button" role="tab">OSA Staff</button>
+        </li>
+        <li class="nav-item primary-osa-only" role="presentation" hidden>
+            <button class="nav-link" id="audit-log-tab"
+                data-bs-toggle="tab" data-bs-target="#auditLogPanel"
+                type="button" role="tab">Audit Log</button>
+        </li>
     </ul>
 
     <div class="tab-content border border-top-0 rounded-bottom p-3 mb-4" id="mainTabContent">
@@ -130,6 +140,67 @@
                         <tr><td colspan="9" class="text-center text-muted">No officers</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div class="tab-pane fade primary-osa-only" id="osaStaffPanel" role="tabpanel" hidden>
+            <form id="osaInviteForm" class="row g-2 align-items-end mb-4">
+                <div class="col-md-5">
+                    <label for="osaInviteEmail" class="form-label">Official email</label>
+                    <input id="osaInviteEmail" type="email" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="osaInviteEmployeeNumber" class="form-label">Employee number</label>
+                    <input id="osaInviteEmployeeNumber" type="text" maxlength="20" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-primary btn-sm w-100" type="submit">Send 72-hour Invitation</button>
+                </div>
+            </form>
+
+            <h3 class="h6">Staff accounts</h3>
+            <div class="table-responsive mb-4">
+                <table class="table table-sm align-middle">
+                    <thead class="table-dark"><tr>
+                        <th>Name</th><th>Employee #</th><th>Email</th><th>Status</th><th>Authority</th><th>Actions</th>
+                    </tr></thead>
+                    <tbody id="osaStaffRecords"><tr><td colspan="6" class="text-center text-muted">Loading OSA staff…</td></tr></tbody>
+                </table>
+            </div>
+
+            <h3 class="h6">Invitations</h3>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-dark"><tr>
+                        <th>Employee #</th><th>Email</th><th>Status</th><th>Delivery</th><th>Expires</th><th>Actions</th>
+                    </tr></thead>
+                    <tbody id="osaInvitationRecords"><tr><td colspan="6" class="text-center text-muted">No invitations</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="tab-pane fade primary-osa-only" id="auditLogPanel" role="tabpanel" hidden>
+            <form id="auditFilterForm" class="row g-2 mb-3">
+                <div class="col-md-4"><input id="auditSearch" class="form-control form-control-sm" placeholder="Search actor or target"></div>
+                <div class="col-md-3"><select id="auditActionFilter" class="form-select form-select-sm"><option value="">All actions</option></select></div>
+                <div class="col-md-2"><input id="auditDateFrom" type="date" class="form-control form-control-sm" aria-label="From date"></div>
+                <div class="col-md-2"><input id="auditDateTo" type="date" class="form-control form-control-sm" aria-label="To date"></div>
+                <div class="col-md-1"><button class="btn btn-outline-primary btn-sm w-100" type="submit">Go</button></div>
+            </form>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-dark"><tr>
+                        <th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Result</th><th></th>
+                    </tr></thead>
+                    <tbody id="auditLogRecords"><tr><td colspan="6" class="text-center text-muted">No audit entries</td></tr></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+                <small id="auditPageSummary" class="text-muted"></small>
+                <div>
+                    <button id="auditPreviousPage" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+                    <button id="auditNextPage" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+                </div>
             </div>
         </div>
     </div>
@@ -433,6 +504,18 @@
 <!-- Toast container -->
 <div id="toastContainer" style="position:fixed;bottom:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;"></div>
 
+<div class="modal fade" id="auditDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Audit Entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body"><pre id="auditDetailContent" class="bg-light border rounded p-3 mb-0" style="white-space:pre-wrap"></pre></div>
+        </div>
+    </div>
+</div>
+
 <!-- -------- IMPORT STUDENTS MODAL -------- -->
 <div class="modal fade" id="importStudentsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -474,7 +557,7 @@
 <script src="lib/bootstrap.bundle.min.js"></script>
 <script src="accounts-api.js?v=20260718e"></script>
 <script src="api.js"></script>
-<script src="script.js?v=20260718e"></script>
+<script src="script.js?v=20260731a"></script>
 </body>
 </html>
 

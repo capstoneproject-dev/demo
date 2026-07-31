@@ -26,13 +26,64 @@ CREATE TABLE users (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
         account_type VARCHAR(20) NOT NULL DEFAULT 'student',
+        is_primary_osa TINYINT(1) NOT NULL DEFAULT 0,
         has_unpaid_debt TINYINT(1) NOT NULL DEFAULT 0,
         is_active TINYINT(1) NOT NULL DEFAULT 1,
         phone VARCHAR(30) NULL,
     last_login_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_users_account_type CHECK (account_type IN ('student', 'osa_staff'))
+    CONSTRAINT chk_users_account_type CHECK (account_type IN ('student', 'osa_staff')),
+    CONSTRAINT chk_users_primary_osa CHECK (is_primary_osa = 0 OR (account_type = 'osa_staff' AND is_active = 1))
+) ENGINE=InnoDB;
+
+CREATE TABLE osa_staff_invitations (
+    invitation_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    employee_number VARCHAR(20) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    status ENUM('pending','accepted','revoked','expired') NOT NULL DEFAULT 'pending',
+    delivery_status ENUM('pending','sent','failed') NOT NULL DEFAULT 'pending',
+    delivery_error VARCHAR(255) NULL,
+    invited_by_user_id INT NOT NULL,
+    accepted_by_user_id INT NULL,
+    revoked_by_user_id INT NULL,
+    expires_at DATETIME NOT NULL,
+    last_sent_at DATETIME NULL,
+    accepted_at DATETIME NULL,
+    revoked_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_osa_invitation_email_status (email, status),
+    KEY idx_osa_invitation_employee_status (employee_number, status),
+    KEY idx_osa_invitation_expiry (status, expires_at),
+    CONSTRAINT fk_osa_invitation_inviter FOREIGN KEY (invited_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_osa_invitation_accepted_user FOREIGN KEY (accepted_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    CONSTRAINT fk_osa_invitation_revoker FOREIGN KEY (revoked_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE audit_logs (
+    audit_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    actor_user_id INT NULL,
+    actor_name VARCHAR(201) NULL,
+    actor_email VARCHAR(255) NULL,
+    actor_employee_number VARCHAR(20) NULL,
+    action VARCHAR(100) NOT NULL,
+    target_type VARCHAR(50) NOT NULL,
+    target_id VARCHAR(100) NULL,
+    target_name VARCHAR(201) NULL,
+    target_email VARCHAR(255) NULL,
+    target_employee_number VARCHAR(20) NULL,
+    before_state JSON NULL,
+    after_state JSON NULL,
+    request_ip VARCHAR(45) NULL,
+    user_agent VARCHAR(255) NULL,
+    result VARCHAR(20) NOT NULL DEFAULT 'success',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_audit_action_created (action, created_at),
+    KEY idx_audit_actor_created (actor_user_id, created_at),
+    KEY idx_audit_target (target_type, target_id),
+    KEY idx_audit_created (created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE organizations (
@@ -626,6 +677,21 @@ END$$
 
 DELIMITER ;
 
+DELIMITER $$
+CREATE TRIGGER trg_audit_logs_append_only_update
+BEFORE UPDATE ON audit_logs
+FOR EACH ROW
+BEGIN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Audit log entries are append-only and cannot be updated';
+END$$
+CREATE TRIGGER trg_audit_logs_append_only_delete
+BEFORE DELETE ON audit_logs
+FOR EACH ROW
+BEGIN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Audit log entries are append-only and cannot be deleted';
+END$$
+DELIMITER ;
+
 -- =====================================================
 -- 5) Seed Data
 -- =====================================================
@@ -640,12 +706,12 @@ INSERT INTO organizations (
 -- Demo account password for ALL seed users: 12345678
 -- Hash generated with: password_hash('12345678', PASSWORD_BCRYPT)
 INSERT INTO users (
-    user_id, student_number, program_id, year_section, employee_number, email, password_hash, first_name, last_name, account_type
+    user_id, student_number, program_id, year_section, employee_number, email, password_hash, first_name, last_name, account_type, is_primary_osa
 ) VALUES
-(1, '2023-10001', NULL, 'IS-1A', NULL, 'aisers.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Aira', 'Santos', 'student'),
-(2, '2023-10002', NULL, 'ET-2B', NULL, 'elitech.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Liam', 'Reyes', 'student'),
-(3, '2023-10003', NULL, 'LA-1C', NULL, 'cyc.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Chloe', 'Cruz', 'student'),
-(4, NULL, NULL, NULL, 'OSA-0001', 'osa.staff@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Olivia', 'Garcia', 'osa_staff');
+(1, '2023-10001', NULL, 'IS-1A', NULL, 'aisers.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Aira', 'Santos', 'student', 0),
+(2, '2023-10002', NULL, 'ET-2B', NULL, 'elitech.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Liam', 'Reyes', 'student', 0),
+(3, '2023-10003', NULL, 'LA-1C', NULL, 'cyc.officer1@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Chloe', 'Cruz', 'student', 0),
+(4, NULL, NULL, NULL, 'OSA-0001', 'osa.staff@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Olivia', 'Garcia', 'osa_staff', 1);
 
 INSERT INTO org_roles (
     role_id, org_id, role_name, can_access_org_dashboard, is_active

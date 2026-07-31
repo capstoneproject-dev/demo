@@ -47,6 +47,25 @@ if (($session['account_type'] ?? '') === 'student') {
     $session['mapped_org_id'] = isset($mappedOrg['org_id']) ? (int)$mappedOrg['org_id'] : null;
     $session['mapped_org_name'] = $mappedOrg['org_name'] ?? null;
     startUserSession($session);
+} elseif (($session['account_type'] ?? '') === 'osa_staff') {
+    $user = getUserById((int)$_SESSION['user_id']);
+    if (
+        !$user
+        || ($user['account_type'] ?? '') !== 'osa_staff'
+        || (int)($user['is_active'] ?? 0) !== 1
+    ) {
+        destroySession();
+        echo json_encode(['authenticated' => false]);
+        exit;
+    }
+
+    $session['display_name'] = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+    $session['email'] = $user['email'] ?? null;
+    $session['phone'] = $user['phone'] ?? null;
+    $session['employee_number'] = $user['employee_number'] ?? null;
+    $session['is_primary_osa'] = (int)($user['is_primary_osa'] ?? 0) === 1;
+    $session['login_role'] = 'osa';
+    startUserSession($session);
 }
 
 echo json_encode([

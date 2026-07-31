@@ -7,6 +7,12 @@ let students = [];
 let officers = [];
 let pendingRequests = [];
 let studentNumbers = [];
+let currentAccountsSession = null;
+let osaStaff = [];
+let osaInvitations = [];
+let auditPage = 1;
+let auditTotal = 0;
+const AUDIT_PAGE_SIZE = 25;
 
 var lastFingerprint = null;  // realtime poll baseline (null = not yet set)
 var pollTimer       = null;
@@ -34,7 +40,10 @@ async function authorizeIncomingUser() {
         if (!json.authenticated) { redirectFromAccounts('../../pages/login.html'); return false; }
         const acct = json.session?.account_type || json.user?.account_type || '';
         const role = json.session?.login_role   || '';
-        if (acct === 'osa_staff' || role === 'osa') return true;
+        if (acct === 'osa_staff' || role === 'osa') {
+            currentAccountsSession = json.session || {};
+            return true;
+        }
         if (role === 'org') { redirectFromAccounts('../../pages/officerDashboard.html'); return false; }
         redirectFromAccounts('../../pages/login.html');
         return false;
@@ -42,6 +51,167 @@ async function authorizeIncomingUser() {
         redirectFromAccounts('../../pages/login.html');
         return false;
     }
+}
+
+async function primaryApi(path, options) {
+    var response = await fetch('../../api/osa/' + path, Object.assign({
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+    }, options || {}));
+    var data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'The request could not be completed.');
+    return data;
+}
+
+function revealPrimaryOsaFeatures() {
+    if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
+    document.querySelectorAll('.primary-osa-only').forEach(function(el) { el.hidden = false; });
+}
+
+async function loadOsaStaffManagement() {
+    if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
+    var data = await primaryApi('staff/list.php');
+    osaStaff = data.staff || [];
+    osaInvitations = data.invitations || [];
+    renderOsaStaffManagement();
+}
+
+function renderOsaStaffManagement() {
+    var staffBody = document.getElementById('osaStaffRecords');
+    var inviteBody = document.getElementById('osaInvitationRecords');
+    if (staffBody) {
+        staffBody.innerHTML = osaStaff.length ? osaStaff.map(function(staff) {
+            var name = ((staff.first_name || '') + ' ' + (staff.last_name || '')).trim();
+            var isPrimary = Number(staff.is_primary_osa) === 1;
+            var isActive = Number(staff.is_active) === 1;
+            var actions = isPrimary
+                ? '<span class="text-muted small">Transfer authority first</span>'
+                : '<button class="btn btn-outline-' + (isActive ? 'danger' : 'success') + ' btn-sm me-1" data-osa-status="' + staff.user_id + '" data-active="' + (isActive ? '0' : '1') + '">' + (isActive ? 'Deactivate' : 'Activate') + '</button>'
+                  + (isActive ? '<button class="btn btn-warning btn-sm" data-transfer-primary="' + staff.user_id + '">Make Primary</button>' : '');
+            return '<tr><td>' + escHtml(name) + '</td><td>' + escHtml(staff.employee_number) + '</td>'
+                + '<td>' + escHtml(staff.email) + '</td><td><span class="badge bg-' + (isActive ? 'success' : 'secondary') + '">' + (isActive ? 'Active' : 'Inactive') + '</span></td>'
+                + '<td>' + (isPrimary ? '<span class="badge bg-primary">Primary</span>' : 'Regular OSA') + '</td><td>' + actions + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" class="text-center text-muted">No OSA staff accounts</td></tr>';
+    }
+    if (inviteBody) {
+        inviteBody.innerHTML = osaInvitations.length ? osaInvitations.map(function(invite) {
+            var pending = invite.status === 'pending';
+            var actions = pending
+                ? '<button class="btn btn-outline-primary btn-sm me-1" data-resend-invite="' + invite.invitation_id + '">Resend</button>'
+                  + '<button class="btn btn-outline-danger btn-sm" data-revoke-invite="' + invite.invitation_id + '">Revoke</button>'
+                : '<span class="text-muted">—</span>';
+            var deliveryClass = invite.delivery_status === 'sent' ? 'success' : invite.delivery_status === 'failed' ? 'danger' : 'secondary';
+            return '<tr><td>' + escHtml(invite.employee_number) + '</td><td>' + escHtml(invite.email) + '</td>'
+                + '<td>' + escHtml(invite.status) + '</td><td><span class="badge bg-' + deliveryClass + '" title="' + escHtml(invite.delivery_error || '') + '">' + escHtml(invite.delivery_status) + '</span></td>'
+                + '<td>' + escHtml(formatDate(invite.expires_at)) + '</td><td>' + actions + '</td></tr>';
+        }).join('') : '<tr><td colspan="6" class="text-center text-muted">No invitations</td></tr>';
+    }
+}
+
+async function loadAuditLogs(page) {
+    if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
+    auditPage = Math.max(1, page || 1);
+    var params = new URLSearchParams({
+        page: String(auditPage),
+        limit: String(AUDIT_PAGE_SIZE),
+        search: (document.getElementById('auditSearch') || {}).value || '',
+        action: (document.getElementById('auditActionFilter') || {}).value || '',
+        date_from: (document.getElementById('auditDateFrom') || {}).value || '',
+        date_to: (document.getElementById('auditDateTo') || {}).value || ''
+    });
+    var data = await primaryApi('audit-logs/list.php?' + params.toString());
+    auditTotal = Number(data.pagination && data.pagination.total) || 0;
+    var body = document.getElementById('auditLogRecords');
+    if (body) {
+        body.innerHTML = (data.logs || []).length ? data.logs.map(function(log) {
+            var target = log.target_name || log.target_email || (log.target_type + ' ' + (log.target_id || ''));
+            return '<tr><td>' + escHtml(formatDate(log.created_at)) + '</td><td>' + escHtml(log.actor_name || 'System') + '</td>'
+                + '<td>' + escHtml(log.action) + '</td><td>' + escHtml(target) + '</td><td>' + escHtml(log.result) + '</td>'
+                + '<td><button class="btn btn-outline-secondary btn-sm" data-audit-detail="' + log.audit_id + '">View</button></td></tr>';
+        }).join('') : '<tr><td colspan="6" class="text-center text-muted">No audit entries</td></tr>';
+    }
+    var filter = document.getElementById('auditActionFilter');
+    if (filter && filter.options.length <= 1) {
+        (data.actions || []).forEach(function(action) { filter.add(new Option(action, action)); });
+    }
+    var start = auditTotal ? (auditPage - 1) * AUDIT_PAGE_SIZE + 1 : 0;
+    var end = Math.min(auditTotal, auditPage * AUDIT_PAGE_SIZE);
+    var summary = document.getElementById('auditPageSummary');
+    if (summary) summary.textContent = start + '–' + end + ' of ' + auditTotal;
+    var previous = document.getElementById('auditPreviousPage');
+    var next = document.getElementById('auditNextPage');
+    if (previous) previous.disabled = auditPage <= 1;
+    if (next) next.disabled = end >= auditTotal;
+}
+
+function setupPrimaryOsaManagement() {
+    if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
+    revealPrimaryOsaFeatures();
+
+    var inviteForm = document.getElementById('osaInviteForm');
+    if (inviteForm) inviteForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        try {
+            await primaryApi('staff/invite.php', {
+                method: 'POST',
+                body: JSON.stringify({
+                    email: document.getElementById('osaInviteEmail').value.trim(),
+                    employee_number: document.getElementById('osaInviteEmployeeNumber').value.trim()
+                })
+            });
+            inviteForm.reset();
+            showToast('OSA invitation sent.', 'success');
+        } catch (error) {
+            showToast(error.message, 'danger');
+        }
+        await loadOsaStaffManagement().catch(function(error) { showToast(error.message, 'danger'); });
+    });
+
+    document.getElementById('osaStaffPanel').addEventListener('click', async function(event) {
+        var resend = event.target.closest('[data-resend-invite]');
+        var revoke = event.target.closest('[data-revoke-invite]');
+        var status = event.target.closest('[data-osa-status]');
+        var transfer = event.target.closest('[data-transfer-primary]');
+        try {
+            if (resend) await primaryApi('staff/invitations/resend.php', { method: 'POST', body: JSON.stringify({ invitation_id: resend.dataset.resendInvite }) });
+            if (revoke && confirm('Revoke this invitation?')) await primaryApi('staff/invitations/revoke.php', { method: 'POST', body: JSON.stringify({ invitation_id: revoke.dataset.revokeInvite }) });
+            if (status && confirm((status.dataset.active === '1' ? 'Activate' : 'Deactivate') + ' this OSA account?')) {
+                await primaryApi('staff/status.php', { method: 'POST', body: JSON.stringify({ user_id: status.dataset.osaStatus, is_active: status.dataset.active === '1' }) });
+            }
+            if (transfer && confirm('Transfer Primary OSA authority? You will immediately lose staff-management and audit access.')) {
+                await primaryApi('staff/transfer-primary.php', { method: 'POST', body: JSON.stringify({ user_id: transfer.dataset.transferPrimary }) });
+                window.top.location.reload();
+                return;
+            }
+            await loadOsaStaffManagement();
+        } catch (error) {
+            showToast(error.message, 'danger');
+        }
+    });
+
+    document.getElementById('auditFilterForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        loadAuditLogs(1).catch(function(error) { showToast(error.message, 'danger'); });
+    });
+    document.getElementById('auditPreviousPage').addEventListener('click', function() { loadAuditLogs(auditPage - 1); });
+    document.getElementById('auditNextPage').addEventListener('click', function() { loadAuditLogs(auditPage + 1); });
+    document.getElementById('auditLogRecords').addEventListener('click', async function(event) {
+        var button = event.target.closest('[data-audit-detail]');
+        if (!button) return;
+        try {
+            var data = await primaryApi('audit-logs/detail.php?audit_id=' + encodeURIComponent(button.dataset.auditDetail));
+            document.getElementById('auditDetailContent').textContent = JSON.stringify(data.log, null, 2);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('auditDetailModal')).show();
+        } catch (error) {
+            showToast(error.message, 'danger');
+        }
+    });
+    document.getElementById('osa-staff-tab').addEventListener('shown.bs.tab', function() {
+        loadOsaStaffManagement().catch(function(error) { showToast(error.message, 'danger'); });
+    });
+    document.getElementById('audit-log-tab').addEventListener('shown.bs.tab', function() {
+        loadAuditLogs(1).catch(function(error) { showToast(error.message, 'danger'); });
+    });
 }
 
 function formatDate(v) {
@@ -1022,6 +1192,7 @@ document.addEventListener('visibilitychange', function() {
 // --- Bootstrap ---
 document.addEventListener('DOMContentLoaded', async function() {
     if (!await authorizeIncomingUser()) return;
+    setupPrimaryOsaManagement();
     await loadData();
     initFilterDropdowns();
     setupEventListeners();
