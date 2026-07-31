@@ -3,7 +3,7 @@ require_once '../../../config/db.php';
 require_once '../../../includes/auth.php';
 
 header('Content-Type: application/json');
-apiGuard();
+apiRequireOsaSystemAdministrator();
 requirePost();
 
 $body = getRequestBody();

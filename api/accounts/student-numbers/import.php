@@ -6,13 +6,8 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/system_settings.php';
 
 header('Content-Type: application/json');
-apiGuard();
+$session = apiRequireOsaSystemAdministrator();
 requirePost();
-
-$session = getPhpSession();
-if (($session['account_type'] ?? '') !== 'osa_staff' && ($session['login_role'] ?? '') !== 'osa') {
-    jsonError('Only OSA staff can import the annual enrollment roster.', 403);
-}
 
 function rosterEnsureAcademicYearColumn(PDO $pdo): void
 {
