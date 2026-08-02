@@ -414,7 +414,7 @@
                         <div class="printing-empty-state">
                             <i class="fa-solid fa-print"></i>
                             <h3>No Print Jobs Yet</h3>
-                            <p>Your submitted print jobs will appear here once you upload a PDF.</p>
+                            <p>Your submitted print jobs will appear here once you upload a supported file.</p>
                         </div>
                     </div>
                 </div>
@@ -616,7 +616,7 @@
                                 <div class="printing-panel-header">
                                     <div>
                                         <h2>Submit a Print Job</h2>
-                                        <p>Upload a PDF, choose an OSA-approved provider, and track the queue from this module.</p>
+                                        <p>Upload a PDF, DOCX, PNG, or JPG file, choose an OSA-approved provider, and track the queue from this module.</p>
                                     </div>
                                     <span class="printing-status-chip">Queue-based</span>
                                 </div>
@@ -629,8 +629,9 @@
                                         </select>
                                     </div>
                                     <div class="printing-field">
-                                        <label for="printingFileInput">PDF File</label>
-                                        <input type="file" id="printingFileInput" accept=".pdf,application/pdf">
+                                        <label for="printingFileInput">File to Print</label>
+                                        <input type="file" id="printingFileInput" accept=".pdf,.docx,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg">
+                                        <small>Supported: PDF, DOCX, PNG, JPG/JPEG (maximum 20MB)</small>
                                         <small id="printingSelectedFileName">No file selected.</small>
                                     </div>
                                     <div class="printing-field printing-field-full">
@@ -668,7 +669,7 @@
                                 <div class="printing-empty-state">
                                     <i class="fa-solid fa-print"></i>
                                     <h3>No Print Jobs Yet</h3>
-                                    <p>Your submitted print jobs will appear here once you upload a PDF.</p>
+                                    <p>Your submitted print jobs will appear here once you upload a supported file.</p>
                                 </div>
                             </div>
                         </div>
@@ -1164,7 +1165,7 @@
     </script>
     <!-- Org-specific data config — must load before studentDashboard.js -->
     <script src="../data/orgData.js?v=20260325-4"></script>
-    <script src="../assets/js/studentDashboard.js?v=20260803-unresolved-notices"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260803-print-file-types"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">

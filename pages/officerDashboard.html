@@ -1901,7 +1901,7 @@
                     <textarea rows="3" placeholder="Brief details..."></textarea>
 
                     <label>Attach File</label>
-                    <input type="file" id="doc-file-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display:none;" onchange="updateFileUploadLabel(this)">
+                    <input type="file" id="doc-file-input" accept=".pdf,application/pdf" style="display:none;" onchange="updateFileUploadLabel(this)">
                     <div class="file-upload-box" onclick="document.getElementById('doc-file-input').click()">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                         <span id="file-upload-label"> Click to upload PDF</span>
@@ -2083,7 +2083,7 @@
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260803-printing-loader-2"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260803-print-file-types"></script>
 </body>
 
 </html>

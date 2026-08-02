@@ -30,13 +30,15 @@ foreach ($tables as $table => $config) {
     $rows = $pdo->query("SELECT {$config['id']} AS row_id, file_url FROM {$table}")->fetchAll();
     foreach ($rows as $row) {
         $key = (string)$row['file_url'];
+        $extensionPattern = $config['category'] === 'documents' ? 'pdf' : '(?:pdf|docx|png|jpe?g)';
         privatePdfRecordAssert(
-            preg_match('#^' . preg_quote($config['category'], '#') . '/[A-Za-z0-9._-]+\.pdf$#i', $key) === 1,
+            preg_match('#^' . preg_quote($config['category'], '#') . '/[A-Za-z0-9._-]+\.(' . $extensionPattern . ')$#i', $key) === 1,
             "{$table} row {$row['row_id']} exposes a non-private file value."
         );
         $path = privatePdfResolveStoredFile($key, [$config['category']]);
         privatePdfRecordAssert($path !== null && is_readable($path), "{$table} row {$row['row_id']} has a missing private file.");
-        privatePdfRecordAssert(file_get_contents($path, false, null, 0, 5) === '%PDF-', "{$table} row {$row['row_id']} is not a PDF.");
+        $details = privateFileInspect($path, strtolower(pathinfo($path, PATHINFO_EXTENSION)));
+        privatePdfRecordAssert(!empty($details['mime']), "{$table} row {$row['row_id']} has an invalid file.");
     }
 }
 

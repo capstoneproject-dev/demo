@@ -41,17 +41,46 @@ function privatePdfTestRemoveTree(string $directory): void
 
 try {
     $documents = privatePdfEnsureDirectory('documents');
-    privatePdfEnsureDirectory('print-jobs');
+    $printJobs = privatePdfEnsureDirectory('print-jobs');
     $file = $documents . DIRECTORY_SEPARATOR . 'test.pdf';
     file_put_contents($file, "%PDF-1.4\nprivate storage test\n%%EOF");
 
+    $docxZip = $printJobs . DIRECTORY_SEPARATOR . 'fixture.zip';
+    $docxFile = $printJobs . DIRECTORY_SEPARATOR . 'test.docx';
+    $archive = new PharData($docxZip, 0, null, Phar::ZIP);
+    $archive->addFromString(
+        '[Content_Types].xml',
+        '<?xml version="1.0"?><Types><Override ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
+    );
+    $archive->addFromString('word/document.xml', '<?xml version="1.0"?><w:document></w:document>');
+    unset($archive);
+    rename($docxZip, $docxFile);
+    $docxUploadTemp = $printJobs . DIRECTORY_SEPARATOR . 'php-upload-temp';
+    copy($docxFile, $docxUploadTemp);
+
+    $pngFile = $printJobs . DIRECTORY_SEPARATOR . 'test.png';
+    file_put_contents(
+        $pngFile,
+        base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', true)
+    );
+
     privatePdfTestAssert(privatePdfNormalizeKey('documents/test.pdf') === 'documents/test.pdf', 'Valid key rejected.');
+    privatePdfTestAssert(privatePdfNormalizeKey('print-jobs/test.docx') === 'print-jobs/test.docx', 'Valid DOCX key rejected.');
+    privatePdfTestAssert(privatePdfNormalizeKey('print-jobs/test.png') === 'print-jobs/test.png', 'Valid PNG key rejected.');
+    privatePdfTestThrows(fn() => privatePdfNormalizeKey('documents/test.docx'), 'Document submissions accepted a DOCX key.');
     privatePdfTestThrows(
         fn() => privatePdfNormalizeKey('documents/../secret.pdf'),
         'Traversal storage key was accepted.'
     );
     privatePdfTestAssert(privatePdfResolveStoredFile('documents/test.pdf', ['documents']) === realpath($file), 'Stored PDF did not resolve.');
     privatePdfTestAssert(privatePdfResolveStoredFile('documents/test.pdf', ['print-jobs']) === null, 'Wrong category was accepted.');
+    privatePdfTestAssert(privatePdfResolveStoredFile('print-jobs/test.docx', ['print-jobs']) === realpath($docxFile), 'Stored DOCX did not resolve.');
+    privatePdfTestAssert(privateFileInspect($docxFile, 'docx')['extension'] === 'docx', 'Valid DOCX was rejected.');
+    privatePdfTestAssert(privateFileInspect($docxUploadTemp, 'docx')['extension'] === 'docx', 'Uploaded DOCX temporary file was rejected.');
+    privatePdfTestAssert(privateFileInspect($pngFile, 'png')['mime'] === 'image/png', 'Valid PNG was rejected.');
+    $invalidDocx = $printJobs . DIRECTORY_SEPARATOR . 'invalid.docx';
+    file_put_contents($invalidDocx, "PK\x03\x04not-a-word-document");
+    privatePdfTestThrows(fn() => privateFileInspect($invalidDocx, 'docx'), 'Malformed DOCX was accepted.');
 
     $stored = ['storage_key' => 'documents/test.pdf', 'original_name' => 'My File.pdf'];
     $token = privatePdfCreatePendingUpload($stored, 41, 7);

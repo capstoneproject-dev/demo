@@ -1,6 +1,6 @@
-# Private PDF Storage Deployment
+# Private Document and Printing Storage Deployment
 
-Document submissions, approved repository PDFs, and printing files are served only through authenticated PHP endpoints. Public images remain in `uploads/`.
+PDF document submissions, approved repository PDFs, and printing files are served only through authenticated PHP endpoints. Printing accepts PDF, DOCX, PNG, and JPG/JPEG; document submissions remain PDF-only. Other public images remain in `uploads/`.
 
 Printing PDFs are restricted to the submitting student and officers of the assigned active organization. OSA accounts can oversee printing records and statuses but cannot open the submitted printing file.
 
