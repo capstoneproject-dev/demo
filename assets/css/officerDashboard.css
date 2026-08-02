@@ -3471,6 +3471,115 @@ body.dark .sub-nav-btn.active {
     border-top: 1px solid var(--border);
 }
 
+.printing-file-preview-modal-content {
+    height: min(86vh, 820px);
+    max-width: 980px;
+    overflow: hidden;
+}
+
+.printing-file-preview-header {
+    flex-shrink: 0;
+}
+
+.printing-file-preview-header > div {
+    min-width: 0;
+}
+
+.printing-file-preview-name {
+    color: var(--muted);
+    font-size: 0.86rem;
+    margin: 5px 0 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.printing-file-preview-body {
+    align-items: center;
+    background: var(--panel-2);
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    min-height: 320px;
+    overflow: auto;
+    position: relative;
+}
+
+.printing-file-preview-frame {
+    background: #fff;
+    border: 0;
+    height: 100%;
+    min-height: 420px;
+    width: 100%;
+}
+
+.printing-file-preview-image {
+    display: block;
+    height: auto;
+    margin: auto;
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    padding: 20px;
+}
+
+.printing-file-preview-loader,
+.printing-file-preview-message {
+    align-items: center;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: center;
+    max-width: 520px;
+    padding: 32px;
+    text-align: center;
+}
+
+.printing-file-preview-loader {
+    background: var(--panel-2);
+    inset: 0;
+    position: absolute;
+    z-index: 1;
+}
+
+.printing-file-preview-loader strong,
+.printing-file-preview-message strong {
+    color: var(--text);
+}
+
+.printing-file-preview-spinner {
+    animation: printing-file-preview-spin 0.8s linear infinite;
+    border: 3px solid var(--border);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    height: 36px;
+    width: 36px;
+}
+
+.printing-file-preview-message > i {
+    color: var(--primary);
+    font-size: 3rem;
+}
+
+.printing-file-preview-docx > i {
+    color: #2b579a;
+}
+
+@keyframes printing-file-preview-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 640px) {
+    .printing-file-preview-modal-content {
+        height: 92vh;
+    }
+
+    .printing-file-preview-frame {
+        min-height: 360px;
+    }
+}
+
 /* File Upload Box Styling */
 .file-upload-box {
     border: 2px dashed var(--border);

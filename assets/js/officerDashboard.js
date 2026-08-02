@@ -2527,8 +2527,8 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
                 <td>${priorityControls}</td>
                 <td>
                     <div class="printing-job-action-stack">
-                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" target="_blank" rel="noopener">View</a>` : ''}
-                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" download>Download</a>` : ''}
+                        ${jobUrl ? `<button class="btn btn-outline btn-sm" type="button" onclick="openOfficerPrintingFilePreview(${Number(job.print_job_id)})">View</button>` : ''}
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${escapeHtml(getOfficerPrintingDownloadUrl(jobUrl))}">Download</a>` : ''}
                         ${statusActions.join('')}
                     </div>
                 </td>
@@ -2587,8 +2587,8 @@ function renderOfficerPendingPrintRequests(printingEnabled = true) {
                 </td>
                 <td>
                     <div class="printing-job-action-stack">
-                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" target="_blank" rel="noopener">View</a>` : ''}
-                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" download>Download</a>` : ''}
+                        ${jobUrl ? `<button class="btn btn-outline btn-sm" type="button" onclick="openOfficerPrintingFilePreview(${Number(job.print_job_id)})">View</button>` : ''}
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${escapeHtml(getOfficerPrintingDownloadUrl(jobUrl))}">Download</a>` : ''}
                         <button class="btn btn-primary btn-sm" type="button" onclick="acceptOfficerPendingPrintRequest(${Number(job.print_job_id)})">Accept</button>
                         <button class="btn btn-outline btn-sm" type="button" onclick="dismissOfficerPendingPrintRequest(${Number(job.print_job_id)})">No</button>
                     </div>
@@ -2708,13 +2708,124 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
                 <td><span class="status-badge ${getOfficerPrintStatusClass(job.status)}">${getOfficerPrintStatusLabel(job.status)}</span></td>
                 <td>
                     <div class="printing-job-action-stack">
-                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" target="_blank" rel="noopener">View</a>` : ''}
-                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${jobUrl}" download>Download</a>` : ''}
+                        ${jobUrl ? `<button class="btn btn-outline btn-sm" type="button" onclick="openOfficerPrintingFilePreview(${Number(job.print_job_id)})">View</button>` : ''}
+                        ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${escapeHtml(getOfficerPrintingDownloadUrl(jobUrl))}">Download</a>` : ''}
                     </div>
                 </td>
             </tr>
         `;
     }).join('');
+}
+
+function getOfficerPrintingDownloadUrl(fileUrl) {
+    if (!fileUrl) return '';
+    return `${fileUrl}${String(fileUrl).includes('?') ? '&' : '?'}download=1`;
+}
+
+function getOfficerPrintingFileExtension(job) {
+    const explicitExtension = String(job?.file_extension || '').toLowerCase().replace(/^\./, '');
+    if (explicitExtension) return explicitExtension === 'jpeg' ? 'jpg' : explicitExtension;
+
+    const fileName = String(job?.file_name || '');
+    const extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+    return extension === 'jpeg' ? 'jpg' : extension;
+}
+
+function findOfficerPrintingJob(printJobId) {
+    const normalizedId = Number(printJobId);
+    return [...officerPrintingQueue, ...officerPendingPrintRequests]
+        .find((job) => Number(job.print_job_id) === normalizedId) || null;
+}
+
+function createOfficerPrintingPreviewLoader() {
+    const loader = document.createElement('div');
+    loader.className = 'printing-file-preview-loader';
+    loader.innerHTML = `
+        <span class="printing-file-preview-spinner" aria-hidden="true"></span>
+        <strong>Loading file preview</strong>
+        <span>Please wait while the file is prepared.</span>
+    `;
+    return loader;
+}
+
+function showOfficerPrintingPreviewError(body, message) {
+    body.innerHTML = '';
+    const error = document.createElement('div');
+    error.className = 'printing-file-preview-message';
+    error.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>';
+    const title = document.createElement('strong');
+    title.textContent = 'Preview unavailable';
+    const description = document.createElement('span');
+    description.textContent = message;
+    error.append(title, description);
+    body.appendChild(error);
+}
+
+function openOfficerPrintingFilePreview(printJobId) {
+    const job = findOfficerPrintingJob(printJobId);
+    const modal = document.getElementById('officerPrintingFilePreviewModal');
+    const body = document.getElementById('officerPrintingFilePreviewBody');
+    const name = document.getElementById('officerPrintingFilePreviewName');
+    const download = document.getElementById('officerPrintingFilePreviewDownload');
+    const fileUrl = resolvePdfUrl(job?.file_url);
+
+    if (!job || !modal || !body || !name || !download || !fileUrl) {
+        showToast('The printing file is not available.', 'error');
+        return;
+    }
+
+    const extension = getOfficerPrintingFileExtension(job);
+    name.textContent = job.file_name || 'Untitled File';
+    download.href = getOfficerPrintingDownloadUrl(fileUrl);
+    download.setAttribute('download', job.file_name || 'printing-file');
+    body.innerHTML = '';
+
+    if (extension === 'pdf') {
+        const loader = createOfficerPrintingPreviewLoader();
+        const frame = document.createElement('iframe');
+        frame.className = 'printing-file-preview-frame';
+        frame.title = `Preview of ${job.file_name || 'printing file'}`;
+        frame.src = fileUrl;
+        frame.addEventListener('load', () => loader.remove(), { once: true });
+        body.append(loader, frame);
+    } else if (['png', 'jpg'].includes(extension)) {
+        const loader = createOfficerPrintingPreviewLoader();
+        const image = document.createElement('img');
+        image.className = 'printing-file-preview-image';
+        image.alt = `Preview of ${job.file_name || 'printing file'}`;
+        image.addEventListener('load', () => loader.remove(), { once: true });
+        image.addEventListener('error', () => {
+            showOfficerPrintingPreviewError(body, 'The image could not be displayed. You can still download the original file.');
+        }, { once: true });
+        image.src = fileUrl;
+        body.append(loader, image);
+    } else if (extension === 'docx') {
+        const message = document.createElement('div');
+        message.className = 'printing-file-preview-message printing-file-preview-docx';
+        message.innerHTML = `
+            <i class="fa-solid fa-file-word" aria-hidden="true"></i>
+            <strong>Word document</strong>
+            <span>DOCX files cannot be displayed securely inside this browser. Download the file below and open it in Microsoft Word or another compatible app.</span>
+        `;
+        body.appendChild(message);
+    } else {
+        showOfficerPrintingPreviewError(body, 'This file type is not supported by the preview window. You can still download the original file.');
+    }
+
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeOfficerPrintingFilePreviewModal() {
+    const modal = document.getElementById('officerPrintingFilePreviewModal');
+    const body = document.getElementById('officerPrintingFilePreviewBody');
+    if (modal) {
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    if (body) body.innerHTML = '';
+    document.body.style.overflow = '';
 }
 
 function openOfficerPrintingDateFilterModal() {
@@ -2937,6 +3048,10 @@ function applyOfficerPrintingDateFilter() {
 }
 
 document.addEventListener('click', (e) => {
+    const printingFilePreviewModal = document.getElementById('officerPrintingFilePreviewModal');
+    if (printingFilePreviewModal && e.target === printingFilePreviewModal) {
+        closeOfficerPrintingFilePreviewModal();
+    }
     const printingDateModal = document.getElementById('officerPrintingDateFilterModal');
     if (printingDateModal && e.target === printingDateModal) {
         closeOfficerPrintingDateFilterModal();
@@ -2981,6 +3096,11 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        const printingFilePreviewModal = document.getElementById('officerPrintingFilePreviewModal');
+        if (printingFilePreviewModal && printingFilePreviewModal.classList.contains('show')) {
+            closeOfficerPrintingFilePreviewModal();
+            return;
+        }
         const printingDateModal = document.getElementById('officerPrintingDateFilterModal');
         if (printingDateModal && printingDateModal.classList.contains('show')) {
             closeOfficerPrintingDateFilterModal();
