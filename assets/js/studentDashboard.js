@@ -6447,7 +6447,16 @@ async function submitStudentPrintJob() {
         return;
     }
     if (!file) {
-        alert('Select a PDF file first.');
+        alert('Select a PDF, DOCX, PNG, or JPG file first.');
+        return;
+    }
+    const extension = String(file.name || '').split('.').pop().toLowerCase();
+    if (!['pdf', 'docx', 'png', 'jpg', 'jpeg'].includes(extension)) {
+        alert('Invalid file format. Please select PDF, DOCX, PNG, or JPG.');
+        return;
+    }
+    if (Number(file.size || 0) > 20 * 1024 * 1024) {
+        alert('The selected file must be 20MB or smaller.');
         return;
     }
 

@@ -69,7 +69,12 @@ foreach ($tables as $table => $config) {
     $stmt = $pdo->query("SELECT {$config['id']} AS row_id, file_url FROM {$table} WHERE file_url IS NOT NULL AND file_url <> ''");
     foreach ($stmt->fetchAll() as $row) {
         $value = trim((string)$row['file_url']);
-        if (preg_match('#^(documents|print-jobs)/[A-Za-z0-9._-]+\.pdf$#i', $value)) continue;
+        try {
+            privatePdfNormalizeKey($value);
+            continue;
+        } catch (RuntimeException $e) {
+            // Legacy public path; migrate it below.
+        }
         $operationKey = $config['category'] . "\0" . $value;
         $references[$operationKey]['old_value'] = $value;
         $references[$operationKey]['category'] = $config['category'];

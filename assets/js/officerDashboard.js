@@ -2515,7 +2515,7 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
             <tr data-print-job-id="${Number(job.print_job_id)}">
                 <td>${queueLabel}</td>
                 <td>
-                    <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
+                    <strong>${escapeHtml(job.file_name || 'Untitled File')}</strong>
                     ${job.notes ? `<div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.notes)}</div>` : ''}
                 </td>
                 <td>
@@ -2574,7 +2574,7 @@ function renderOfficerPendingPrintRequests(printingEnabled = true) {
         return `
             <tr data-print-job-id="${Number(job.print_job_id)}">
                 <td>
-                    <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
+                    <strong>${escapeHtml(job.file_name || 'Untitled File')}</strong>
                     ${job.notes ? `<div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.notes)}</div>` : ''}
                 </td>
                 <td>
@@ -2696,7 +2696,7 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
             <tr data-print-job-id="${Number(job.print_job_id)}">
                 <td>${Number(job.queue_order || job.queue_position || 0) || '-'}</td>
                 <td>
-                    <strong>${escapeHtml(job.file_name || 'Untitled PDF')}</strong>
+                    <strong>${escapeHtml(job.file_name || 'Untitled File')}</strong>
                     ${job.notes ? `<div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.notes)}</div>` : ''}
                 </td>
                 <td>

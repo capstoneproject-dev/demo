@@ -535,7 +535,12 @@ function stResolveOrganizationByRef(PDO $pdo, $orgRef): ?array
 function stStoreUploadedPrintFile(array $file): array
 {
     try {
-        $stored = privatePdfStoreUploadedFile($file, 'print-jobs', 20 * 1024 * 1024);
+        $stored = privatePdfStoreUploadedFile(
+            $file,
+            'print-jobs',
+            20 * 1024 * 1024,
+            ['pdf', 'docx', 'png', 'jpg', 'jpeg']
+        );
     } catch (UploadValidationException $e) {
         throw new ServiceTrackerValidationException($e->getMessage(), 0, $e);
     }
