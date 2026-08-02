@@ -4133,6 +4133,65 @@ body.dark .btn-outline:hover {
     overflow-x: auto;
 }
 
+.printing-queue-loading {
+    display: none;
+    min-height: 280px;
+    padding: 42px 24px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.printing-queue-loading.is-active {
+    display: flex;
+}
+
+.printing-queue-loading strong {
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.printing-queue-loading span {
+    max-width: 420px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.printing-queue-loading-spinner {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    margin-bottom: 4px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.printing-queue-loading-spinner::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 3px solid color-mix(in srgb, var(--primary) 18%, transparent);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: printingQueueSpin 0.8s linear infinite;
+}
+
+@keyframes printingQueueSpin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .printing-queue-loading-spinner::after {
+        animation-duration: 1.8s;
+    }
+}
+
 .printing-subpanel {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);

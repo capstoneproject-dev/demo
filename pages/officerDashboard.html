@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260729-profile-pill-1">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260803-printing-loader">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -551,7 +551,15 @@
                                 <p style="color:var(--muted);">OSA has not enabled printing services for this organization yet.</p>
                             </div>
 
-                            <div id="officerPrintingQueueContent">
+                            <div id="officerPrintingQueueLoading" class="printing-queue-loading is-active" role="status" aria-live="polite">
+                                <div class="printing-queue-loading-spinner" aria-hidden="true">
+                                    <i class="fa-solid fa-print"></i>
+                                </div>
+                                <strong id="officerPrintingLoadingTitle">Loading printing queue</strong>
+                                <span id="officerPrintingLoadingMessage">Checking for pending requests and active print jobs...</span>
+                            </div>
+
+                            <div id="officerPrintingQueueContent" style="display:none;">
                                 <div id="officerPendingPrintRequestsPanel" class="printing-subpanel" style="margin-bottom: 18px;">
                                     <div class="card-header">
                                         <div>
@@ -2075,7 +2083,7 @@
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260802-private-pdfs"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260803-printing-loader-2"></script>
 </body>
 
 </html>

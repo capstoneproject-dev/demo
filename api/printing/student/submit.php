@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/services_tracker.php';
+require_once __DIR__ . '/../../../includes/notification_email_delivery.php';
 
 header('Content-Type: application/json');
 apiGuard();
@@ -39,6 +40,7 @@ try {
         throw new RuntimeException('At least one file is required.');
     }
 
+    $pdo = getPdo();
     $jobs = [];
     foreach ($uploadedFiles as $index => $file) {
         if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
@@ -46,12 +48,17 @@ try {
         }
         $payload = $_POST;
         $payload['notes'] = trim((string)($notes[$index] ?? ''));
-        $jobs[] = stSubmitPrintJob(getPdo(), (int)$ctx['user_id'], $payload, $file);
+        $jobs[] = stSubmitPrintJob($pdo, (int)$ctx['user_id'], $payload, $file);
     }
 
     if (!$jobs) {
         throw new RuntimeException('At least one valid file is required.');
     }
+
+    notificationEmailDispatchPrintingJobsBestEffort(
+        $pdo,
+        array_column($jobs, 'print_job_id')
+    );
 
     jsonOk([
         'items' => $jobs,

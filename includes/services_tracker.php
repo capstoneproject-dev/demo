@@ -894,7 +894,6 @@ function stUpdatePrintJobStatus(PDO $pdo, int $orgId, int $printJobId, string $s
         throw new ServiceTrackerAuthorizationException('You are not allowed to update this print job.');
     }
 
-    $now = date('Y-m-d H:i:s');
     $pdo->beginTransaction();
     try {
         $fields = [
@@ -908,14 +907,11 @@ function stUpdatePrintJobStatus(PDO $pdo, int $orgId, int $printJobId, string $s
         ];
 
         if ($status === 'processing') {
-            $fields[] = 'processing_started_at = :processing_started_at';
-            $params[':processing_started_at'] = $now;
+            $fields[] = 'processing_started_at = NOW()';
         } elseif ($status === 'ready_to_claim') {
-            $fields[] = 'ready_at = :ready_at';
-            $params[':ready_at'] = $now;
+            $fields[] = 'ready_at = NOW()';
         } elseif ($status === 'claimed') {
-            $fields[] = 'claimed_at = :claimed_at';
-            $params[':claimed_at'] = $now;
+            $fields[] = 'claimed_at = NOW()';
         }
 
         $stmt = $pdo->prepare(

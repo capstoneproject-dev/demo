@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/services_tracker.php';
+require_once __DIR__ . '/../../../includes/notification_email_delivery.php';
 
 header('Content-Type: application/json');
 apiGuard();
@@ -10,7 +11,9 @@ try {
     $ctx = stRequireStudentContext();
     $body = getRequestBody();
     $printJobId = (int)($body['print_job_id'] ?? 0);
-    $item = stCancelStudentPrintJob(getPdo(), (int)$ctx['user_id'], $printJobId);
+    $pdo = getPdo();
+    $item = stCancelStudentPrintJob($pdo, (int)$ctx['user_id'], $printJobId);
+    notificationEmailDispatchPrintingJobsBestEffort($pdo, [$printJobId]);
     jsonOk(['item' => $item]);
 } catch (PDOException $e) {
     error_log('[api/printing/student/cancel] ' . $e->getMessage());

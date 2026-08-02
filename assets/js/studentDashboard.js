@@ -1559,7 +1559,9 @@ async function loadStudentTransactionNotifications(showFeedback = false) {
             }
 
             const allItems = Array.isArray(data.items) ? data.items : [];
-            databaseTransactionNotifications = allItems.filter(isStudentNotificationFromToday);
+            databaseTransactionNotifications = allItems.filter((item) =>
+                Boolean(item?.is_unresolved) || isStudentNotificationFromToday(item)
+            );
             studentNotificationsFailed = false;
             renderStudentAlerts(allItems);
             syncStudentNotificationToasts(databaseTransactionNotifications);
@@ -1896,7 +1898,7 @@ function renderStudentTransactionNotifications() {
         body = `
             <div class="transaction-notification-state">
                 <i class="fa-regular fa-circle-check"></i>
-                <span>No rental, locker, printing, or attendance notices for today.</span>
+                <span>No active or recent rental, locker, printing, or attendance notices.</span>
             </div>`;
     } else {
         body = databaseTransactionNotifications.map((item) => {
