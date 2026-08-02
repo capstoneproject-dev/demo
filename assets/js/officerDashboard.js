@@ -5729,7 +5729,7 @@ async function handleDocSubmit(e) {
             body: uploadForm
         });
         const uploadData = await uploadRes.json();
-        if (!uploadData.ok || !uploadData.file_url) {
+        if (!uploadData.ok || !uploadData.upload_token) {
             throw new Error(uploadData.error || 'Failed to upload file.');
         }
 
@@ -5742,7 +5742,7 @@ async function handleDocSubmit(e) {
                 document_type: type,
                 recipient,
                 description,
-                file_url: uploadData.file_url
+                upload_token: uploadData.upload_token
             })
         });
         const data = await res.json();

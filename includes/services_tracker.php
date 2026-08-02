@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/upload_security.php';
+require_once __DIR__ . '/private_pdf_storage.php';
 /**
  * Services tracker + printing queue domain services.
  */
@@ -534,14 +535,14 @@ function stResolveOrganizationByRef(PDO $pdo, $orgRef): ?array
 function stStoreUploadedPrintFile(array $file): array
 {
     try {
-        $stored = uploadStorePdfFile($file, 'documents', 20 * 1024 * 1024);
+        $stored = privatePdfStoreUploadedFile($file, 'print-jobs', 20 * 1024 * 1024);
     } catch (UploadValidationException $e) {
         throw new ServiceTrackerValidationException($e->getMessage(), 0, $e);
     }
 
     return [
         'file_name' => $stored['original_name'],
-        'file_url' => $stored['relative_path'],
+        'file_url' => $stored['storage_key'],
     ];
 }
 
@@ -654,6 +655,7 @@ function stAttachQueuePositions(PDO $pdo, array $rows): array
         $row['queue_position'] = strtolower((string)$row['status']) === 'queued'
             ? (int)($positionMap[(int)$row['print_job_id']] ?? 0)
             : null;
+        $row = privatePdfDecoratePrintJobRow($row);
     }
 
     return $rows;
@@ -731,6 +733,7 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
+        privatePdfDeleteStorageKey((string)$storedFile['file_url']);
         throw $e;
     }
 }

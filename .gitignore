@@ -5,6 +5,9 @@ composer-setup.php
 /.env.*
 !/.env.example
 /storage/cache/analytics_ai/
+/storage/private/**
+!/storage/private/**/
+!/storage/private/**/.gitkeep
 
 # Runtime uploads belong to persistent server storage/backups, not source control.
 /uploads/**
@@ -12,3 +15,5 @@ composer-setup.php
 !/uploads/.htaccess
 !/uploads/web.config
 !/uploads/**/.gitkeep
+!/uploads/documents/.htaccess
+!/uploads/documents/web.config

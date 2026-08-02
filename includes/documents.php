@@ -6,6 +6,7 @@
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/system_settings.php';
+require_once __DIR__ . '/private_pdf_storage.php';
 
 class DocumentValidationException extends RuntimeException {}
 class DocumentAuthorizationException extends RuntimeException {}
@@ -122,7 +123,7 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
     $documentType = docValidateType((string)($data['document_type'] ?? ''));
     $recipient    = trim((string)($data['recipient'] ?? 'OSA')) ?: 'OSA';
     $description  = trim((string)($data['description'] ?? '')) ?: null;
-    $fileUrl      = trim((string)($data['file_url'] ?? ''));
+    $fileUrl      = trim((string)($data['storage_key'] ?? ''));
     // Academic-term feature boundary: submissions use the active global term from system_settings.
     $activeTerm = settingsGetActiveAcademicTerm($pdo);
     $semester     = docValidateSemester($activeTerm['semester'] ?? null);
@@ -130,7 +131,12 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
     $gradingPeriod = docValidateGradingPeriod($activeTerm['grading_period'] ?? null);
 
     if ($title === '')  throw new DocumentValidationException('title is required.');
-    if ($fileUrl === '')throw new DocumentValidationException('file_url is required.');
+    if ($fileUrl === '') throw new DocumentValidationException('A verified document upload is required.');
+    try {
+        $fileUrl = privatePdfNormalizeKey($fileUrl);
+    } catch (RuntimeException $e) {
+        throw new DocumentValidationException('A verified document upload is required.');
+    }
     if ($orgId <= 0 || $userId <= 0) throw new DocumentValidationException('Invalid org/user context.');
 
     $stmt = $pdo->prepare(
@@ -242,6 +248,7 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
         $r['org_id']        = (int)$r['org_id'];
         $r['submitted_by_user_id'] = (int)$r['submitted_by_user_id'];
         $r['reviewed_by_user_id']  = $r['reviewed_by_user_id'] !== null ? (int)$r['reviewed_by_user_id'] : null;
+        $r = privatePdfDecorateDocumentRow($r);
     }
     return $rows;
 }
@@ -399,6 +406,7 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
         $r['submission_id'] = (int)$r['submission_id'];
         $r['org_id'] = (int)$r['org_id'];
         $r['approved_by_user_id'] = (int)$r['approved_by_user_id'];
+        $r = privatePdfDecorateDocumentRow($r);
     }
     return $rows;
 }
@@ -493,6 +501,7 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
         $row['reviewed_by_user_id'] = $row['reviewed_by_user_id'] !== null ? (int)$row['reviewed_by_user_id'] : null;
         $row['repo_id'] = $row['repo_id'] !== null ? (int)$row['repo_id'] : null;
         $row['annotation_count'] = (int)$row['annotation_count'];
+        $row = privatePdfDecorateDocumentRow($row);
     }
 
     return $rows;
