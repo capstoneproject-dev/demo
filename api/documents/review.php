@@ -18,7 +18,7 @@ try {
     }
 
     $item = docReviewSubmission(getPdo(), $submissionId, $ctx['user_id'], $decision, $notes);
-    jsonOk(['item' => $item]);
+    jsonOk(['item' => privatePdfDecorateDocumentRow($item)]);
 } catch (DocumentAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
 } catch (DocumentValidationException $e) {

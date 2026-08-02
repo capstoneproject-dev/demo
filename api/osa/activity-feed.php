@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/private_pdf_storage.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/services_tracker.php';
 require_once __DIR__ . '/../../includes/organization_public_profile_columns.php';
@@ -254,6 +255,19 @@ function osaActivityBuildPayloads(PDO $pdo, array $rows): array
         JOIN users u ON u.user_id = pj.user_id
         WHERE pj.print_job_id IN (__IDS__)
     ");
+
+    foreach ($payloads['document_submission'] ?? [] as &$payload) {
+        $payload['file_url'] = privatePdfDocumentUrl((int)$payload['submission_id']);
+    }
+    unset($payload);
+    foreach ($payloads['repository_update'] ?? [] as &$payload) {
+        $payload['file_url'] = privatePdfDocumentUrl((int)$payload['submission_id']);
+    }
+    unset($payload);
+    foreach ($payloads['printing_request'] ?? [] as &$payload) {
+        unset($payload['file_url']);
+    }
+    unset($payload);
 
     return $payloads;
 }
