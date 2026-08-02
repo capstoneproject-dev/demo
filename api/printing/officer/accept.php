@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/services_tracker.php';
+require_once __DIR__ . '/../../../includes/notification_email_delivery.php';
 
 header('Content-Type: application/json');
 apiGuard();
@@ -18,6 +19,7 @@ try {
     $printJobId = (int)($body['print_job_id'] ?? 0);
 
     $item = stAcceptPendingPrintJob($pdo, (int)$ctx['org_id'], $printJobId, (int)$ctx['user_id']);
+    notificationEmailDispatchPrintingJobsBestEffort($pdo, [$printJobId]);
     jsonOk(['item' => $item]);
 } catch (PDOException $e) {
     error_log('[api/printing/officer/accept] ' . $e->getMessage());

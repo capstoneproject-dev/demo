@@ -1232,6 +1232,8 @@ let officerPrintingQueue = [];
 let officerPendingPrintRequests = [];
 let officerPrintingHistoryFilters = { startDate: null, endDate: null, search: '' };
 let currentPrintingPanelView = 'queue';
+let officerPrintingQueueIsLoading = true;
+let officerPrintingQueueHasLoaded = false;
 let officerPrintingCalendarCurrentDate = new Date();
 let officerPrintingCalendarSelectedStart = null;
 let officerPrintingCalendarSelectedEnd = null;
@@ -2373,7 +2375,7 @@ function showOfficerPrintingQueueView() {
     const btnHistory = document.getElementById('btnShowPrintingHistory');
     const btnBack = document.getElementById('btnBackToPrintingQueue');
 
-    if (queueContent) queueContent.style.display = 'block';
+    if (queueContent) queueContent.style.display = officerPrintingQueueIsLoading ? 'none' : 'block';
     if (historyContent) historyContent.style.display = 'none';
     if (subtitle) subtitle.textContent = 'View PDFs, update print status, and rearrange queued jobs by priority.';
     if (btnHistory) btnHistory.style.display = 'inline-flex';
@@ -2389,11 +2391,35 @@ function showOfficerPrintingHistoryView() {
     const btnBack = document.getElementById('btnBackToPrintingQueue');
 
     if (queueContent) queueContent.style.display = 'none';
-    if (historyContent) historyContent.style.display = 'block';
+    if (historyContent) historyContent.style.display = officerPrintingQueueIsLoading ? 'none' : 'block';
     if (subtitle) subtitle.textContent = 'Review completed and cancelled print requests using the same date filters as the history page.';
     if (btnHistory) btnHistory.style.display = 'none';
     if (btnBack) btnBack.style.display = 'inline-flex';
     renderOfficerPrintingHistory(true);
+}
+
+function setOfficerPrintingQueueLoading(isLoading, options = {}) {
+    officerPrintingQueueIsLoading = Boolean(isLoading);
+    const loadingState = document.getElementById('officerPrintingQueueLoading');
+    const loadingTitle = document.getElementById('officerPrintingLoadingTitle');
+    const loadingMessage = document.getElementById('officerPrintingLoadingMessage');
+    const queueContent = document.getElementById('officerPrintingQueueContent');
+    const historyContent = document.getElementById('officerPrintingHistoryContent');
+    const disabledMessage = document.getElementById('officerPrintingDisabledMessage');
+
+    if (loadingState) {
+        loadingState.classList.toggle('is-active', officerPrintingQueueIsLoading);
+        loadingState.setAttribute('aria-hidden', officerPrintingQueueIsLoading ? 'false' : 'true');
+    }
+    if (officerPrintingQueueIsLoading) {
+        if (loadingTitle) loadingTitle.textContent = options.title || 'Loading printing queue';
+        if (loadingMessage) loadingMessage.textContent = options.message || 'Checking for pending requests and active print jobs...';
+    }
+    if (officerPrintingQueueIsLoading) {
+        if (queueContent) queueContent.style.display = 'none';
+        if (historyContent) historyContent.style.display = 'none';
+        if (disabledMessage) disabledMessage.style.display = 'none';
+    }
 }
 
 function getOfficerPrintStatusLabel(status) {
@@ -2994,6 +3020,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 async function loadOfficerPrintingQueue(force = false) {
+    const showLoadingState = force || !officerPrintingQueueHasLoaded;
+    if (showLoadingState && !officerPrintingQueueIsLoading) {
+        setOfficerPrintingQueueLoading(true);
+    }
     try {
         const response = await fetch('../api/printing/officer/list.php?status=all', {
             method: 'GET',
@@ -3015,6 +3045,8 @@ async function loadOfficerPrintingQueue(force = false) {
             officerPendingPrintRequests = [];
         }
 
+        officerPrintingQueueHasLoaded = true;
+        if (showLoadingState) setOfficerPrintingQueueLoading(false);
         renderOfficerPrintingQueue(!!data.printing_enabled);
         return officerPrintingQueue;
     } catch (error) {
@@ -3024,6 +3056,7 @@ async function loadOfficerPrintingQueue(force = false) {
         officerPrintingQueue = [];
         officerPendingPrintRequests = [];
         setOfficerTrackerPrintingAccess(false);
+        if (showLoadingState) setOfficerPrintingQueueLoading(false);
         renderOfficerPrintingQueue(false);
         throw error;
     }
@@ -3060,6 +3093,10 @@ function dismissOfficerPendingPrintRequest(printJobId) {
 
 async function acceptOfficerPendingPrintRequest(printJobId) {
     const numericId = Number(printJobId);
+    setOfficerPrintingQueueLoading(true, {
+        title: 'Accepting print request',
+        message: 'Assigning this request to your organization and notifying the student...'
+    });
     try {
         const response = await fetch('../api/printing/officer/accept.php', {
             method: 'POST',
@@ -3075,12 +3112,36 @@ async function acceptOfficerPendingPrintRequest(printJobId) {
         await loadOfficerPrintingQueue(true);
         loadOfficerActionCenter(false);
     } catch (error) {
+        setOfficerPrintingQueueLoading(false);
+        showOfficerPrintingQueueView();
         alert(error.message || 'Could not accept the print request.');
         await loadOfficerPendingPrintRequests(true).catch(() => {});
     }
 }
 
 async function updateOfficerPrintJobStatus(printJobId, status) {
+    const loadingCopy = {
+        processing: {
+            title: 'Starting print job',
+            message: 'Updating the request to processing and notifying the student...'
+        },
+        ready_to_claim: {
+            title: 'Marking document ready',
+            message: 'Updating the request to ready to claim and notifying the student...'
+        },
+        claimed: {
+            title: 'Completing print job',
+            message: 'Marking the printed document as claimed...'
+        },
+        cancelled: {
+            title: 'Cancelling print request',
+            message: 'Cancelling the request and notifying the student...'
+        }
+    };
+    setOfficerPrintingQueueLoading(true, loadingCopy[String(status || '').toLowerCase()] || {
+        title: 'Updating print job',
+        message: 'Saving the new printing status...'
+    });
     try {
         const response = await fetch('../api/printing/officer/update-status.php', {
             method: 'POST',
@@ -3098,6 +3159,8 @@ async function updateOfficerPrintJobStatus(printJobId, status) {
         await loadOfficerPrintingQueue(true);
         loadOfficerActionCenter(false);
     } catch (error) {
+        setOfficerPrintingQueueLoading(false);
+        showOfficerPrintingQueueView();
         alert(error.message || 'Could not update print job status.');
     }
 }
@@ -3120,6 +3183,10 @@ function setOfficerPrintJobPosition(printJobId) {
 }
 
 async function reorderOfficerPrintJob(printJobId, newQueueOrder) {
+    setOfficerPrintingQueueLoading(true, {
+        title: 'Updating queue priority',
+        message: 'Moving the print request to its new queue position...'
+    });
     try {
         const response = await fetch('../api/printing/officer/reorder.php', {
             method: 'POST',
@@ -3136,6 +3203,8 @@ async function reorderOfficerPrintJob(printJobId, newQueueOrder) {
         }
         await loadOfficerPrintingQueue(true);
     } catch (error) {
+        setOfficerPrintingQueueLoading(false);
+        showOfficerPrintingQueueView();
         alert(error.message || 'Could not reorder print jobs.');
     }
 }

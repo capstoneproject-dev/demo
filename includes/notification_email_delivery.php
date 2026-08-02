@@ -381,8 +381,112 @@ function notificationEmailMarkPreferenceSuppressed(PDO $pdo, int $deliveryId): v
     $stmt->execute([':delivery_id' => $deliveryId]);
 }
 
-function notificationEmailProcessQueue(PDO $pdo, int $limit, ?callable $sender = null): array
+function notificationEmailQueuePrintingJob(PDO $pdo, int $printJobId): ?int
 {
+    if ($printJobId <= 0) return null;
+    $stmt = $pdo->prepare(
+        "SELECT pj.print_job_id,
+                pj.org_id,
+                pj.user_id,
+                pj.provider_auto_assigned,
+                pj.provider_accepted_at,
+                pj.file_name,
+                pj.status,
+                pj.queue_order,
+                pj.submitted_at,
+                pj.processing_started_at,
+                pj.ready_at,
+                pj.claimed_at,
+                pj.updated_at,
+                COALESCE(o.org_code, o.org_name, 'Organization') AS organization,
+                u.student_number,
+                CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+                u.email
+         FROM print_jobs pj
+         JOIN organizations o ON o.org_id = pj.org_id
+         JOIN users u ON u.user_id = pj.user_id
+         WHERE pj.print_job_id = :print_job_id
+           AND u.account_type = 'student'
+           AND u.is_active = 1
+           AND u.email IS NOT NULL
+           AND u.email <> ''
+         LIMIT 1"
+    );
+    $stmt->execute([':print_job_id' => $printJobId]);
+    $row = $stmt->fetch();
+    if (!$row || empty(notificationEmailGetPreferences($pdo, (int)$row['user_id'])['printing_enabled'])) {
+        return null;
+    }
+
+    $notification = studentNotificationBuildPrinting(
+        $row,
+        new DateTimeImmutable('-24 hours', new DateTimeZone('Asia/Manila'))
+    );
+    if (!$notification || !notificationEmailIsEligible($notification)) return null;
+
+    notificationEmailInsertCandidate($pdo, $row, $notification);
+    $delivery = $pdo->prepare(
+        "SELECT delivery_id, delivery_status
+         FROM notification_email_deliveries
+         WHERE user_id = :user_id
+           AND notification_id = :notification_id
+         LIMIT 1"
+    );
+    $delivery->execute([
+        ':user_id' => (int)$row['user_id'],
+        ':notification_id' => (string)$notification['id'],
+    ]);
+    $queued = $delivery->fetch();
+    if (!$queued || !in_array($queued['delivery_status'], ['pending', 'retrying'], true)) return null;
+    return (int)$queued['delivery_id'];
+}
+
+function notificationEmailDispatchPrintingJobsImmediately(
+    PDO $pdo,
+    array $printJobIds,
+    ?callable $sender = null
+): array {
+    $deliveryIds = [];
+    foreach (array_values(array_unique(array_map('intval', $printJobIds))) as $printJobId) {
+        $deliveryId = notificationEmailQueuePrintingJob($pdo, $printJobId);
+        if ($deliveryId) $deliveryIds[] = $deliveryId;
+    }
+    if (!$deliveryIds) return ['queued' => 0, 'processed' => 0, 'sent' => 0];
+
+    $lockStmt = $pdo->prepare('SELECT GET_LOCK(:lock_name, 0)');
+    $lockStmt->execute([':lock_name' => NOTIFICATION_EMAIL_LOCK_NAME]);
+    if ((int)$lockStmt->fetchColumn() !== 1) {
+        return ['queued' => count($deliveryIds), 'processed' => 0, 'sent' => 0, 'fallback' => true];
+    }
+    try {
+        return [
+            'queued' => count($deliveryIds),
+            ...notificationEmailProcessQueue($pdo, count($deliveryIds), $sender, $deliveryIds),
+        ];
+    } finally {
+        $release = $pdo->prepare('SELECT RELEASE_LOCK(:lock_name)');
+        $release->execute([':lock_name' => NOTIFICATION_EMAIL_LOCK_NAME]);
+    }
+}
+
+function notificationEmailDispatchPrintingJobsBestEffort(PDO $pdo, array $printJobIds): void
+{
+    try {
+        notificationEmailDispatchPrintingJobsImmediately($pdo, $printJobIds);
+    } catch (Throwable $e) {
+        error_log('[printing-email-immediate] ' . $e->getMessage());
+    }
+}
+
+function notificationEmailProcessQueue(
+    PDO $pdo,
+    int $limit,
+    ?callable $sender = null,
+    array $onlyDeliveryIds = []
+): array
+{
+    $ids = array_values(array_filter(array_unique(array_map('intval', $onlyDeliveryIds)), static fn(int $id): bool => $id > 0));
+    $deliveryFilter = $ids ? ' AND d.delivery_id IN (' . implode(',', $ids) . ')' : '';
     $stmt = $pdo->query(
         "SELECT d.*,
                 COALESCE(o.org_code, o.org_name, 'Organization') AS organization_code,
@@ -393,6 +497,7 @@ function notificationEmailProcessQueue(PDO $pdo, int $limit, ?callable $sender =
          WHERE d.delivery_status IN ('pending', 'retrying')
            AND d.attempt_count < " . NOTIFICATION_EMAIL_MAX_ATTEMPTS . "
            AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= NOW())
+           {$deliveryFilter}
          ORDER BY COALESCE(d.next_attempt_at, d.created_at), d.delivery_id
          LIMIT " . max(1, min(500, $limit))
     );

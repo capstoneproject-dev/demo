@@ -56,14 +56,18 @@ Dry-run mode does not create delivery rows and does not contact SMTP.
 Create a Windows Task Scheduler task:
 
 - Trigger: repeat every 1 minute indefinitely.
-- Program: `C:\xampp\php\php.exe`
-- Arguments: `"C:\xampp\htdocs\CAPSTONE\demo\cli\dispatch-notification-emails.php"`
+- Program: `C:\Windows\System32\wscript.exe`
+- Arguments: `"C:\xampp\htdocs\CAPSTONE\demo\cli\run-notification-emails-hidden.vbs"`
 - Start in: `C:\xampp\htdocs\CAPSTONE\demo`
 - Run whether the user is logged on or not.
 - Do not start a new instance if the task is already running.
 
 The dispatcher also uses a MySQL advisory lock, so overlapping invocations exit
 without duplicating delivery.
+
+Printing transitions attempt delivery immediately from the request that creates
+the transition. The scheduled task remains required as a retry fallback. The
+included VBS launcher runs the fallback without displaying a command window.
 
 ## 5. Hosted production schedule
 

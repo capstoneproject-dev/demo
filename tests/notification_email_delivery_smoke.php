@@ -60,6 +60,7 @@ foreach ($printingCases as $case) {
     if (!$notification
         || $notification['source_type'] !== 'printing'
         || $notification['status'] !== $expected
+        || ($expected === 'ready_to_claim' && empty($notification['is_unresolved']))
         || !notificationEmailIsEligible($notification)) {
         throw new RuntimeException("Printing notification state {$expected} is incorrect.");
     }
@@ -149,6 +150,55 @@ try {
             && $item['source_type'] === 'printing'
     )) {
         throw new RuntimeException('Database-backed printing notification was not generated.');
+    }
+
+    $immediateSendCount = 0;
+    $immediateResult = notificationEmailDispatchPrintingJobsImmediately(
+        $pdo,
+        [$printJobId],
+        static function (array $delivery, array $_bodies) use (&$immediateSendCount, $expectedPrintingId): void {
+            if (($delivery['notification_id'] ?? '') !== $expectedPrintingId) {
+                throw new RuntimeException('Immediate dispatcher selected the wrong notification.');
+            }
+            $immediateSendCount++;
+        }
+    );
+    if ($immediateSendCount !== 1 || (int)($immediateResult['sent'] ?? 0) !== 1) {
+        throw new RuntimeException('Printing notification was not sent immediately.');
+    }
+    $sentCheck = $pdo->prepare(
+        "SELECT delivery_status, attempt_count
+         FROM notification_email_deliveries
+         WHERE user_id = :user_id AND notification_id = :notification_id"
+    );
+    $sentCheck->execute([':user_id' => $userId, ':notification_id' => $expectedPrintingId]);
+    $sentDelivery = $sentCheck->fetch();
+    if (!$sentDelivery || $sentDelivery['delivery_status'] !== 'sent' || (int)$sentDelivery['attempt_count'] !== 1) {
+        throw new RuntimeException('Immediate printing delivery was not recorded as sent.');
+    }
+
+    $statusTransitions = [
+        'processing' => "UPDATE print_jobs SET status = 'processing', processing_started_at = NOW() WHERE print_job_id = :print_job_id",
+        'ready_to_claim' => "UPDATE print_jobs SET status = 'ready_to_claim', ready_at = NOW() WHERE print_job_id = :print_job_id",
+    ];
+    foreach ($statusTransitions as $notificationStatus => $sql) {
+        $transition = $pdo->prepare($sql);
+        $transition->execute([':print_job_id' => $printJobId]);
+        $expectedTransitionId = "printing:{$printJobId}:{$notificationStatus}";
+        $transitionSendCount = 0;
+        $transitionResult = notificationEmailDispatchPrintingJobsImmediately(
+            $pdo,
+            [$printJobId],
+            static function (array $delivery, array $_bodies) use (&$transitionSendCount, $expectedTransitionId): void {
+                if (($delivery['notification_id'] ?? '') !== $expectedTransitionId) {
+                    throw new RuntimeException('Immediate status dispatcher selected the wrong notification.');
+                }
+                $transitionSendCount++;
+            }
+        );
+        if ($transitionSendCount !== 1 || (int)($transitionResult['sent'] ?? 0) !== 1) {
+            throw new RuntimeException("Printing {$notificationStatus} email was not sent immediately.");
+        }
     }
 
     $insert = $pdo->prepare(
