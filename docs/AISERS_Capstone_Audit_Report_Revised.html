@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AISERS Capstone Audit Report — Revised Scope</title>
+  <style>
+    @page { size: A4; margin: 18mm 17mm 17mm; }
+    * { box-sizing: border-box; }
+    body {
+      color: #172033;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.2pt;
+      line-height: 1.48;
+      margin: 0;
+    }
+    .cover {
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 245mm;
+      text-align: center;
+    }
+    .eyebrow { color: #315a91; font-size: 10pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { color: #102846; font-size: 28pt; line-height: 1.1; margin: 16px 0 10px; }
+    .subtitle { color: #52627a; font-size: 12pt; max-width: 150mm; }
+    .meta { border-top: 1px solid #cdd7e5; margin-top: 30px; padding-top: 18px; text-align: left; width: 145mm; }
+    .meta p { margin: 5px 0; }
+    .scope-note { background: #eef5ff; border-left: 4px solid #315a91; margin-top: 24px; padding: 12px 14px; text-align: left; width: 145mm; }
+    h2 { border-bottom: 2px solid #d9e2ef; color: #15375f; font-size: 16pt; margin: 22px 0 10px; padding-bottom: 5px; }
+    h3 { color: #244d7d; font-size: 12pt; margin: 17px 0 6px; }
+    p { margin: 7px 0; }
+    ul, ol { margin: 7px 0 10px 20px; padding: 0; }
+    li { margin: 4px 0; }
+    .verdict { background: #fff3f1; border: 1px solid #e8b8b1; border-radius: 6px; padding: 12px 14px; }
+    .finding { break-inside: avoid; margin-bottom: 12px; }
+    .finding strong:first-child { color: #102846; }
+    code { background: #f1f4f8; border-radius: 3px; font-size: 8.8pt; padding: 1px 4px; }
+    table { border-collapse: collapse; font-size: 8.8pt; margin: 11px 0 16px; width: 100%; }
+    th { background: #173b67; color: white; font-weight: 700; text-align: left; }
+    th, td { border: 1px solid #cbd6e4; padding: 7px 8px; vertical-align: top; }
+    tr:nth-child(even) td { background: #f7f9fc; }
+    .status-strong { color: #17613a; font-weight: 700; }
+    .status-partial { color: #8a5a00; font-weight: 700; }
+    .status-missing { color: #a12828; font-weight: 700; }
+    .page-break { break-before: page; }
+    .quote { background: #f5f7fb; border-left: 4px solid #6b7f9d; font-style: italic; margin: 12px 0; padding: 12px 15px; }
+    .footer-note { color: #617089; font-size: 8.5pt; margin-top: 22px; text-align: center; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="eyebrow">Revised Capstone Readiness Review</div>
+    <h1>AISERS System Audit Report</h1>
+    <p class="subtitle">Requirements, implementation, security, permissions, database workflows, AI integration, paper consistency, and deployment readiness.</p>
+    <div class="meta">
+      <p><strong>Project:</strong> NAAP–Villamor AISERS</p>
+      <p><strong>Original audit date:</strong> July 28, 2026</p>
+      <p><strong>Scope revision:</strong> August 6, 2026</p>
+      <p><strong>Role interpretation:</strong> OSA Administrator and System Administrator are treated as one combined authorized account role.</p>
+      <p><strong>Change policy:</strong> This revision changes audit scope only and does not modify application source files.</p>
+    </div>
+    <div class="scope-note"><strong>Scope clarification:</strong> Findings and implementation recommendations are limited to features required for the approved AISERS scope. Optional integrations and transaction methods outside that scope are not treated as missing requirements.</div>
+  </section>
+
+  <section class="page-break">
+    <h2>1. Role Interpretation Used in This Report</h2>
+    <p><strong>Approved account roles:</strong> Student, Organization Officer, and combined OSA/System Administrator.</p>
+    <p>This report treats OSA administration and system administration as responsibilities of the same authorized user. The existing <code>osa_staff</code> account type may represent the combined role, provided that it includes the administrative capabilities stated in the paper.</p>
+    <p>The rule that system-administration functions must not change OSA approval decisions is interpreted as a record-integrity rule: once the combined OSA/System Administrator finalizes an approval or rejection, the decision must not be silently overwritten. Corrections must use a new document version or a formally logged reconsideration process.</p>
+
+    <h2>2. Executive Summary</h2>
+    <div class="verdict"><strong>Overall verdict:</strong> Not ready for production deployment. The combined OSA/System Administrator role is acceptable for the approved project interpretation, but critical authorization, data-integrity, security, and workflow requirements remain incomplete.</div>
+    <p>The system’s strongest areas are rental and service workflows, inventory, returns, fees and overtime, organization-scoped officer modules, dashboards, reports, and genuine AI-assisted descriptive analytics. The largest blockers identified by the original audit are unsafe OSA/System Administrator account creation, weak authorization in account-management endpoints, public exposure of sensitive files, absent MFA and CSRF protection, no protected audit log, mutable document approvals, missing document versioning, and an attendance duplication defect.</p>
+    <p>The active frontend is the HTML/CSS/JavaScript application backed by PHP and MySQL. The React/Vite directory is an unused prototype and is not the active frontend.</p>
+
+    <h2>3. Critical Issues</h2>
+    <div class="finding"><strong>1. Broken administrative authorization.</strong> Several Accounts APIs originally called only <code>apiGuard()</code>, which verified login but not the combined OSA/System Administrator role. This could allow a student or organization officer to perform account-management actions.</div>
+    <div class="finding"><strong>2. Public OSA/System Administrator self-provisioning.</strong> Administrator registration originally accepted any unused email and employee number without a verified staff invitation or approval by an existing authorized administrator.</div>
+    <div class="finding"><strong>3. Sensitive web-root exposure.</strong> Local HTTP testing found technical database material and uploaded documents under the public application tree. Sensitive submitted files require authenticated delivery and direct-access denial.</div>
+    <div class="finding"><strong>4. Approved decisions are mutable.</strong> An administrator can repeatedly change a submission between approved and rejected. Approved repository records are overwritten, and no immutable version history exists.</div>
+    <div class="finding"><strong>5. No comprehensive protected audit log.</strong> Dashboard activity assembled from mutable operational tables is not a complete append-only audit trail covering sensitive system actions.</div>
+    <div class="finding"><strong>6. Event registration can duplicate attendance.</strong> Registration may create a row without a check-in time, while check-in searches only for rows whose check-in date is current. Without a database uniqueness constraint, another row can be inserted for the same event and student.</div>
+    <div class="finding"><strong>7. Essential session and request protections are incomplete.</strong> CSRF protection, Secure cookies, session-ID regeneration, timeouts, and sensitive-action reauthentication are missing or incomplete. Privileged login MFA must also remain enforced.</div>
+  </section>
+
+  <section class="page-break">
+    <h2>4. Requirement-to-Implementation Summary</h2>
+    <table>
+      <thead><tr><th>Requirement</th><th>Status</th><th>Finding</th></tr></thead>
+      <tbody>
+        <tr><td>Student</td><td class="status-strong">Implemented</td><td>Student accounts, dashboard, events, rentals, printing, lockers, notices, and personal records exist.</td></tr>
+        <tr><td>Organization officer</td><td class="status-strong">Implemented</td><td>An officer remains a student with an active organization membership and organization-scoped dashboard access.</td></tr>
+        <tr><td>OSA/System Administrator</td><td class="status-partial">Partial</td><td>The combined role supports review and dashboard functions, but complete administrative integrity and security controls require work.</td></tr>
+        <tr><td>Registration, login, and RBAC</td><td class="status-partial">Partial</td><td>Login and bcrypt exist. Administrative authorization and privileged-account enrollment must always be enforced server-side.</td></tr>
+        <tr><td>Organization and membership management</td><td class="status-partial">Partial</td><td>Memberships and public profiles exist; complete organization lifecycle management was not established by the original audit.</td></tr>
+        <tr><td>Document upload, review, and annotation</td><td class="status-strong">Implemented</td><td>Organization officers submit documents, and OSA reviews and annotates them.</td></tr>
+        <tr><td>Document tracking</td><td class="status-partial">Partial</td><td>Pending, approved, and rejected states exist, but the integrity of finalized states still needs protection.</td></tr>
+        <tr><td>Document versioning and archiving</td><td class="status-missing">Missing</td><td>No version table, parent link, version number, checksum, or complete archive lifecycle exists.</td></tr>
+        <tr><td>Announcements</td><td class="status-partial">Partial</td><td>Announcements exist, but their target audiences should be aligned with the final approved requirements.</td></tr>
+        <tr><td>Role-targeted notifications</td><td class="status-partial">Partial</td><td>Transactional emails and computed student notices exist, but a complete persistent notification/read-state model was not found.</td></tr>
+        <tr><td>Events and registration</td><td class="status-partial">Partial</td><td>Implemented, but registration and attendance are stored together and can duplicate records.</td></tr>
+        <tr><td>Barcode attendance</td><td class="status-strong">Implemented</td><td>Student barcodes are generated and scanned for attendance operations.</td></tr>
+        <tr><td>Rentals, services, inventory, and fees</td><td class="status-strong">Strong</td><td>Reservations, inventory, returns, overtime, fees, printing, and lockers are substantially implemented.</td></tr>
+        <tr><td>Dashboards, reports, and analytics</td><td class="status-partial">Partial</td><td>All approved role dashboards exist; compliance monitoring should be supported by durable review and audit records.</td></tr>
+        <tr><td>Audit logs</td><td class="status-partial">Partial</td><td>A protected append-only facility and comprehensive event coverage are required.</td></tr>
+        <tr><td>Centralized database</td><td class="status-strong">Implemented</td><td>MySQL supports the operational modules, while additional integrity structures are still required.</td></tr>
+        <tr><td>Responsive web interface</td><td class="status-strong">Substantially implemented</td><td>Viewport declarations and mobile CSS breakpoints exist. No native application is required.</td></tr>
+        <tr><td>User manual</td><td class="status-missing">Missing</td><td>No complete role-based end-user guide was found.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>5. Role and Permission Findings</h2>
+    <ul>
+      <li><strong>Student:</strong> Accesses student events, rentals, printing, lockers, notifications, and personal records only.</li>
+      <li><strong>Organization Officer:</strong> Remains a student account with active organization membership and organization-scoped authority.</li>
+      <li><strong>OSA/System Administrator:</strong> May combine document review, compliance, account management, organization administration, configuration, audit-log viewing, and technical oversight.</li>
+      <li>The combined administrator account must not be publicly self-registered. Initial accounts should be seeded securely; additional accounts should require verified staff invitation or approval.</li>
+      <li>Organization ownership checks should scope every officer operation to the active organization.</li>
+      <li>Students do not submit organizational approval documents. Their file-upload workflow is for printing-service requests.</li>
+    </ul>
+  </section>
+
+  <section class="page-break">
+    <h2>6. Approval Integrity for the Combined Administrator</h2>
+    <ol>
+      <li>A pending submission may be reviewed and approved or rejected by an authorized OSA/System Administrator.</li>
+      <li>The finalized decision and approved file become immutable.</li>
+      <li>A correction or revised submission creates a new linked document version.</li>
+      <li>If reconsideration is allowed, it must be a separate workflow with a mandatory reason and append-only audit entry.</li>
+      <li>Account-management or configuration functions must never directly update finalized approval rows.</li>
+    </ol>
+
+    <h2>7. Database and Workflow Mismatches</h2>
+    <ul>
+      <li>A complete document-version history and general persistent notification model are absent.</li>
+      <li>The finalized document workflow does not prevent a later decision from overwriting an earlier decision.</li>
+      <li>Approving and later rejecting a document can leave inconsistent approved-repository data.</li>
+      <li>Event registration and actual participation are conflated in <code>attendance_records</code>.</li>
+      <li>Organization or event deletion can conflict with long-term participation and audit-record retention.</li>
+    </ul>
+
+    <h2>8. Security Assessment</h2>
+    <table>
+      <thead><tr><th>Control</th><th>Status</th><th>Assessment</th></tr></thead>
+      <tbody>
+        <tr><td>Argon2id or bcrypt</td><td class="status-strong">Pass</td><td>Bcrypt is used for account passwords.</td></tr>
+        <tr><td>MFA for combined administrator</td><td class="status-partial">Required</td><td>Every privileged OSA/System Administrator login must complete fresh MFA.</td></tr>
+        <tr><td>Secure sessions</td><td class="status-partial">Partial</td><td>HTTP-only and SameSite controls exist; Secure cookies, regeneration, timeouts, and sensitive-action reauthentication remain required.</td></tr>
+        <tr><td>CSRF protection</td><td class="status-missing">Fail</td><td>No CSRF-token system was found for cookie-authenticated mutations.</td></tr>
+        <tr><td>Server authorization</td><td class="status-partial">Inconsistent</td><td>Strong in several domain helpers; administrative endpoints require consistent role enforcement.</td></tr>
+        <tr><td>Organization ownership</td><td class="status-strong">Mostly pass</td><td>Core officer modules normally verify active organization context and scope SQL by organization.</td></tr>
+        <tr><td>HTTPS/TLS 1.3</td><td class="status-partial">Unverified</td><td>Production TLS must be configured and verified on the deployment host.</td></tr>
+        <tr><td>Prepared SQL</td><td class="status-strong">Mostly pass</td><td>PDO prepared statements are widespread and emulated prepares are disabled.</td></tr>
+        <tr><td>Input and file validation</td><td class="status-partial">Partial</td><td>Uploads require content, signature, size, and authorization checks.</td></tr>
+        <tr><td>Encryption at rest</td><td class="status-missing">No evidence</td><td>No database, document, dump, or backup encryption implementation was established.</td></tr>
+        <tr><td>Protected audit logs</td><td class="status-partial">Partial</td><td>Append-only protection and comprehensive sensitive-action coverage are required.</td></tr>
+        <tr><td>No hard-coded secrets</td><td class="status-partial">Partial</td><td>AI and mail use environment secrets, but production database credentials must use a least-privilege account.</td></tr>
+        <tr><td>Immutable approvals</td><td class="status-missing">Fail</td><td>Final decisions and repository records can be overwritten.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="page-break">
+    <h2>9. AI Assessment</h2>
+    <p>Real AI-assisted analytics exists; ordinary totals and charts were not counted as AI.</p>
+    <ul>
+      <li><strong>Primary provider:</strong> Google Gemini.</li>
+      <li><strong>Models:</strong> Gemini Flash-family models configured by the project.</li>
+      <li><strong>Local fallback:</strong> Ollama.</li>
+      <li><strong>Final fallback:</strong> Deterministic rule-based summaries.</li>
+      <li><strong>Purpose:</strong> Descriptive narratives for revenue, participation, rentals/inventory, and document-workflow aggregates—not prediction or machine learning.</li>
+      <li><strong>Data handling:</strong> The analytics builder should send only filtered totals, chart series, summaries, and limited event details, excluding direct student identifiers.</li>
+      <li><strong>API-key handling:</strong> Provider keys must remain in server environment variables rather than source code.</li>
+    </ul>
+
+    <h2>10. Paper and Implementation Contradictions</h2>
+    <ol>
+      <li>Project documentation should use one consistent deployment-readiness status.</li>
+      <li>Terminology should consistently use “OSA/System Administrator” for the approved combined-role interpretation.</li>
+      <li>The paper correctly assigns organizational document submission to officers and rental/service requests to students.</li>
+      <li>Any claimed intermediate document-review stage must match the implemented workflow.</li>
+      <li>Claimed announcement audiences must match the implemented targeting model.</li>
+      <li>Offline attendance, financial audit records, policy updates, and formal compliance records should not be claimed without complete persistent workflows.</li>
+      <li>The proposed ERD contains fields and tables not present in the deployed schema.</li>
+      <li>Main dashboards are HTML/CSS/JavaScript clients backed by PHP JSON APIs; the architecture description should reflect that implementation.</li>
+    </ol>
+
+    <h2>11. Prioritized Fixes Before Defense</h2>
+    <h3>P0 — Immediate blockers</h3>
+    <ol>
+      <li>Restrict every Accounts endpoint to the combined OSA/System Administrator role.</li>
+      <li>Disable public administrator registration; use securely seeded accounts and verified staff invitations.</li>
+      <li>Remove SQL dumps, technical documents, backups, and raw sensitive uploads from public access; disable directory indexes.</li>
+      <li>Make finalized OSA decisions immutable and require a new version or logged reconsideration for corrections.</li>
+      <li>Add CSRF protection, Secure cookies, session regeneration, timeouts, and sensitive-action reauthentication.</li>
+      <li>Repair registration/check-in duplication and add database uniqueness protection.</li>
+    </ol>
+
+    <h3>P1 — Required integrity and administrator features</h3>
+    <ol start="7">
+      <li>Add comprehensive append-only protected audit logs accessible only to the authorized administrator.</li>
+      <li>Add immutable document versions and archiving.</li>
+      <li>Separate event registration state from verified participation and attendance.</li>
+      <li>Add persistent role-targeted notifications with read and delivery states where required by the final scope.</li>
+      <li>Enforce MFA for every OSA/System Administrator account.</li>
+      <li>Complete administrator capabilities without allowing direct alteration of finalized approvals.</li>
+    </ol>
+
+    <h3>P2 — Deployment hardening</h3>
+    <ol start="13">
+      <li>Validate upload MIME type, signature, size, and authorized download access.</li>
+      <li>Use environment secrets and a least-privilege production database account.</li>
+      <li>Configure and verify TLS 1.3, HSTS, encryption at rest, and secure backups.</li>
+      <li>Add centralized error handling and security headers.</li>
+      <li>Replace runtime schema changes with controlled database migrations.</li>
+    </ol>
+
+    <h3>P3 — Defense alignment and quality</h3>
+    <ol start="18">
+      <li>Use “OSA/System Administrator” consistently in the interface, manual, diagrams, and defense explanation.</li>
+      <li>Implement only the remaining workflows and notification audiences confirmed by the final approved paper.</li>
+      <li>Describe AI accurately as assisted descriptive analytics.</li>
+      <li>Remove the unused React/Vite prototype and mock-data controls from the production package.</li>
+      <li>Create a role-specific user manual and documented responsive-browser test results.</li>
+      <li>Repair broken navigation and hard-coded local deployment paths.</li>
+    </ol>
+  </section>
+
+  <section class="page-break">
+    <h2>12. Defense Position</h2>
+    <p>The defensible role explanation is:</p>
+    <div class="quote">“OSA personnel also perform authorized system-administration functions. OSA Administrator and System Administrator are functional responsibilities under one secured account role, not separate user types. Finalized OSA decisions remain immutable, and every sensitive administrative action is audited.”</div>
+    <p>This combined-role design is acceptable for the approved project interpretation if it is used consistently and the missing security, administrative, audit, and record-integrity controls are implemented.</p>
+    <p class="footer-note">AISERS Revised Capstone System Audit Report · Scope-aligned revision · August 6, 2026</p>
+  </section>
+</body>
+</html>

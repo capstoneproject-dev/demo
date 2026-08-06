@@ -1,0 +1,25 @@
+# Prevent directory browsing without changing normal application routing.
+Options -Indexes
+
+# Block development manifests, environment templates, session artifacts, and
+# project documentation from direct HTTP access. These files remain readable
+# by PHP, Composer, and command-line deployment tools on the server.
+<FilesMatch "(?i)^(?:composer\.(?:json|lock|phar)|package(?:-lock)?\.json|\.env(?:\..*)?|\.git(?:ignore|attributes|modules)?|sess_[A-Za-z0-9_-]+|__[^/]+\.tmp|TO[ _-]?DO\.txt|.+\.(?:md|mmd|log|bak|backup|dist|ini|ya?ml))$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Internal PHP libraries, tests, deployment helpers, and installed Composer
+# packages must never be browsed directly. Internal require/include calls are
+# filesystem operations and are not affected by these URL rules.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(?:\.git|vendor|tests|cli|includes|config|docs)(?:/|$) - [F,L,NC]
+</IfModule>
+
+# SQL backups and PDF files are intentionally not covered here. They must be
+# removed or relocated outside the public document root before deployment.

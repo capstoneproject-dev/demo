@@ -865,6 +865,29 @@
         </div>
     </div>
 
+    <!-- Reject with Optional Comment Modal -->
+    <div id="reject-comment-modal" class="request-action-modal">
+        <div class="request-action-modal-content">
+            <div class="request-action-modal-header">
+                <h3>Reject Document</h3>
+                <button class="modal-close-btn" onclick="closeRejectCommentModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="request-action-modal-body">
+                <p>You can add an optional reviewer note before rejecting.</p>
+                <textarea id="reject-comment-text" rows="4" placeholder="Optional comments..."
+                    style="margin-top: 10px; width: 100%;"></textarea>
+            </div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-outline" onclick="closeRejectCommentModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmRejectWithComment()">
+                    <i class="fa-solid fa-xmark"></i> Reject
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Request Action Confirmation Modal -->
     <div id="request-action-modal" class="request-action-modal">
         <div class="request-action-modal-content">
@@ -1081,7 +1104,7 @@
 
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
-    <script src="../assets/js/osaDashboard.js?v=20260731-logout-1"></script>
+    <script src="../assets/js/osaDashboard.js?v=20260807-document-versions-3"></script>
     <script src="../assets/js/pdfViewer.js?v=pdf-highlight-sidebar-color-1"></script>
 </body>
 

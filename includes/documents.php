@@ -7,6 +7,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/system_settings.php';
 require_once __DIR__ . '/private_pdf_storage.php';
+require_once __DIR__ . '/audit.php';
 
 class DocumentValidationException extends RuntimeException {}
 class DocumentAuthorizationException extends RuntimeException {}
@@ -115,6 +116,19 @@ function docValidateType(string $type): string
     return $type;
 }
 
+function docHashStoredPdf(string $storageKey): string
+{
+    $path = privatePdfResolveStoredFile($storageKey, ['documents']);
+    if (!$path || !is_file($path)) {
+        throw new DocumentValidationException('The uploaded PDF could not be found in private storage.');
+    }
+    $hash = hash_file('sha256', $path);
+    if (!is_string($hash) || strlen($hash) !== 64) {
+        throw new RuntimeException('Could not calculate the document file fingerprint.');
+    }
+    return $hash;
+}
+
 function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): array
 {
     docEnsureTermColumns($pdo);
@@ -139,26 +153,85 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
     }
     if ($orgId <= 0 || $userId <= 0) throw new DocumentValidationException('Invalid org/user context.');
 
-    $stmt = $pdo->prepare(
-        "INSERT INTO document_submissions
-         (org_id, submitted_by_user_id, title, document_type, file_url, recipient, description, status, semester, academic_year, grading_period)
-         VALUES (:org, :uid, :title, :type, :file, :recipient, :description, 'pending', :semester, :ay, :period)"
-    );
-    $stmt->execute([
-        ':org'         => $orgId,
-        ':uid'         => $userId,
-        ':title'       => $title,
-        ':type'        => $documentType,
-        ':file'        => $fileUrl,
-        ':recipient'   => $recipient,
-        ':description' => $description,
-        ':semester'    => $semester,
-        ':ay'          => $academicYear,
-        ':period'      => $gradingPeriod,
-    ]);
+    $fileHash = docHashStoredPdf($fileUrl);
+    $revisionOf = max(0, (int)($data['revision_of_submission_id'] ?? 0));
+    $ownsTransaction = !$pdo->inTransaction();
 
-    $id = (int)$pdo->lastInsertId();
-    return docFetchSubmission($pdo, $id);
+    try {
+        if ($ownsTransaction) $pdo->beginTransaction();
+
+        $rootSubmissionId = null;
+        $versionNumber = 1;
+        if ($revisionOf > 0) {
+            $parentStmt = $pdo->prepare(
+                "SELECT ds.submission_id, ds.org_id, ds.status, ds.recipient,
+                        dv.root_submission_id, dv.version_number,
+                        EXISTS(
+                            SELECT 1 FROM document_versions child
+                            WHERE child.parent_submission_id = ds.submission_id
+                        ) AS has_newer_version
+                 FROM document_submissions ds
+                 JOIN document_versions dv ON dv.submission_id = ds.submission_id
+                 WHERE ds.submission_id = :id
+                 FOR UPDATE"
+            );
+            $parentStmt->execute([':id' => $revisionOf]);
+            $parent = $parentStmt->fetch();
+            if (!$parent || (int)$parent['org_id'] !== $orgId) {
+                throw new DocumentAuthorizationException('The document being revised is not available to this organization.');
+            }
+            if (!in_array(strtolower((string)$parent['status']), ['approved', 'rejected'], true)) {
+                throw new DocumentValidationException('Only a finalized document can be revised.');
+            }
+            if ((int)$parent['has_newer_version'] === 1) {
+                throw new DocumentValidationException('A newer revision already exists for this document.');
+            }
+            $rootSubmissionId = (int)$parent['root_submission_id'];
+            $versionNumber = (int)$parent['version_number'] + 1;
+            $recipient = (string)$parent['recipient'];
+        }
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO document_submissions
+             (org_id, submitted_by_user_id, title, document_type, file_url, recipient, description, status, semester, academic_year, grading_period)
+             VALUES (:org, :uid, :title, :type, :file, :recipient, :description, 'pending', :semester, :ay, :period)"
+        );
+        $stmt->execute([
+            ':org'         => $orgId,
+            ':uid'         => $userId,
+            ':title'       => $title,
+            ':type'        => $documentType,
+            ':file'        => $fileUrl,
+            ':recipient'   => $recipient,
+            ':description' => $description,
+            ':semester'    => $semester,
+            ':ay'          => $academicYear,
+            ':period'      => $gradingPeriod,
+        ]);
+
+        $id = (int)$pdo->lastInsertId();
+        if ($rootSubmissionId === null) $rootSubmissionId = $id;
+        $versionStmt = $pdo->prepare(
+            "INSERT INTO document_versions
+             (submission_id, root_submission_id, parent_submission_id, version_number, file_sha256, created_by_user_id)
+             VALUES (:submission, :root, :parent, :version, :hash, :user)"
+        );
+        $versionStmt->execute([
+            ':submission' => $id,
+            ':root' => $rootSubmissionId,
+            ':parent' => $revisionOf > 0 ? $revisionOf : null,
+            ':version' => $versionNumber,
+            ':hash' => $fileHash,
+            ':user' => $userId,
+        ]);
+
+        $submission = docFetchSubmission($pdo, $id);
+        if ($ownsTransaction) $pdo->commit();
+        return $submission;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
 }
 
 function docFetchSubmission(PDO $pdo, int $id): array
@@ -166,9 +239,12 @@ function docFetchSubmission(PDO $pdo, int $id): array
     docEnsureTermColumns($pdo);
 
     $stmt = $pdo->prepare(
-        "SELECT ds.*, o.org_name
+        "SELECT ds.*, o.org_name,
+                dv.root_submission_id, dv.parent_submission_id, dv.version_number, dv.file_sha256,
+                EXISTS(SELECT 1 FROM document_versions child WHERE child.parent_submission_id = ds.submission_id) AS has_newer_version
          FROM document_submissions ds
          JOIN organizations o ON o.org_id = ds.org_id
+         JOIN document_versions dv ON dv.submission_id = ds.submission_id
          WHERE ds.submission_id = :id"
     );
     $stmt->execute([':id' => $id]);
@@ -178,6 +254,10 @@ function docFetchSubmission(PDO $pdo, int $id): array
     $row['org_id']        = (int)$row['org_id'];
     $row['submitted_by_user_id'] = (int)$row['submitted_by_user_id'];
     $row['reviewed_by_user_id']  = $row['reviewed_by_user_id'] !== null ? (int)$row['reviewed_by_user_id'] : null;
+    $row['root_submission_id'] = (int)$row['root_submission_id'];
+    $row['parent_submission_id'] = $row['parent_submission_id'] !== null ? (int)$row['parent_submission_id'] : null;
+    $row['version_number'] = (int)$row['version_number'];
+    $row['has_newer_version'] = (bool)$row['has_newer_version'];
     return $row;
 }
 
@@ -233,10 +313,13 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
     $sql = "SELECT ds.*,
                    o.org_name,
                    u.first_name AS submitted_by_first_name,
-                   u.last_name AS submitted_by_last_name
+                   u.last_name AS submitted_by_last_name,
+                   dv.root_submission_id, dv.parent_submission_id, dv.version_number, dv.file_sha256,
+                   EXISTS(SELECT 1 FROM document_versions child WHERE child.parent_submission_id = ds.submission_id) AS has_newer_version
             FROM document_submissions ds
             JOIN organizations o ON o.org_id = ds.org_id
             LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
+            JOIN document_versions dv ON dv.submission_id = ds.submission_id
             " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
             ORDER BY ds.submitted_at DESC, ds.submission_id DESC";
 
@@ -248,6 +331,10 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
         $r['org_id']        = (int)$r['org_id'];
         $r['submitted_by_user_id'] = (int)$r['submitted_by_user_id'];
         $r['reviewed_by_user_id']  = $r['reviewed_by_user_id'] !== null ? (int)$r['reviewed_by_user_id'] : null;
+        $r['root_submission_id'] = (int)$r['root_submission_id'];
+        $r['parent_submission_id'] = $r['parent_submission_id'] !== null ? (int)$r['parent_submission_id'] : null;
+        $r['version_number'] = (int)$r['version_number'];
+        $r['has_newer_version'] = (bool)$r['has_newer_version'];
         $r = privatePdfDecorateDocumentRow($r);
     }
     return $rows;
@@ -263,28 +350,88 @@ function docReviewSubmission(PDO $pdo, int $submissionId, int $reviewerId, strin
     }
     $notes = $notes !== null ? trim($notes) : null;
 
-    $stmt = $pdo->prepare(
-        "UPDATE document_submissions
-         SET status = :status,
-             reviewer_notes = :notes,
-             reviewed_by_user_id = :uid,
-             reviewed_at = CURRENT_TIMESTAMP,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE submission_id = :id"
-    );
-    $stmt->execute([
-        ':status' => $decision,
-        ':notes'  => $notes,
-        ':uid'    => $reviewerId,
-        ':id'     => $submissionId,
-    ]);
+    $ownsTransaction = !$pdo->inTransaction();
+    try {
+        if ($ownsTransaction) $pdo->beginTransaction();
 
-    $submission = docFetchSubmission($pdo, $submissionId);
-    if ($decision === 'approved') {
-        docSyncApprovedRepository($pdo, $submission);
+        $lock = $pdo->prepare(
+            "SELECT ds.*, dv.file_sha256
+             FROM document_submissions ds
+             JOIN document_versions dv ON dv.submission_id = ds.submission_id
+             WHERE ds.submission_id = :id
+             FOR UPDATE"
+        );
+        $lock->execute([':id' => $submissionId]);
+        $before = $lock->fetch();
+        if (!$before) throw new DocumentValidationException('Submission not found.');
+        if (strtolower((string)$before['status']) !== 'pending') {
+            throw new DocumentValidationException('This submission already has a final decision. Submit a new revision instead.');
+        }
+
+        $reviewerStmt = $pdo->prepare(
+            "SELECT user_id, first_name, last_name, email, employee_number
+             FROM users WHERE user_id = :id LIMIT 1"
+        );
+        $reviewerStmt->execute([':id' => $reviewerId]);
+        $reviewer = $reviewerStmt->fetch();
+        if (!$reviewer) throw new DocumentValidationException('Reviewer account not found.');
+
+        $stmt = $pdo->prepare(
+            "UPDATE document_submissions
+             SET status = :status,
+                 reviewer_notes = :notes,
+                 reviewed_by_user_id = :uid,
+                 reviewed_at = CURRENT_TIMESTAMP,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE submission_id = :id AND status = 'pending'"
+        );
+        $stmt->execute([
+            ':status' => $decision,
+            ':notes'  => $notes,
+            ':uid'    => $reviewerId,
+            ':id'     => $submissionId,
+        ]);
+        if ($stmt->rowCount() !== 1) {
+            throw new DocumentValidationException('This submission was already reviewed. Refresh and try again.');
+        }
+
+        $reviewerName = trim((string)$reviewer['first_name'] . ' ' . (string)$reviewer['last_name']) ?: null;
+        $decisionStmt = $pdo->prepare(
+            "INSERT INTO document_decisions
+             (submission_id, decision, reviewer_notes, reviewed_by_user_id, reviewer_name, reviewer_email, file_sha256, decided_at)
+             VALUES (:submission, :decision, :notes, :reviewer, :name, :email, :hash, CURRENT_TIMESTAMP)"
+        );
+        $decisionStmt->execute([
+            ':submission' => $submissionId,
+            ':decision' => $decision,
+            ':notes' => $notes,
+            ':reviewer' => $reviewerId,
+            ':name' => $reviewerName,
+            ':email' => $reviewer['email'] ?? null,
+            ':hash' => $before['file_sha256'] ?? null,
+        ]);
+
+        $submission = docFetchSubmission($pdo, $submissionId);
+        if ($decision === 'approved') docSyncApprovedRepository($pdo, $submission);
+
+        appendAuditLog(
+            'document_' . $decision,
+            'document_submission',
+            (string)$submissionId,
+            $reviewer,
+            null,
+            ['status' => 'pending', 'version_number' => $submission['version_number']],
+            ['status' => $decision, 'version_number' => $submission['version_number'], 'reviewer_notes' => $notes],
+            'success',
+            $pdo
+        );
+
+        if ($ownsTransaction) $pdo->commit();
+        return $submission;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
-
-    return $submission;
 }
 
 function docSyncApprovedRepository(PDO $pdo, array $submission): void
@@ -292,17 +439,7 @@ function docSyncApprovedRepository(PDO $pdo, array $submission): void
     $stmt = $pdo->prepare(
         "INSERT INTO documents_approved
          (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, grading_period, approved_at)
-         VALUES (:sid, :org, :approver, :title, :type, :file, :description, :semester, :ay, :period, NOW())
-         ON DUPLICATE KEY UPDATE
-             approved_by_user_id = VALUES(approved_by_user_id),
-             title = VALUES(title),
-             document_type = VALUES(document_type),
-             file_url = VALUES(file_url),
-             description = VALUES(description),
-             semester = VALUES(semester),
-             academic_year = VALUES(academic_year),
-             grading_period = VALUES(grading_period),
-             approved_at = VALUES(approved_at)"
+         VALUES (:sid, :org, :approver, :title, :type, :file, :description, :semester, :ay, :period, NOW())"
     );
     $stmt->execute([
         ':sid' => (int)$submission['submission_id'],
@@ -392,9 +529,11 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
         $params[':q'] = '%' . trim($filters['q']) . '%';
     }
 
-    $sql = "SELECT da.*, o.org_name
+    $sql = "SELECT da.*, o.org_name,
+                   dv.root_submission_id, dv.parent_submission_id, dv.version_number, dv.file_sha256
             FROM documents_approved da
             JOIN organizations o ON o.org_id = da.org_id
+            JOIN document_versions dv ON dv.submission_id = da.submission_id
             " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
             ORDER BY da.approved_at DESC, da.repo_id DESC";
 
@@ -406,6 +545,9 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
         $r['submission_id'] = (int)$r['submission_id'];
         $r['org_id'] = (int)$r['org_id'];
         $r['approved_by_user_id'] = (int)$r['approved_by_user_id'];
+        $r['root_submission_id'] = (int)$r['root_submission_id'];
+        $r['parent_submission_id'] = $r['parent_submission_id'] !== null ? (int)$r['parent_submission_id'] : null;
+        $r['version_number'] = (int)$r['version_number'];
         $r = privatePdfDecorateDocumentRow($r);
     }
     return $rows;
@@ -474,12 +616,18 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
                    u.last_name AS submitted_by_last_name,
                    da.repo_id,
                    da.approved_at,
+                   dv.root_submission_id,
+                   dv.parent_submission_id,
+                   dv.version_number,
+                   dv.file_sha256,
+                   EXISTS(SELECT 1 FROM document_versions child WHERE child.parent_submission_id = ds.submission_id) AS has_newer_version,
                    COALESCE(ann.annotation_count, 0) AS annotation_count,
                    ann.latest_annotation_at
             FROM document_submissions ds
             JOIN organizations o ON o.org_id = ds.org_id
             LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
             LEFT JOIN documents_approved da ON da.submission_id = ds.submission_id
+            JOIN document_versions dv ON dv.submission_id = ds.submission_id
             LEFT JOIN (
                 SELECT submission_id,
                        COUNT(*) AS annotation_count,
@@ -500,6 +648,10 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
         $row['submitted_by_user_id'] = (int)$row['submitted_by_user_id'];
         $row['reviewed_by_user_id'] = $row['reviewed_by_user_id'] !== null ? (int)$row['reviewed_by_user_id'] : null;
         $row['repo_id'] = $row['repo_id'] !== null ? (int)$row['repo_id'] : null;
+        $row['root_submission_id'] = (int)$row['root_submission_id'];
+        $row['parent_submission_id'] = $row['parent_submission_id'] !== null ? (int)$row['parent_submission_id'] : null;
+        $row['version_number'] = (int)$row['version_number'];
+        $row['has_newer_version'] = (bool)$row['has_newer_version'];
         $row['annotation_count'] = (int)$row['annotation_count'];
         $row = privatePdfDecorateDocumentRow($row);
     }

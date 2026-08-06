@@ -571,7 +571,11 @@ async function loadDocsFromApi() {
             academicYear: item.academic_year || null,
             gradingPeriod: item.grading_period || null,
             fileUrl: resolvePdfUrl(item.file_url),
-            viewerId: `submission_${item.submission_id}`
+            viewerId: `submission_${item.submission_id}`,
+            rootSubmissionId: Number(item.root_submission_id || item.submission_id || 0),
+            parentSubmissionId: item.parent_submission_id ? Number(item.parent_submission_id) : null,
+            versionNumber: Number(item.version_number || 1),
+            hasNewerVersion: Boolean(item.has_newer_version)
         }));
         docsData.forEach(doc => {
             if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
@@ -606,7 +610,8 @@ async function loadRepoFromApi() {
             academicYear: item.academic_year || null,
             gradingPeriod: item.grading_period || null,
             file_url: resolvePdfUrl(item.file_url),
-            viewerId: `submission_${item.submission_id}`
+            viewerId: `submission_${item.submission_id}`,
+            versionNumber: Number(item.version_number || 1)
         }));
         repositoryData.forEach(item => {
             if (typeof PDFViewer !== 'undefined' && item.file_url) {
@@ -655,7 +660,7 @@ function reviewDocument(submissionId, decision) {
         openApproveCommentModal(submissionId);
         return;
     }
-    submitReviewDecision(submissionId, decision, '');
+    openRejectCommentModal(submissionId);
 }
 
 // --- INTEGRATED THEME LOGIC ---
@@ -1524,6 +1529,10 @@ async function loadRequestsFromApi() {
                 annotationCount: Number(item.annotation_count || 0),
                 latestAnnotationAt: item.latest_annotation_at || null,
                 reviewerNotes: item.reviewer_notes || '',
+                versionNumber: Number(item.version_number || 1),
+                rootSubmissionId: Number(item.root_submission_id || item.submission_id || 0),
+                parentSubmissionId: item.parent_submission_id ? Number(item.parent_submission_id) : null,
+                hasNewerVersion: Boolean(item.has_newer_version),
                 fileUrl,
                 viewerId,
             };
@@ -2507,6 +2516,7 @@ async function saveMonitoringServiceAuthorizations() {
 let currentReqStatus = 'all';
 let pendingRequestAction = null; // Stores {id, action} for modal confirmation
 let pendingApproveSubmissionId = null;
+let pendingRejectSubmissionId = null;
 
 // Date picker state
 let calendarCurrentMonth = new Date().getMonth();
@@ -2615,7 +2625,7 @@ function renderRequests() {
                     <span class="sender-position">${position || req.documentType || 'Document Submitter'}</span>
                 </div>
             </td>
-            <td>${req.title || req.name}</td>
+            <td>${req.title || req.name} <span class="status-badge" style="font-size:0.65rem; padding:2px 6px;">v${Number(req.versionNumber || 1)}</span></td>
             <td>${req.date || '---'}</td>
             <td>${actionButtons}</td>
         `;
@@ -2694,6 +2704,7 @@ function renderRecentDocs() {
                         <span class="status-badge ${statusClass}">
                             ${statusText}
                         </span>
+                        <span class="status-badge" style="margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>
                     </div>
                 </div>
                 <div class="recent-activity-actions">
@@ -2807,6 +2818,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                     <div style="display:flex; align-items:center;">
                         <h4 style="font-size:0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</h4>
                         ${statusBadge}
+                        <span class="status-badge" style="font-size:0.65rem; padding:2px 6px; margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>
                     </div>
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
@@ -3050,6 +3062,33 @@ async function confirmApproveWithComment() {
     const submissionId = pendingApproveSubmissionId;
     closeApproveCommentModal();
     await submitReviewDecision(submissionId, 'approved', notes);
+}
+
+function openRejectCommentModal(submissionId) {
+    const modal = document.getElementById('reject-comment-modal');
+    const textarea = document.getElementById('reject-comment-text');
+    if (!modal || !textarea) return;
+    pendingRejectSubmissionId = Number(submissionId) || null;
+    textarea.value = '';
+    modal.classList.add('active');
+    textarea.focus();
+}
+
+function closeRejectCommentModal() {
+    const modal = document.getElementById('reject-comment-modal');
+    const textarea = document.getElementById('reject-comment-text');
+    if (modal) modal.classList.remove('active');
+    if (textarea) textarea.value = '';
+    pendingRejectSubmissionId = null;
+}
+
+async function confirmRejectWithComment() {
+    if (!pendingRejectSubmissionId) return;
+    const textarea = document.getElementById('reject-comment-text');
+    const notes = (textarea?.value || '').trim();
+    const submissionId = pendingRejectSubmissionId;
+    closeRejectCommentModal();
+    await submitReviewDecision(submissionId, 'rejected', notes);
 }
 
 function confirmRequestAction() {
@@ -3484,6 +3523,14 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    const rejectCommentInput = document.getElementById('reject-comment-text');
+    if (rejectCommentInput) {
+        rejectCommentInput.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                confirmRejectWithComment();
+            }
+        });
+    }
     startOsaSectionPolling();
     loadOsaAlerts().catch((error) => console.error(error));
     if (!osaAlertsRefreshTimer) {
@@ -3509,6 +3556,10 @@ window.addEventListener('click', function (event) {
     const modal = document.getElementById('approve-comment-modal');
     if (modal && event.target === modal) {
         closeApproveCommentModal();
+    }
+    const rejectModal = document.getElementById('reject-comment-modal');
+    if (rejectModal && event.target === rejectModal) {
+        closeRejectCommentModal();
     }
     const activityDetailModal = document.getElementById('activity-detail-modal');
     if (activityDetailModal && event.target === activityDetailModal) {
@@ -3672,6 +3723,7 @@ function renderRepoTable() {
                 <div style="display:flex; align-items:center; gap:10px;">
                     <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i>
                     <span style="font-weight:500;">${item.name}</span>
+                    <span class="status-badge" style="font-size:0.65rem; padding:2px 6px;">v${Number(item.versionNumber || 1)}</span>
                 </div>
             </td>
             <td><span class="repo-category-tag">${item.category}</span></td>
