@@ -567,6 +567,11 @@ async function loadDocsFromApi() {
             status: item.status || 'pending',
             date: fmtDateShort(item.submitted_at),
             submittedAt: item.submitted_at || null,
+            submittedByUserId: Number(item.submitted_by_user_id || 0),
+            submittedByName: [item.submitted_by_first_name, item.submitted_by_last_name]
+                .filter(Boolean)
+                .join(' ')
+                .trim(),
             semester: item.semester || null,
             academicYear: item.academic_year || null,
             gradingPeriod: item.grading_period || null,
@@ -2016,6 +2021,10 @@ function syncAcademicTermFeature({ resetViewFilters = false } = {}) {
         syncRepoTermControls();
     }
     renderMonitoringComplianceForCurrentOrg();
+    // Document data and the active-term request load concurrently on startup.
+    // Re-render this list after the controls are synchronized so a stale
+    // date-derived default term cannot leave the first load falsely empty.
+    renderDocs(currentDocFilter);
     renderRepoTable();
 }
 
@@ -2689,8 +2698,7 @@ function renderRecentDocs() {
             statusClass = 'status-pending';
         }
 
-        const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
-        const sender = senders[doc.title.length % senders.length];
+        const sender = doc.submittedByName || `User #${doc.submittedByUserId || 'N/A'}`;
 
         return `
             <div class="recent-activity-item">
@@ -2700,7 +2708,7 @@ function renderRecentDocs() {
                     </div>
                     <div class="recent-info">
                         <h5>${doc.title}</h5>
-                        <p>Sent by: <strong>${sender}</strong></p>
+                        <p>Sent by: <strong>${escapeDashboardHtml(sender)}</strong></p>
                         <span class="status-badge ${statusClass}">
                             ${statusText}
                         </span>
@@ -2739,9 +2747,6 @@ function renderDocs(filter = 'All', btnElement = null) {
     const termSemester = document.getElementById('docs-filter-sem')?.value || activeAcademicTerm.semester;
     const termYear = document.getElementById('docs-filter-year')?.value || activeAcademicTerm.academic_year;
     const termPeriod = document.getElementById('docs-filter-period')?.value || activeAcademicTerm.grading_period;
-
-    // DATA SIMULATION POOLS
-    const senders = ["Mark De Leon", "Sarah Jimenez", "John Doe", "Ricci Rivero"];
 
     // Filter Logic
     let filteredData = docsData.filter(doc => {
@@ -2806,7 +2811,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                 </button>`;
         }
 
-        const sender = senders[doc.title.length % senders.length];
+        const sender = doc.submittedByName || `User #${doc.submittedByUserId || 'N/A'}`;
 
         return `
         <div class="list-item" onclick="openPdfViewer('${doc.viewerId || ('doc_' + index)}')">
@@ -2823,7 +2828,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
             </div>
-            <div class="col-sent mobile-hide">${sender}</div>
+            <div class="col-sent mobile-hide">${escapeDashboardHtml(sender)}</div>
             <div class="col-ssc mobile-hide">${doc.org || 'N/A'}</div>
             <div class="col-osa mobile-hide">OSA Internal</div>
             <div class="col-status">
