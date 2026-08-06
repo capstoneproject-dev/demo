@@ -4367,8 +4367,41 @@ function loadMockActiveRentals() {
 // --- MODAL FUNCTIONS ---
 
 function openSubmitModal() {
+    const form = document.getElementById('doc-form');
+    if (form) form.reset();
+    const revisionInput = document.getElementById('doc-revision-of');
+    if (revisionInput) revisionInput.value = '';
+    const heading = document.getElementById('submit-doc-modal-title');
+    if (heading) heading.textContent = 'Submit Document';
+    const submitLabel = document.getElementById('doc-submit-button-label');
+    if (submitLabel) submitLabel.textContent = 'Submit';
+    updateFileUploadLabel(document.getElementById('doc-file-input'));
     const modal = document.getElementById('submit-doc-modal');
     modal.classList.add('show');
+}
+
+function openDocumentRevisionModal(submissionId) {
+    const doc = docsData.find(item => Number(item.submission_id || item.id) === Number(submissionId));
+    if (!doc) {
+        alert('The document could not be found. Refresh and try again.');
+        return;
+    }
+    if (doc.hasNewerVersion) {
+        alert('A newer revision already exists for this document.');
+        return;
+    }
+
+    const form = document.getElementById('doc-form');
+    if (form) form.reset();
+    document.getElementById('doc-revision-of').value = String(submissionId);
+    document.getElementById('doc-recipient').value = doc.recipient || 'OSA';
+    document.getElementById('doc-type').value = doc.type || 'Activity Report';
+    document.getElementById('doc-title').value = doc.title || '';
+    document.getElementById('doc-description').value = doc.description || '';
+    document.getElementById('submit-doc-modal-title').textContent = `Submit Revision (Version ${Number(doc.versionNumber || 1) + 1})`;
+    document.getElementById('doc-submit-button-label').textContent = 'Submit Revision';
+    updateFileUploadLabel(document.getElementById('doc-file-input'));
+    document.getElementById('submit-doc-modal').classList.add('show');
 }
 
 function closeSubmitModal() {
@@ -4766,11 +4799,17 @@ function renderDocs(filter = 'All', btnElement = null) {
         const sender = doc.submittedByName || `User #${doc.submittedByUserId ?? 'N/A'}`;
         const sscOfficer = sscOfficers[doc.title.length % sscOfficers.length];
         const osaAdmin = osaAdmins[doc.title.length % osaAdmins.length];
-        const reviewNoteButton = (doc.status === 'Approved' && doc.reviewerNotes)
+        const reviewNoteButton = (['Approved', 'Rejected'].includes(doc.status) && doc.reviewerNotes)
             ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.reviewerNotes)}')">
                     <i class="fa-regular fa-message"></i> Comment
                 </button>`
             : '';
+        const revisionButton = !doc.hasNewerVersion
+            ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openDocumentRevisionModal(${Number(doc.submission_id || doc.id || 0)})">
+                    <i class="fa-solid fa-code-branch"></i> Submit Revision
+                </button>`
+            : '';
+        const versionBadge = `<span class="status-badge" style="font-size:0.65rem; padding:2px 6px; margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>`;
 
         if (doc.status === 'Approved') {
             // Both Approved
@@ -4779,7 +4818,8 @@ function renderDocs(filter = 'All', btnElement = null) {
             actionButtons = `
                 <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')">
                     <i class="fa-solid fa-eye"></i> View
-                </button>`;
+                </button>
+                ${revisionButton}`;
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
         }
         else if (doc.status === 'SSC Approved') {
@@ -4812,10 +4852,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                 sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
                 osaHtml = `<span>${osaAdmin}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
             }
-            actionButtons = `
-                <button class="btn btn-outline btn-sm" style="color:#dc2626; border-color:#dc2626;" onclick="event.stopPropagation(); alert('Redirect to edit...')">
-                    <i class="fa-solid fa-rotate-right"></i> Resubmit
-                </button>`;
+            actionButtons = revisionButton || '<span style="color:var(--muted); font-size:0.8rem;">Revision submitted</span>';
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
         }
         else {
@@ -4839,6 +4876,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                     <div style="display:flex; align-items:center;">
                         <h4 style="font-size:0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</h4>
                         ${statusBadge}
+                        ${versionBadge}
                     </div>
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
@@ -5897,8 +5935,9 @@ async function handleDocSubmit(e) {
     const file = fileInput?.files?.[0] || null;
     const recipient = document.getElementById('doc-recipient').value;
     const type = document.getElementById('doc-type').value;
-    const title = (e.currentTarget.querySelector('input[type="text"]')?.value || '').trim();
-    const description = (e.currentTarget.querySelector('textarea')?.value || '').trim();
+    const title = (document.getElementById('doc-title')?.value || '').trim();
+    const description = (document.getElementById('doc-description')?.value || '').trim();
+    const revisionOfSubmissionId = Number(document.getElementById('doc-revision-of')?.value || 0);
 
     if (!title) {
         alert('Title is required.');
@@ -5931,7 +5970,8 @@ async function handleDocSubmit(e) {
                 document_type: type,
                 recipient,
                 description,
-                upload_token: uploadData.upload_token
+                upload_token: uploadData.upload_token,
+                revision_of_submission_id: revisionOfSubmissionId || null
             })
         });
         const data = await res.json();
@@ -5941,7 +5981,9 @@ async function handleDocSubmit(e) {
         await loadDocsFromApi();
         e.target.reset();
         closeSubmitModal();
-        alert(`Document successfully sent to ${recipient}.`);
+        alert(revisionOfSubmissionId
+            ? `Document revision successfully sent to ${recipient}.`
+            : `Document successfully sent to ${recipient}.`);
     } catch (error) {
         console.error(error);
         alert(error.message || 'Failed to submit document.');
@@ -7188,6 +7230,12 @@ async function loadDocsFromApi() {
                 .join(' ')
                 .trim(),
             reviewerNotes: item.reviewer_notes || '',
+            recipient: item.recipient || 'OSA',
+            description: item.description || '',
+            rootSubmissionId: Number(item.root_submission_id || item.submission_id || 0),
+            parentSubmissionId: item.parent_submission_id ? Number(item.parent_submission_id) : null,
+            versionNumber: Number(item.version_number || 1),
+            hasNewerVersion: Boolean(item.has_newer_version),
         }));
         docsData.forEach(doc => {
             if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
@@ -7223,6 +7271,7 @@ async function loadRepoFromApi() {
             gradingPeriod: item.grading_period || null,
             file_url: resolvePdfUrl(item.file_url),
             viewerId: `submission_${item.submission_id}`,
+            versionNumber: Number(item.version_number || 1),
         }));
         repositoryData.forEach(item => {
             if (typeof PDFViewer !== 'undefined' && item.file_url) {
@@ -7392,6 +7441,7 @@ function renderRepoTable() {
                 <div style="display:flex; align-items:center; gap:10px;">
                     <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i>
                     <span style="font-weight:500;">${item.name}</span>
+                    <span class="status-badge" style="font-size:0.65rem; padding:2px 6px;">v${Number(item.versionNumber || 1)}</span>
                 </div>
             </td>
             <td><span class="repo-category-tag">${item.category}</span></td>

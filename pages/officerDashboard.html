@@ -1895,11 +1895,12 @@
     <div id="submit-doc-modal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Submit Documents</h3>
+                <h3 id="submit-doc-modal-title">Submit Document</h3>
                 <button class="close-modal" onclick="closeSubmitModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="doc-form" onsubmit="handleDocSubmit(event)">
+                    <input type="hidden" id="doc-revision-of" value="">
                     <label>Send To</label>
                     <select id="doc-recipient" required>
                         <option value="OSA">Office of Student Affairs (OSA)</option>
@@ -1916,10 +1917,10 @@
                     </select>
 
                     <label>Title</label>
-                    <input type="text" placeholder="e.g., Semestral Financial Report" required>
+                    <input type="text" id="doc-title" placeholder="e.g., Semestral Financial Report" required>
 
                     <label>Description/Notes</label>
-                    <textarea rows="3" placeholder="Brief details..."></textarea>
+                    <textarea id="doc-description" rows="3" placeholder="Brief details..."></textarea>
 
                     <label>Attach File</label>
                     <input type="file" id="doc-file-input" accept=".pdf,application/pdf" style="display:none;" onchange="updateFileUploadLabel(this)">
@@ -1930,8 +1931,8 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline" onclick="closeSubmitModal()">Cancel</button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fa-solid fa-paper-plane"></i> Submit
+                        <button type="submit" id="doc-submit-button" class="btn btn-primary">
+                            <i class="fa-solid fa-paper-plane"></i> <span id="doc-submit-button-label">Submit</span>
                         </button>
                     </div>
                 </form>
