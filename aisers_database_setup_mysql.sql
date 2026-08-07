@@ -320,6 +320,7 @@ CREATE TABLE attendance_records (
     time_out DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_attendance_event_student (event_id, student_number),
     CONSTRAINT chk_attendance_timeout CHECK (time_out IS NULL OR time_out >= time_in),
     CONSTRAINT fk_attendance_event FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
     CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
