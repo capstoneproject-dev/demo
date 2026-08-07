@@ -88,13 +88,30 @@ try {
          VALUES
             (:event_id, :user_id, :student_number, :student_name, :section, NULL, NULL)"
     );
-    $insertStmt->execute([
-        ':event_id' => $eventId,
-        ':user_id' => $userId,
-        ':student_number' => $studentNumber,
-        ':student_name' => $studentName !== '' ? $studentName : $studentNumber,
-        ':section' => $section !== '' ? $section : null,
-    ]);
+    try {
+        $insertStmt->execute([
+            ':event_id' => $eventId,
+            ':user_id' => $userId,
+            ':student_number' => $studentNumber,
+            ':student_name' => $studentName !== '' ? $studentName : $studentNumber,
+            ':section' => $section !== '' ? $section : null,
+        ]);
+    } catch (PDOException $e) {
+        if ((int)($e->errorInfo[1] ?? 0) !== 1062) throw $e;
+
+        // A concurrent registration/check-in created the protected row first.
+        $duplicateStmt->execute([
+            ':event_id' => $eventId,
+            ':user_id' => $userId,
+            ':student_number' => $studentNumber,
+        ]);
+        $existing = $duplicateStmt->fetch();
+        if (!$existing) throw $e;
+        jsonOk([
+            'record_id' => (int)$existing['record_id'],
+            'already_registered' => true,
+        ]);
+    }
 
     jsonOk([
         'record_id' => (int)$pdo->lastInsertId(),

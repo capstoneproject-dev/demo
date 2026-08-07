@@ -497,24 +497,50 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
 
     $tz = new DateTimeZone('Asia/Manila');
     $now = new DateTimeImmutable('now', $tz);
-    $today = $now->format('Y-m-d');
 
     $check = $pdo->prepare(
         "SELECT record_id, time_in, time_out
          FROM attendance_records
          WHERE event_id = :event_id
            AND student_number = :student_number
-           AND DATE(time_in) = :today
          ORDER BY record_id DESC
          LIMIT 1"
     );
     $check->execute([
         ':event_id' => $eventId,
         ':student_number' => $studentNumber,
-        ':today' => $today,
     ]);
     $existing = $check->fetch();
     if ($existing) {
+        if (empty($existing['time_in'])) {
+            $claimRegistration = $pdo->prepare(
+                "UPDATE attendance_records
+                 SET time_in = :time_in
+                 WHERE record_id = :record_id
+                   AND time_in IS NULL"
+            );
+            $claimRegistration->execute([
+                ':time_in' => $now->format('Y-m-d H:i:s'),
+                ':record_id' => (int)$existing['record_id'],
+            ]);
+            if ($claimRegistration->rowCount() === 1) {
+                return [
+                    'record_id' => (int)$existing['record_id'],
+                    'event_id' => $eventId,
+                    'already_checked_in' => false,
+                    'already_checked_out' => false,
+                    'time_in' => $now->format(DateTimeInterface::ATOM),
+                    'time_out' => null,
+                ];
+            }
+
+            // Another request checked in this registration concurrently.
+            $check->execute([
+                ':event_id' => $eventId,
+                ':student_number' => $studentNumber,
+            ]);
+            $existing = $check->fetch();
+        }
         return [
             'record_id' => (int)$existing['record_id'],
             'event_id' => $eventId,
@@ -547,14 +573,23 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
          VALUES
             (:event_id, :user_id, :student_number, :student_name, :section, :time_in)"
     );
-    $ins->execute([
-        ':event_id' => $eventId,
-        ':user_id' => $studentUserId,
-        ':student_number' => $studentNumber,
-        ':student_name' => $studentName,
-        ':section' => $section !== '' ? $section : null,
-        ':time_in' => $now->format('Y-m-d H:i:s'),
-    ]);
+    try {
+        $ins->execute([
+            ':event_id' => $eventId,
+            ':user_id' => $studentUserId,
+            ':student_number' => $studentNumber,
+            ':student_name' => $studentName,
+            ':section' => $section !== '' ? $section : null,
+            ':time_in' => $now->format('Y-m-d H:i:s'),
+        ]);
+    } catch (PDOException $e) {
+        if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+            // Registration/check-in raced with this request. Reuse the row
+            // protected by uq_attendance_event_student instead of duplicating it.
+            return qrCheckIn($pdo, $orgId, $userId, $data);
+        }
+        throw $e;
+    }
 
     return [
         'record_id' => (int)$pdo->lastInsertId(),

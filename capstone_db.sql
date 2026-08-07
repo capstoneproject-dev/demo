@@ -1189,6 +1189,7 @@ ALTER TABLE `announcements`
 --
 ALTER TABLE `attendance_records`
   ADD PRIMARY KEY (`record_id`),
+  ADD UNIQUE KEY `uq_attendance_event_student` (`event_id`,`student_number`),
   ADD KEY `idx_attendance_event` (`event_id`,`time_in`),
   ADD KEY `idx_attendance_student` (`student_number`),
   ADD KEY `idx_attendance_user` (`user_id`);
