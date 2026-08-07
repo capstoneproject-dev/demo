@@ -215,6 +215,25 @@ function apiRequirePrimaryOsaAdministrator(): array
 
 function jsonOk(array $data = []): never
 {
+    if (function_exists('auditFinalizeRequest')) {
+        try {
+            // This uses the same PDO transaction when the endpoint still has
+            // one open, allowing the mutation and its required audit entry to
+            // commit together. The shutdown hook remains a fallback for APIs
+            // that return without this helper.
+            auditFinalizeRequest(200, true, $data);
+        } catch (Throwable $e) {
+            try {
+                $pdo = getPdo();
+                if ($pdo->inTransaction()) $pdo->rollBack();
+            } catch (Throwable $_ignored) {
+            }
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => 'The action could not be completed securely because its audit record failed.']);
+            exit;
+        }
+    }
     header('Content-Type: application/json');
     echo json_encode(['ok' => true, ...$data]);
     exit;
@@ -223,6 +242,7 @@ function jsonOk(array $data = []): never
 function jsonError(string $message, int $status = 400): never
 {
     http_response_code($status);
+    if (function_exists('auditFinalizeRequest')) auditFinalizeRequest($status);
     header('Content-Type: application/json');
     echo json_encode(['ok' => false, 'error' => $message]);
     exit;
@@ -238,10 +258,14 @@ function requirePost(): void
 /** Read JSON body or fall back to $_POST. */
 function getRequestBody(): array
 {
+    static $cached = null;
+    if (is_array($cached)) return $cached;
     $raw = file_get_contents('php://input');
     if ($raw) {
         $decoded = json_decode($raw, true);
-        if (is_array($decoded)) return $decoded;
+        if (is_array($decoded)) return $cached = $decoded;
     }
-    return $_POST;
+    return $cached = $_POST;
 }
+
+require_once __DIR__ . '/audit.php';

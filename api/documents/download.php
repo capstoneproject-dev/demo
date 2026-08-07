@@ -16,6 +16,7 @@ try {
     $pdo = getPdo();
     $session = getPhpSession();
     if (!docResolveSubmissionAccess($pdo, $submissionId, $session)) {
+        appendAuditLog('protected_file_access_denied', 'document_submission', (string)$submissionId, auditActorFromSession(), null, null, ['reason' => 'authorization'], 'failure', $pdo);
         http_response_code(403);
         exit;
     }
@@ -25,6 +26,9 @@ try {
         http_response_code(404);
         exit;
     }
+    auditProtectedFileAccessOnce('document_submission', $submissionId, [
+        'disposition' => isset($_GET['download']) ? 'download' : 'inline',
+    ]);
     privatePdfStream($path, (string)$submission['title'], isset($_GET['download']));
 } catch (Throwable $e) {
     error_log('[api/documents/download] ' . $e->getMessage());

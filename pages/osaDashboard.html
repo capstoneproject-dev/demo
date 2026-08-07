@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- CSS Reference -->
-    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260729-osa-alerts-1">
+    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260807-protected-audit-4">
 
     <!-- PDF.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -63,6 +63,13 @@
                 <a href="#" class="nav-link" onclick="navigate('account', this)">
                     <i class="fa-solid fa-id-card nav-icon"></i>
                     <span class="nav-label">Account</span>
+                </a>
+            </li>
+
+            <li class="nav-item" id="osa-audit-nav-item" hidden>
+                <a href="#" class="nav-link" onclick="navigate('audit', this)">
+                    <i class="fa-solid fa-shield-halved nav-icon"></i>
+                    <span class="nav-label">Audit Log</span>
                 </a>
             </li>
 
@@ -817,6 +824,62 @@
                 </div>
             </div>
         </div>
+
+        <div id="audit" class="section-view" hidden>
+            <div class="card audit-log-card">
+                <div class="card-header audit-log-heading">
+                    <div>
+                        <div class="card-title">Protected Audit Log</div>
+                        <p>Permanent security and system-change records. Entries cannot be edited or deleted.</p>
+                    </div>
+                    <button class="btn btn-outline btn-sm" type="button" onclick="refreshOsaAuditLogs()">
+                        <i class="fa-solid fa-rotate"></i> Refresh
+                    </button>
+                </div>
+
+                <form id="osa-audit-filter-form" class="audit-filter-grid">
+                    <label>
+                        <span>Search</span>
+                        <input id="osa-audit-search" type="search" placeholder="Actor, action, target, email, or ID">
+                    </label>
+                    <label>
+                        <span>Action</span>
+                        <select id="osa-audit-action"><option value="">All Actions</option></select>
+                    </label>
+                    <label>
+                        <span>From</span>
+                        <input id="osa-audit-date-from" type="date">
+                    </label>
+                    <label>
+                        <span>To</span>
+                        <input id="osa-audit-date-to" type="date">
+                    </label>
+                    <div class="audit-filter-actions">
+                        <button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-filter"></i> Apply</button>
+                        <button class="btn btn-outline btn-sm" type="button" onclick="clearOsaAuditFilters()">Clear</button>
+                    </div>
+                </form>
+
+                <div id="osa-audit-error" class="audit-message audit-error" hidden></div>
+                <div class="table-container audit-table-wrap">
+                    <table class="audit-table">
+                        <thead><tr>
+                            <th>Date &amp; Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Result</th><th class="text-right">Details</th>
+                        </tr></thead>
+                        <tbody id="osa-audit-records">
+                            <tr><td colspan="6" class="audit-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading audit records...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="audit-pagination">
+                    <span id="osa-audit-page-summary">0 records</span>
+                    <div>
+                        <button id="osa-audit-previous" class="btn btn-outline btn-sm" type="button">Previous</button>
+                        <button id="osa-audit-next" class="btn btn-outline btn-sm" type="button">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
 
@@ -863,6 +926,7 @@
                 </button>
             </div>
         </div>
+
     </div>
 
     <!-- Reject with Optional Comment Modal -->
@@ -910,6 +974,22 @@
                 <button class="btn btn-primary" id="request-action-confirm-btn" onclick="confirmRequestAction()">
                     Confirm Action
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="osa-audit-detail-modal" class="request-action-modal">
+        <div class="request-action-modal-content audit-detail-modal-content">
+            <div class="request-action-modal-header">
+                <div>
+                    <h3>Audit Entry Details</h3>
+                    <p id="osa-audit-detail-subtitle" class="activity-detail-subtitle"></p>
+                </div>
+                <button class="modal-close-btn" type="button" onclick="closeOsaAuditDetail()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="osa-audit-detail-body" class="request-action-modal-body audit-detail-body"></div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-primary" type="button" onclick="closeOsaAuditDetail()">Close</button>
             </div>
         </div>
     </div>
@@ -1104,7 +1184,7 @@
 
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
-    <script src="../assets/js/osaDashboard.js?v=20260807-document-sender-5"></script>
+    <script src="../assets/js/osaDashboard.js?v=20260807-protected-audit-7"></script>
     <script src="../assets/js/pdfViewer.js?v=pdf-highlight-sidebar-color-1"></script>
 </body>
 

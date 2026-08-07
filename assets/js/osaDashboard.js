@@ -530,6 +530,192 @@ function initOsaAuthContext() {
 const DOCUMENTS_API_BASE = '../api/documents';
 const OSA_ACTIVITY_FEED_API = '../api/osa/activity-feed.php';
 const OSA_ACADEMIC_TERM_API = '../api/osa/settings/academic-term.php';
+const OSA_AUDIT_API_BASE = '../api/osa/audit-logs';
+const OSA_AUDIT_PAGE_SIZE = 25;
+let osaAuditPage = 1;
+let osaAuditTotal = 0;
+let osaAuditLoaded = false;
+let osaAuditLoading = false;
+
+function formatOsaAuditDate(value) {
+    if (!value) return 'N/A';
+    const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(value))
+        ? String(value).replace(' ', 'T') + '+08:00'
+        : String(value);
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('en-US');
+}
+
+function formatOsaAuditAction(action) {
+    return String(action || 'unknown_action').replace(/_/g, ' ');
+}
+
+function osaAuditTargetLabel(log) {
+    return log.target_name || log.target_email || [log.target_type, log.target_id].filter(Boolean).join(' #') || 'N/A';
+}
+
+async function initOsaAuditAccess() {
+    try {
+        const response = await fetch('../api/auth/session.php', { credentials: 'same-origin', cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        const session = data.session || {};
+        if (!response.ok || !data.authenticated) return;
+        localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+        updateOsaProfileView(session);
+        if (!session.is_primary_osa) return;
+
+        const navItem = document.getElementById('osa-audit-nav-item');
+        const section = document.getElementById('audit');
+        if (navItem) navItem.hidden = false;
+        if (section) section.hidden = false;
+        setupOsaAuditPage();
+    } catch (error) {
+        console.error('[initOsaAuditAccess]', error);
+    }
+}
+
+function setupOsaAuditPage() {
+    const form = document.getElementById('osa-audit-filter-form');
+    if (!form || form.dataset.ready === '1') return;
+    form.dataset.ready = '1';
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        loadOsaAuditLogs(1);
+    });
+    document.getElementById('osa-audit-previous')?.addEventListener('click', () => loadOsaAuditLogs(osaAuditPage - 1));
+    document.getElementById('osa-audit-next')?.addEventListener('click', () => loadOsaAuditLogs(osaAuditPage + 1));
+    document.getElementById('osa-audit-records')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-osa-audit-detail]');
+        if (button) openOsaAuditDetail(Number(button.dataset.osaAuditDetail));
+    });
+}
+
+async function loadOsaAuditLogs(page = 1) {
+    if (osaAuditLoading) return;
+    osaAuditLoading = true;
+    osaAuditPage = Math.max(1, Number(page) || 1);
+    const body = document.getElementById('osa-audit-records');
+    const errorBox = document.getElementById('osa-audit-error');
+    if (errorBox) errorBox.hidden = true;
+    if (body) body.innerHTML = '<tr><td colspan="6" class="audit-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading audit records...</td></tr>';
+
+    const params = new URLSearchParams({
+        page: String(osaAuditPage),
+        limit: String(OSA_AUDIT_PAGE_SIZE),
+        search: document.getElementById('osa-audit-search')?.value.trim() || '',
+        action: document.getElementById('osa-audit-action')?.value || '',
+        date_from: document.getElementById('osa-audit-date-from')?.value || '',
+        date_to: document.getElementById('osa-audit-date-to')?.value || '',
+    });
+
+    try {
+        const response = await fetch(`${OSA_AUDIT_API_BASE}/list.php?${params}`, { credentials: 'same-origin', cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Could not load audit records.');
+        osaAuditTotal = Number(data.pagination?.total || 0);
+        const logs = Array.isArray(data.logs) ? data.logs : [];
+        if (body) {
+            body.innerHTML = logs.length ? logs.map((log) => `
+                <tr>
+                    <td>${escapeDashboardHtml(formatOsaAuditDate(log.created_at))}</td>
+                    <td>${escapeDashboardHtml(log.actor_name || 'System / unauthenticated')}</td>
+                    <td><span class="audit-action-label">${escapeDashboardHtml(formatOsaAuditAction(log.action))}</span></td>
+                    <td>${escapeDashboardHtml(osaAuditTargetLabel(log))}</td>
+                    <td><span class="audit-result ${escapeDashboardHtml(log.result || 'pending')}">${escapeDashboardHtml(log.result || 'unknown')}</span></td>
+                    <td class="text-right"><button class="btn btn-outline btn-sm" type="button" data-osa-audit-detail="${Number(log.audit_id)}"><i class="fa-solid fa-eye"></i> View</button></td>
+                </tr>`).join('') : '<tr><td colspan="6" class="audit-empty">No audit entries match these filters.</td></tr>';
+        }
+
+        const actionSelect = document.getElementById('osa-audit-action');
+        if (actionSelect) {
+            const selected = actionSelect.value;
+            actionSelect.innerHTML = '<option value="">All Actions</option>' + (data.actions || []).map((action) =>
+                `<option value="${escapeDashboardHtml(action)}">${escapeDashboardHtml(formatOsaAuditAction(action))}</option>`
+            ).join('');
+            actionSelect.value = selected;
+        }
+
+        const start = osaAuditTotal ? (osaAuditPage - 1) * OSA_AUDIT_PAGE_SIZE + 1 : 0;
+        const end = Math.min(osaAuditTotal, osaAuditPage * OSA_AUDIT_PAGE_SIZE);
+        const summary = document.getElementById('osa-audit-page-summary');
+        if (summary) summary.textContent = `${start}-${end} of ${osaAuditTotal} records`;
+        const previous = document.getElementById('osa-audit-previous');
+        const next = document.getElementById('osa-audit-next');
+        if (previous) previous.disabled = osaAuditPage <= 1;
+        if (next) next.disabled = end >= osaAuditTotal;
+        osaAuditLoaded = true;
+    } catch (error) {
+        if (body) body.innerHTML = '<tr><td colspan="6" class="audit-empty">Audit records could not be loaded.</td></tr>';
+        if (errorBox) {
+            errorBox.textContent = error.message || 'Audit records could not be loaded.';
+            errorBox.hidden = false;
+        }
+    } finally {
+        osaAuditLoading = false;
+    }
+}
+
+function refreshOsaAuditLogs() {
+    loadOsaAuditLogs(osaAuditPage);
+}
+
+function clearOsaAuditFilters() {
+    ['osa-audit-search', 'osa-audit-action', 'osa-audit-date-from', 'osa-audit-date-to'].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.value = '';
+    });
+    loadOsaAuditLogs(1);
+}
+
+function renderOsaAuditState(value) {
+    if (value === null || value === undefined) return 'No data recorded';
+    return JSON.stringify(value, null, 2);
+}
+
+async function openOsaAuditDetail(auditId) {
+    if (!auditId) return;
+    const modal = document.getElementById('osa-audit-detail-modal');
+    const body = document.getElementById('osa-audit-detail-body');
+    if (!modal || !body) return;
+    body.innerHTML = '<div class="audit-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading details...</div>';
+    modal.classList.add('active');
+    try {
+        const response = await fetch(`${OSA_AUDIT_API_BASE}/detail.php?audit_id=${encodeURIComponent(auditId)}`, { credentials: 'same-origin', cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Could not load this audit entry.');
+        const log = data.log || {};
+        const subtitle = document.getElementById('osa-audit-detail-subtitle');
+        if (subtitle) subtitle.textContent = `Entry #${log.audit_id} - ${formatOsaAuditDate(log.created_at)}`;
+        const fields = [
+            ['Actor', log.actor_name || 'System / unauthenticated'],
+            ['Actor email', log.actor_email || 'N/A'],
+            ['Action', formatOsaAuditAction(log.action)],
+            ['Result', log.result || 'N/A'],
+            ['Target', osaAuditTargetLabel(log)],
+            ['Target type', log.target_type || 'N/A'],
+            ['IP address', log.request_ip || 'N/A'],
+            ['Browser / device', log.user_agent || 'N/A'],
+        ];
+        body.innerHTML = `
+            <div class="audit-detail-grid">${fields.map(([label, value]) => `<div class="audit-detail-field"><span>${escapeDashboardHtml(label)}</span><strong>${escapeDashboardHtml(value)}</strong></div>`).join('')}</div>
+            <div class="audit-state-panels">
+                <div class="audit-state-panel"><h4>Before</h4><pre>${escapeDashboardHtml(renderOsaAuditState(log.before_state))}</pre></div>
+                <div class="audit-state-panel"><h4>After / Request details</h4><pre>${escapeDashboardHtml(renderOsaAuditState(log.after_state))}</pre></div>
+            </div>`;
+    } catch (error) {
+        body.innerHTML = `<div class="audit-message audit-error">${escapeDashboardHtml(error.message || 'Could not load this audit entry.')}</div>`;
+    }
+}
+
+function closeOsaAuditDetail() {
+    document.getElementById('osa-audit-detail-modal')?.classList.remove('active');
+}
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.getElementById('osa-audit-detail-modal')?.classList.contains('active')) {
+        closeOsaAuditDetail();
+    }
+});
 
 function fmtDateShort(iso) {
     if (!iso) return '';
@@ -715,6 +901,7 @@ async function handleLogout(e) {
 // Initialize Theme on Load
 document.addEventListener('DOMContentLoaded', () => {
     initOsaAuthContext();
+    initOsaAuditAccess();
 
     setupOsaProfileEditor();
     setupOsaPasswordForm();
@@ -1833,6 +2020,13 @@ function startOsaSectionPolling() {
 
 // --- NAVIGATION ---
 function navigate(viewId, element) {
+    const requestedSection = document.getElementById(viewId);
+    if (!requestedSection) return;
+    if (viewId === 'audit' && requestedSection.hidden) {
+        showToast('Only the Primary OSA account can view the protected audit log.', 'error');
+        return;
+    }
+
     // Update Sidebar Active State
     if (element) {
         document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
@@ -1849,7 +2043,7 @@ function navigate(viewId, element) {
     document.querySelectorAll('.section-view').forEach(section => {
         section.classList.remove('active');
     });
-    document.getElementById(viewId).classList.add('active');
+    requestedSection.classList.add('active');
 
     // Update Title
     const titleMap = {
@@ -1859,9 +2053,11 @@ function navigate(viewId, element) {
         'requests': 'Requests & Approvals',
         'documents': 'Document Repository',
         'account': 'Account Management',
+        'audit': 'Protected Audit Log',
         'profile': 'My Profile' // <-- Add this line
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'OSA Portal';
+    if (viewId === 'audit' && !osaAuditLoaded) loadOsaAuditLogs(1);
     startOsaSectionPolling();
 }
 
@@ -3569,6 +3765,10 @@ window.addEventListener('click', function (event) {
     const activityDetailModal = document.getElementById('activity-detail-modal');
     if (activityDetailModal && event.target === activityDetailModal) {
         closeActivityDetailModal();
+    }
+    const auditDetailModal = document.getElementById('osa-audit-detail-modal');
+    if (auditDetailModal && event.target === auditDetailModal) {
+        closeOsaAuditDetail();
     }
 });
 
