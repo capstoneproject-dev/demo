@@ -27,6 +27,7 @@ try {
     }
 
     if (!privatePdfCanAccessPrintJob($job, getPhpSession())) {
+        appendAuditLog('protected_file_access_denied', 'print_job', (string)$printJobId, auditActorFromSession(), null, null, ['reason' => 'authorization'], 'failure', $pdo);
         http_response_code(403);
         exit;
     }
@@ -36,6 +37,9 @@ try {
         http_response_code(404);
         exit;
     }
+    auditProtectedFileAccessOnce('print_job', $printJobId, [
+        'disposition' => isset($_GET['download']) ? 'download' : 'inline',
+    ]);
     privatePdfStream($path, (string)$job['file_name'], isset($_GET['download']));
 } catch (Throwable $e) {
     error_log('[api/printing/file] ' . $e->getMessage());

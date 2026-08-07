@@ -18,7 +18,10 @@ $params = [];
 if ($search !== '') {
     $where[] = "(actor_name LIKE :search OR actor_email LIKE :search
                  OR target_name LIKE :search OR target_email LIKE :search
-                 OR target_employee_number LIKE :search)";
+                 OR actor_employee_number LIKE :search
+                 OR target_employee_number LIKE :search
+                 OR action LIKE :search OR target_type LIKE :search
+                 OR target_id LIKE :search)";
     $params[':search'] = '%' . $search . '%';
 }
 if ($action !== '') {
