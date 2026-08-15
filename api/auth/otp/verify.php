@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../../includes/otp.php';
 
 header('Content-Type: application/json');
 requirePost();
+rateLimitEnsureAllowed('otp_verify_ip', 'ip:' . rateLimitClientIp(), 30, 600);
 
 $body = getRequestBody();
 $challengeToken = trim((string)($body['challenge_token'] ?? ''));

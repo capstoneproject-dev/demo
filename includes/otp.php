@@ -148,7 +148,7 @@ function createOtpChallenge(
     }
 
     $pdo = getPdo();
-    $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+    $ip = substr(rateLimitClientIp(), 0, 45);
     $recent = $pdo->prepare(
         "SELECT TIMESTAMPDIFF(SECOND, CURRENT_TIMESTAMP, resend_available_at) AS retry_after
          FROM email_otp_challenges

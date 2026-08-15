@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../includes/functions.php';
 header('Content-Type: application/json');
 
 requirePost();
+rateLimitEnsureAllowed('student_lookup_ip', 'ip:' . rateLimitClientIp(), 30, 600);
 
 $body = getRequestBody();
 $studentNumber = trim((string)($body['student_number'] ?? $body['studentNumber'] ?? ''));

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../../includes/otp.php';
 
 header('Content-Type: application/json');
 requirePost();
+rateLimitEnsureAllowed('otp_send_ip', 'ip:' . rateLimitClientIp(), 10, 600);
 
 $body = getRequestBody();
 $purpose = trim((string)($body['purpose'] ?? ''));
@@ -26,10 +27,13 @@ try {
 } catch (InvalidArgumentException $e) {
     jsonError($e->getMessage(), 422);
 } catch (OtpRateLimitException $e) {
+    header('Retry-After: ' . max(1, $e->retryAfter));
+    header('Cache-Control: no-store');
     http_response_code(429);
     echo json_encode([
         'ok' => false,
         'error' => $e->getMessage(),
+        'error_code' => CAPSTONE_RATE_LIMIT_ERROR_CODE,
         'retry_after' => $e->retryAfter,
     ]);
     exit;

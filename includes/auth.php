@@ -446,3 +446,5 @@ function authEnforceCsrfForApiRequest(): void
 
 authUpgradeExistingSession();
 authEnforceCsrfForApiRequest();
+require_once __DIR__ . '/rate_limit.php';
+rateLimitApplyAuthenticatedApiPolicies();
