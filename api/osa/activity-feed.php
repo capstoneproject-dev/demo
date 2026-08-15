@@ -273,6 +273,7 @@ function osaActivityBuildPayloads(PDO $pdo, array $rows): array
 }
 
 try {
+    apiGuard();
     $session = getPhpSession();
     $isOsa = isLoggedIn() && (($session['login_role'] ?? '') === 'osa' || ($session['account_type'] ?? '') === 'osa_staff');
     if (!$isOsa) {

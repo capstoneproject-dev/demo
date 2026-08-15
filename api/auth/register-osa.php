@@ -129,7 +129,7 @@ $user = getUserById($userId);
 if (!$user) jsonError('Account created but could not load profile.', 500);
 
 $sessionPayload = buildSessionPayload($user, [], 'osa');
-startUserSession($sessionPayload);
+startUserSession($sessionPayload, true);
 
 jsonOk([
     'user_id'       => $userId,

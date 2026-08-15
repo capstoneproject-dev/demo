@@ -1079,7 +1079,7 @@ async function handleLogout(e) {
         title: 'Log out',
         confirmText: 'Log out'
     })) {
-        try { await fetch('../api/auth/logout.php', { credentials: 'same-origin' }); } catch (_) {}
+        try { await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
         localStorage.removeItem(AUTH_SESSION_KEY);
         window.location.href = '../pages/login.html';
     }

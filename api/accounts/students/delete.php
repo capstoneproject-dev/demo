@@ -5,6 +5,7 @@ require_once '../../../includes/auth.php';
 header('Content-Type: application/json');
 apiRequireOsaSystemAdministrator();
 requirePost();
+apiRequireRecentReauthentication();
 
 $body          = getRequestBody();
 $studentNumber = trim($body['studentId'] ?? '');

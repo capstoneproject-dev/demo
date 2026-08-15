@@ -26,6 +26,12 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     jsonError('Invalid email address.', 422);
 }
 
+$currentUser = getUserById($userId);
+if (!$currentUser) jsonError('User not found.', 404);
+if (strcasecmp($email, (string)($currentUser['email'] ?? '')) !== 0) {
+    apiRequireRecentReauthentication();
+}
+
 if ($phone !== '' && !preg_match('/^\+63\s\d{10}$/', $phone)) {
     jsonError('Phone number must be +63 followed by a space and 10 digits.', 422);
 }

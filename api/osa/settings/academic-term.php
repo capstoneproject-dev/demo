@@ -23,6 +23,7 @@ try {
     }
 
     if ($method === 'POST') {
+        apiRequireRecentReauthentication();
         $payload = json_decode(file_get_contents('php://input'), true);
         if (!is_array($payload)) {
             jsonError('Invalid JSON payload.', 400);

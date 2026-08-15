@@ -20,6 +20,8 @@ if (!isLoggedIn()) {
     exit;
 }
 
+authEnforceSessionLifetime();
+
 $session = getPhpSession();
 
 // Student enrollment details can change during the annual OSA roster import.

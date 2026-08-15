@@ -8,6 +8,7 @@ requirePost();
 
 try {
     $ctx = stRequireOsaContext();
+    apiRequireRecentReauthentication();
     $body = getRequestBody();
     $orgId = (int)($body['org_id'] ?? 0);
     $services = is_array($body['services'] ?? null) ? $body['services'] : [];

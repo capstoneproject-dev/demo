@@ -51,7 +51,7 @@ try {
         ':user_id' => $userId,
     ]);
 
-    jsonOk(['message' => 'Password updated successfully.']);
+    jsonOk(['message' => 'Password updated successfully.', 'csrf_token' => authMarkReauthenticated(true)]);
 } catch (PDOException $e) {
     error_log('[api/osa/profile/update-password] ' . $e->getMessage());
     jsonError('Could not update password right now.', 500);
