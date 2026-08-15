@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../includes/osa_staff.php';
 
 header('Content-Type: application/json');
 requirePost();
+rateLimitEnsureAllowed('invitation_inspect_ip', 'ip:' . rateLimitClientIp(), 30, 600);
 
 $body = getRequestBody();
 $token = trim((string)($body['invitation_token'] ?? ''));

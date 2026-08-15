@@ -27,6 +27,9 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     jsonError('Invalid email address.', 422);
 }
 
+$registrationIpSubject = 'ip:' . rateLimitClientIp();
+rateLimitEnsureAllowed('registration_submit_ip', $registrationIpSubject, 20, 3600);
+
 try {
     $pdo = getPdo();
 
@@ -36,6 +39,7 @@ try {
     if (!$snStmt->fetch()) {
         jsonError('Your student number is not in the database. Please contact the OSA.', 403);
     }
+    rateLimitEnsureAllowed('registration_submit_student', 'student:' . $studentNumber, 3, 3600);
 
     // Check for duplicate pending request
     $dupStmt = $pdo->prepare("SELECT reg_id FROM pending_registrations WHERE student_number = :sn AND status = 'pending' LIMIT 1");

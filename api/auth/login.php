@@ -29,6 +29,7 @@ $identifier = trim($body['identifier'] ?? '');
 $password   = $body['password'] ?? '';
 $verificationToken = trim((string)($body['verification_token'] ?? ''));
 $testingBypassOtp = filter_var($body['testing_bypass_otp'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$loginIpSubject = 'ip:' . rateLimitClientIp();
 
 if (!$identifier || !$password) {
     jsonError('Please enter your email / ID and password.');
@@ -36,10 +37,13 @@ if (!$identifier || !$password) {
 
 try {
 
+rateLimitEnsureNotBlocked('login_failed_ip', $loginIpSubject, 30, 900);
+
 // --- Look up user ---
 $user = findUserByIdentifier($identifier);
 
 if (!$user) {
+    rateLimitRecordFailure('login_failed_ip', $loginIpSubject, 30, 900);
     jsonError('Account not found. Please check your credentials or register first.');
 }
 
@@ -47,9 +51,14 @@ if (!$user['is_active']) {
     jsonError('Your account is inactive. Please contact administration.');
 }
 
+$loginAccountSubject = 'user:' . (int)$user['user_id'];
+rateLimitEnsureNotBlocked('login_failed_account', $loginAccountSubject, 8, 900);
 if (!password_verify($password, $user['password_hash'])) {
+    rateLimitRecordFailure('login_failed_ip', $loginIpSubject, 30, 900);
+    rateLimitRecordFailure('login_failed_account', $loginAccountSubject, 8, 900);
     jsonError('Invalid password. Please try again.');
 }
+rateLimitClear('login_failed_account', $loginAccountSubject, 900);
 
 $requestHost = strtolower(trim((string)($_SERVER['HTTP_HOST'] ?? '')));
 $requestHost = preg_replace('/:\d+$/', '', $requestHost);
@@ -76,6 +85,7 @@ if (($user['account_type'] ?? '') === 'osa_staff' && !$testingBypassOtp) {
     $otpEmail = strtolower(trim((string)$user['email']));
 
     if ($verificationToken === '') {
+        rateLimitEnsureAllowed('osa_login_otp', $loginIpSubject, 10, 600);
         $challenge = createOtpChallenge('osa_login', $otpEmail, $otpIdentifier);
         jsonOk([
             'otp_required' => true,
@@ -163,10 +173,13 @@ jsonOk([
 } catch (InvalidArgumentException $e) {
     jsonError($e->getMessage(), 422);
 } catch (OtpRateLimitException $e) {
+    header('Retry-After: ' . max(1, $e->retryAfter));
+    header('Cache-Control: no-store');
     http_response_code(429);
     echo json_encode([
         'ok' => false,
         'error' => $e->getMessage(),
+        'error_code' => CAPSTONE_RATE_LIMIT_ERROR_CODE,
         'retry_after' => $e->retryAfter,
     ]);
     exit;

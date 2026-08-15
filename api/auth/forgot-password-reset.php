@@ -27,6 +27,8 @@ if (strlen($newPassword) < 8) {
     jsonError('New password must be at least 8 characters.', 422);
 }
 
+rateLimitEnsureAllowed('password_reset_ip', 'ip:' . rateLimitClientIp(), 30, 3600);
+
 try {
     $pdo = getPdo();
 
@@ -47,6 +49,7 @@ try {
     if (!$user) {
         jsonError('No matching active account was found.', 404);
     }
+    rateLimitEnsureAllowed('password_reset_account', 'user:' . (int)$user['user_id'], 5, 3600);
 
     $pdo->beginTransaction();
     consumeOtpVerification($pdo, $verificationToken, 'password_reset', $email, $studentNumber);

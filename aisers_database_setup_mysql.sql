@@ -86,6 +86,20 @@ CREATE TABLE audit_logs (
     KEY idx_audit_created (created_at)
 ) ENGINE=InnoDB;
 
+CREATE TABLE api_rate_limit_buckets (
+    bucket_hash CHAR(64) PRIMARY KEY,
+    policy_key VARCHAR(64) NOT NULL,
+    window_started_at DATETIME NOT NULL,
+    window_seconds INT UNSIGNED NOT NULL,
+    request_count INT UNSIGNED NOT NULL DEFAULT 0,
+    expires_at DATETIME NOT NULL,
+    block_audited TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_api_rate_limit_expiry (expires_at),
+    KEY idx_api_rate_limit_policy_window (policy_key, window_started_at)
+) ENGINE=InnoDB;
+
 CREATE TABLE organizations (
     org_id INT AUTO_INCREMENT PRIMARY KEY,
     org_name VARCHAR(255) NOT NULL UNIQUE,
