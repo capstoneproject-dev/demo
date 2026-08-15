@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../../../includes/osa_staff.php';
 header('Content-Type: application/json');
 requirePost();
 $session = apiRequirePrimaryOsaAdministrator();
+apiRequireRecentReauthentication();
 $body = getRequestBody();
 $invitationId = (int)($body['invitation_id'] ?? 0);
 if ($invitationId <= 0) jsonError('Invalid invitation.', 422);

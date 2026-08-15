@@ -3,6 +3,8 @@
 
     if (window.appDialog) return;
 
+    const appDialogScriptUrl = document.currentScript?.src || new URL('../assets/js/app-dialog.js', document.baseURI).href;
+
     const queue = [];
     let activeRequest = null;
     let elements = null;
@@ -221,6 +223,9 @@
         ui.confirm.textContent = options.confirmText || (activeRequest.kind === 'confirm' ? 'Continue' : 'OK');
         ui.confirm.className = `app-dialog-button ${options.danger ? 'danger' : 'primary'}`;
         ui.input.hidden = activeRequest.kind !== 'prompt';
+        ui.input.type = options.inputType === 'password' ? 'password' : 'text';
+        ui.input.autocomplete = options.autocomplete || (ui.input.type === 'password' ? 'current-password' : 'off');
+        ui.input.placeholder = options.placeholder || '';
         ui.input.value = activeRequest.kind === 'prompt' ? String(options.defaultValue || '') : '';
         ui.overlay.classList.add('show');
         window.setTimeout(() => {
@@ -239,6 +244,7 @@
         const value = request.kind === 'prompt'
             ? (confirmed ? elements.input.value : null)
             : request.kind === 'confirm' ? Boolean(confirmed) : true;
+        elements.input.value = '';
         elements.overlay.classList.remove('show');
         activeRequest = null;
         window.setTimeout(() => {
@@ -270,5 +276,201 @@
     // Keep existing notification calls working while replacing browser-native localhost dialogs.
     window.alert = function (message) {
         void window.appAlert(message);
+    };
+
+    // Shared request-security layer. Every active application page loads this
+    // script before its dashboard code, so existing fetch calls gain CSRF,
+    // genuine-activity, session-expiry, and reauthentication handling without
+    // changing their visible workflows.
+    const nativeFetch = window.fetch.bind(window);
+    const csrfEndpoint = new URL('../../api/auth/csrf.php', appDialogScriptUrl).href;
+    const reauthEndpoint = new URL('../../api/auth/reauthenticate.php', appDialogScriptUrl).href;
+    const activityEndpoint = new URL('../../api/auth/activity.php', appDialogScriptUrl).href;
+    const unsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+    let csrfToken = '';
+    let csrfPromise = null;
+    let reauthenticationPromise = null;
+    let lastGenuineActivity = Date.now();
+    let lastActivityHeartbeat = 0;
+    let activityHeartbeatTimer = null;
+
+    ['pointerdown', 'keydown', 'touchstart'].forEach((eventName) => {
+        window.addEventListener(eventName, () => {
+            lastGenuineActivity = Date.now();
+            scheduleActivityHeartbeat();
+        }, { passive: true, capture: true });
+    });
+
+    function hasBrowserAuthentication() {
+        try {
+            return Boolean(localStorage.getItem('naapAuthSession'));
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function scheduleActivityHeartbeat() {
+        if (!hasBrowserAuthentication() || activityHeartbeatTimer || (Date.now() - lastActivityHeartbeat) < 240000) return;
+        activityHeartbeatTimer = window.setTimeout(async () => {
+            activityHeartbeatTimer = null;
+            try {
+                const response = await nativeFetch(activityEndpoint, {
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: { 'X-Capstone-User-Activity': '1' },
+                });
+                const data = await response.clone().json().catch(() => ({}));
+                if (response.ok) lastActivityHeartbeat = Date.now();
+                else handleExpiredSession(data);
+            } catch (_error) {
+                // A later normal request will retry and surface connectivity or
+                // session-expiry feedback; activity tracking stays unobtrusive.
+            }
+        }, 500);
+    }
+
+    function isSameOriginApi(url) {
+        try {
+            const parsed = new URL(url instanceof Request ? url.url : String(url), document.baseURI);
+            return parsed.origin === window.location.origin && parsed.pathname.includes('/api/');
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function requestMethod(input, init) {
+        return String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    }
+
+    function securedHeaders(input, init, token) {
+        const headers = new Headers(input instanceof Request ? input.headers : undefined);
+        new Headers(init?.headers || undefined).forEach((value, key) => headers.set(key, value));
+        if (token) headers.set('X-CSRF-Token', token);
+        if ((Date.now() - lastGenuineActivity) <= 60000) headers.set('X-Capstone-User-Activity', '1');
+        return headers;
+    }
+
+    async function parseSecurityResponse(response) {
+        try {
+            return await response.clone().json();
+        } catch (_error) {
+            return {};
+        }
+    }
+
+    function handleExpiredSession(data) {
+        if (!['SESSION_EXPIRED', 'AUTHENTICATION_REQUIRED'].includes(data?.error_code)) return false;
+        try {
+            localStorage.removeItem('naapAuthSession');
+            localStorage.removeItem('naapStudentProfile');
+        } catch (_error) {
+        }
+        const loginUrl = new URL('../../pages/login.html', appDialogScriptUrl).href;
+        if (window.location.href !== loginUrl) window.top.location.href = loginUrl;
+        return true;
+    }
+
+    async function loadCsrfToken(forceRefresh = false) {
+        if (csrfToken && !forceRefresh) return csrfToken;
+        if (csrfPromise && !forceRefresh) return csrfPromise;
+        csrfPromise = (async () => {
+            const response = await nativeFetch(csrfEndpoint, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: (Date.now() - lastGenuineActivity) <= 60000
+                    ? { 'X-Capstone-User-Activity': '1' }
+                    : {},
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok || !data.csrf_token) {
+                handleExpiredSession(data);
+                throw new Error(data.error || 'Could not initialize request security.');
+            }
+            csrfToken = String(data.csrf_token);
+            return csrfToken;
+        })().finally(() => { csrfPromise = null; });
+        return csrfPromise;
+    }
+
+    async function requestReauthentication() {
+        if (reauthenticationPromise) return reauthenticationPromise;
+        reauthenticationPromise = (async () => {
+            const password = await window.appPrompt(
+                'Enter your current password to continue with this sensitive administrative action.',
+                '',
+                {
+                    title: 'Confirm your identity',
+                    confirmText: 'Confirm',
+                    inputType: 'password',
+                    autocomplete: 'current-password',
+                    placeholder: 'Current password',
+                    type: 'warning',
+                }
+            );
+            if (password === null) return false;
+            if (!String(password)) {
+                await window.appAlert('Current password is required.', { type: 'error' });
+                return false;
+            }
+
+            const token = await loadCsrfToken();
+            const response = await nativeFetch(reauthEndpoint, {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': token,
+                    'X-Capstone-User-Activity': '1',
+                },
+                body: JSON.stringify({ current_password: String(password) }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                handleExpiredSession(data);
+                await window.appAlert(data.error || 'Identity confirmation failed.', { type: 'error' });
+                return false;
+            }
+            csrfToken = String(data.csrf_token || '');
+            if (!csrfToken) await loadCsrfToken(true);
+            return true;
+        })().finally(() => { reauthenticationPromise = null; });
+        return reauthenticationPromise;
+    }
+
+    async function securedFetch(input, init = {}, allowCsrfRetry = true, allowReauthRetry = true) {
+        if (!isSameOriginApi(input)) return nativeFetch(input, init);
+        const method = requestMethod(input, init);
+        const token = unsafeMethods.has(method) ? await loadCsrfToken() : '';
+        const attemptInput = input instanceof Request ? input.clone() : input;
+        const response = await nativeFetch(attemptInput, {
+            ...init,
+            headers: securedHeaders(input, init, token),
+        });
+        if (response.ok) {
+            if ((response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+                const successData = await parseSecurityResponse(response);
+                if (successData.csrf_token) csrfToken = String(successData.csrf_token);
+            }
+            return response;
+        }
+        if (![401, 403, 428].includes(response.status)) return response;
+
+        const data = await parseSecurityResponse(response);
+        if (response.status === 401 && handleExpiredSession(data)) return response;
+        if (response.status === 403 && data.error_code === 'CSRF_VALIDATION_FAILED' && allowCsrfRetry) {
+            csrfToken = '';
+            await loadCsrfToken(true);
+            return securedFetch(input, init, false, allowReauthRetry);
+        }
+        if (response.status === 428 && data.error_code === 'REAUTHENTICATION_REQUIRED' && allowReauthRetry) {
+            const confirmed = await requestReauthentication();
+            if (confirmed) return securedFetch(input, init, allowCsrfRetry, false);
+        }
+        return response;
+    }
+
+    window.fetch = function (input, init) {
+        return securedFetch(input, init || {});
     };
 })();

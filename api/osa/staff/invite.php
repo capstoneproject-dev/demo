@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../../includes/osa_staff.php';
 header('Content-Type: application/json');
 requirePost();
 $session = apiRequirePrimaryOsaAdministrator();
+apiRequireRecentReauthentication();
 $body = getRequestBody();
 $email = normalizeOsaInvitationEmail((string)($body['email'] ?? ''));
 $employeeNumber = trim((string)($body['employee_number'] ?? ''));

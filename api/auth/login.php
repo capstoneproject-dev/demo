@@ -123,7 +123,7 @@ $sessionPayload = buildSessionPayload(
     $mappedOrg['org_name'] ?? null,
     isset($mappedOrg['org_id']) ? (int)$mappedOrg['org_id'] : null
 );
-startUserSession($sessionPayload);
+startUserSession($sessionPayload, true);
 
 // --- Update last_login_at ---
 touchLastLogin((int)$user['user_id']);

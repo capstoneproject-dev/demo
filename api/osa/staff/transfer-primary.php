@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../../includes/audit.php';
 header('Content-Type: application/json');
 requirePost();
 $session = apiRequirePrimaryOsaAdministrator();
+apiRequireRecentReauthentication();
 $body = getRequestBody();
 $targetId = (int)($body['user_id'] ?? 0);
 if ($targetId <= 0 || $targetId === (int)$session['user_id']) {

@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../../includes/system_settings.php';
 header('Content-Type: application/json');
 $session = apiRequireOsaSystemAdministrator();
 requirePost();
+apiRequireRecentReauthentication();
 
 function rosterEnsureAcademicYearColumn(PDO $pdo): void
 {
