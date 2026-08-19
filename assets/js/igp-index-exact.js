@@ -18,6 +18,16 @@
         return: { officerId: '' }
     };
 
+    function playScanBeep() {
+        const beep = $('beepSound');
+        if (!beep) return;
+        beep.currentTime = 0;
+        const playback = beep.play();
+        if (playback && typeof playback.catch === 'function') {
+            playback.catch(() => { /* Browser audio permission may require initial interaction. */ });
+        }
+    }
+
     function fmtDate(s) {
         if (!s) return '-';
         const raw = String(s).trim();
@@ -416,6 +426,7 @@
     async function processScanToken(rawToken) {
         const token = String(rawToken || '').trim();
         if (!token) return;
+        playScanBeep();
 
         const mode = currentMode();
         if (mode === 'rent') {
@@ -629,6 +640,7 @@
             msg.textContent = '✗ Please scan officer barcode';
             return;
         }
+        playScanBeep();
 
         const officer = findOfficerByScan(scannedValue);
         if (!officer) {
