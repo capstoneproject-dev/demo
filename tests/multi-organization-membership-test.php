@@ -10,8 +10,11 @@ function multiOrgAssert(bool $condition, string $message): void
 
 $lookupSource = (string)file_get_contents(__DIR__ . '/../api/auth/lookup-student.php');
 $otpSource = (string)file_get_contents(__DIR__ . '/../includes/otp.php');
+$otpSendSource = (string)file_get_contents(__DIR__ . '/../api/auth/otp/send.php');
 $submitSource = (string)file_get_contents(__DIR__ . '/../api/accounts/requests/submit.php');
 $approvalSource = (string)file_get_contents(__DIR__ . '/../api/accounts/requests/action.php');
+$loginHtml = (string)file_get_contents(__DIR__ . '/../pages/login.html');
+$loginJs = (string)file_get_contents(__DIR__ . '/../assets/js/login.js');
 
 multiOrgAssert(
     !str_contains($lookupSource, 'FROM organization_members'),
@@ -33,6 +36,36 @@ multiOrgAssert(
 multiOrgAssert(
     str_contains($approvalSource, 'ON DUPLICATE KEY UPDATE'),
     'Officer approval no longer safely upserts the selected organization membership.'
+);
+multiOrgAssert(
+    str_contains($loginHtml, 'Current Student Account Password')
+        && !str_contains($loginHtml, 'org-confirm-password-input'),
+    'Organization registration still behaves like new-password creation.'
+);
+multiOrgAssert(
+    str_contains($submitSource, 'password_verify($password')
+        && str_contains($submitSource, 'ORG_MEMBERSHIP_REQUEST_NO_PASSWORD'),
+    'Organization registration does not verify the existing password safely.'
+);
+multiOrgAssert(
+    str_contains($otpSendSource, 'if ($purpose === \'org_registration\')')
+        && str_contains($otpSendSource, 'password_verify($currentPassword')
+        && str_contains($otpSendSource, "jsonError('Incorrect password.'"),
+    'Organization registration does not reject an incorrect password before sending OTP.'
+);
+multiOrgAssert(
+    str_contains($loginJs, 'current_password: registrationOtpState.pendingCurrentPassword')
+        && str_contains($loginJs, "}, '', '', password);"),
+    'Organization registration does not send the current password for pre-OTP verification.'
+);
+multiOrgAssert(
+    str_contains($loginJs, 'const verified = await lookupOrganizationStudent();')
+        && !str_contains($loginJs, 'const verified = await lookupOrganizationStudent(true);'),
+    'Submitting organization registration still clears selected organization details during forced lookup.'
+);
+multiOrgAssert(
+    str_contains($approvalSource, '$isOfficerMembershipRequest && (!$existingUser'),
+    'Approval could create a new user from an officer-membership request.'
 );
 
 $pdo = getPdo();
@@ -110,4 +143,3 @@ try {
 }
 
 echo "Multi-organization membership tests passed.\n";
-

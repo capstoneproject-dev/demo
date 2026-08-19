@@ -377,6 +377,14 @@
     color: #b91c1c;
   }
 
+  .org-password-helper {
+    margin: -4px 0 0;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: left;
+  }
+
   .privacy-consent {
     display: flex;
     align-items: flex-start;

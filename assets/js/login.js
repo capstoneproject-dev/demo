@@ -671,6 +671,7 @@ const registrationOtpState = {
   pendingLabel: '',
   invitationToken: '',
   pendingStudentName: '',
+  pendingCurrentPassword: '',
   isSubmitting: false,
   isSending: false,
   resendTimer: null
@@ -1058,6 +1059,7 @@ function closeRegistrationOtpModal() {
   registrationOtpState.pendingLabel = '';
   registrationOtpState.invitationToken = '';
   registrationOtpState.pendingStudentName = '';
+  registrationOtpState.pendingCurrentPassword = '';
   registrationOtpState.challengeToken = '';
   registrationOtpState.verificationToken = '';
   registrationOtpState.isSubmitting = false;
@@ -1100,7 +1102,8 @@ async function sendRegistrationOtp() {
         email: registrationOtpState.pendingEmail,
         identifier: registrationOtpState.pendingIdentifier,
         invitation_token: registrationOtpState.invitationToken || undefined,
-        student_name: registrationOtpState.pendingStudentName || undefined
+        student_name: registrationOtpState.pendingStudentName || undefined,
+        current_password: registrationOtpState.pendingCurrentPassword || undefined
       })
     });
     const data = await response.json();
@@ -1203,7 +1206,7 @@ function setupRegistrationOtpInputs() {
   });
 }
 
-function startRegistrationOtpFlow(label, email, identifier, purpose, action, invitationToken = '', studentName = '') {
+function startRegistrationOtpFlow(label, email, identifier, purpose, action, invitationToken = '', studentName = '', currentPassword = '') {
   registrationOtpState.pendingAction = action;
   registrationOtpState.pendingEmail = String(email || '').trim();
   registrationOtpState.pendingIdentifier = String(identifier || '').trim();
@@ -1211,6 +1214,7 @@ function startRegistrationOtpFlow(label, email, identifier, purpose, action, inv
   registrationOtpState.pendingLabel = label;
   registrationOtpState.invitationToken = invitationToken;
   registrationOtpState.pendingStudentName = String(studentName || '').trim();
+  registrationOtpState.pendingCurrentPassword = String(currentPassword || '');
   sendRegistrationOtp();
 }
 
@@ -1459,7 +1463,6 @@ function clearOrgRegistrationFields() {
   const orgEmailInput = document.getElementById('org-email-input');
   const orgPhoneInput = document.getElementById('org-phone-input');
   const orgPasswordInput = document.getElementById('org-password-input');
-  const orgConfirmPasswordInput = document.getElementById('org-confirm-password-input');
 
   if (orgNameInput) orgNameInput.value = '';
   if (orgCourseInput) orgCourseInput.value = '';
@@ -1471,7 +1474,6 @@ function clearOrgRegistrationFields() {
   if (customPositionInput) customPositionInput.value = '';
   resetCustomPositionEditor();
   if (orgPasswordInput) orgPasswordInput.value = '';
-  if (orgConfirmPasswordInput) orgConfirmPasswordInput.value = '';
 }
 
 function setOrgRegistrationVisibility(isVisible) {
@@ -1723,15 +1725,14 @@ async function registerOrgOfficer() {
   const email = (document.getElementById('org-email-input') || {}).value?.trim() || '';
   const phone = normalizePhoneInput((document.getElementById('org-phone-input') || {}).value?.trim() || '');
   const password = (document.getElementById('org-password-input') || {}).value || '';
-  const confirmPassword = (document.getElementById('org-confirm-password-input') || {}).value || '';
 
-  const verified = await lookupOrganizationStudent(true);
+  const verified = await lookupOrganizationStudent();
   if (!verified || verifiedOrgStudentNumber !== studentNumber) {
     alert('Enter a student number that is already registered as a student account first.');
     return;
   }
 
-  if (!studentNumber || !fullName || !course || !section || !orgName || !positionTitle || !email || !password || !confirmPassword) {
+  if (!studentNumber || !fullName || !course || !section || !orgName || !positionTitle || !email || !password) {
     alert('Please complete all Organization registration fields.');
     return;
   }
@@ -1741,14 +1742,6 @@ async function registerOrgOfficer() {
   }
   if (phone && !isValidPhoneInput(phone)) {
     alert('Phone number must be +63 followed by a space and 10 digits.');
-    return;
-  }
-  if (password !== confirmPassword) {
-    alert('Passwords do not match.');
-    return;
-  }
-  if (password.length < 8) {
-    alert('Password must be at least 8 characters.');
     return;
   }
   if (!hasPrivacyConsent('org-privacy-consent')) return;
@@ -1776,7 +1769,7 @@ async function registerOrgOfficer() {
 
     alert('Officer registration submitted. Approve it first in Accounts page.');
     toggleSlide();
-  });
+  }, '', '', password);
 }
 
 async function registerOsa() {

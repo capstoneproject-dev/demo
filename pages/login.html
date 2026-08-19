@@ -158,8 +158,8 @@
                 class="org-select-trigger" readonly
                 onclick="openPositionModal()" />
             </div>
-            <input type="password" id="org-password-input" placeholder="Password" />
-            <input type="password" id="org-confirm-password-input" placeholder="Re-enter Password" />
+            <div class="password-field org-full-width"><input type="password" id="org-password-input" placeholder="Current Student Account Password" autocomplete="current-password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
+            <p class="org-password-helper org-full-width">Enter the password for this existing student account to verify ownership.</p>
             <label class="privacy-consent org-full-width" for="org-privacy-consent">
               <input type="checkbox" id="org-privacy-consent" />
               <span>By creating an account, you acknowledge that the system will collect and process your personal data for registration, user authentication, student organization management, document submission, communication, monitoring, and other legitimate academic and administrative purposes. Your data will be processed in accordance with Republic Act No. 10173, or the Data Privacy Act of 2012.</span>
@@ -399,7 +399,7 @@
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20260731-osa-login-otp-3"></script>
+  <script src="../assets/js/login.js?v=20260819-org-password-verification-3"></script>
 
 </body>
 

@@ -12,7 +12,7 @@ $studentNumber = trim($body['studentId'] ?? '');
 $studentName   = trim($body['name']      ?? '');
 $email         = trim($body['email']     ?? '');
 $phone         = trim($body['phone']     ?? '');
-$password      = trim($body['password']  ?? '');
+$password      = (string)($body['password'] ?? '');
 $programCode   = trim($body['course']    ?? $body['programCode'] ?? '');
 $yearSection   = trim($body['yearSection'] ?? $body['section'] ?? '');
 $reqRole       = trim($body['requestedRole'] ?? 'student');
@@ -20,7 +20,7 @@ $reqOrg        = trim($body['requestedOrg']  ?? '');
 $reqPosition   = preg_replace('/\s+/u', ' ', trim((string)($body['requestedPosition'] ?? ''))) ?? '';
 $verificationToken = trim($body['verification_token'] ?? '');
 
-if (!$studentNumber || !$studentName || !$email || !$password) {
+if (!$studentNumber || !$studentName || !$email || $password === '') {
     jsonError('studentId, name, email, and password are required.', 422);
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -82,12 +82,21 @@ try {
             jsonError('An account for that student number already exists. If you are registering as an organization officer, please select the Organization tab.', 409);
         }
     } else {
-        $usrStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn AND is_active = 1 LIMIT 1");
+        $usrStmt = $pdo->prepare(
+            "SELECT user_id, first_name, last_name, password_hash
+             FROM users
+             WHERE student_number = :sn AND is_active = 1
+             LIMIT 1"
+        );
         $usrStmt->execute([':sn' => $studentNumber]);
         $existingUser = $usrStmt->fetch();
         if (!$existingUser) {
             jsonError('A registered student account is required before requesting an organization account.', 409);
         }
+        if (!password_verify($password, (string)$existingUser['password_hash'])) {
+            jsonError('Incorrect password.', 403, ['error_code' => 'INCORRECT_PASSWORD']);
+        }
+        $studentName = trim((string)$existingUser['first_name'] . ' ' . (string)$existingUser['last_name']);
 
         $requestedOrgLookup = $reqOrg;
         $orgStmt = $pdo->prepare(
@@ -139,7 +148,12 @@ try {
     $pdo->beginTransaction();
     consumeOtpVerification($pdo, $verificationToken, $purpose, $email, $studentNumber);
 
-    $pwHash = password_hash($password, PASSWORD_BCRYPT);
+    // Officer requests never create or change login credentials. The column
+    // remains required by the legacy pending-registration schema, so store a
+    // non-password marker that approval is forbidden from using as a hash.
+    $pwHash = $reqRole === 'org_officer'
+        ? 'ORG_MEMBERSHIP_REQUEST_NO_PASSWORD'
+        : password_hash($password, PASSWORD_BCRYPT);
 
     $ins = $pdo->prepare("
         INSERT INTO pending_registrations
