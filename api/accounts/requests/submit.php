@@ -17,7 +17,7 @@ $programCode   = trim($body['course']    ?? $body['programCode'] ?? '');
 $yearSection   = trim($body['yearSection'] ?? $body['section'] ?? '');
 $reqRole       = trim($body['requestedRole'] ?? 'student');
 $reqOrg        = trim($body['requestedOrg']  ?? '');
-$reqPosition   = trim($body['requestedPosition'] ?? '');
+$reqPosition   = preg_replace('/\s+/u', ' ', trim((string)($body['requestedPosition'] ?? ''))) ?? '';
 $verificationToken = trim($body['verification_token'] ?? '');
 
 if (!$studentNumber || !$studentName || !$email || !$password) {
@@ -25,6 +25,10 @@ if (!$studentNumber || !$studentName || !$email || !$password) {
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     jsonError('Invalid email address.', 422);
+}
+$reqPositionLength = function_exists('mb_strlen') ? mb_strlen($reqPosition) : strlen($reqPosition);
+if ($reqPositionLength > 120 || preg_match('/[\x00-\x1F\x7F]/u', $reqPosition)) {
+    jsonError('Position title must be valid and 120 characters or fewer.', 422);
 }
 
 $registrationIpSubject = 'ip:' . rateLimitClientIp();
