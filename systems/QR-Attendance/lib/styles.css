@@ -241,6 +241,28 @@ body {
     font-weight: 700;
 }
 
+.toast-close {
+    display: grid;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    margin-left: auto;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font: 700 1.35rem/1 Arial, sans-serif;
+    cursor: pointer;
+}
+
+.toast-close:hover,
+.toast-close:focus-visible {
+    background: rgba(255, 255, 255, 0.18);
+    outline: none;
+}
+
 .toast-success {
     background-color: #059669;
 }

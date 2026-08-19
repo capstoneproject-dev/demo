@@ -16,7 +16,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260819-toast-close-1">
 </head>
 
 <body>
@@ -78,7 +78,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         <!-- Activate/Deactivate Scanning buttons removed -->
                         <button id="manualCheckInBtn" class="btn btn-outline-primary" type="button">Manual Check-in</button>
                     </div>
-                    <label for="barcodeInput" class="form-label">Scan Barcode (Auto-focus)</label>
                     <input type="text" class="form-control" id="barcodeInput" autofocus autocomplete="off"
                         placeholder="Scan barcode here...">
                 </div>
@@ -204,7 +203,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/QR-Attendance/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
     <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
-    <script src="../../systems/QR-Attendance/lib/script.js?v=20260522-registered"></script>
+    <script src="../../systems/QR-Attendance/lib/script.js?v=20260819-scan-symbols-1"></script>
     <script>
         // Utility to check if any of the filter/search/section controls are focused
         function updateBarcodeInputState() {

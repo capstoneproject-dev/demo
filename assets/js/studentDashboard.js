@@ -818,6 +818,9 @@ function mapDatabaseEvent(item) {
         venue: item.location || 'TBA',
         location: item.location || 'TBA',
         participants: Number(item.attendance_count || 0),
+        participationStatus: ['registered', 'attended'].includes(String(item.participation_status || ''))
+            ? String(item.participation_status)
+            : '',
         img: image,
         gallery: gallery.length ? gallery : [image],
         isPublished: Number(item.is_published || 0) === 1
@@ -989,7 +992,8 @@ function renderStudentAnnouncementFeed() {
         const wasEdited = Boolean(
             published && updated && updated.getTime() - published.getTime() > 1000
         );
-        const registered = isEvent && isEventRegistered(item.title);
+        const participationStatus = isEvent ? getEventParticipationStatus(item.title, item.event_id) : '';
+        const registered = Boolean(participationStatus);
         return `
             <article class="student-announcement-card">
                 <header class="student-announcement-card-header">
@@ -1047,7 +1051,9 @@ function renderStudentAnnouncementFeed() {
                             data-registration-title="${escapeHtml(item.title)}"
                             onclick="registerForStudentAnnouncementEvent(${Number(item.id)})"
                             ${registered ? 'disabled' : ''}>
-                            ${registered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}
+                            ${participationStatus === 'attended'
+                                ? 'Attended <i class="fa-solid fa-check"></i>'
+                                : registered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}
                         </button>
                     </div>
                 ` : ''}
@@ -2465,7 +2471,8 @@ function renderMyOrgHomeSection(viewModel) {
 function renderMyOrgEventsSection(viewModel) {
     const eventsMarkup = viewModel.relevantEvents.length
         ? viewModel.relevantEvents.map((event, index) => {
-            const isRegistered = isEventRegistered(event.title);
+            const participationStatus = getEventParticipationStatus(event.title, event.id);
+            const isRegistered = Boolean(participationStatus);
             return `
             <article class="my-org-spa-card my-org-event-card">
                 <button type="button" class="my-org-event-media" data-event-id="${escapeHtml(event.id ?? '')}" data-event-title="${escapeHtml(event.title)}" aria-label="View photos for ${escapeHtml(event.title)}">
@@ -2483,7 +2490,7 @@ function renderMyOrgEventsSection(viewModel) {
                     <p>${event.description || 'No event description available yet.'}</p>
                     <div class="my-org-event-footer">
                         <span class="my-org-stat-chip" style="color: #000;"><i class="fa-solid fa-users"></i> ${event.participants || 0} participants</span>
-                        <button type="button" class="my-org-ref-pill-btn ${isRegistered ? 'registered' : ''}" data-registration-title="${escapeHtml(event.title)}" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}', '${escapeHtml(event.id ?? '').replace(/'/g, "\\'")}')" ${isRegistered ? 'disabled style="background: #16a34a; border-color: #16a34a; color: #fff; cursor: not-allowed;"' : ''}>${isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}</button>
+                        <button type="button" class="my-org-ref-pill-btn ${isRegistered ? 'registered' : ''}" data-registration-title="${escapeHtml(event.title)}" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}', '${escapeHtml(event.id ?? '').replace(/'/g, "\\'")}')" ${isRegistered ? 'disabled style="background: #16a34a; border-color: #16a34a; color: #fff; cursor: not-allowed;"' : ''}>${participationStatus === 'attended' ? 'Attended <i class="fa-solid fa-check"></i>' : isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}</button>
                     </div>
                 </div>
             </article>
@@ -3966,7 +3973,8 @@ function switchOrgTab(tabName, btn) {
 
             // Render Cards
             filtered.forEach(ev => {
-                const isRegistered = isEventRegistered(ev.title);
+                const participationStatus = getEventParticipationStatus(ev.title, ev.id);
+                const isRegistered = Boolean(participationStatus);
                 const status = getEventStatus(ev.dateRaw || ev.date);
 
                 // Parse date for Badge (e.g. "Feb. 07")
@@ -4025,7 +4033,7 @@ function switchOrgTab(tabName, btn) {
                                     data-registration-title="${escapeHtml(ev.title)}"
                                     onclick="event.stopPropagation(); openRegistrationModal('${ev.title}', '${ev.id ?? ''}')" 
                                     ${isRegistered ? 'disabled style="cursor: not-allowed;"' : ''}>
-                                ${isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Join'}
+                                ${participationStatus === 'attended' ? 'Attended <i class="fa-solid fa-check"></i>' : isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Join'}
                             </button>
                         </div>
                     </div>
@@ -5048,9 +5056,15 @@ document.addEventListener('visibilitychange', () => {
 
 // --- MODAL LOGIC ---
 
-// Track registered events in localStorage
+// Keep any legacy/local-only event state isolated per signed-in student.
+function getRegisteredEventsStorageKey() {
+    const session = readAuthSession();
+    const accountKey = session.user_id || session.student_number || 'anonymous';
+    return `registeredEvents:${accountKey}`;
+}
+
 function getRegisteredEvents() {
-    const registered = localStorage.getItem('registeredEvents');
+    const registered = localStorage.getItem(getRegisteredEventsStorageKey());
     return registered ? JSON.parse(registered) : [];
 }
 
@@ -5058,15 +5072,36 @@ function addRegisteredEvent(eventTitle) {
     const registered = getRegisteredEvents();
     if (!registered.includes(eventTitle)) {
         registered.push(eventTitle);
-        localStorage.setItem('registeredEvents', JSON.stringify(registered));
+        localStorage.setItem(getRegisteredEventsStorageKey(), JSON.stringify(registered));
     }
 }
 
 function isEventRegistered(eventTitle) {
-    return getRegisteredEvents().includes(eventTitle);
+    return Boolean(getEventParticipationStatus(eventTitle));
+}
+
+function getEventParticipationStatus(eventTitle, eventId = '') {
+    const numericEventId = Number(eventId || 0);
+    const event = databaseEvents.find(item => numericEventId > 0 && Number(item.id) === numericEventId)
+        || databaseEvents.find(item => String(item.title || '') === String(eventTitle || ''));
+    const status = String(event?.participationStatus || '').toLowerCase();
+    // Database-backed events always use the current account's server state.
+    // Do not let an old browser-local registration from another account win.
+    if (event) return status === 'attended' || status === 'registered' ? status : '';
+    return getRegisteredEvents().includes(eventTitle) ? 'registered' : '';
 }
 
 function openRegistrationModal(eventTitle, eventId = '') {
+    const participationStatus = getEventParticipationStatus(eventTitle, eventId);
+    if (participationStatus === 'attended') {
+        alert('Your attendance for this event has already been recorded. Pre-registration is no longer available.');
+        return;
+    }
+    if (participationStatus === 'registered') {
+        alert('You are already registered for this event.');
+        return;
+    }
+
     const eventObj = getStudentScopedExtendedEvents().find(e => String(e.id ?? '') === String(eventId ?? ''))
         || getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
     const modal = document.getElementById('eventRegistrationModal');

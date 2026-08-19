@@ -60,7 +60,7 @@ try {
     $section = $section !== '' ? $section : trim((string)($profile['section'] ?? ''));
 
     $duplicateStmt = $pdo->prepare(
-        "SELECT record_id
+        "SELECT record_id, time_in, time_out
          FROM attendance_records
          WHERE event_id = :event_id
            AND (
@@ -76,6 +76,11 @@ try {
     ]);
     $existing = $duplicateStmt->fetch();
     if ($existing) {
+        if (!empty($existing['time_in']) || !empty($existing['time_out'])) {
+            jsonError('Your attendance for this event has already been recorded. Pre-registration is no longer available.', 409, [
+                'error_code' => 'EVENT_ALREADY_ATTENDED',
+            ]);
+        }
         jsonOk([
             'record_id' => (int)$existing['record_id'],
             'already_registered' => true,
@@ -107,6 +112,11 @@ try {
         ]);
         $existing = $duplicateStmt->fetch();
         if (!$existing) throw $e;
+        if (!empty($existing['time_in']) || !empty($existing['time_out'])) {
+            jsonError('Your attendance for this event has already been recorded. Pre-registration is no longer available.', 409, [
+                'error_code' => 'EVENT_ALREADY_ATTENDED',
+            ]);
+        }
         jsonOk([
             'record_id' => (int)$existing['record_id'],
             'already_registered' => true,
