@@ -93,7 +93,7 @@
 
     <!-- REGISTER FORM (RIGHT) -->
     <div class="form-container sign-up-container">
-      <div style="width: 100%; max-width: 380px;">
+      <div id="registration-content" style="width: 100%; max-width: 380px;">
         <h1>Create Account</h1>
         <p class="subtitle">NATIONAL AVIATION ACADEMY OF THE PHILIPPINES</p>
 
@@ -258,7 +258,7 @@
         <button class="close-modal" onclick="closePositionModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="position-list">
+        <div class="position-list" id="position-list">
           <div class="org-item" onclick="selectPosition('President')">President</div>
           <div class="org-item" onclick="selectPosition('Vice President (Internal)')">Vice President (Internal)</div>
           <div class="org-item" onclick="selectPosition('Vice President (External)')">Vice President (External)</div>
@@ -273,6 +273,17 @@
           <div class="org-item" onclick="selectPosition('2nd Year Representative')">2nd Year Representative</div>
           <div class="org-item" onclick="selectPosition('1st Year Representative')">1st Year Representative</div>
           <div class="org-item" onclick="selectPosition('Faculty Adviser')">Faculty Adviser</div>
+          <button type="button" class="org-item position-other-btn" onclick="openCustomPositionEditor()">Others</button>
+        </div>
+        <div class="custom-position-editor" id="custom-position-editor" hidden>
+          <label for="custom-position-input">Custom Position Title</label>
+          <input type="text" id="custom-position-input" maxlength="120"
+            placeholder="Enter your position title" autocomplete="organization-title" />
+          <p class="custom-position-feedback" id="custom-position-feedback" aria-live="polite"></p>
+          <div class="custom-position-actions">
+            <button type="button" class="secondary-btn" onclick="cancelCustomPositionEditor()">BACK</button>
+            <button type="button" onclick="confirmCustomPosition()">USE POSITION</button>
+          </div>
         </div>
       </div>
     </div>

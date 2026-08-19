@@ -67,6 +67,32 @@
     opacity: 0;
     z-index: 1;
     transform: translateX(20%); 
+    /* Registration content can be taller than the card. Centering an
+       overflowing flex child places its beginning above the scrollable area,
+       which hides the heading even at scrollTop 0. */
+    justify-content: flex-start;
+  }
+
+  .sign-up-container > div {
+    flex: 0 0 auto;
+  }
+
+  #registration-content {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #registration-content > .register-tabs,
+  #registration-content > .reg-fields {
+    flex-shrink: 0;
+  }
+
+  /* The compact initial Organization registration view is centered as one
+     group, including its heading and subtitle. If verified details make the
+     form taller than the panel, the outer registration panel still scrolls. */
+  #registration-content.org-tab-active {
+    justify-content: center;
   }
 
   /* STATE: REGISTER ACTIVE */
@@ -628,6 +654,53 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+  }
+
+  .position-list[hidden],
+  .custom-position-editor[hidden] {
+    display: none !important;
+  }
+
+  .position-other-btn {
+    width: 100%;
+    height: auto;
+    margin: 0;
+    background: #fff;
+    color: var(--text-dark);
+    font-weight: 400;
+  }
+
+  .custom-position-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .custom-position-editor label {
+    color: var(--primary);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .custom-position-feedback {
+    min-height: 18px;
+    margin: 0;
+    color: #b42318;
+    font-size: 12px;
+    text-align: left;
+  }
+
+  .custom-position-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .custom-position-actions button {
+    width: 100%;
+    height: 44px;
+    margin: 0;
   }
   
   .org-item.disabled {

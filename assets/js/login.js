@@ -1233,6 +1233,11 @@ function switchTab(type) {
   const tabs = document.querySelectorAll('.tab-btn');
   tabs.forEach((btn) => btn.classList.remove('active'));
 
+  const registrationContent = document.getElementById('registration-content');
+  if (registrationContent) registrationContent.classList.toggle('org-tab-active', type === 'org');
+  const registrationPanel = document.querySelector('.sign-up-container');
+  if (registrationPanel) registrationPanel.scrollTop = 0;
+
   const activeFormId = type === 'student' ? 'form-student' : type === 'osa' ? 'form-osa' : 'form-org';
 
   const clicked = Array.from(tabs).find((btn) => {
@@ -1285,18 +1290,91 @@ if (orgModal) {
 }
 
 const positionModal = document.getElementById('positionModal');
+const positionList = document.getElementById('position-list');
+const customPositionEditor = document.getElementById('custom-position-editor');
+const customPositionInput = document.getElementById('custom-position-input');
+const customPositionFeedback = document.getElementById('custom-position-feedback');
+const predefinedPositionTitles = new Set([
+  'President',
+  'Vice President (Internal)',
+  'Vice President (External)',
+  'Secretary',
+  'Treasurer',
+  'Auditor',
+  'Business Manager',
+  'Public Information Officer',
+  'Peace Officer',
+  '4th Year Representative',
+  '3rd Year Representative',
+  '2nd Year Representative',
+  '1st Year Representative',
+  'Faculty Adviser'
+]);
+
+function resetCustomPositionEditor() {
+  if (positionList) positionList.hidden = false;
+  if (customPositionEditor) customPositionEditor.hidden = true;
+  if (customPositionFeedback) customPositionFeedback.textContent = '';
+}
 
 function openPositionModal() {
+  resetCustomPositionEditor();
   if (positionModal) positionModal.classList.add('open');
 }
 
 function closePositionModal() {
   if (positionModal) positionModal.classList.remove('open');
+  resetCustomPositionEditor();
 }
 
 function selectPosition(positionTitle) {
   if (orgPositionInput) orgPositionInput.value = String(positionTitle || '').trim();
   closePositionModal();
+}
+
+function openCustomPositionEditor() {
+  if (positionList) positionList.hidden = true;
+  if (customPositionEditor) customPositionEditor.hidden = false;
+  if (customPositionFeedback) customPositionFeedback.textContent = '';
+  if (customPositionInput) {
+    const currentTitle = String(orgPositionInput?.value || '').trim();
+    customPositionInput.value = currentTitle && !predefinedPositionTitles.has(currentTitle) ? currentTitle : '';
+    window.setTimeout(() => customPositionInput.focus(), 0);
+  }
+}
+
+function cancelCustomPositionEditor() {
+  resetCustomPositionEditor();
+}
+
+function confirmCustomPosition() {
+  const title = String(customPositionInput?.value || '').replace(/\s+/g, ' ').trim();
+  if (title.length < 2) {
+    if (customPositionFeedback) customPositionFeedback.textContent = 'Enter a position title with at least 2 characters.';
+    if (customPositionInput) customPositionInput.focus();
+    return;
+  }
+  if (title.length > 120) {
+    if (customPositionFeedback) customPositionFeedback.textContent = 'Position title must be 120 characters or fewer.';
+    return;
+  }
+  if (/[\u0000-\u001F\u007F]/.test(title)) {
+    if (customPositionFeedback) customPositionFeedback.textContent = 'Position title contains unsupported characters.';
+    return;
+  }
+  selectPosition(title);
+}
+
+if (customPositionInput) {
+  customPositionInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      confirmCustomPosition();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelCustomPositionEditor();
+    }
+  });
 }
 
 if (positionModal) {
@@ -1386,6 +1464,8 @@ function clearOrgRegistrationFields() {
   if (orgPhoneInput) orgPhoneInput.value = '';
   if (orgInput) orgInput.value = '';
   if (orgPositionInput) orgPositionInput.value = '';
+  if (customPositionInput) customPositionInput.value = '';
+  resetCustomPositionEditor();
   if (orgPasswordInput) orgPasswordInput.value = '';
   if (orgConfirmPasswordInput) orgConfirmPasswordInput.value = '';
 }
@@ -1649,6 +1729,10 @@ async function registerOrgOfficer() {
 
   if (!studentNumber || !fullName || !course || !section || !orgName || !positionTitle || !email || !password || !confirmPassword) {
     alert('Please complete all Organization registration fields.');
+    return;
+  }
+  if (positionTitle.length > 120 || /[\u0000-\u001F\u007F]/.test(positionTitle)) {
+    alert('Position title must be valid and 120 characters or fewer.');
     return;
   }
   if (phone && !isValidPhoneInput(phone)) {
