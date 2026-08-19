@@ -164,11 +164,11 @@ window.updateOfflineStatus = function () {
     const pendingCount = window.offlineSync.getPendingSyncCount();
 
     if (!isOnline) {
-        offlineStatusEl.textContent = 'â— Offline';
+        offlineStatusEl.textContent = '\u25CF Offline';
         offlineStatusEl.className = 'ms-3 badge bg-danger';
         offlineStatusEl.style.display = 'inline-block';
     } else {
-        offlineStatusEl.textContent = 'â— Online';
+        offlineStatusEl.textContent = '\u25CF Online';
         offlineStatusEl.className = 'ms-3 badge bg-success';
         offlineStatusEl.style.display = 'inline-block';
     }
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
 
             if (foundStudent) {
-                    scanResult.innerHTML = `<span class='success'>âœ“ Found: ${foundStudent.studentName} (${foundStudent.studentId}) - ${foundStudent.section}</span>`;
+                    scanResult.innerHTML = `<span class='success'>\u2713 Found: ${foundStudent.studentName} (${foundStudent.studentId}) - ${foundStudent.section}</span>`;
                     try {
                         const allRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
                         const existingRec = allRecords.find(r =>
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                     } catch (e) { }
                     markAttendance(foundStudent);
             } else {
-                scanResult.innerHTML = `<span class='error'>âœ— Student not found for barcode: ${scannedValue}</span>`;
+                scanResult.innerHTML = `<span class='error'>\u2717 Student not found for barcode: ${scannedValue}</span>`;
                 showToast('Student Not Found', `Barcode: ${scannedValue}`, 'error');
             }
         }
@@ -395,8 +395,12 @@ function showToast(title, message, type) {
     toast.innerHTML = `
         <span class="toast-title">${title}</span>
         <span>${message || ''}</span>
-        <button class="toast-close" aria-label="Close">Ã—</button>
+        <button class="toast-close" aria-label="Close"></button>
     `;
+    // Use a Unicode escape so the close symbol remains correct regardless of
+    // the server or editor's source-file encoding.
+    const renderedCloseButton = toast.querySelector('.toast-close');
+    if (renderedCloseButton) renderedCloseButton.textContent = '\u00D7';
     container.appendChild(toast);
     // Trigger animation
     requestAnimationFrame(() => toast.classList.add('show'));

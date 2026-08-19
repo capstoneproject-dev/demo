@@ -9,6 +9,29 @@ function attendanceAssert(bool $condition, string $message): void
     if (!$condition) throw new RuntimeException($message);
 }
 
+$studentRegistrationSource = (string)file_get_contents(__DIR__ . '/../api/student/events/register.php');
+$studentEventListSource = (string)file_get_contents(__DIR__ . '/../api/student/events/list.php');
+$studentDashboardSource = (string)file_get_contents(__DIR__ . '/../assets/js/studentDashboard.js');
+
+attendanceAssert(
+    str_contains($studentRegistrationSource, 'EVENT_ALREADY_ATTENDED')
+        && str_contains($studentRegistrationSource, '!empty($existing[\'time_in\'])')
+        && str_contains($studentRegistrationSource, '!empty($existing[\'time_out\'])'),
+    'Student pre-registration does not reject an existing attendance record.'
+);
+attendanceAssert(
+    str_contains($studentEventListSource, "THEN 'attended'")
+        && str_contains($studentEventListSource, "'participation_status'"),
+    'Student event listings do not expose the authoritative attendance status.'
+);
+attendanceAssert(
+    str_contains($studentDashboardSource, "participationStatus === 'attended'")
+        && str_contains($studentDashboardSource, 'Pre-registration is no longer available.')
+        && str_contains($studentDashboardSource, 'registeredEvents:${accountKey}')
+        && str_contains($studentDashboardSource, "if (event) return status === 'attended' || status === 'registered' ? status : '';"),
+    'Student event buttons do not disable pre-registration after attendance.'
+);
+
 $pdo = getPdo();
 
 try {
