@@ -351,7 +351,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <audio id="beepSound" src="../../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../assets/js/igp-api.js?v=20260227n"></script>
-    <script src="../../assets/js/igp-index-exact.js?v=20260819-manual-student-autofill-1"></script>
+    <script src="../../assets/js/igp-index-exact.js?v=20260819-manual-rejection-placeholders-1"></script>
 </body>
 
 </html>

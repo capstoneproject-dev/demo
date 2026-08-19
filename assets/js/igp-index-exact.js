@@ -9,6 +9,8 @@
     let categories = [];
     let scanInputTimer = null;
     let officerInputTimer = null;
+    let manualOfficerInputTimer = null;
+    let manualItemInputTimer = null;
     let pendingRent = null;
     let pendingReturn = null;
     let pendingReservedAction = null;
@@ -312,6 +314,75 @@
         return inventory.find((it) => String(it.barcode || '').toLowerCase() === v) || null;
     }
 
+    function processManualOfficerBarcode() {
+        const input = $('barcodeInputOfficer');
+        if (!input) return null;
+        const token = String(input.value || '').trim();
+        if (!token) return null;
+
+        playScanBeep();
+        const officer = findOfficerByScan(token);
+        if (!officer) {
+            delete input.dataset.verifiedOfficer;
+            input.value = '';
+            input.placeholder = 'Unknown officer ID. Scan a valid officer barcode.';
+            input.classList.add('is-invalid');
+            setScanResult('Unknown officer ID. Scan a valid officer barcode.', 'error');
+            input.focus();
+            return null;
+        }
+
+        const officerIdentifier = String(
+            officer.student_number || officer.employee_number || officer.officerId || ''
+        ).trim();
+        input.value = String(officer.officer_name || officerIdentifier).trim();
+        input.placeholder = 'Scan officer barcode here...';
+        input.classList.remove('is-invalid');
+        input.dataset.verifiedOfficer = officerIdentifier;
+        setScanResult(`Officer verified: ${officer.officer_name || officerIdentifier}.`, 'info');
+        return officer;
+    }
+
+    function processManualItemBarcode() {
+        const input = $('barcodeInputItemManual');
+        const itemSelect = $('itemSelect');
+        if (!input || !itemSelect) return;
+        const token = String(input.value || '').trim();
+        if (!token) return;
+
+        playScanBeep();
+        const item = findItemByBarcode(token);
+        if (!item) {
+            input.value = '';
+            input.placeholder = 'Unknown item barcode. Scan a valid item barcode.';
+            input.classList.add('is-invalid');
+            setScanResult('Unknown item barcode. Scan a valid item barcode.', 'error');
+            input.focus();
+            return;
+        }
+
+        input.placeholder = 'Scan item barcode here...';
+        input.classList.remove('is-invalid');
+
+        const mode = currentMode();
+        const itemStatus = statusByItem(item).status;
+        const isEligible = mode === 'rent'
+            ? itemStatus === 'available'
+            : itemStatus === 'rented';
+        if (!isEligible) {
+            setScanResult(`Item is not available for ${mode} (${itemStatus}).`, 'error');
+            input.select();
+            return;
+        }
+
+        itemSelect.value = String(item.item_id);
+        if (itemSelect.value !== String(item.item_id)) {
+            setScanResult('The scanned item is not available in the current selection.', 'error');
+            return;
+        }
+        setScanResult(`Item selected: ${item.item_name} [${item.barcode}].`, 'info');
+    }
+
     function peso(v) {
         return `PHP ${Number(v || 0).toFixed(2)}`;
     }
@@ -557,8 +628,16 @@
         try {
             if (mode === 'rent') {
                 const renterId = (($('studentId') || {}).value || '').trim();
-                const officerId = (($('barcodeInputOfficer') || {}).value || '').trim();
+                const officerInput = $('barcodeInputOfficer');
+                let officerId = String(officerInput?.dataset.verifiedOfficer || '').trim();
                 if (!renterId) throw new Error('Student Number is required.');
+                if (!officerId) {
+                    processManualOfficerBarcode();
+                    officerId = String(officerInput?.dataset.verifiedOfficer || '').trim();
+                }
+                if (!officerId) {
+                    throw new Error('A valid organization officer barcode is required. Non-officer codes are not permitted.');
+                }
                 const item = inventory.find((it) => Number(it.item_id) === itemId);
                 if (!item) throw new Error('Item not found.');
                 openRentHoursModal(item, renterId, officerId);
@@ -796,6 +875,45 @@
             $('studentId').addEventListener('change', syncManualStudentProfile);
         }
 
+        if ($('barcodeInputOfficer')) {
+            $('barcodeInputOfficer').addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                if (manualOfficerInputTimer) clearTimeout(manualOfficerInputTimer);
+                manualOfficerInputTimer = null;
+                processManualOfficerBarcode();
+            });
+            $('barcodeInputOfficer').addEventListener('input', () => {
+                $('barcodeInputOfficer').placeholder = 'Scan officer barcode here...';
+                $('barcodeInputOfficer').classList.remove('is-invalid');
+                delete $('barcodeInputOfficer').dataset.verifiedOfficer;
+                if (manualOfficerInputTimer) clearTimeout(manualOfficerInputTimer);
+                manualOfficerInputTimer = setTimeout(() => {
+                    manualOfficerInputTimer = null;
+                    processManualOfficerBarcode();
+                }, 180);
+            });
+        }
+
+        if ($('barcodeInputItemManual')) {
+            $('barcodeInputItemManual').addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                if (manualItemInputTimer) clearTimeout(manualItemInputTimer);
+                manualItemInputTimer = null;
+                processManualItemBarcode();
+            });
+            $('barcodeInputItemManual').addEventListener('input', () => {
+                $('barcodeInputItemManual').placeholder = 'Scan item barcode here...';
+                $('barcodeInputItemManual').classList.remove('is-invalid');
+                if (manualItemInputTimer) clearTimeout(manualItemInputTimer);
+                manualItemInputTimer = setTimeout(() => {
+                    manualItemInputTimer = null;
+                    processManualItemBarcode();
+                }, 180);
+            });
+        }
+
         if ($('processManualTransaction')) $('processManualTransaction').addEventListener('click', doManualTransaction);
         if ($('confirmRentalHoursBtn')) $('confirmRentalHoursBtn').addEventListener('click', confirmRentalFromModal);
         if ($('confirmReturnBtn')) $('confirmReturnBtn').addEventListener('click', confirmReturnFromModal);
@@ -828,6 +946,15 @@
                 const el = $(id); if (el) el.value = '';
             });
             if ($('studentId')) delete $('studentId').dataset.matchedStudentNumber;
+            if ($('barcodeInputOfficer')) delete $('barcodeInputOfficer').dataset.verifiedOfficer;
+            if ($('barcodeInputOfficer')) {
+                $('barcodeInputOfficer').placeholder = 'Scan officer barcode here...';
+                $('barcodeInputOfficer').classList.remove('is-invalid');
+            }
+            if ($('barcodeInputItemManual')) {
+                $('barcodeInputItemManual').placeholder = 'Scan item barcode here...';
+                $('barcodeInputItemManual').classList.remove('is-invalid');
+            }
             resetScanContext();
             setScanResult('Transaction reset.', 'info');
         });
