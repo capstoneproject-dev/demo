@@ -44,10 +44,19 @@ try {
     $pdo = getPdo();
 
     // Verify student number exists in whitelist
-    $snStmt = $pdo->prepare("SELECT sn_id FROM student_numbers WHERE student_number = :sn AND is_active = 1 LIMIT 1");
+    $snStmt = $pdo->prepare("SELECT sn_id, student_name FROM student_numbers WHERE student_number = :sn AND is_active = 1 LIMIT 1");
     $snStmt->execute([':sn' => $studentNumber]);
-    if (!$snStmt->fetch()) {
+    $studentRegistryRecord = $snStmt->fetch();
+    if (!$studentRegistryRecord) {
         jsonError('Your student number is not in the database. Please contact the OSA.', 403);
+    }
+    if ($reqRole === 'student') {
+        if (!studentRegistryNamesMatch($studentName, (string)$studentRegistryRecord['student_name'])) {
+            jsonError('The student number and name do not match our student records.', 422);
+        }
+        // Store the authoritative roster spelling rather than browser-entered
+        // casing or punctuation.
+        $studentName = trim((string)$studentRegistryRecord['student_name']);
     }
     rateLimitEnsureAllowed('registration_submit_student', 'student:' . $studentNumber, 3, 3600);
 

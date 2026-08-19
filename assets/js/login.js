@@ -670,6 +670,7 @@ const registrationOtpState = {
   pendingPurpose: '',
   pendingLabel: '',
   invitationToken: '',
+  pendingStudentName: '',
   isSubmitting: false,
   isSending: false,
   resendTimer: null
@@ -1056,6 +1057,7 @@ function closeRegistrationOtpModal() {
   registrationOtpState.pendingPurpose = '';
   registrationOtpState.pendingLabel = '';
   registrationOtpState.invitationToken = '';
+  registrationOtpState.pendingStudentName = '';
   registrationOtpState.challengeToken = '';
   registrationOtpState.verificationToken = '';
   registrationOtpState.isSubmitting = false;
@@ -1097,7 +1099,8 @@ async function sendRegistrationOtp() {
         purpose: registrationOtpState.pendingPurpose,
         email: registrationOtpState.pendingEmail,
         identifier: registrationOtpState.pendingIdentifier,
-        invitation_token: registrationOtpState.invitationToken || undefined
+        invitation_token: registrationOtpState.invitationToken || undefined,
+        student_name: registrationOtpState.pendingStudentName || undefined
       })
     });
     const data = await response.json();
@@ -1200,13 +1203,14 @@ function setupRegistrationOtpInputs() {
   });
 }
 
-function startRegistrationOtpFlow(label, email, identifier, purpose, action, invitationToken = '') {
+function startRegistrationOtpFlow(label, email, identifier, purpose, action, invitationToken = '', studentName = '') {
   registrationOtpState.pendingAction = action;
   registrationOtpState.pendingEmail = String(email || '').trim();
   registrationOtpState.pendingIdentifier = String(identifier || '').trim();
   registrationOtpState.pendingPurpose = purpose;
   registrationOtpState.pendingLabel = label;
   registrationOtpState.invitationToken = invitationToken;
+  registrationOtpState.pendingStudentName = String(studentName || '').trim();
   sendRegistrationOtp();
 }
 
@@ -1706,7 +1710,7 @@ async function registerStudent() {
 
     alert('Registration submitted. Please wait for account approval in Accounts page.');
     toggleSlide();
-  });
+  }, '', fullName);
 }
 
 async function registerOrgOfficer() {

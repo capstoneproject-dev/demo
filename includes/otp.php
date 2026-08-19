@@ -35,6 +35,30 @@ function generateOpaqueToken(): string
     return bin2hex(random_bytes(32));
 }
 
+/** Normalize roster names for a human-friendly but order-sensitive match. */
+function normalizeStudentRegistryName(string $name): string
+{
+    $normalized = trim($name);
+    if ($normalized === '') return '';
+    if (class_exists('Normalizer')) {
+        $unicode = Normalizer::normalize($normalized, Normalizer::FORM_KC);
+        if (is_string($unicode)) $normalized = $unicode;
+    }
+    $normalized = function_exists('mb_strtolower')
+        ? mb_strtolower($normalized, 'UTF-8')
+        : strtolower($normalized);
+    $withoutPunctuation = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $normalized);
+    if (is_string($withoutPunctuation)) $normalized = $withoutPunctuation;
+    return trim((string)(preg_replace('/\s+/u', ' ', $normalized) ?? $normalized));
+}
+
+function studentRegistryNamesMatch(string $providedName, string $registeredName): bool
+{
+    $provided = normalizeStudentRegistryName($providedName);
+    $registered = normalizeStudentRegistryName($registeredName);
+    return $provided !== '' && $registered !== '' && hash_equals($registered, $provided);
+}
+
 function isAllowedOtpPurpose(string $purpose): bool
 {
     return in_array($purpose, [
@@ -55,12 +79,13 @@ function otpRecipientIsEligible(
     string $purpose,
     string $email,
     string $identifier,
-    string $invitationToken = ''
+    string $invitationToken = '',
+    string $studentName = ''
 ): bool
 {
     if ($purpose === 'student_registration') {
         $stmt = $pdo->prepare(
-            "SELECT 1
+            "SELECT sn.student_name
              FROM student_numbers sn
              WHERE sn.student_number = :identifier AND sn.is_active = 1
                AND NOT EXISTS (
@@ -75,7 +100,8 @@ function otpRecipientIsEligible(
              LIMIT 1"
         );
         $stmt->execute([':identifier' => $identifier]);
-        return (bool)$stmt->fetchColumn();
+        $registeredName = $stmt->fetchColumn();
+        return is_string($registeredName) && studentRegistryNamesMatch($studentName, $registeredName);
     }
 
     if ($purpose === 'org_registration') {
@@ -135,7 +161,8 @@ function createOtpChallenge(
     string $purpose,
     string $email,
     string $identifier,
-    string $invitationToken = ''
+    string $invitationToken = '',
+    string $studentName = ''
 ): array
 {
     $email = normalizeOtpEmail($email);
@@ -173,10 +200,13 @@ function createOtpChallenge(
         }
     }
 
-    $eligible = otpRecipientIsEligible($pdo, $purpose, $email, $identifier, $invitationToken);
+    $eligible = otpRecipientIsEligible($pdo, $purpose, $email, $identifier, $invitationToken, $studentName);
     if (!$eligible && $purpose !== 'password_reset') {
         if ($purpose === 'osa_registration') {
             throw new InvalidArgumentException(OSA_INVITATION_GENERIC_ERROR);
+        }
+        if ($purpose === 'student_registration') {
+            throw new InvalidArgumentException('The student number and name do not match an eligible student record.');
         }
         throw new InvalidArgumentException('These registration details are not eligible for email verification. Check the identifier or contact the OSA.');
     }
