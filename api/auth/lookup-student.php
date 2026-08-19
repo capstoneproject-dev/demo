@@ -28,12 +28,6 @@ try {
         jsonError('Student number is not registered as an active student account.', 404);
     }
 
-    $memberStmt = getPdo()->prepare("SELECT membership_id FROM organization_members WHERE user_id = :uid LIMIT 1");
-    $memberStmt->execute([':uid' => (int)$user['user_id']]);
-    if ($memberStmt->fetch()) {
-        jsonError('This account already exists in the organization members table.', 409);
-    }
-
     jsonOk([
         'student' => [
             'student_number' => (string)($user['student_number'] ?? ''),

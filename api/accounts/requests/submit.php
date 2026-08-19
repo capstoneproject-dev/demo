@@ -26,9 +26,15 @@ if (!$studentNumber || !$studentName || !$email || !$password) {
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     jsonError('Invalid email address.', 422);
 }
+if (!in_array($reqRole, ['student', 'org_officer'], true)) {
+    jsonError('Invalid registration role.', 422);
+}
 $reqPositionLength = function_exists('mb_strlen') ? mb_strlen($reqPosition) : strlen($reqPosition);
 if ($reqPositionLength > 120 || preg_match('/[\x00-\x1F\x7F]/u', $reqPosition)) {
     jsonError('Position title must be valid and 120 characters or fewer.', 422);
+}
+if ($reqRole === 'org_officer' && ($reqOrg === '' || $reqPosition === '')) {
+    jsonError('Organization and position title are required for officer registration.', 422);
 }
 
 $registrationIpSubject = 'ip:' . rateLimitClientIp();
@@ -45,16 +51,22 @@ try {
     }
     rateLimitEnsureAllowed('registration_submit_student', 'student:' . $studentNumber, 3, 3600);
 
-    // Check for duplicate pending request
-    $dupStmt = $pdo->prepare("SELECT reg_id FROM pending_registrations WHERE student_number = :sn AND status = 'pending' LIMIT 1");
-    $dupStmt->execute([':sn' => $studentNumber]);
-    if ($dupStmt->fetch()) {
-        jsonError('You already have a pending registration request.', 409);
-    }
-
-    // Block duplicate student accounts, but allow org_officer requests only for
-    // existing student accounts that do not already have an organization_members row.
+    // Student registration remains one account per student number. Officer
+    // registration adds a membership to that account and is scoped to the
+    // selected organization, allowing one student to serve in multiple orgs.
     if ($reqRole !== 'org_officer') {
+        $dupStmt = $pdo->prepare(
+            "SELECT reg_id FROM pending_registrations
+             WHERE student_number = :sn
+               AND requested_role = 'student'
+               AND status = 'pending'
+             LIMIT 1"
+        );
+        $dupStmt->execute([':sn' => $studentNumber]);
+        if ($dupStmt->fetch()) {
+            jsonError('You already have a pending student registration request.', 409);
+        }
+
         $usrStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn LIMIT 1");
         $usrStmt->execute([':sn' => $studentNumber]);
         if ($usrStmt->fetch()) {
@@ -68,10 +80,49 @@ try {
             jsonError('A registered student account is required before requesting an organization account.', 409);
         }
 
-        $memberStmt = $pdo->prepare("SELECT membership_id FROM organization_members WHERE user_id = :uid LIMIT 1");
-        $memberStmt->execute([':uid' => (int)$existingUser['user_id']]);
+        $requestedOrgLookup = $reqOrg;
+        $orgStmt = $pdo->prepare(
+            "SELECT org_id, org_name
+             FROM organizations
+             WHERE (org_code = :org_code OR org_name = :org_name)
+               AND status <> 'suspended'
+             LIMIT 1"
+        );
+        $orgStmt->execute([':org_code' => $requestedOrgLookup, ':org_name' => $requestedOrgLookup]);
+        $requestedOrg = $orgStmt->fetch();
+        if (!$requestedOrg) {
+            jsonError('Select a valid active organization.', 422);
+        }
+        $reqOrg = (string)$requestedOrg['org_name'];
+
+        $dupStmt = $pdo->prepare(
+            "SELECT reg_id FROM pending_registrations
+             WHERE student_number = :sn
+               AND requested_role = 'org_officer'
+               AND (requested_org = :org_name OR requested_org = :org_code)
+               AND status = 'pending'
+             LIMIT 1"
+        );
+        $dupStmt->execute([
+            ':sn' => $studentNumber,
+            ':org_name' => $reqOrg,
+            ':org_code' => $requestedOrgLookup,
+        ]);
+        if ($dupStmt->fetch()) {
+            jsonError('You already have a pending officer request for this organization.', 409);
+        }
+
+        $memberStmt = $pdo->prepare(
+            "SELECT membership_id FROM organization_members
+             WHERE user_id = :uid AND org_id = :org_id
+             LIMIT 1"
+        );
+        $memberStmt->execute([
+            ':uid' => (int)$existingUser['user_id'],
+            ':org_id' => (int)$requestedOrg['org_id'],
+        ]);
         if ($memberStmt->fetch()) {
-            jsonError('This account already exists in the organization members table.', 409);
+            jsonError('You already have a membership in this organization.', 409);
         }
     }
 

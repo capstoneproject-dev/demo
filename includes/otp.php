@@ -85,9 +85,6 @@ function otpRecipientIsEligible(
              WHERE u.student_number = :identifier
                AND LOWER(u.email) = :email
                AND u.is_active = 1
-               AND NOT EXISTS (
-                   SELECT 1 FROM organization_members om WHERE om.user_id = u.user_id
-               )
              LIMIT 1"
         );
         $stmt->execute([':identifier' => $identifier, ':email' => $email]);
