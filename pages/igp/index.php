@@ -124,31 +124,18 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     <div id="manualInputSection" style="display: none;">
                         <div id="manualStudentInputs">
                             <div class="mb-3">
+                                <label for="studentId" class="form-label">Student Number</label>
+                                <input type="text" class="form-control" id="studentId"
+                                    placeholder="Enter student number">
+                            </div>
+                            <div class="mb-3">
                                 <label for="studentName" class="form-label">Student Name</label>
                                 <input type="text" class="form-control" id="studentName"
                                     placeholder="Enter student name">
                             </div>
                             <div class="mb-3">
-                                <label for="studentId" class="form-label">Student ID</label>
-                                <input type="text" class="form-control" id="studentId" placeholder="Enter student ID">
-                            </div>
-                            <div class="mb-3">
                                 <label for="studentSection" class="form-label">Section</label>
                                 <input type="text" class="form-control" id="studentSection" placeholder="Enter section">
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="itemSelect" class="form-label">Select Item</label>
-                            <select class="form-select" id="itemSelect">
-                                <option value="">Choose an item...</option>
-                            </select>
-                            <div class="mt-2">
-                                <label for="barcodeInputItemManual" class="form-label">Scan Item Barcode
-                                    (optional)</label>
-                                <input type="text" class="form-control" id="barcodeInputItemManual"
-                                    placeholder="Scan item barcode here...">
-                                <small class="form-text text-muted">Scanning here will auto-select the matching
-                                    item</small>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -158,7 +145,20 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             <small class="form-text text-muted">Scan officer's barcode to verify and process the
                                 transaction</small>
                         </div>
-
+                        <div class="mb-3">
+                            <label for="barcodeInputItemManual" class="form-label">Scan Item Barcode
+                                (optional)</label>
+                            <input type="text" class="form-control" id="barcodeInputItemManual"
+                                placeholder="Scan item barcode here...">
+                            <small class="form-text text-muted">Scanning here will auto-select the matching
+                                item</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="itemSelect" class="form-label">Select Item</label>
+                            <select class="form-select" id="itemSelect">
+                                <option value="">Choose an item...</option>
+                            </select>
+                        </div>
                     </div>
                     <br><button id="cancelTransaction" class="btn btn-warning btn-sm mt-2" type="button">Cancel
                         Transaction</button>
@@ -351,7 +351,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <audio id="beepSound" src="../../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../assets/js/igp-api.js?v=20260227n"></script>
-    <script src="../../assets/js/igp-index-exact.js?v=20260819-scan-audio-1"></script>
+    <script src="../../assets/js/igp-index-exact.js?v=20260819-manual-student-autofill-1"></script>
 </body>
 
 </html>

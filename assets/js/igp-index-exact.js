@@ -228,6 +228,7 @@
         activeRentals = rent.items || [];
         students = stu.items || [];
         officers = off.items || [];
+        syncManualStudentProfile();
         populateCategoryFilter();
         renderAvailable();
         renderCurrent();
@@ -259,6 +260,32 @@
             const studentId = String(s.studentId || '');
             return studentId.toLowerCase() === v || encodeRef(studentId, 'S').toLowerCase() === v;
         }) || null;
+    }
+
+    function syncManualStudentProfile() {
+        const studentNumberInput = $('studentId');
+        const studentNameInput = $('studentName');
+        const studentSectionInput = $('studentSection');
+        if (!studentNumberInput || !studentNameInput || !studentSectionInput) return;
+
+        const studentNumber = String(studentNumberInput.value || '').trim().toLowerCase();
+        const student = students.find((item) =>
+            item.isActive !== false
+            && String(item.studentId || '').trim().toLowerCase() === studentNumber
+        ) || null;
+
+        if (student) {
+            studentNameInput.value = String(student.studentName || '').trim();
+            studentSectionInput.value = String(student.section || '').trim();
+            studentNumberInput.dataset.matchedStudentNumber = String(student.studentId || '').trim();
+            return;
+        }
+
+        if (studentNumberInput.dataset.matchedStudentNumber) {
+            studentNameInput.value = '';
+            studentSectionInput.value = '';
+            delete studentNumberInput.dataset.matchedStudentNumber;
+        }
     }
 
     function findOfficerByScan(value) {
@@ -531,7 +558,7 @@
             if (mode === 'rent') {
                 const renterId = (($('studentId') || {}).value || '').trim();
                 const officerId = (($('barcodeInputOfficer') || {}).value || '').trim();
-                if (!renterId) throw new Error('Student ID is required.');
+                if (!renterId) throw new Error('Student Number is required.');
                 const item = inventory.find((it) => Number(it.item_id) === itemId);
                 if (!item) throw new Error('Item not found.');
                 openRentHoursModal(item, renterId, officerId);
@@ -764,6 +791,11 @@
             });
         }
 
+        if ($('studentId')) {
+            $('studentId').addEventListener('input', syncManualStudentProfile);
+            $('studentId').addEventListener('change', syncManualStudentProfile);
+        }
+
         if ($('processManualTransaction')) $('processManualTransaction').addEventListener('click', doManualTransaction);
         if ($('confirmRentalHoursBtn')) $('confirmRentalHoursBtn').addEventListener('click', confirmRentalFromModal);
         if ($('confirmReturnBtn')) $('confirmReturnBtn').addEventListener('click', confirmReturnFromModal);
@@ -795,6 +827,7 @@
             ['studentName', 'studentId', 'studentSection', 'barcodeInputOfficer', 'barcodeInput', 'barcodeInputItemManual'].forEach((id) => {
                 const el = $(id); if (el) el.value = '';
             });
+            if ($('studentId')) delete $('studentId').dataset.matchedStudentNumber;
             resetScanContext();
             setScanResult('Transaction reset.', 'info');
         });
