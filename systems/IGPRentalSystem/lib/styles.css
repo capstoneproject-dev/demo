@@ -706,3 +706,9 @@ body {
         gap: 10px;
     }
 }
+#rentalHistoryRecords .js-paid {
+    padding: 0.28rem 0.58rem;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    white-space: nowrap;
+}

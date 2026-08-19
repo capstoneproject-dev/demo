@@ -1545,10 +1545,22 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
     }
 }
 
-function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId): void
+function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId, string $officerIdentifier): void
 {
     if ($rentalId <= 0) {
         throw new IgpValidationException('Invalid rental_id.');
+    }
+
+    $officerIdentifier = trim($officerIdentifier);
+    if ($officerIdentifier === '') {
+        throw new IgpValidationException('Scan a valid officer barcode before marking the payment as paid.');
+    }
+
+    $officer = igpFindUserByIdentifier($pdo, $officerIdentifier);
+    if (!$officer
+        || (int)($officer['is_active'] ?? 0) !== 1
+        || !igpEnsureOfficerInOrg($pdo, (int)$officer['user_id'], $orgId)) {
+        throw new IgpValidationException('Unknown officer ID. Scan a valid officer barcode.');
     }
 
     $upd = $pdo->prepare(

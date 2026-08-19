@@ -47,23 +47,37 @@ try {
                 {$sectionExpr} AS section,
                 COALESCE(ap.program_code, '') AS programCode,
                 CASE WHEN pom.program_id IS NULL THEN 0 ELSE 1 END AS isOrgProgram,
+                u.has_unpaid_debt AS hasUnpaidDebt,
+                EXISTS (
+                    SELECT 1
+                    FROM rentals debt
+                    WHERE debt.renter_user_id = u.user_id
+                      AND debt.org_id = :debt_org
+                      AND debt.status = 'returned'
+                      AND debt.payment_status = 'unpaid'
+                ) AS hasUnpaidReturnedRentals,
                 u.is_active AS isActive
          FROM users u
          LEFT JOIN student_numbers sn ON sn.student_number = u.student_number
          LEFT JOIN academic_programs ap ON ap.program_id = COALESCE(u.program_id, sn.program_id)
          LEFT JOIN program_org_mappings pom
                 ON pom.program_id = COALESCE(u.program_id, sn.program_id)
-               AND pom.org_id = :org
+               AND pom.org_id = :mapping_org
                AND pom.is_active = 1
          WHERE u.account_type = 'student'
          ORDER BY u.student_number ASC"
     );
-    $stmt->execute([':org' => $ctx['org_id']]);
+    $stmt->execute([
+        ':mapping_org' => $ctx['org_id'],
+        ':debt_org' => $ctx['org_id'],
+    ]);
     $items = $stmt->fetchAll();
     foreach ($items as &$i) {
         $i['user_id'] = (int)$i['user_id'];
         $i['programId'] = isset($i['programId']) && $i['programId'] !== null ? (int)$i['programId'] : null;
         $i['isOrgProgram'] = (bool)$i['isOrgProgram'];
+        $i['hasUnpaidDebt'] = (bool)$i['hasUnpaidDebt'];
+        $i['hasUnpaidReturnedRentals'] = (bool)$i['hasUnpaidReturnedRentals'];
         $i['isActive'] = (bool)$i['isActive'];
     }
     jsonOk(['items' => $items]);

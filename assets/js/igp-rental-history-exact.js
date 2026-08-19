@@ -15,7 +15,113 @@
     let rentalHistoryCalendarSelectedStart = null;
     let rentalHistoryCalendarSelectedEnd = null;
     let pendingPaymentRentals = [];
+    let officers = [];
+    let paymentOfficerScanTimer = null;
     const PAYABLE_RENTAL_STATUSES = new Set(['returned', 'overdue', 'cancelled']);
+
+    function playScanBeep() {
+        const beep = $('beepSound');
+        if (!beep) return;
+        beep.currentTime = 0;
+        const playback = beep.play();
+        if (playback && typeof playback.catch === 'function') {
+            playback.catch(() => { /* Audio may be blocked until the first user interaction. */ });
+        }
+    }
+
+    function encodeRef(raw, prefix) {
+        const source = String(raw || '');
+        if (!source) return '';
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        let hash = 0;
+        for (let i = 0; i < source.length; i++) {
+            hash = ((hash << 5) - hash) + source.charCodeAt(i);
+            hash |= 0;
+        }
+        let num = Math.abs(hash);
+        let encoded = '';
+        for (let i = 0; i < 4; i++) {
+            encoded = chars[num % 62] + encoded;
+            num = Math.floor(num / 62);
+        }
+        return `${prefix}${encoded}`;
+    }
+
+    function findOfficerByScan(value) {
+        const scanned = String(value || '').trim().toLowerCase();
+        if (!scanned) return null;
+        return officers.find((officer) => {
+            const identifiers = [
+                String(officer.student_number || ''),
+                String(officer.employee_number || ''),
+                String(officer.officerId || ''),
+            ].filter(Boolean);
+            return identifiers.some((identifier) =>
+                identifier.toLowerCase() === scanned
+                || encodeRef(identifier, 'O').toLowerCase() === scanned
+                || encodeRef(identifier, 'S').toLowerCase() === scanned
+            );
+        }) || null;
+    }
+
+    function paymentConfirmationIsReady() {
+        const confirmation = $('paymentConfirmInput');
+        const officerInput = $('paymentOfficerBarcode');
+        return confirmation?.value.trim() === 'Confirm'
+            && Boolean(officerInput?.dataset.verifiedOfficer)
+            && pendingPaymentRentals.length > 0;
+    }
+
+    function updatePaymentConfirmButton() {
+        const button = $('paymentConfirmBtn');
+        if (button) button.disabled = !paymentConfirmationIsReady();
+    }
+
+    function verifyPaymentOfficerBarcode() {
+        const input = $('paymentOfficerBarcode');
+        const feedback = $('paymentOfficerBarcodeFeedback');
+        if (!input) return null;
+
+        const scannedValue = String(input.value || '').trim();
+        if (!scannedValue) {
+            delete input.dataset.verifiedOfficer;
+            input.classList.remove('is-valid', 'is-invalid');
+            updatePaymentConfirmButton();
+            return null;
+        }
+
+        playScanBeep();
+        const officer = findOfficerByScan(scannedValue);
+        if (!officer) {
+            delete input.dataset.verifiedOfficer;
+            input.value = '';
+            input.placeholder = 'Unknown officer ID. Scan a valid officer barcode.';
+            input.classList.remove('is-valid');
+            input.classList.add('is-invalid');
+            if (feedback) {
+                feedback.textContent = 'Unknown officer ID. Scan a valid officer barcode.';
+                feedback.className = 'text-danger mt-1';
+            }
+            updatePaymentConfirmButton();
+            input.focus();
+            return null;
+        }
+
+        const identifier = String(
+            officer.student_number || officer.employee_number || officer.officerId || ''
+        ).trim();
+        input.dataset.verifiedOfficer = identifier;
+        input.value = String(officer.officer_name || identifier).trim();
+        input.placeholder = 'Scan officer barcode here...';
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        if (feedback) {
+            feedback.textContent = `Officer verified: ${officer.officer_name || identifier}`;
+            feedback.className = 'text-success mt-1';
+        }
+        updatePaymentConfirmButton();
+        return officer;
+    }
 
     function isPayableRental(rental) {
         const paymentStatus = String(rental?.payment_status || '').toLowerCase();
@@ -417,6 +523,8 @@
         const input = $('paymentConfirmInput');
         const error = $('paymentConfirmError');
         const confirmBtn = $('paymentConfirmBtn');
+        const officerInput = $('paymentOfficerBarcode');
+        const officerFeedback = $('paymentOfficerBarcodeFeedback');
         const total = pendingPaymentRentals.reduce((sum, rental) => sum + Number(rental.total_cost || 0), 0);
         const summary = $('paymentConfirmSummary');
 
@@ -426,6 +534,16 @@
                 : `${pendingPaymentRentals.length} rentals with a total balance of P${total.toFixed(2)} will be marked as paid.`;
         }
         if (input) input.value = '';
+        if (officerInput) {
+            officerInput.value = '';
+            officerInput.placeholder = 'Scan officer barcode here...';
+            officerInput.classList.remove('is-valid', 'is-invalid');
+            delete officerInput.dataset.verifiedOfficer;
+        }
+        if (officerFeedback) {
+            officerFeedback.textContent = 'A valid active officer for this organization must verify the payment.';
+            officerFeedback.className = 'form-text';
+        }
         if (error) {
             error.textContent = '';
             error.style.display = 'none';
@@ -444,7 +562,9 @@
         const input = $('paymentConfirmInput');
         const error = $('paymentConfirmError');
         const confirmBtn = $('paymentConfirmBtn');
-        if (!input || input.value.trim() !== 'Confirm' || pendingPaymentRentals.length === 0) return;
+        const officerInput = $('paymentOfficerBarcode');
+        const officerIdentifier = String(officerInput?.dataset.verifiedOfficer || '').trim();
+        if (!input || !paymentConfirmationIsReady() || !officerIdentifier) return;
 
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Processing...';
@@ -452,7 +572,7 @@
 
         try {
             for (const rental of pendingPaymentRentals) {
-                await window.igpApi.markPaid(Number(rental.rental_id));
+                await window.igpApi.markPaid(Number(rental.rental_id), officerIdentifier);
             }
             window.bootstrap.Modal.getInstance($('paymentConfirmModal'))?.hide();
             pendingPaymentRentals = [];
@@ -462,7 +582,7 @@
                 error.textContent = err.message || 'Could not record the payment.';
                 error.style.display = 'block';
             }
-            confirmBtn.disabled = input.value.trim() !== 'Confirm';
+            updatePaymentConfirmButton();
             confirmBtn.textContent = pendingPaymentRentals.length === 1 ? 'Mark as Paid' : 'Mark All as Paid';
             await refresh();
         }
@@ -531,22 +651,54 @@
         });
 
         $('paymentConfirmInput')?.addEventListener('input', (e) => {
-            const isConfirmed = e.target.value.trim() === 'Confirm';
-            if ($('paymentConfirmBtn')) $('paymentConfirmBtn').disabled = !isConfirmed;
+            updatePaymentConfirmButton();
             if ($('paymentConfirmError')) $('paymentConfirmError').style.display = 'none';
         });
 
         $('paymentConfirmInput')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && e.target.value.trim() === 'Confirm') {
+            if (e.key === 'Enter' && paymentConfirmationIsReady()) {
                 e.preventDefault();
                 $('paymentConfirmBtn')?.click();
+            }
+        });
+
+        $('paymentOfficerBarcode')?.addEventListener('input', (e) => {
+            delete e.target.dataset.verifiedOfficer;
+            e.target.classList.remove('is-valid', 'is-invalid');
+            updatePaymentConfirmButton();
+            if (paymentOfficerScanTimer) clearTimeout(paymentOfficerScanTimer);
+            paymentOfficerScanTimer = setTimeout(() => {
+                paymentOfficerScanTimer = null;
+                verifyPaymentOfficerBarcode();
+            }, 180);
+        });
+
+        $('paymentOfficerBarcode')?.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            if (paymentOfficerScanTimer) {
+                clearTimeout(paymentOfficerScanTimer);
+                paymentOfficerScanTimer = null;
+            }
+            verifyPaymentOfficerBarcode();
+            if ($('paymentConfirmInput') && e.target.dataset.verifiedOfficer) {
+                $('paymentConfirmInput').focus();
             }
         });
 
         $('paymentConfirmBtn')?.addEventListener('click', confirmPendingPayments);
         $('paymentConfirmModal')?.addEventListener('hidden.bs.modal', () => {
             pendingPaymentRentals = [];
+            if (paymentOfficerScanTimer) {
+                clearTimeout(paymentOfficerScanTimer);
+                paymentOfficerScanTimer = null;
+            }
             if ($('paymentConfirmInput')) $('paymentConfirmInput').value = '';
+            if ($('paymentOfficerBarcode')) {
+                $('paymentOfficerBarcode').value = '';
+                $('paymentOfficerBarcode').classList.remove('is-valid', 'is-invalid');
+                delete $('paymentOfficerBarcode').dataset.verifiedOfficer;
+            }
             if ($('paymentConfirmError')) $('paymentConfirmError').style.display = 'none';
             if ($('paymentConfirmBtn')) $('paymentConfirmBtn').disabled = true;
         });
@@ -562,7 +714,11 @@
         bind();
         updateRentalHistoryFilterLabel();
         try {
-            await refresh();
+            const [officerResult] = await Promise.all([
+                window.igpApi.getOfficers(),
+                refresh(),
+            ]);
+            officers = officerResult.items || [];
             const targetRentalId = Number(new URLSearchParams(window.location.search).get('action_center_rental_id') || 0);
             if (targetRentalId) {
                 clearAllRentalHistoryFilters();
