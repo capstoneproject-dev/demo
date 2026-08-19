@@ -16,7 +16,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>Rental History</title>
     <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
+    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css?v=20260819-paid-button-2">
 </head>
 
 <body>
@@ -161,8 +161,16 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 <div class="modal-body">
                     <p id="paymentConfirmSummary" class="mb-3"></p>
                     <p class="mb-2">Type <strong>Confirm</strong> to mark the balance as paid.</p>
-                    <input type="text" class="form-control" id="paymentConfirmInput"
+                    <input type="text" class="form-control mb-3" id="paymentConfirmInput"
                         placeholder="Type 'Confirm' to continue" autocomplete="off">
+                    <div class="mb-3">
+                        <label for="paymentOfficerBarcode" class="form-label">Scan Officer Barcode</label>
+                        <input type="text" class="form-control" id="paymentOfficerBarcode"
+                            placeholder="Scan officer barcode here..." autocomplete="off">
+                        <div id="paymentOfficerBarcodeFeedback" class="form-text">
+                            A valid active officer for this organization must verify the payment.
+                        </div>
+                    </div>
                     <div id="paymentConfirmError" class="text-danger mt-2" role="alert" style="display:none;"></div>
                 </div>
                 <div class="modal-footer">
@@ -320,8 +328,9 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </div>
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
-    <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-rental-history-exact.js?v=20260729-action-center-1"></script>
+    <audio id="beepSound" src="../../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
+    <script src="../../assets/js/igp-api.js?v=20260819-payment-officer-1"></script>
+    <script src="../../assets/js/igp-rental-history-exact.js?v=20260819-payment-order-1"></script>
 </body>
 
 </html>

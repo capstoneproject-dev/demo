@@ -15,6 +15,7 @@
     let pendingReturn = null;
     let pendingReservedAction = null;
     let pendingPaymentRentalId = 0;
+    let pendingPaymentOfficerIdentifier = '';
     const scanCtx = {
         rent: { studentId: '', officerId: '' },
         return: { officerId: '' }
@@ -214,7 +215,7 @@
             if (mode === 'return' && st.status !== 'rented') return;
             const opt = document.createElement('option');
             opt.value = String(it.item_id);
-            opt.textContent = `${it.item_name} (${it.item_id}) [${it.barcode}]`;
+            opt.textContent = `${it.item_name} [${it.barcode}]`;
             sel.appendChild(opt);
         });
     }
@@ -264,6 +265,12 @@
         }) || null;
     }
 
+    function studentRentalBlockMessage(student) {
+        if (student?.hasUnpaidReturnedRentals) return 'Renter has unpaid returned rentals.';
+        if (student?.hasUnpaidDebt) return 'Rental blocked: student account has unpaid debt.';
+        return '';
+    }
+
     function syncManualStudentProfile() {
         const studentNumberInput = $('studentId');
         const studentNameInput = $('studentName');
@@ -280,6 +287,15 @@
             studentNameInput.value = String(student.studentName || '').trim();
             studentSectionInput.value = String(student.section || '').trim();
             studentNumberInput.dataset.matchedStudentNumber = String(student.studentId || '').trim();
+            const blockedMessage = studentRentalBlockMessage(student);
+            if (blockedMessage) {
+                studentNumberInput.dataset.rentalBlocked = blockedMessage;
+                studentNumberInput.classList.add('is-invalid');
+                setScanResult(blockedMessage, 'error');
+            } else {
+                delete studentNumberInput.dataset.rentalBlocked;
+                studentNumberInput.classList.remove('is-invalid');
+            }
             return;
         }
 
@@ -288,6 +304,8 @@
             studentSectionInput.value = '';
             delete studentNumberInput.dataset.matchedStudentNumber;
         }
+        delete studentNumberInput.dataset.rentalBlocked;
+        studentNumberInput.classList.remove('is-invalid');
     }
 
     function findOfficerByScan(value) {
@@ -494,8 +512,9 @@
         if (modal) modal.show();
     }
 
-    function openPaymentModal(summary, rentalId) {
+    function openPaymentModal(summary, rentalId, officerIdentifier) {
         pendingPaymentRentalId = Number(rentalId || 0);
+        pendingPaymentOfficerIdentifier = String(officerIdentifier || '').trim();
         if ($('paymentBaseCost')) $('paymentBaseCost').textContent = peso(summary.base_cost);
         if ($('paymentOvertimeCost')) $('paymentOvertimeCost').textContent = peso(summary.overtime_cost);
         if ($('paymentTotalCost')) $('paymentTotalCost').textContent = peso(summary.total_cost);
@@ -532,6 +551,11 @@
                 const student = findStudentByScan(token);
                 if (!student) {
                     setScanResult('Unknown student ID. Scan a registered student barcode first.', 'error');
+                    return;
+                }
+                const blockedMessage = studentRentalBlockMessage(student);
+                if (blockedMessage) {
+                    setScanResult(blockedMessage, 'error');
                     return;
                 }
                 scanCtx.rent.studentId = student.studentId;
@@ -612,6 +636,7 @@
         btn.type = 'button';
         btn.className = 'btn btn-primary btn-sm mt-2 ms-2';
         btn.textContent = 'Process Manual Transaction';
+        btn.hidden = !$('manualMode')?.checked;
         const cancel = $('cancelTransaction');
         if (cancel && cancel.parentNode) cancel.parentNode.insertBefore(btn, cancel.nextSibling);
     }
@@ -631,6 +656,11 @@
                 const officerInput = $('barcodeInputOfficer');
                 let officerId = String(officerInput?.dataset.verifiedOfficer || '').trim();
                 if (!renterId) throw new Error('Student Number is required.');
+                const renter = students.find((student) =>
+                    String(student.studentId || '').trim().toLowerCase() === renterId.toLowerCase()
+                ) || null;
+                const blockedMessage = studentRentalBlockMessage(renter);
+                if (blockedMessage) throw new Error(blockedMessage);
                 if (!officerId) {
                     processManualOfficerBarcode();
                     officerId = String(officerInput?.dataset.verifiedOfficer || '').trim();
@@ -764,7 +794,10 @@
             notifyParentActionCenterRefresh();
             setScanResult(`Return recorded for ${pendingReturn.item.item_name} [${pendingReturn.item.barcode}]. Officer: ${officer.officer_name || officer.student_number}`, 'success');
             resetScanContext();
-            openPaymentModal(res, res.rental_id || pendingReturn.rental.rental_id);
+            const officerIdentifier = String(
+                officer.student_number || officer.employee_number || officer.officerId || ''
+            ).trim();
+            openPaymentModal(res, res.rental_id || pendingReturn.rental.rental_id, officerIdentifier);
             pendingReturn = null;
         } catch (err) {
             if (modal) modal.hide();
@@ -775,13 +808,14 @@
     async function markReturnPaidFromModal() {
         if (!pendingPaymentRentalId) return;
         try {
-            await window.igpApi.markPaid(pendingPaymentRentalId, 'cash');
+            await window.igpApi.markPaid(pendingPaymentRentalId, pendingPaymentOfficerIdentifier);
             const modal = getModalInstance('returnPaymentModal');
             if (modal) modal.hide();
             await refresh();
             notifyParentActionCenterRefresh();
             setScanResult('Payment marked as paid.', 'success');
             pendingPaymentRentalId = 0;
+            pendingPaymentOfficerIdentifier = '';
         } catch (err) {
             setScanResult(err.message, 'error');
         }
@@ -826,16 +860,21 @@
                 if (manual.checked) {
                     barcodeSection.style.display = 'none';
                     manualSection.style.display = 'block';
+                    if ($('processManualTransaction')) $('processManualTransaction').hidden = false;
                 }
             });
             scan.addEventListener('change', () => {
                 if (scan.checked) {
                     barcodeSection.style.display = 'block';
                     manualSection.style.display = 'none';
+                    if ($('processManualTransaction')) $('processManualTransaction').hidden = true;
                     setScanResult('Scan mode ready.', 'info');
                     if ($('barcodeInput')) $('barcodeInput').focus();
                 }
             });
+            if ($('processManualTransaction')) {
+                $('processManualTransaction').hidden = !manual.checked;
+            }
         }
 
         if ($('rentMode')) {
@@ -946,6 +985,10 @@
                 const el = $(id); if (el) el.value = '';
             });
             if ($('studentId')) delete $('studentId').dataset.matchedStudentNumber;
+            if ($('studentId')) {
+                delete $('studentId').dataset.rentalBlocked;
+                $('studentId').classList.remove('is-invalid');
+            }
             if ($('barcodeInputOfficer')) delete $('barcodeInputOfficer').dataset.verifiedOfficer;
             if ($('barcodeInputOfficer')) {
                 $('barcodeInputOfficer').placeholder = 'Scan officer barcode here...';
