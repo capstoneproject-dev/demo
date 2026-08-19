@@ -70,7 +70,7 @@
             .app-dialog-icon.error { background: #fee2e2; color: #b91c1c; }
             .app-dialog-copy h2 {
                 margin: 1px 0 7px;
-                color: inherit;
+                color: #fff;
                 font: 750 1.08rem/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             }
             .app-dialog-copy p {
