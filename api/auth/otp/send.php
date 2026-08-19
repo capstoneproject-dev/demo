@@ -11,6 +11,7 @@ $purpose = trim((string)($body['purpose'] ?? ''));
 $email = trim((string)($body['email'] ?? ''));
 $identifier = trim((string)($body['identifier'] ?? ''));
 $invitationToken = trim((string)($body['invitation_token'] ?? ''));
+$studentName = trim((string)($body['student_name'] ?? ''));
 
 // OSA login codes are issued only after the password has been validated by
 // login.php. Do not expose that purpose through this public-purpose endpoint.
@@ -19,7 +20,7 @@ if ($purpose === 'osa_login') {
 }
 
 try {
-    $challenge = createOtpChallenge($purpose, $email, $identifier, $invitationToken);
+    $challenge = createOtpChallenge($purpose, $email, $identifier, $invitationToken, $studentName);
     jsonOk([
         ...$challenge,
         'message' => 'If the supplied details are eligible, a verification code has been sent.',
