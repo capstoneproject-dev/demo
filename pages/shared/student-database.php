@@ -9,6 +9,8 @@ $returnTo = trim((string)($_GET['return'] ?? '../officerDashboard.html'));
 if ($returnTo === '' || strpos($returnTo, '..') !== 0) {
     $returnTo = '../officerDashboard.html';
 }
+$isQrAttendanceContext = strpos($returnTo, '../qr-attendance/') === 0;
+$databaseReturnUrl = '../shared/student-database.php?return=' . rawurlencode($returnTo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,6 +54,23 @@ if ($returnTo === '' || strpos($returnTo, '..') !== 0) {
 
             <div class="collapse navbar-collapse" id="mainNav">
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0 nav-pills-custom">
+                    <?php if ($isQrAttendanceContext): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="../qr-attendance/events.php">Events</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="../qr-attendance/generate-qr.php">Generate Barcodes</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link active" href="<?php echo htmlspecialchars($databaseReturnUrl, ENT_QUOTES, 'UTF-8'); ?>">Database</a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="../qr-attendance/index.php">Home</a>
+                    </li>
+                    <?php else: ?>
                     <li class="nav-item">
                         <a class="nav-link" href="../igp/rental-history.php">History</a>
                     </li>
@@ -101,6 +120,7 @@ if ($returnTo === '' || strpos($returnTo, '..') !== 0) {
                     <li class="nav-item">
                         <a class="nav-link" href="<?php echo htmlspecialchars($returnTo, ENT_QUOTES, 'UTF-8'); ?>">Home</a>
                     </li>
+                    <?php endif; ?>
                 </ul>
             </div>
         </div>
