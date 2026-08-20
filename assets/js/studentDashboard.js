@@ -904,6 +904,8 @@ async function loadStudentAnnouncementsFromApi() {
 function getStudentAnnouncementFeedItem(announcementId) {
     return studentAnnouncementFeedState.items.find(
         item => Number(item.id) === Number(announcementId)
+    ) || databaseAnnouncements.find(
+        item => Number(item.id) === Number(announcementId)
     ) || null;
 }
 
@@ -4688,9 +4690,24 @@ function renderStudentAnnouncementCalendarResults() {
                 <div class="announcement-calendar-item-details">
                     <p>${escapeHtml(item.content)}</p>
                     ${isEvent ? `<div class="dashboard-announcement-event-info"><span><i class="fa-regular fa-clock"></i> ${escapeHtml(formatStudentEventTimeLabel(item.event_datetime))}</span><span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(item.event_location || 'Venue TBA')}</span></div>` : `<small>Posted ${escapeHtml(item.date || '')}</small>`}
+                    <div class="announcement-calendar-item-actions">
+                        <button type="button" class="btn btn-outline btn-sm"
+                            onclick="viewStudentAnnouncementFromCalendar(${Number(item.id)})">
+                            <i class="fa-regular fa-eye"></i> View
+                        </button>
+                    </div>
                 </div>
             </article>`;
     }).join('');
+}
+
+function viewStudentAnnouncementFromCalendar(announcementId) {
+    const announcementNav = Array.from(document.querySelectorAll('.nav-link')).find(link =>
+        String(link.getAttribute('onclick') || '').includes("'announcements'")
+    );
+    closeStudentAnnouncementCalendar();
+    navigate('announcements', announcementNav || null);
+    openStudentAnnouncementDetail(announcementId);
 }
 
 function toggleStudentAnnouncementCalendarItem(button) {
