@@ -44,6 +44,27 @@
         return out;
     }
 
+    function groupByItemName(items) {
+        const groups = new Map();
+        items.forEach((item) => {
+            const label = String(item.item_name || '').trim() || 'Unnamed Item';
+            const key = label.toLowerCase();
+            if (!groups.has(key)) groups.set(key, { label, items: [] });
+            groups.get(key).items.push(item);
+        });
+        return [...groups.values()].sort((a, b) =>
+            a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+        );
+    }
+
+    function compareInventoryBarcodes(a, b) {
+        const compared = String(a.barcode || '').localeCompare(String(b.barcode || ''), undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        });
+        return compared || Number(a.item_id || 0) - Number(b.item_id || 0);
+    }
+
     function getAvailableTypes() {
         return [...new Set([
             ...sharedCategories
@@ -124,6 +145,38 @@
             if (targetCategory && category && category !== targetCategory) return false;
             return true;
         }) || null;
+    }
+
+    function findMatchingInventoryRecord(itemName, categoryName = '') {
+        const targetName = String(itemName || '').trim().toLowerCase();
+        const targetCategory = String(categoryName || '').trim().toLowerCase();
+        if (!targetName || !targetCategory) return null;
+        return inventory.find((item) =>
+            String(item.item_name || '').trim().toLowerCase() === targetName
+            && String(item.category_name || '').trim().toLowerCase() === targetCategory
+        ) || null;
+    }
+
+    function syncItemPricingFromSelection() {
+        const match = findMatchingInventoryRecord(getSelectedItemName(), getSelectedType());
+        if (!match) return;
+        if ($('pricePerHour')) $('pricePerHour').value = fmtRate(match.hourly_rate);
+        if ($('overtimeInterval')) $('overtimeInterval').value = match.overtime_interval_minutes ?? '';
+        if ($('overtimeRate')) $('overtimeRate').value = match.overtime_rate_per_block ?? '';
+    }
+
+    function nullableNumber(value) {
+        const raw = String(value ?? '').trim();
+        if (raw === '') return null;
+        const number = Number(raw);
+        return Number.isFinite(number) ? number : null;
+    }
+
+    function pricingDiffersFromMatch(match, hourlyRate, overtimeInterval, overtimeRate) {
+        if (!match) return false;
+        return Number(match.hourly_rate || 0) !== Number(hourlyRate || 0)
+            || nullableNumber(match.overtime_interval_minutes) !== nullableNumber(overtimeInterval)
+            || nullableNumber(match.overtime_rate_per_block) !== nullableNumber(overtimeRate);
     }
 
     function populateItemNameMenu(selectedName = '') {
@@ -241,7 +294,18 @@
             h.textContent = cat;
             display.appendChild(h);
 
-            grouped[cat].sort((a, b) => a.item_id - b.item_id).forEach((it) => {
+            groupByItemName(grouped[cat]).forEach((nameGroup) => {
+                const groupWrap = document.createElement('section');
+                groupWrap.className = 'item-name-group';
+                groupWrap.innerHTML = `
+                    <div class="item-name-heading">
+                        <strong>${esc(nameGroup.label)}</strong>
+                        <span>${nameGroup.items.length} ${nameGroup.items.length === 1 ? 'stock item' : 'stock items'}</span>
+                    </div>
+                `;
+                display.appendChild(groupWrap);
+
+                nameGroup.items.sort(compareInventoryBarcodes).forEach((it) => {
                 const card = document.createElement('div');
                 card.className = 'item-card';
                 card.innerHTML = `
@@ -249,8 +313,8 @@
                       <div class="d-flex gap-3 align-items-start">
                         ${it.image_path ? `<img src="${resolveImagePath(it.image_path)}" alt="${esc(it.item_name)}" class="inventory-thumb">` : ''}
                         <div>
-                            <strong>${it.item_name}</strong><br>
-                            <small>ID: ${it.item_id} | Barcode: ${it.barcode}</small><br>
+                            <strong>${esc(it.item_name)}</strong><br>
+                            <small>ID: ${it.item_id} | Barcode: ${esc(it.barcode)}</small><br>
                             <small>Rate: ₱${fmtRate(it.hourly_rate)}/hr</small>
                         </div>
                       </div>
@@ -261,10 +325,11 @@
                     </div>
                     <div class="barcode-container mt-2"><svg id="bc_${it.item_id}"></svg></div>
                 `;
-                display.appendChild(card);
+                groupWrap.appendChild(card);
                 if (window.JsBarcode) {
                     window.JsBarcode(`#bc_${it.item_id}`, it.barcode, { width: 2, height: 50, displayValue: true });
                 }
+                });
             });
         });
     }
@@ -494,6 +559,7 @@
         const imageInput = $('itemImage');
         const selectedImage = imageInput && imageInput.files ? imageInput.files[0] : null;
         const matchingItem = findMatchingItemRecord(item_name, item_type);
+        const matchingInventoryItem = findMatchingInventoryRecord(item_name, item_type);
         if (!item_name || !item_type || !barcode) {
             alert('Item name, item type, and barcode are required.');
             return;
@@ -501,6 +567,17 @@
         if (!existing && !selectedImage && !(matchingItem && matchingItem.image_path)) {
             alert('Item image is required.');
             return;
+        }
+        let applyPricingToGroup = false;
+        if (pricingDiffersFromMatch(matchingInventoryItem, pricePerHour, overtimeInterval, overtimeRate)) {
+            applyPricingToGroup = await appConfirm(
+                `The pricing for ${item_name} in ${item_type} has changed. Apply the new hourly and overtime pricing to every matching stock item?`,
+                {
+                    title: 'Apply pricing to all stock?',
+                    confirmText: 'Apply to all and save'
+                }
+            );
+            if (!applyPricingToGroup) return;
         }
         const payload = new FormData();
         payload.append('item_id', existing ? String(existing.item_id) : '0');
@@ -511,6 +588,7 @@
         payload.append('status', existing ? existing.status : 'available');
         payload.append('overtime_interval_minutes', overtimeInterval);
         payload.append('overtime_rate_per_block', overtimeRate);
+        payload.append('apply_pricing_to_group', applyPricingToGroup ? '1' : '0');
         if (selectedImage) {
             payload.append('image', selectedImage);
         }
@@ -547,6 +625,7 @@
                 toggleCustomTypeInput($('itemType').value === ADD_NEW_TYPE_VALUE);
                 populateItemNameMenu(getSelectedItemName());
                 syncItemImageFromSelection();
+                syncItemPricingFromSelection();
             });
         }
 
@@ -554,6 +633,7 @@
             $('itemTypeCustom').addEventListener('input', () => {
                 populateItemNameMenu(getSelectedItemName());
                 syncItemImageFromSelection();
+                syncItemPricingFromSelection();
             });
             $('itemTypeCustom').addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
@@ -587,12 +667,14 @@
                 lastSelectedItemName = String(select.value || '').trim();
                 toggleCustomItemNameInput(false);
                 syncItemImageFromSelection();
+                syncItemPricingFromSelection();
             });
         }
 
         if ($('itemNameCustom')) {
             $('itemNameCustom').addEventListener('input', () => {
                 syncItemImageFromSelection();
+                syncItemPricingFromSelection();
             });
             $('itemNameCustom').addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {

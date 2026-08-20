@@ -39,7 +39,20 @@ try {
         $body['image_path'] = handleInventoryImageUpload($_FILES['image']);
     }
 
-    $itemId = igpSaveInventoryItem(getPdo(), $ctx['org_id'], $body);
+    $pdo = getPdo();
+    $pdo->beginTransaction();
+    try {
+        $itemId = igpSaveInventoryItem($pdo, $ctx['org_id'], $body);
+        if ((int)($body['apply_pricing_to_group'] ?? 0) === 1) {
+            igpApplyInventoryGroupPricing($pdo, (int)$ctx['org_id'], $itemId);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
     jsonOk(['item_id' => $itemId]);
 } catch (IgpAuthorizationException $e) {
     jsonError($e->getMessage(), 403);

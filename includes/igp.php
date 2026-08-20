@@ -606,6 +606,51 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
     return (int)$pdo->lastInsertId();
 }
 
+function igpApplyInventoryGroupPricing(PDO $pdo, int $orgId, int $sourceItemId): int
+{
+    if ($orgId <= 0 || $sourceItemId <= 0) {
+        throw new IgpValidationException('Invalid inventory pricing source.');
+    }
+
+    $sourceStmt = $pdo->prepare(
+        "SELECT item_name, category_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block
+         FROM inventory_items
+         WHERE item_id = :item_id AND org_id = :org_id
+         LIMIT 1"
+    );
+    $sourceStmt->execute([
+        ':item_id' => $sourceItemId,
+        ':org_id' => $orgId,
+    ]);
+    $source = $sourceStmt->fetch();
+    if (!$source) {
+        throw new IgpValidationException('Inventory pricing source was not found.');
+    }
+
+    $updateStmt = $pdo->prepare(
+        "UPDATE inventory_items
+         SET hourly_rate = :hourly_rate,
+             overtime_interval_minutes = :overtime_interval,
+             overtime_rate_per_block = :overtime_rate
+         WHERE org_id = :org_id
+           AND category_id = :category_id
+           AND LOWER(TRIM(item_name)) = LOWER(TRIM(:item_name))"
+    );
+    $updateStmt->execute([
+        ':hourly_rate' => (float)$source['hourly_rate'],
+        ':overtime_interval' => $source['overtime_interval_minutes'] !== null
+            ? (int)$source['overtime_interval_minutes']
+            : null,
+        ':overtime_rate' => $source['overtime_rate_per_block'] !== null
+            ? (float)$source['overtime_rate_per_block']
+            : null,
+        ':org_id' => $orgId,
+        ':category_id' => (int)$source['category_id'],
+        ':item_name' => (string)$source['item_name'],
+    ]);
+    return $updateStmt->rowCount();
+}
+
 function igpDeleteInventoryItem(PDO $pdo, int $orgId, int $itemId): void
 {
     if ($itemId <= 0) {
