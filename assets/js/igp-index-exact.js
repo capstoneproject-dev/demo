@@ -16,6 +16,10 @@
     let pendingReservedAction = null;
     let pendingPaymentRentalId = 0;
     let pendingPaymentOfficerIdentifier = '';
+    let rentalAutoRefreshTimer = null;
+    let rentalAutoRefreshInFlight = false;
+    let openRentalsSnapshot = '';
+    const RENTAL_EARLY_START_WINDOW_MS = 15 * 60 * 1000;
     const scanCtx = {
         rent: { studentId: '', officerId: '' },
         return: { officerId: '' }
@@ -45,6 +49,72 @@
         }
     }
 
+    function getOpenRentalsSnapshot(items) {
+        return JSON.stringify((Array.isArray(items) ? items : []).map((rental) => ({
+            id: Number(rental.rental_id || 0),
+            status: String(rental.status || ''),
+            item: String(rental.items_label || ''),
+            renter: String(rental.renter_student_number || ''),
+            start: String(rental.rent_time || ''),
+            end: String(rental.expected_return_time || ''),
+            total: Number(rental.total_cost || 0),
+        })));
+    }
+
+    function isRentalTrackerVisible() {
+        if (document.hidden) return false;
+        try {
+            const frame = window.frameElement;
+            if (frame && (!frame.isConnected || frame.offsetParent === null)) return false;
+        } catch (_error) {
+            // Same-origin officer pages can inspect the frame; otherwise use document visibility.
+        }
+        return true;
+    }
+
+    function isRentalActionInProgress() {
+        return Boolean(document.querySelector('.modal.show'));
+    }
+
+    async function pollOpenRentals() {
+        if (!isRentalTrackerVisible() || isRentalActionInProgress() || rentalAutoRefreshInFlight) return;
+        if (!window.igpApi || typeof window.igpApi.getRentals !== 'function') return;
+
+        rentalAutoRefreshInFlight = true;
+        try {
+            const response = await window.igpApi.getRentals({ status: 'open' });
+            const nextRentals = Array.isArray(response.items) ? response.items : [];
+            const nextSnapshot = getOpenRentalsSnapshot(nextRentals);
+            if (nextSnapshot === openRentalsSnapshot) return;
+
+            const hadSnapshot = openRentalsSnapshot !== '';
+            activeRentals = nextRentals;
+            openRentalsSnapshot = nextSnapshot;
+            renderAvailable();
+            renderCurrent();
+            populateManualItems();
+
+            if (hadSnapshot) notifyParentActionCenterRefresh();
+        } catch (_error) {
+            // Keep background refresh failures silent; the next poll will retry.
+        } finally {
+            rentalAutoRefreshInFlight = false;
+        }
+    }
+
+    function stopRentalAutoRefresh() {
+        if (rentalAutoRefreshTimer) {
+            clearInterval(rentalAutoRefreshTimer);
+            rentalAutoRefreshTimer = null;
+        }
+        rentalAutoRefreshInFlight = false;
+    }
+
+    function startRentalAutoRefresh() {
+        stopRentalAutoRefresh();
+        rentalAutoRefreshTimer = setInterval(pollOpenRentals, 3000);
+    }
+
     function dueClock(expectedReturn) {
         if (!expectedReturn) return '-';
         const now = Date.now();
@@ -67,11 +137,20 @@
         return !Number.isNaN(due) && due < Date.now();
     }
 
+    function isReservedRentalReadyToStart(rental) {
+        if (String(rental?.status || '').toLowerCase() !== 'reserved') return false;
+        const raw = String(rental.rent_time || '').trim();
+        const start = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
+        return !Number.isNaN(start)
+            && start - RENTAL_EARLY_START_WINDOW_MS <= Date.now()
+            && !isExpiredReservedRental(rental);
+    }
+
     function statusByItem(item) {
         const rental = activeRentals.find((r) => String(r.items_label || '').includes(`[${item.barcode}]`));
         if (rental) {
             const openStatus = isExpiredReservedRental(rental)
-                ? 'no show'
+                ? 'expired'
                 : (String(rental.status || '').toLowerCase() === 'reserved' ? 'reserved' : 'rented');
             return { status: openStatus, renter: `${rental.renter_name} (${rental.renter_student_number || '-'})`, rentTime: rental.rent_time, due: rental.expected_return_time };
         }
@@ -82,6 +161,9 @@
         const normalized = String(status || '').toLowerCase();
         if (normalized === 'no show') {
             return '<span class="text-danger fw-semibold text-uppercase small">No Show</span>';
+        }
+        if (normalized === 'expired') {
+            return '<span class="text-muted fw-semibold text-uppercase small">Expiring</span>';
         }
         if (normalized === 'reserved') {
             return '<span class="text-info fw-semibold text-uppercase small">Reserved</span>';
@@ -155,15 +237,17 @@
             const itemLabelBase = String(r.items_label || '-').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || '-';
             const isReserved = String(r.status || '').toLowerCase() === 'reserved';
             const isExpiredNoShow = isExpiredReservedRental(r);
+            const isReadyToStart = isReservedRentalReadyToStart(r);
             
             const row = document.createElement('tr');
             row.dataset.rentalId = String(r.rental_id || '');
             row.innerHTML = `
                 <td>${isReserved
-                    ? `<div class="d-flex gap-1 flex-wrap">
-                            ${isExpiredNoShow ? '' : `<button class="btn btn-success btn-sm py-1 px-3 js-start" data-rid="${r.rental_id}">Start Rental</button>`}
-                            <button class="btn btn-outline-danger btn-sm py-1 px-3 js-no-show" data-rid="${r.rental_id}">No Show</button>
-                       </div>`
+                    ? (isExpiredNoShow
+                        ? '<span class="text-muted small">Expiring&hellip;</span>'
+                        : (isReadyToStart
+                            ? `<button class="btn btn-success btn-sm py-1 px-3 js-start" data-rid="${r.rental_id}">Start Rental</button>`
+                            : '<span class="text-muted small">Scheduled</span>'))
                     : `<button class="btn btn-warning btn-sm js-return" data-rid="${r.rental_id}">Return</button>`}</td>
                 <td>${itemLabelBase} [${itemBarcode}]</td>
                 <td>${r.renter_name || '-'} (${r.renter_student_number || '-'})</td>
@@ -172,7 +256,7 @@
                 <td>${fmtDate(r.expected_return_time)}</td>
                 <td>${isExpiredNoShow ? '<span class="text-danger fw-semibold">Past due</span>' : (isReserved ? '-' : dueClock(r.expected_return_time))}</td>
                 <td>${Number(accumulatedPrice(r)).toFixed(2)}</td>
-                <td>${renderStatusText(isExpiredNoShow ? 'no show' : (isReserved ? 'reserved' : r.status))}</td>
+                <td>${renderStatusText(isExpiredNoShow ? 'expired' : (isReserved ? 'reserved' : r.status))}</td>
             `;
             tbody.appendChild(row);
         });
@@ -208,6 +292,7 @@
         const sel = $('itemSelect');
         if (!sel) return;
         const mode = $('returnMode') && $('returnMode').checked ? 'return' : 'rent';
+        const previousValue = sel.value;
         sel.innerHTML = '<option value="">Choose an item...</option>';
         inventory.forEach((it) => {
             const st = statusByItem(it);
@@ -218,6 +303,9 @@
             opt.textContent = `${it.item_name} [${it.barcode}]`;
             sel.appendChild(opt);
         });
+        if (previousValue && Array.from(sel.options).some((option) => option.value === previousValue)) {
+            sel.value = previousValue;
+        }
     }
 
     async function refresh() {
@@ -229,6 +317,7 @@
         ]);
         inventory = inv.items || [];
         activeRentals = rent.items || [];
+        openRentalsSnapshot = getOpenRentalsSnapshot(activeRentals);
         students = stu.items || [];
         officers = off.items || [];
         syncManualStudentProfile();
@@ -1068,7 +1157,14 @@
         } catch (err) {
             setScanResult(err.message, 'error');
         }
+        startRentalAutoRefresh();
     });
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) pollOpenRentals();
+    });
+
+    window.addEventListener('pagehide', stopRentalAutoRefresh);
 
     window.addEventListener('message', async (event) => {
         if (event.origin !== window.location.origin || event.source !== window.parent) return;

@@ -16,6 +16,7 @@ try {
     $status = trim((string)($_GET['status'] ?? 'open'));
 
     $pdo = getPdo();
+    igpExpireUnfulfilledReservations($pdo, null, $userId);
 
     // Determine column existence for compatibility
     $hasRentalNotes = igpColumnExists($pdo, 'rentals', 'notes');

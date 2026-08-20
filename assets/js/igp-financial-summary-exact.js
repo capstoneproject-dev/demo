@@ -50,7 +50,8 @@
         const dates = [];
         rows.forEach((r) => {
             const v = Number(r.total_cost || 0);
-            if (r.payment_status === 'paid') { totalProfit += v; paid++; } else { totalUnpaid += v; unpaid++; }
+            if (r.payment_status === 'paid') { totalProfit += v; paid++; }
+            else if (r.payment_status === 'unpaid') { totalUnpaid += v; unpaid++; }
             if (v > highest.val) highest = { val: v, rec: r };
             if (v < lowest.val) lowest = { val: v, rec: r };
             const d = parseDate(r.rent_time); if (d) dates.push(d);
@@ -105,7 +106,7 @@
             const v = Number(r.total_cost || 0);
             monthly[key].tx++;
             if (r.payment_status === 'paid') { monthly[key].profit += v; monthly[key].paid++; }
-            else { monthly[key].unpaid += v; monthly[key].unpaidTx++; }
+            else if (r.payment_status === 'unpaid') { monthly[key].unpaid += v; monthly[key].unpaidTx++; }
         });
         const mb = $('fsMonthlyBreakdown');
         if (mb) {
