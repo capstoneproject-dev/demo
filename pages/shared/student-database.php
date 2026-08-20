@@ -5,12 +5,20 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     header('Location: ../login.html');
     exit;
 }
-$returnTo = trim((string)($_GET['return'] ?? '../officerDashboard.html'));
+$databaseContext = trim((string)($_GET['context'] ?? ''));
+$isExplicitQrAttendanceContext = $databaseContext === 'qr-attendance';
+$defaultReturnTo = $isExplicitQrAttendanceContext
+    ? '../qr-attendance/events.php'
+    : '../officerDashboard.html';
+$returnTo = trim((string)($_GET['return'] ?? $defaultReturnTo));
 if ($returnTo === '' || strpos($returnTo, '..') !== 0) {
-    $returnTo = '../officerDashboard.html';
+    $returnTo = $defaultReturnTo;
 }
-$isQrAttendanceContext = strpos($returnTo, '../qr-attendance/') === 0;
-$databaseReturnUrl = '../shared/student-database.php?return=' . rawurlencode($returnTo);
+$isQrAttendanceContext = $isExplicitQrAttendanceContext
+    || strpos($returnTo, '../qr-attendance/') === 0;
+$databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
+    $isQrAttendanceContext ? 'qr-attendance' : 'services-tracker'
+) . '&return=' . rawurlencode($returnTo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
