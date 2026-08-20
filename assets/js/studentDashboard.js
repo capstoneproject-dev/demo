@@ -6984,9 +6984,9 @@ const serviceOrgMapping = {
 // --- CONFIGURATION CONSTANTS ---
 const OPERATING_HOURS = {
     OPEN: 7 * 60,  // 7:00 AM in minutes
-    CLOSE: 16 * 60, // 4:00 PM in minutes
+    CLOSE: 17 * 60, // 5:00 PM in minutes
     OPEN_STR: "07:00 AM",
-    CLOSE_STR: "04:00 PM"
+    CLOSE_STR: "05:00 PM"
 };
 const MAX_ADVANCE_DAYS = 1;  // 1 day ahead only
 
@@ -7453,7 +7453,7 @@ async function calculateRental() {
         return;
     }
 
-    // 3. Operating Hours Validation (7:00 AM - 4:00 PM)
+    // 3. Operating Hours Validation (7:00 AM - 5:00 PM)
     if (startMinutes < OPERATING_HOURS.OPEN) {
         showError(`Reservations start at ${OPERATING_HOURS.OPEN_STR}.`);
         startInput.classList.add('input-error');

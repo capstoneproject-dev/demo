@@ -638,8 +638,49 @@ function igpDeleteInventoryItem(PDO $pdo, int $orgId, int $itemId): void
     }
 }
 
+function igpExpireUnfulfilledReservations(PDO $pdo, ?int $orgId = null, ?int $renterUserId = null): int
+{
+    $tz = new DateTimeZone('Asia/Manila');
+    $now = (new DateTimeImmutable('now', $tz))->format('Y-m-d H:i:s');
+    $where = [
+        "r.status = 'reserved'",
+        'r.expected_return_time <= :expired_now',
+    ];
+    $params = [':expired_now' => $now];
+
+    if ($orgId !== null && $orgId > 0) {
+        $where[] = 'r.org_id = :expired_org';
+        $params[':expired_org'] = $orgId;
+    }
+    if ($renterUserId !== null && $renterUserId > 0) {
+        $where[] = 'r.renter_user_id = :expired_renter';
+        $params[':expired_renter'] = $renterUserId;
+    }
+
+    $set = [
+        "r.status = 'cancelled'",
+        "r.payment_status = 'waived'",
+        'r.total_cost = 0',
+        "i.status = 'available'",
+    ];
+    if (igpColumnExists($pdo, 'rentals', 'notes')) {
+        $set[] = "r.notes = CONCAT_WS(CHAR(10), NULLIF(r.notes, ''), 'Automatically expired without charge: item was not provided before the scheduled end time.')";
+    }
+
+    $stmt = $pdo->prepare(
+        "UPDATE rentals r
+         JOIN rental_items ri ON ri.rental_id = r.rental_id
+         JOIN inventory_items i ON i.item_id = ri.item_id AND i.org_id = r.org_id
+         SET " . implode(', ', $set) . "
+         WHERE " . implode(' AND ', $where)
+    );
+    $stmt->execute($params);
+    return $stmt->rowCount();
+}
+
 function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
 {
+    igpExpireUnfulfilledReservations($pdo, $orgId);
     $hasUsersYearSection = igpColumnExists($pdo, 'users', 'year_section');
     $hasStudentNumbersYearSection = igpColumnExists($pdo, 'student_numbers', 'year_section');
     $hasRentalNotes = igpColumnExists($pdo, 'rentals', 'notes');
@@ -1198,6 +1239,14 @@ function igpCreateStudentRental(PDO $pdo, int $renterUserId, string $orgRef, str
             throw new IgpValidationException('Reservation duration must be greater than zero.');
         }
         $expected = $rentTime->modify('+' . $durationMinutes . ' minutes');
+        $openingTime = $rentTime->setTime(7, 0, 0);
+        $closingTime = $rentTime->setTime(17, 0, 0);
+        if ($rentTime < $openingTime) {
+            throw new IgpValidationException('Reservations cannot start before 7:00 AM.');
+        }
+        if ($expected > $closingTime) {
+            throw new IgpValidationException('Rentals must end by 5:00 PM.');
+        }
         $unitRate = (float)$item['hourly_rate'];
         $itemCost = $unitRate * $hours;
 
@@ -1331,27 +1380,29 @@ function igpStartReservedRental(PDO $pdo, int $orgId, int $rentalId): void
             throw new IgpValidationException('No rental items found.');
         }
 
-        $scheduledStart = new DateTimeImmutable((string)$rental['rent_time']);
-        $scheduledEnd = new DateTimeImmutable((string)$rental['expected_return_time']);
+        $tz = new DateTimeZone('Asia/Manila');
+        $scheduledStart = new DateTimeImmutable((string)$rental['rent_time'], $tz);
+        $scheduledEnd = new DateTimeImmutable((string)$rental['expected_return_time'], $tz);
         $durationSeconds = max(0, $scheduledEnd->getTimestamp() - $scheduledStart->getTimestamp());
         if ($durationSeconds <= 0) {
             throw new IgpValidationException('Reserved rental duration is invalid.');
         }
 
-        $tz = new DateTimeZone('Asia/Manila');
         $actualStart = new DateTimeImmutable('now', $tz);
-        $actualEnd = $actualStart->modify('+' . $durationSeconds . ' seconds');
+        $earliestStart = $scheduledStart->modify('-15 minutes');
+        if ($actualStart < $earliestStart) {
+            throw new IgpValidationException('This reservation can only be started up to 15 minutes before its scheduled time.');
+        }
+        if ($actualStart >= $scheduledEnd) {
+            throw new IgpValidationException('This reservation has passed its scheduled end time and must be handled as a no-show.');
+        }
 
         $updRental = $pdo->prepare(
             "UPDATE rentals
-             SET rent_time = :rent_time,
-                 expected_return_time = :expected,
-                 status = 'active'
+             SET status = 'active'
              WHERE rental_id = :rid AND org_id = :org"
         );
         $updRental->execute([
-            ':rent_time' => $actualStart->format('Y-m-d H:i:s'),
-            ':expected' => $actualEnd->format('Y-m-d H:i:s'),
             ':rid' => $rentalId,
             ':org' => $orgId,
         ]);
@@ -1603,6 +1654,7 @@ function igpNormalizeFinancialServiceType(string $serviceType): string
 
 function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
 {
+    igpExpireUnfulfilledReservations($pdo, $orgId);
     $hasUsersYearSection = igpColumnExists($pdo, 'users', 'year_section');
     $hasStudentNumbersYearSection = igpColumnExists($pdo, 'student_numbers', 'year_section');
 
@@ -1648,8 +1700,15 @@ function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
     $rows = [];
     foreach ($stmt->fetchAll() as $row) {
         $serviceType = igpNormalizeFinancialServiceType((string)($row['service_kind'] ?? 'rental'));
+        $paymentStatus = strtolower((string)($row['payment_status'] ?? 'unpaid'));
+        if (!in_array($paymentStatus, ['paid', 'waived'], true)) {
+            $paymentStatus = 'unpaid';
+        }
         $totalCost = (float)($row['total_cost'] ?? 0);
         $baseCost = (float)($row['base_cost'] ?? 0);
+        if ($paymentStatus === 'waived') {
+            $baseCost = 0.0;
+        }
         if ($serviceType === 'locker') {
             $baseCost = $totalCost;
         }
@@ -1665,7 +1724,7 @@ function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
             'customer_section' => trim((string)($row['renter_section'] ?? '')),
             'processed_by' => trim((string)($row['processor_name'] ?? '')) ?: '-',
             'status' => (string)($row['status'] ?? ''),
-            'payment_status' => strtolower((string)($row['payment_status'] ?? 'unpaid')) === 'paid' ? 'paid' : 'unpaid',
+            'payment_status' => $paymentStatus,
             'paid_at' => (string)($row['paid_at'] ?? ''),
             'base_cost' => $baseCost,
             'overtime_cost' => $overtimeCost,

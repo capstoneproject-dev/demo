@@ -1608,7 +1608,7 @@ function renderOfficerFinancialSummary() {
         if (paymentStatus === 'paid') {
             totalRevenue += totalCost;
             paidTransactions += 1;
-        } else {
+        } else if (paymentStatus === 'unpaid') {
             totalUnpaid += totalCost;
             unpaidTransactions += 1;
         }
@@ -1689,7 +1689,7 @@ function renderOfficerFinancialSummary() {
                     <td>${escapeHtml(formatOfficerPeso(item.overtime_cost || 0))}</td>
                     <td>${escapeHtml(formatOfficerPeso(item.total_cost || 0))}</td>
                     <td>${escapeHtml(getOfficerFinancialStatusLabel(item.status))}</td>
-                    <td><span class="financial-payment-badge ${escapeHtml(String(item.payment_status || '').toLowerCase())}">${escapeHtml(String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid')}</span></td>
+                    <td><span class="financial-payment-badge ${escapeHtml(String(item.payment_status || '').toLowerCase())}">${escapeHtml(String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : (String(item.payment_status || '').toLowerCase() === 'waived' ? 'Waived' : 'Unpaid'))}</span></td>
                 </tr>
             `).join('');
         }

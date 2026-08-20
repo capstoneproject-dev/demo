@@ -4439,6 +4439,11 @@ body.dark .btn-outline:hover {
     color: #b45309;
 }
 
+.financial-payment-badge.waived {
+    background: rgba(100, 116, 139, 0.14);
+    color: #475569;
+}
+
 .financial-empty-state {
     text-align: center;
     padding: 32px;
