@@ -30,6 +30,26 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             background: #f8f9fa;
         }
 
+        .item-name-group {
+            margin: 14px 0 24px;
+            padding-left: 14px;
+            border-left: 3px solid #dee2e6;
+        }
+
+        .item-name-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+            color: #212529;
+        }
+
+        .item-name-heading span {
+            color: #6c757d;
+            font-size: 0.82rem;
+        }
+
         .category-title {
             margin-top: 32px;
         }
@@ -244,7 +264,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 <button id="deleteAll" class="btn btn-danger">Delete All</button>
             </div>
         </div>
-        <h1 class="mb-4">Inventory Barcode Generator</h1>
+        <h1 class="mb-4">Inventory Barcodes</h1>
 
         <!-- Add New Item -->
         <div class="card mb-4">
@@ -379,7 +399,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/IGPRentalSystem/lib/jszip.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../assets/js/igp-api.js"></script>
-    <script src="../../assets/js/igp-barcodes-exact.js"></script>
+    <script src="../../assets/js/igp-barcodes-exact.js?v=20260820-grouped-stock-1"></script>
 </body>
 
 </html>
