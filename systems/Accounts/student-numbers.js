@@ -201,8 +201,12 @@ function editStudentNumber(studentId) {
     document.getElementById('editStudentNumber').value = s.studentId;
     document.getElementById('editStudentName').value  = s.studentName;
     document.getElementById('editYearSection').value  = s.yearSection || '';
-    document.getElementById('editEmail').value        = s.email || '';
-    document.getElementById('editPhone').value        = s.phone || '';
+    var registeredEmail = s.isRegistered ? (s.email || '') : '';
+    var registeredPhone = s.isRegistered ? (s.phone || '') : '';
+    document.getElementById('editEmail').value        = registeredEmail;
+    document.getElementById('editEmail').placeholder  = registeredEmail || 'No registered email provided';
+    document.getElementById('editPhone').value        = registeredPhone;
+    document.getElementById('editPhone').placeholder  = registeredPhone || 'No registered phone provided';
 
     var instSel = document.getElementById('editInstitute');
     populateInstituteSelect(instSel, s.institute);
