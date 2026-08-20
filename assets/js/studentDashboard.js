@@ -1066,8 +1066,8 @@ function renderStudentAnnouncementFeed() {
     }
 }
 
-async function fetchStudentAnnouncementFeed({ append = false, silent = false } = {}) {
-    if (studentAnnouncementFeedState.loading && append) return;
+async function fetchStudentAnnouncementFeed({ append = false, silent = false, limit = 10, skipIfBusy = false } = {}) {
+    if (studentAnnouncementFeedState.loading && (append || skipIfBusy)) return;
     const requestId = ++studentAnnouncementFeedState.requestId;
     studentAnnouncementFeedState.loading = true;
     const feed = document.getElementById('student-announcement-feed');
@@ -1082,7 +1082,8 @@ async function fetchStudentAnnouncementFeed({ append = false, silent = false } =
     if (loadMore) loadMore.disabled = true;
 
     try {
-        const params = new URLSearchParams({ limit: '10' });
+        const requestedLimit = Math.min(50, Math.max(10, Number(limit) || 10));
+        const params = new URLSearchParams({ limit: String(requestedLimit) });
         if (studentAnnouncementFeedState.query) params.set('q', studentAnnouncementFeedState.query);
         if (studentAnnouncementFeedState.orgId) params.set('org_id', studentAnnouncementFeedState.orgId);
         if (studentAnnouncementFeedState.type) params.set('type', studentAnnouncementFeedState.type);
@@ -1099,6 +1100,14 @@ async function fetchStudentAnnouncementFeed({ append = false, silent = false } =
         }
         if (requestId !== studentAnnouncementFeedState.requestId) return;
 
+        const previousSignature = silent && !append
+            ? JSON.stringify({
+                items: studentAnnouncementFeedState.items,
+                organizations: studentAnnouncementFeedState.organizations,
+                cursor: studentAnnouncementFeedState.cursor,
+                hasMore: studentAnnouncementFeedState.hasMore
+            })
+            : '';
         const incoming = (Array.isArray(data.items) ? data.items : []).map(mapDatabaseAnnouncement);
         if (append) {
             const existingIds = new Set(studentAnnouncementFeedState.items.map(item => Number(item.id)));
@@ -1114,8 +1123,18 @@ async function fetchStudentAnnouncementFeed({ append = false, silent = false } =
             ? data.organizations
             : studentAnnouncementFeedState.organizations;
         studentAnnouncementFeedState.initialized = true;
-        renderStudentAnnouncementOrganizationFilter();
-        renderStudentAnnouncementFeed();
+        const currentSignature = silent && !append
+            ? JSON.stringify({
+                items: studentAnnouncementFeedState.items,
+                organizations: studentAnnouncementFeedState.organizations,
+                cursor: studentAnnouncementFeedState.cursor,
+                hasMore: studentAnnouncementFeedState.hasMore
+            })
+            : '';
+        if (!silent || append || previousSignature !== currentSignature) {
+            renderStudentAnnouncementOrganizationFilter();
+            renderStudentAnnouncementFeed();
+        }
     } catch (error) {
         if (requestId !== studentAnnouncementFeedState.requestId) return;
         console.error('[fetchStudentAnnouncementFeed]', error);
@@ -3585,6 +3604,9 @@ function navigate(viewId, element) {
         startStudentPrintingAutoRefresh();
     }
     syncStudentPagePolling();
+    syncStudentAnnouncementPolling({
+        refreshNow: viewId === 'announcements' && studentAnnouncementFeedState.initialized
+    });
 
     // Scroll to top
     window.scrollTo(0, 0);
@@ -5032,9 +5054,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     window.setInterval(() => {
         loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
         loadStudentRecentActivity().catch((error) => console.error(error));
-        if (document.getElementById('announcements')?.classList.contains('active')) {
-            fetchStudentAnnouncementFeed({ silent: true }).catch((error) => console.error(error));
-        }
     }, 60000);
     studentAlertsRefreshTimer = window.setInterval(() => {
         loadStudentTransactionNotifications().catch((error) => console.error(error));
@@ -5043,9 +5062,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Initialize Dashboard Carousel for the new layout
     initDashboardCarousel();
     syncStudentPagePolling();
+    syncStudentAnnouncementPolling();
 });
 
 document.addEventListener('visibilitychange', () => {
+    syncStudentAnnouncementPolling({ refreshNow: !document.hidden });
     if (document.hidden) return;
     syncStudentPagePolling();
     loadStudentAnnouncementsFromApi().catch((error) => console.error('[loadStudentAnnouncementsFromApi]', error));
@@ -5452,6 +5473,10 @@ let studentServicesTrackerPromise = null;
 const STUDENT_PAGE_POLL_INTERVAL_MS = 3000;
 let studentPagePollingInterval = null;
 let studentPagePollingInFlight = false;
+const STUDENT_ANNOUNCEMENT_POLL_FAST_MS = 3000;
+const STUDENT_ANNOUNCEMENT_POLL_SLOW_MS = 30000;
+let studentAnnouncementPollingTimer = null;
+let studentAnnouncementPollingInFlight = false;
 let studentLockerState = {
     enabled: false,
     org_name: '',
@@ -5468,6 +5493,68 @@ function getActiveStudentPageView() {
 
 function isStudentPagePollingView(viewId = getActiveStudentPageView()) {
     return viewId === 'dashboard' || viewId === 'services';
+}
+
+function isStudentAnnouncementPollingActive() {
+    return !isOsaStudentPreviewModeFromUrl() && getActiveStudentPageView() === 'announcements';
+}
+
+function getStudentAnnouncementPollingDelay() {
+    return document.hidden
+        ? STUDENT_ANNOUNCEMENT_POLL_SLOW_MS
+        : STUDENT_ANNOUNCEMENT_POLL_FAST_MS;
+}
+
+function stopStudentAnnouncementPolling() {
+    if (studentAnnouncementPollingTimer) {
+        clearTimeout(studentAnnouncementPollingTimer);
+        studentAnnouncementPollingTimer = null;
+    }
+}
+
+function scheduleStudentAnnouncementPolling(delay = getStudentAnnouncementPollingDelay()) {
+    stopStudentAnnouncementPolling();
+    if (!isStudentAnnouncementPollingActive()) return;
+
+    studentAnnouncementPollingTimer = window.setTimeout(() => {
+        studentAnnouncementPollingTimer = null;
+        pollStudentAnnouncementFeed().catch((error) => {
+            console.error('[pollStudentAnnouncementFeed]', error);
+        });
+    }, delay);
+}
+
+async function pollStudentAnnouncementFeed() {
+    if (!isStudentAnnouncementPollingActive()) return;
+    if (studentAnnouncementPollingInFlight || studentAnnouncementFeedState.loading) {
+        scheduleStudentAnnouncementPolling();
+        return;
+    }
+
+    studentAnnouncementPollingInFlight = true;
+    try {
+        await fetchStudentAnnouncementFeed({
+            silent: true,
+            skipIfBusy: true,
+            limit: Math.max(10, studentAnnouncementFeedState.items.length)
+        });
+    } finally {
+        studentAnnouncementPollingInFlight = false;
+        scheduleStudentAnnouncementPolling();
+    }
+}
+
+function syncStudentAnnouncementPolling({ refreshNow = false } = {}) {
+    stopStudentAnnouncementPolling();
+    if (!isStudentAnnouncementPollingActive()) return;
+
+    if (refreshNow && !studentAnnouncementPollingInFlight) {
+        pollStudentAnnouncementFeed().catch((error) => {
+            console.error('[pollStudentAnnouncementFeed]', error);
+        });
+        return;
+    }
+    scheduleStudentAnnouncementPolling();
 }
 
 async function pollActiveStudentPage() {
