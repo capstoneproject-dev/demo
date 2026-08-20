@@ -7463,6 +7463,17 @@ body.dark #organizations .card .btn-share.active {
     white-space: pre-wrap;
 }
 
+.announcement-calendar-item-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.announcement-calendar-item-actions .btn-sm {
+    padding: 7px 11px;
+    font-size: 0.78rem;
+}
+
 .announcement-calendar-item.is-expanded .announcement-calendar-item-details {
     display: block;
 }
