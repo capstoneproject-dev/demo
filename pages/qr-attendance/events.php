@@ -42,7 +42,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     </li>
 
                     <li class="nav-item">
-                        <a class="nav-link" href="../shared/student-database.php?return=../qr-attendance/events.php">Database</a>
+                        <a class="nav-link" href="../shared/student-database.php?context=qr-attendance&amp;return=..%2Fqr-attendance%2Fevents.php">Database</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="index.php">Home</a>
