@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260821-tracker-actions-center">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260821-printing-payments-3">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -637,12 +637,14 @@
                                                 <th>Submitted</th>
                                                 <th>Completed</th>
                                                 <th>Status</th>
+                                                <th>Price</th>
+                                                <th>Payment</th>
                                                 <th>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody id="officerPrintingHistoryTable">
                                             <tr>
-                                                <td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">No print history found.</td>
+                                                <td colspan="9" style="text-align:center; padding:32px; color:var(--muted);">No print history found.</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -1030,6 +1032,70 @@
                     <a id="officerPrintingFilePreviewDownload" class="btn btn-primary" href="#">
                         <i class="fa-solid fa-download"></i> Download
                     </a>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerPrintClaimModal" class="modal-overlay" aria-hidden="true">
+            <div class="modal-content printing-payment-modal-content" role="dialog" aria-modal="true" aria-labelledby="officerPrintClaimTitle">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="officerPrintClaimTitle">Claim Print Job</h3>
+                        <p id="officerPrintClaimSummary" class="printing-payment-summary"></p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeOfficerPrintClaimModal()" aria-label="Close claim dialog">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body printing-payment-modal-body">
+                    <div class="form-group">
+                        <label for="officerPrintClaimPrice">Final Printing Price</label>
+                        <div class="printing-price-input-wrap">
+                            <span>₱</span>
+                            <input id="officerPrintClaimPrice" type="number" min="0.01" max="99999999.99" step="0.01" inputmode="decimal" placeholder="0.00" oninput="syncOfficerPrintClaimModal()" onkeydown="if(event.key === 'Enter'){event.preventDefault(); submitOfficerPrintClaim();}">
+                        </div>
+                    </div>
+                    <fieldset class="printing-payment-choice">
+                        <legend>Payment Status</legend>
+                        <label><input type="radio" name="officerPrintClaimPayment" value="unpaid" checked onchange="syncOfficerPrintClaimModal()"> Claim as Unpaid</label>
+                        <label><input type="radio" name="officerPrintClaimPayment" value="paid" onchange="syncOfficerPrintClaimModal()"> Claim and Mark as Paid</label>
+                    </fieldset>
+                    <div id="officerPrintClaimBarcodeGroup" class="form-group" style="display:none;">
+                        <label for="officerPrintClaimOfficerBarcode">Scan Officer Barcode</label>
+                        <input id="officerPrintClaimOfficerBarcode" type="text" autocomplete="off" placeholder="Scan officer barcode here..." oninput="handleOfficerPrintClaimBarcodeInput()" onkeydown="handleOfficerPrintClaimBarcodeKeydown(event)">
+                        <small>A valid active officer from this organization must verify the payment.</small>
+                    </div>
+                    <div id="officerPrintClaimError" class="printing-payment-error" role="alert" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" type="button" onclick="closeOfficerPrintClaimModal()">Cancel</button>
+                    <button id="officerPrintClaimSubmit" class="btn btn-primary" type="button" onclick="submitOfficerPrintClaim()" disabled>Claim Print Job</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerPrintMarkPaidModal" class="modal-overlay" aria-hidden="true">
+            <div class="modal-content printing-payment-modal-content" role="dialog" aria-modal="true" aria-labelledby="officerPrintMarkPaidTitle">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="officerPrintMarkPaidTitle">Confirm Printing Payment</h3>
+                        <p id="officerPrintMarkPaidSummary" class="printing-payment-summary"></p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeOfficerPrintMarkPaidModal()" aria-label="Close payment dialog">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body printing-payment-modal-body">
+                    <div class="form-group">
+                        <label for="officerPrintPaymentOfficerBarcode">Scan Officer Barcode</label>
+                        <input id="officerPrintPaymentOfficerBarcode" type="text" autocomplete="off" placeholder="Scan officer barcode here..." oninput="handleOfficerPrintPaymentBarcodeInput()" onkeydown="handleOfficerPrintPaymentBarcodeKeydown(event)">
+                        <small>A valid active officer from this organization must verify the payment.</small>
+                    </div>
+                    <div id="officerPrintMarkPaidError" class="printing-payment-error" role="alert" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" type="button" onclick="closeOfficerPrintMarkPaidModal()">Cancel</button>
+                    <button id="officerPrintMarkPaidSubmit" class="btn btn-primary" type="button" onclick="submitOfficerPrintMarkPaid()" disabled>Mark as Paid</button>
                 </div>
             </div>
         </div>
@@ -2100,13 +2166,14 @@
     </div>
 
     <!-- Custom JS -->
+    <audio id="officerPrintingBarcodeBeep" src="../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
     <!-- Org-specific data config — must load before officerDashboard.js -->
     <script src="../data/orgData.js"></script>
     <script src="../assets/js/igp-api.js"></script>
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260821-cancelled-print-waived"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260821-printing-payments-3"></script>
 </body>
 
 </html>

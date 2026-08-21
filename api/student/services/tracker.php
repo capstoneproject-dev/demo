@@ -6,8 +6,8 @@ header('Content-Type: application/json');
 apiGuard();
 
 try {
-    stRequireStudentContext();
-    $overview = stGetStudentServicesOverview(getPdo());
+    $ctx = stRequireStudentContext();
+    $overview = stGetStudentServicesOverview(getPdo(), (int)$ctx['user_id']);
     jsonOk($overview);
 } catch (PDOException $e) {
     error_log('[api/student/services/tracker] ' . $e->getMessage());

@@ -8686,6 +8686,12 @@ body.dark .calendar-day.in-range {
     padding: 7px 11px;
 }
 
+.printing-provider-chip.is-disabled {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #b91c1c;
+}
+
 .printing-jobs-list {
     display: grid;
     gap: 16px;

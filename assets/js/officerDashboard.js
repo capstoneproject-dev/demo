@@ -1283,6 +1283,10 @@ let officerPrintingHistoryFilters = { startDate: null, endDate: null, search: ''
 let currentPrintingPanelView = 'queue';
 let officerPrintingQueueIsLoading = true;
 let officerPrintingQueueHasLoaded = false;
+let officerPrintClaimJobId = 0;
+let officerPrintPaymentJobId = 0;
+let officerPrintClaimScanTimer = null;
+let officerPrintPaymentScanTimer = null;
 let officerPrintingCalendarCurrentDate = new Date();
 let officerPrintingCalendarSelectedStart = null;
 let officerPrintingCalendarSelectedEnd = null;
@@ -2608,7 +2612,7 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
             statusActions.push(`<button class="btn btn-primary btn-sm" type="button" onclick="updateOfficerPrintJobStatus(${job.print_job_id}, 'ready_to_claim')">Ready</button>`);
         }
         if (String(job.status || '').toLowerCase() === 'ready_to_claim') {
-            statusActions.push(`<button class="btn btn-primary btn-sm" type="button" onclick="updateOfficerPrintJobStatus(${job.print_job_id}, 'claimed')">Claimed</button>`);
+            statusActions.push(`<button class="btn btn-primary btn-sm" type="button" onclick="openOfficerPrintClaimModal(${job.print_job_id})">Claimed</button>`);
         }
         if (String(job.status || '').toLowerCase() !== 'claimed' && String(job.status || '').toLowerCase() !== 'cancelled') {
             statusActions.push(`<button class="btn btn-outline btn-sm" type="button" onclick="updateOfficerPrintJobStatus(${job.print_job_id}, 'cancelled')">Cancel</button>`);
@@ -2742,7 +2746,7 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
     if (!tableBody) return;
 
     if (!printingEnabled) {
-        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">Printing is not enabled for this organization.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--muted);">Printing is not enabled for this organization.</td></tr>`;
         return;
     }
 
@@ -2775,7 +2779,9 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
                 job.student_number || '',
                 job.section || '',
                 job.notes || '',
-                status
+                status,
+                job.payment_status || '',
+                Number(job.total_cost || 0).toFixed(2)
             ].join(' ').toLowerCase();
             return searchBlob.includes(officerPrintingHistoryFilters.search);
         });
@@ -2788,13 +2794,20 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
     });
 
     if (!historyItems.length) {
-        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">No print history found for the selected filters.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:32px; color:var(--muted);">No print history found for the selected filters.</td></tr>`;
         return;
     }
 
     tableBody.innerHTML = historyItems.map((job) => {
         const jobUrl = resolvePdfUrl(job.file_url);
         const completedAt = job.claimed_at || job.updated_at || '';
+        const paymentStatus = String(job.status || '').toLowerCase() === 'cancelled'
+            ? 'waived'
+            : (String(job.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'paid' : 'unpaid');
+        const paymentLabel = paymentStatus === 'paid' ? 'Paid' : (paymentStatus === 'waived' ? 'Waived' : 'Unpaid');
+        const canMarkPaid = String(job.status || '').toLowerCase() === 'claimed'
+            && paymentStatus === 'unpaid'
+            && Number(job.total_cost || 0) > 0;
         return `
             <tr data-print-job-id="${Number(job.print_job_id)}">
                 <td>${Number(job.queue_order || job.queue_position || 0) || '-'}</td>
@@ -2809,10 +2822,13 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
                 <td>${fmtDateShort(job.submitted_at)}<div style="color:var(--muted); font-size:0.8rem;">${new Date(job.submitted_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</div></td>
                 <td>${completedAt ? `${fmtDateShort(completedAt)}<div style="color:var(--muted); font-size:0.8rem;">${new Date(completedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</div>` : '-'}</td>
                 <td><span class="status-badge ${getOfficerPrintStatusClass(job.status)}">${getOfficerPrintStatusLabel(job.status)}</span></td>
+                <td>${escapeHtml(formatOfficerPrintingPrice(job.total_cost || 0))}</td>
+                <td><span class="financial-payment-badge ${paymentStatus}">${paymentLabel}</span></td>
                 <td>
                     <div class="printing-job-action-stack">
                         ${jobUrl ? `<button class="btn btn-outline btn-sm" type="button" onclick="openOfficerPrintingFilePreview(${Number(job.print_job_id)})">View</button>` : ''}
                         ${jobUrl ? `<a class="btn btn-outline btn-sm" href="${escapeHtml(getOfficerPrintingDownloadUrl(jobUrl))}">Download</a>` : ''}
+                        ${canMarkPaid ? `<button class="btn btn-primary btn-sm" type="button" onclick="openOfficerPrintMarkPaidModal(${Number(job.print_job_id)})">Mark as Paid</button>` : ''}
                     </div>
                 </td>
             </tr>
@@ -3151,6 +3167,14 @@ function applyOfficerPrintingDateFilter() {
 }
 
 document.addEventListener('click', (e) => {
+    const printingClaimModal = document.getElementById('officerPrintClaimModal');
+    if (printingClaimModal && e.target === printingClaimModal) {
+        closeOfficerPrintClaimModal();
+    }
+    const printingMarkPaidModal = document.getElementById('officerPrintMarkPaidModal');
+    if (printingMarkPaidModal && e.target === printingMarkPaidModal) {
+        closeOfficerPrintMarkPaidModal();
+    }
     const printingFilePreviewModal = document.getElementById('officerPrintingFilePreviewModal');
     if (printingFilePreviewModal && e.target === printingFilePreviewModal) {
         closeOfficerPrintingFilePreviewModal();
@@ -3199,6 +3223,16 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        const printingClaimModal = document.getElementById('officerPrintClaimModal');
+        if (printingClaimModal && printingClaimModal.classList.contains('show')) {
+            closeOfficerPrintClaimModal();
+            return;
+        }
+        const printingMarkPaidModal = document.getElementById('officerPrintMarkPaidModal');
+        if (printingMarkPaidModal && printingMarkPaidModal.classList.contains('show')) {
+            closeOfficerPrintMarkPaidModal();
+            return;
+        }
         const printingFilePreviewModal = document.getElementById('officerPrintingFilePreviewModal');
         if (printingFilePreviewModal && printingFilePreviewModal.classList.contains('show')) {
             closeOfficerPrintingFilePreviewModal();
@@ -3342,7 +3376,279 @@ async function acceptOfficerPendingPrintRequest(printJobId) {
     }
 }
 
-async function updateOfficerPrintJobStatus(printJobId, status) {
+function getSelectedOfficerPrintClaimPaymentStatus() {
+    return document.querySelector('input[name="officerPrintClaimPayment"]:checked')?.value || 'unpaid';
+}
+
+function formatOfficerPrintingPrice(value) {
+    return `₱${Number(value || 0).toFixed(2)}`;
+}
+
+function openOfficerPrintClaimModal(printJobId) {
+    const job = findOfficerPrintingJob(printJobId);
+    const modal = document.getElementById('officerPrintClaimModal');
+    if (!job || !modal || String(job.status || '').toLowerCase() !== 'ready_to_claim') {
+        alert('This print job is no longer ready to be claimed. Refresh the queue and try again.');
+        return;
+    }
+
+    officerPrintClaimJobId = Number(printJobId);
+    const summary = document.getElementById('officerPrintClaimSummary');
+    const price = document.getElementById('officerPrintClaimPrice');
+    const barcode = document.getElementById('officerPrintClaimOfficerBarcode');
+    const unpaid = document.querySelector('input[name="officerPrintClaimPayment"][value="unpaid"]');
+    const error = document.getElementById('officerPrintClaimError');
+    if (summary) summary.textContent = `${job.file_name || 'Print job'} for ${job.student_name || 'the student'}`;
+    if (price) price.value = '';
+    if (barcode) barcode.value = '';
+    if (unpaid) unpaid.checked = true;
+    if (error) {
+        error.textContent = '';
+        error.style.display = 'none';
+    }
+    syncOfficerPrintClaimModal();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    window.setTimeout(() => price?.focus(), 50);
+}
+
+function closeOfficerPrintClaimModal() {
+    const modal = document.getElementById('officerPrintClaimModal');
+    if (modal) {
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    if (officerPrintClaimScanTimer) {
+        window.clearTimeout(officerPrintClaimScanTimer);
+        officerPrintClaimScanTimer = null;
+    }
+    officerPrintClaimJobId = 0;
+    document.body.style.overflow = '';
+}
+
+function syncOfficerPrintClaimModal() {
+    const price = Number(document.getElementById('officerPrintClaimPrice')?.value || 0);
+    const paymentStatus = getSelectedOfficerPrintClaimPaymentStatus();
+    const barcodeGroup = document.getElementById('officerPrintClaimBarcodeGroup');
+    const barcode = String(document.getElementById('officerPrintClaimOfficerBarcode')?.value || '').trim();
+    const submit = document.getElementById('officerPrintClaimSubmit');
+    if (barcodeGroup) barcodeGroup.style.display = paymentStatus === 'paid' ? 'block' : 'none';
+    if (submit) submit.disabled = submit.dataset.busy === '1' || !officerPrintClaimJobId || price <= 0 || (paymentStatus === 'paid' && !barcode);
+}
+
+function processOfficerPrintClaimBarcode() {
+    const barcode = String(document.getElementById('officerPrintClaimOfficerBarcode')?.value || '').trim();
+    if (!officerPrintClaimJobId || getSelectedOfficerPrintClaimPaymentStatus() !== 'paid' || !barcode) return;
+    playOfficerPrintingBarcodeBeep();
+    syncOfficerPrintClaimModal();
+    const price = Number(document.getElementById('officerPrintClaimPrice')?.value || 0);
+    if (price > 0) submitOfficerPrintClaim();
+}
+
+function handleOfficerPrintClaimBarcodeInput() {
+    syncOfficerPrintClaimModal();
+    const error = document.getElementById('officerPrintClaimError');
+    if (error) error.style.display = 'none';
+    if (officerPrintClaimScanTimer) {
+        window.clearTimeout(officerPrintClaimScanTimer);
+    }
+    const barcode = String(document.getElementById('officerPrintClaimOfficerBarcode')?.value || '').trim();
+    if (!barcode || getSelectedOfficerPrintClaimPaymentStatus() !== 'paid') {
+        officerPrintClaimScanTimer = null;
+        return;
+    }
+    officerPrintClaimScanTimer = window.setTimeout(() => {
+        officerPrintClaimScanTimer = null;
+        processOfficerPrintClaimBarcode();
+    }, 180);
+}
+
+function handleOfficerPrintClaimBarcodeKeydown(event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (officerPrintClaimScanTimer) {
+        window.clearTimeout(officerPrintClaimScanTimer);
+        officerPrintClaimScanTimer = null;
+    }
+    processOfficerPrintClaimBarcode();
+}
+
+async function submitOfficerPrintClaim() {
+    const printJobId = officerPrintClaimJobId;
+    const price = Number(document.getElementById('officerPrintClaimPrice')?.value || 0);
+    const paymentStatus = getSelectedOfficerPrintClaimPaymentStatus();
+    const officerIdentifier = String(document.getElementById('officerPrintClaimOfficerBarcode')?.value || '').trim();
+    const submit = document.getElementById('officerPrintClaimSubmit');
+    const error = document.getElementById('officerPrintClaimError');
+    if (!printJobId || price <= 0 || (paymentStatus === 'paid' && !officerIdentifier) || submit?.dataset.busy === '1') return;
+
+    if (submit) {
+        submit.dataset.busy = '1';
+        submit.disabled = true;
+        submit.textContent = 'Saving...';
+    }
+    if (error) error.style.display = 'none';
+    const result = await updateOfficerPrintJobStatus(printJobId, 'claimed', {
+        total_cost: price.toFixed(2),
+        payment_status: paymentStatus,
+        officer_identifier: paymentStatus === 'paid' ? officerIdentifier : ''
+    }, true);
+    if (submit) {
+        delete submit.dataset.busy;
+        submit.textContent = 'Claim Print Job';
+    }
+    if (result.ok) {
+        closeOfficerPrintClaimModal();
+        showToast(paymentStatus === 'paid' ? 'Print job claimed and marked paid.' : 'Print job claimed with an unpaid balance.', 'success');
+    } else if (error) {
+        error.textContent = result.error || 'Could not claim the print job.';
+        error.style.display = 'block';
+        if (/officer|barcode/i.test(String(result.error || ''))) {
+            const barcodeInput = document.getElementById('officerPrintClaimOfficerBarcode');
+            if (barcodeInput) {
+                barcodeInput.value = '';
+                window.setTimeout(() => barcodeInput.focus(), 0);
+            }
+        }
+        syncOfficerPrintClaimModal();
+    }
+}
+
+function openOfficerPrintMarkPaidModal(printJobId) {
+    const job = findOfficerPrintingJob(printJobId);
+    const modal = document.getElementById('officerPrintMarkPaidModal');
+    if (!job || !modal) return;
+    officerPrintPaymentJobId = Number(printJobId);
+    const summary = document.getElementById('officerPrintMarkPaidSummary');
+    const barcode = document.getElementById('officerPrintPaymentOfficerBarcode');
+    const error = document.getElementById('officerPrintMarkPaidError');
+    if (summary) summary.textContent = `${job.student_name || 'The student'} will pay ${formatOfficerPrintingPrice(job.total_cost || 0)} for ${job.file_name || 'this print job'}.`;
+    if (barcode) barcode.value = '';
+    if (error) {
+        error.textContent = '';
+        error.style.display = 'none';
+    }
+    syncOfficerPrintMarkPaidModal();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    window.setTimeout(() => barcode?.focus(), 50);
+}
+
+function closeOfficerPrintMarkPaidModal() {
+    const modal = document.getElementById('officerPrintMarkPaidModal');
+    if (modal) {
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    if (officerPrintPaymentScanTimer) {
+        window.clearTimeout(officerPrintPaymentScanTimer);
+        officerPrintPaymentScanTimer = null;
+    }
+    officerPrintPaymentJobId = 0;
+    document.body.style.overflow = '';
+}
+
+function syncOfficerPrintMarkPaidModal() {
+    const barcode = String(document.getElementById('officerPrintPaymentOfficerBarcode')?.value || '').trim();
+    const submit = document.getElementById('officerPrintMarkPaidSubmit');
+    if (submit) submit.disabled = submit.dataset.busy === '1' || !officerPrintPaymentJobId || !barcode;
+}
+
+function playOfficerPrintingBarcodeBeep() {
+    const beep = document.getElementById('officerPrintingBarcodeBeep');
+    if (!beep) return;
+    beep.currentTime = 0;
+    const playback = beep.play();
+    if (playback && typeof playback.catch === 'function') {
+        playback.catch(() => { /* The browser may block audio before user interaction. */ });
+    }
+}
+
+function processOfficerPrintPaymentBarcode() {
+    const input = document.getElementById('officerPrintPaymentOfficerBarcode');
+    const barcode = String(input?.value || '').trim();
+    if (!officerPrintPaymentJobId || !barcode) return;
+    playOfficerPrintingBarcodeBeep();
+    submitOfficerPrintMarkPaid();
+}
+
+function handleOfficerPrintPaymentBarcodeInput() {
+    syncOfficerPrintMarkPaidModal();
+    const error = document.getElementById('officerPrintMarkPaidError');
+    if (error) error.style.display = 'none';
+    if (officerPrintPaymentScanTimer) {
+        window.clearTimeout(officerPrintPaymentScanTimer);
+    }
+    const barcode = String(document.getElementById('officerPrintPaymentOfficerBarcode')?.value || '').trim();
+    if (!barcode) {
+        officerPrintPaymentScanTimer = null;
+        return;
+    }
+    officerPrintPaymentScanTimer = window.setTimeout(() => {
+        officerPrintPaymentScanTimer = null;
+        processOfficerPrintPaymentBarcode();
+    }, 180);
+}
+
+function handleOfficerPrintPaymentBarcodeKeydown(event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (officerPrintPaymentScanTimer) {
+        window.clearTimeout(officerPrintPaymentScanTimer);
+        officerPrintPaymentScanTimer = null;
+    }
+    processOfficerPrintPaymentBarcode();
+}
+
+async function submitOfficerPrintMarkPaid() {
+    const printJobId = officerPrintPaymentJobId;
+    const barcode = String(document.getElementById('officerPrintPaymentOfficerBarcode')?.value || '').trim();
+    const submit = document.getElementById('officerPrintMarkPaidSubmit');
+    const error = document.getElementById('officerPrintMarkPaidError');
+    if (!printJobId || !barcode || submit?.dataset.busy === '1') return;
+    if (submit) {
+        submit.dataset.busy = '1';
+        submit.disabled = true;
+        submit.textContent = 'Saving...';
+    }
+    if (error) error.style.display = 'none';
+    try {
+        const response = await fetch('../api/printing/officer/mark-paid.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ print_job_id: printJobId, officer_identifier: barcode })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Could not mark the printing payment as paid.');
+        closeOfficerPrintMarkPaidModal();
+        await loadOfficerPrintingQueue(true);
+        await loadOfficerFinancialSummary(true).catch(() => {});
+        showOfficerPrintingHistoryView();
+        showToast('Printing payment marked as paid.', 'success');
+    } catch (paymentError) {
+        if (error) {
+            error.textContent = paymentError.message || 'Could not mark the printing payment as paid.';
+            error.style.display = 'block';
+        }
+        const barcodeInput = document.getElementById('officerPrintPaymentOfficerBarcode');
+        if (barcodeInput) {
+            barcodeInput.value = '';
+            window.setTimeout(() => barcodeInput.focus(), 0);
+        }
+        syncOfficerPrintMarkPaidModal();
+    } finally {
+        if (submit) {
+            delete submit.dataset.busy;
+            submit.textContent = 'Mark as Paid';
+            syncOfficerPrintMarkPaidModal();
+        }
+    }
+}
+
+async function updateOfficerPrintJobStatus(printJobId, status, paymentData = {}, suppressAlert = false) {
     const loadingCopy = {
         processing: {
             title: 'Starting print job',
@@ -3373,6 +3679,7 @@ async function updateOfficerPrintJobStatus(printJobId, status) {
             body: JSON.stringify({
                 print_job_id: printJobId,
                 status,
+                ...paymentData,
             }),
         });
         const data = await response.json().catch(() => ({}));
@@ -3381,10 +3688,15 @@ async function updateOfficerPrintJobStatus(printJobId, status) {
         }
         await loadOfficerPrintingQueue(true);
         loadOfficerActionCenter(false);
+        if (String(status || '').toLowerCase() === 'claimed') {
+            loadOfficerFinancialSummary(true).catch(() => {});
+        }
+        return { ok: true, item: data.item || null };
     } catch (error) {
         setOfficerPrintingQueueLoading(false);
         showOfficerPrintingQueueView();
-        alert(error.message || 'Could not update print job status.');
+        if (!suppressAlert) alert(error.message || 'Could not update print job status.');
+        return { ok: false, error: error.message || 'Could not update print job status.' };
     }
 }
 

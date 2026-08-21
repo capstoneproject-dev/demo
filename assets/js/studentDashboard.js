@@ -5892,7 +5892,9 @@ function getAuthorizedPrintingProviders() {
             org_id: orgId,
             org_name: String(existing.org_name || provider.org_name || '').trim(),
             org_code: String(existing.org_code || provider.org_code || '').trim(),
-            logo_url: String(existing.logo_url || provider.logo_url || '').trim()
+            logo_url: String(existing.logo_url || provider.logo_url || '').trim(),
+            has_unpaid_printing_balance: Boolean(provider.has_unpaid_printing_balance),
+            printing_request_allowed: provider.printing_request_allowed !== false
         });
     });
 
@@ -5936,29 +5938,34 @@ function renderPrintingProviderOptions() {
             if (!target) return;
             const option = document.createElement('option');
             option.value = provider.org_id;
-            option.textContent = `${provider.org_name}${provider.org_code ? ` (${provider.org_code})` : ''}`;
+            const isBlocked = provider.printing_request_allowed === false || provider.has_unpaid_printing_balance;
+            option.disabled = isBlocked;
+            option.textContent = `${provider.org_name}${provider.org_code ? ` (${provider.org_code})` : ''}${isBlocked ? ' — Unpaid balance' : ''}`;
             target.appendChild(option);
         });
 
         if (summary) {
             const badge = document.createElement('span');
             badge.className = 'printing-provider-chip';
-            badge.textContent = provider.org_code || provider.org_name;
+            const isBlocked = provider.printing_request_allowed === false || provider.has_unpaid_printing_balance;
+            badge.textContent = `${provider.org_code || provider.org_name}${isBlocked ? ' — Balance due' : ''}`;
+            if (isBlocked) badge.classList.add('is-disabled');
             summary.appendChild(badge);
         }
     });
 
     if (select) {
-        const matched = providers.some((provider) => String(provider.org_id) === selectedProviderId);
+        const matched = providers.some((provider) => String(provider.org_id) === selectedProviderId && provider.printing_request_allowed !== false);
         if (matched) {
             select.value = selectedProviderId;
-        } else if (providers.length === 1) {
-            select.value = String(providers[0].org_id);
+        } else {
+            const eligibleProviders = providers.filter((provider) => provider.printing_request_allowed !== false);
+            if (eligibleProviders.length === 1) select.value = String(eligibleProviders[0].org_id);
         }
     }
 
     if (heroSelect) {
-        const matched = providers.some((provider) => String(provider.org_id) === selectedHeroProviderId);
+        const matched = providers.some((provider) => String(provider.org_id) === selectedHeroProviderId && provider.printing_request_allowed !== false);
         if (matched) {
             heroSelect.value = selectedHeroProviderId;
         }
@@ -6385,6 +6392,9 @@ function renderStudentPrintJobCards(jobs, options = {}) {
         const jobUrl = resolveStudentDocumentUrl(job.file_url);
         const canCancel = showCancelButton && status === 'queued';
         const isCancelling = studentCancellingPrintJobs.has(Number(job.print_job_id));
+        const paymentStatus = status === 'cancelled'
+            ? 'waived'
+            : (String(job.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'paid' : 'unpaid');
         return `
             <div class="printing-job-card" data-print-job-id="${Number(job.print_job_id)}">
                 <div class="printing-job-header">
@@ -6400,6 +6410,7 @@ function renderStudentPrintJobCards(jobs, options = {}) {
                 <div class="printing-job-meta">
                     <span><i class="fa-solid fa-list-ol"></i> ${queueText}</span>
                     <span><i class="fa-solid fa-calendar-day"></i> ${submittedAt}</span>
+                    ${status === 'claimed' ? `<span><i class="fa-solid fa-peso-sign"></i> ₱${Number(job.total_cost || 0).toFixed(2)} · ${paymentStatus === 'paid' ? 'Paid' : 'Unpaid balance'}</span>` : ''}
                     ${job.notes ? `<span><i class="fa-solid fa-note-sticky"></i> ${escapeStudentHtml(job.notes)}</span>` : ''}
                 </div>
                 <div class="printing-job-actions">

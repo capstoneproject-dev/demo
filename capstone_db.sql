@@ -717,6 +717,10 @@ CREATE TABLE `print_jobs` (
   `processing_started_at` datetime DEFAULT NULL,
   `ready_at` datetime DEFAULT NULL,
   `claimed_at` datetime DEFAULT NULL,
+  `total_cost` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `payment_status` varchar(16) NOT NULL DEFAULT 'unpaid',
+  `paid_at` datetime DEFAULT NULL,
+  `paid_by_user_id` int(11) DEFAULT NULL,
   `last_updated_by_user_id` int(11) DEFAULT NULL,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -725,14 +729,14 @@ CREATE TABLE `print_jobs` (
 -- Dumping data for table `print_jobs`
 --
 
-INSERT INTO `print_jobs` (`print_job_id`, `org_id`, `user_id`, `file_name`, `file_url`, `notes`, `status`, `queue_order`, `submitted_at`, `processing_started_at`, `ready_at`, `claimed_at`, `last_updated_by_user_id`, `updated_at`) VALUES
-(1, 6, 7, '4th-QUARTER-REVIEWER-OF-GRADE-5.pdf', 'uploads/documents/20260322_131435_358606f9_4th-QUARTER-REVIEWER-OF-GRADE-5.pdf', 'TEST 1', 'queued', 1, '2026-03-22 12:14:35', NULL, NULL, NULL, 7, '2026-03-22 12:14:35'),
-(2, 1, 7, 'PQMS midterm.pdf', 'uploads/documents/20260322_134323_d4ed5f99_PQMS_midterm.pdf', 'short paper page 1-4 lang po', 'claimed', 1, '2026-03-22 12:43:23', '2026-03-22 13:44:31', '2026-03-22 13:44:33', '2026-03-22 13:44:35', 7, '2026-03-22 12:44:35'),
-(3, 1, 7, 'PQMS midterm.pdf', 'uploads/documents/20260322_134518_963e0cc1_PQMS_midterm.pdf', 'test 2', 'claimed', 1, '2026-03-22 12:45:18', '2026-03-22 14:06:31', '2026-03-22 14:06:41', '2026-03-22 14:06:45', 7, '2026-03-22 13:06:45'),
-(4, 1, 7, '6_human_resource_management_technology_PM.pdf', 'uploads/documents/20260322_134518_2703b727_6_human_resource_management_technology_PM.pdf', 'test 2', 'queued', 1, '2026-03-22 12:45:18', NULL, NULL, NULL, 7, '2026-03-22 13:06:31'),
-(5, 1, 10, 'Emergency Hotlines.pdf', 'uploads/documents/20260324_142407_824bf7e2_Emergency_Hotlines.pdf', NULL, 'claimed', 2, '2026-03-24 13:24:07', '2026-03-24 14:24:37', '2026-03-24 14:24:43', '2026-03-24 14:24:54', 7, '2026-03-24 13:24:54'),
-(6, 1, 10, 'Beach Warning Flags.pdf', 'uploads/documents/20260324_142407_547a4e47_Beach_Warning_Flags.pdf', NULL, 'cancelled', 2, '2026-03-24 13:24:07', NULL, NULL, NULL, 10, '2026-03-24 13:35:52'),
-(7, 1, 10, 'OrgReport_Full_2026-03 (1).pdf', 'uploads/documents/20260324_142407_dbd0612b_OrgReport_Full_2026-03__1.pdf', NULL, 'cancelled', 2, '2026-03-24 13:24:07', NULL, NULL, NULL, 10, '2026-03-24 13:35:54');
+INSERT INTO `print_jobs` (`print_job_id`, `org_id`, `user_id`, `file_name`, `file_url`, `notes`, `status`, `queue_order`, `submitted_at`, `processing_started_at`, `ready_at`, `claimed_at`, `total_cost`, `payment_status`, `paid_at`, `paid_by_user_id`, `last_updated_by_user_id`, `updated_at`) VALUES
+(1, 6, 7, '4th-QUARTER-REVIEWER-OF-GRADE-5.pdf', 'uploads/documents/20260322_131435_358606f9_4th-QUARTER-REVIEWER-OF-GRADE-5.pdf', 'TEST 1', 'queued', 1, '2026-03-22 12:14:35', NULL, NULL, NULL, 0.00, 'unpaid', NULL, NULL, 7, '2026-03-22 12:14:35'),
+(2, 1, 7, 'PQMS midterm.pdf', 'uploads/documents/20260322_134323_d4ed5f99_PQMS_midterm.pdf', 'short paper page 1-4 lang po', 'claimed', 1, '2026-03-22 12:43:23', '2026-03-22 13:44:31', '2026-03-22 13:44:33', '2026-03-22 13:44:35', 0.00, 'paid', '2026-03-22 13:44:35', NULL, 7, '2026-03-22 12:44:35'),
+(3, 1, 7, 'PQMS midterm.pdf', 'uploads/documents/20260322_134518_963e0cc1_PQMS_midterm.pdf', 'test 2', 'claimed', 1, '2026-03-22 12:45:18', '2026-03-22 14:06:31', '2026-03-22 14:06:41', '2026-03-22 14:06:45', 0.00, 'paid', '2026-03-22 14:06:45', NULL, 7, '2026-03-22 13:06:45'),
+(4, 1, 7, '6_human_resource_management_technology_PM.pdf', 'uploads/documents/20260322_134518_2703b727_6_human_resource_management_technology_PM.pdf', 'test 2', 'queued', 1, '2026-03-22 12:45:18', NULL, NULL, NULL, 0.00, 'unpaid', NULL, NULL, 7, '2026-03-22 13:06:31'),
+(5, 1, 10, 'Emergency Hotlines.pdf', 'uploads/documents/20260324_142407_824bf7e2_Emergency_Hotlines.pdf', NULL, 'claimed', 2, '2026-03-24 13:24:07', '2026-03-24 14:24:37', '2026-03-24 14:24:43', '2026-03-24 14:24:54', 0.00, 'paid', '2026-03-24 14:24:54', NULL, 7, '2026-03-24 13:24:54'),
+(6, 1, 10, 'Beach Warning Flags.pdf', 'uploads/documents/20260324_142407_547a4e47_Beach_Warning_Flags.pdf', NULL, 'cancelled', 2, '2026-03-24 13:24:07', NULL, NULL, NULL, 0.00, 'waived', NULL, NULL, 10, '2026-03-24 13:35:52'),
+(7, 1, 10, 'OrgReport_Full_2026-03 (1).pdf', 'uploads/documents/20260324_142407_dbd0612b_OrgReport_Full_2026-03__1.pdf', NULL, 'cancelled', 2, '2026-03-24 13:24:07', NULL, NULL, NULL, 0.00, 'waived', NULL, NULL, 10, '2026-03-24 13:35:54');
 
 -- --------------------------------------------------------
 
@@ -1307,7 +1311,9 @@ ALTER TABLE `pending_registrations`
 ALTER TABLE `print_jobs`
   ADD PRIMARY KEY (`print_job_id`),
   ADD KEY `idx_print_jobs_org_status_order` (`org_id`,`status`,`queue_order`,`submitted_at`),
-  ADD KEY `idx_print_jobs_user_status` (`user_id`,`status`,`submitted_at`);
+  ADD KEY `idx_print_jobs_user_status` (`user_id`,`status`,`submitted_at`),
+  ADD KEY `idx_print_jobs_user_org_payment` (`user_id`,`org_id`,`status`,`payment_status`),
+  ADD KEY `idx_print_jobs_paid_by` (`paid_by_user_id`);
 
 --
 -- Indexes for table `program_org_mappings`
@@ -1590,7 +1596,8 @@ ALTER TABLE `pending_registrations`
 --
 ALTER TABLE `print_jobs`
   ADD CONSTRAINT `fk_print_jobs_org` FOREIGN KEY (`org_id`) REFERENCES `organizations` (`org_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_print_jobs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `fk_print_jobs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_print_jobs_paid_by` FOREIGN KEY (`paid_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `program_org_mappings`
