@@ -7857,7 +7857,8 @@ body.dark .card-top-accent {
 }
 
 /* === CURRENT RENTALS STYLES === */
-#currentRentalsContainer {
+#currentRentalsContainer,
+#servicesCurrentRentalsContainer {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 20px;
@@ -7878,10 +7879,28 @@ body.dark .card-top-accent {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    gap: 14px;
     margin-bottom: 16px;
 }
 
+.rental-card-items-with-payment {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.rental-card-items-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.rental-card-items-with-payment .rental-payment-status {
+    flex: 0 0 auto;
+}
+
 .rental-card-status {
+    flex: 0 0 auto;
     padding: 6px 12px;
     border-radius: var(--radius-sm);
     font-size: 0.75rem;
@@ -7920,9 +7939,12 @@ body.dark .rental-card-status.status-no-show {
 }
 
 .rental-card-org {
+    min-width: 0;
     font-size: 0.85rem;
     color: var(--primary);
     font-weight: 600;
+    text-align: right;
+    overflow-wrap: anywhere;
 }
 
 .rental-card-items {
@@ -7930,6 +7952,49 @@ body.dark .rental-card-status.status-no-show {
     padding: 12px;
     background: var(--panel-2);
     border-radius: var(--radius-sm);
+}
+
+.rental-cancel-reservation-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 11px;
+    border: 1px solid #dc2626;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: #dc2626;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.rental-cancel-reservation-btn:hover:not(:disabled) {
+    background: #dc2626;
+    color: #fff;
+}
+
+.rental-cancel-reservation-btn:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+body.dark .rental-cancel-reservation-btn {
+    border-color: #f87171;
+    color: #fca5a5;
+}
+
+body.dark .rental-cancel-reservation-btn:hover:not(:disabled) {
+    background: #b91c1c;
+    color: #fff;
+}
+
+@media (max-width: 520px) {
+    .rental-card-items-with-payment {
+        gap: 8px;
+    }
 }
 
 .rental-card-items h4 {

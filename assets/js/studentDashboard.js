@@ -8123,12 +8123,70 @@ function downloadApplicationForm() {
 // === CURRENT RENTALS FEATURE ===
 let currentRentalsData = [];
 let rentalTimerInterval = null;
+const STUDENT_RENTAL_CANCELLATION_CUTOFF_MS = 30 * 60 * 1000;
 
 function isStudentRentalNoShow(rental) {
     if (String(rental?.status || '').toLowerCase() !== 'reserved') return false;
     const raw = String(rental.expected_return_time || '').trim();
     const due = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
     return !Number.isNaN(due) && due < Date.now();
+}
+
+function canStudentCancelReservation(rental) {
+    if (String(rental?.status || '').toLowerCase() !== 'reserved') return false;
+    if (Object.prototype.hasOwnProperty.call(rental, 'can_student_cancel')) {
+        return rental.can_student_cancel === true || Number(rental.can_student_cancel) === 1;
+    }
+    const raw = String(rental.rent_time || '').trim();
+    const scheduledStart = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
+    return !Number.isNaN(scheduledStart)
+        && Date.now() <= scheduledStart - STUDENT_RENTAL_CANCELLATION_CUTOFF_MS;
+}
+
+async function cancelStudentReservation(rentalId, button) {
+    const confirmed = await appConfirm(
+        'Cancel this reservation? The item will be released and you will not be charged.',
+        {
+            title: 'Cancel reservation',
+            confirmText: 'Cancel reservation',
+            cancelText: 'Keep reservation',
+            danger: true
+        }
+    );
+    if (!confirmed) return;
+
+    const originalHtml = button ? button.innerHTML : '';
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Cancelling...';
+    }
+
+    try {
+        const response = await fetch('../api/student/rentals/cancel.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rental_id: Number(rentalId) })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not cancel this reservation.');
+        }
+
+        await Promise.allSettled([
+            loadCurrentRentals(),
+            loadRentalHistory(),
+            loadStudentServiceCatalog(true)
+        ]);
+        renderServices((document.getElementById('serviceSearch') || {}).value || '');
+        showToast(data.message || 'Reservation cancelled successfully.');
+    } catch (error) {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+        showToast(error.message || 'Could not cancel this reservation.', 'error');
+    }
 }
 
 async function loadCurrentRentals() {
@@ -8298,6 +8356,12 @@ function createRentalCard(rental) {
     }
 
     const itemsLabel = String(rental.items_label || 'No items').replace(/\s*\(\d+x\)/g, '').trim();
+    const cancelButtonHtml = canStudentCancelReservation(rental) ? `
+        <button type="button" class="rental-cancel-reservation-btn" data-cancel-rental-id="${rental.rental_id}">
+            <i class="fa-solid fa-xmark"></i>
+            Cancel Reservation
+        </button>
+    ` : '';
 
     card.innerHTML = `
         <div class="rental-card-header">
@@ -8305,9 +8369,12 @@ function createRentalCard(rental) {
             <div class="rental-card-org">${rental.org_name || 'Unknown Org'}</div>
         </div>
 
-        <div class="rental-card-items">
-            <h4><i class="fa-solid fa-box"></i> Rented Items</h4>
-            <div class="rental-items-list">${itemsLabel || 'No items'}</div>
+        <div class="rental-card-items rental-card-items-with-payment">
+            <div class="rental-card-items-content">
+                <h4><i class="fa-solid fa-box"></i> Rented Items</h4>
+                <div class="rental-items-list">${itemsLabel || 'No items'}</div>
+            </div>
+            <div class="rental-payment-status ${rental.payment_status}">${rental.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</div>
         </div>
 
         ${timerHtml}
@@ -8329,9 +8396,16 @@ function createRentalCard(rental) {
 
         <div class="rental-card-footer">
             <div class="rental-cost">₱${parseFloat(rental.total_cost).toFixed(2)}</div>
-            <div class="rental-payment-status ${rental.payment_status}">${rental.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</div>
+            ${cancelButtonHtml}
         </div>
     `;
+
+    const cancelButton = card.querySelector('[data-cancel-rental-id]');
+    if (cancelButton) {
+        cancelButton.addEventListener('click', () => {
+            cancelStudentReservation(rental.rental_id, cancelButton);
+        });
+    }
 
     return card;
 }
