@@ -3477,6 +3477,119 @@ body.dark .sub-nav-btn.active {
     overflow: hidden;
 }
 
+.printing-payment-modal-content {
+    background: #fff;
+    color: #111827;
+    max-width: 540px;
+}
+
+.printing-payment-modal-content h3,
+.printing-payment-modal-content label,
+.printing-payment-modal-content legend {
+    color: #111827;
+}
+
+.printing-payment-summary {
+    color: #64748b;
+    font-size: 0.88rem;
+    margin: 5px 0 0;
+}
+
+.printing-payment-modal-body {
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+}
+
+.printing-payment-modal-body .form-group {
+    margin: 0;
+}
+
+.printing-payment-modal-body input[type="text"],
+.printing-payment-modal-body input[type="number"] {
+    background: #fff;
+    color: #111827;
+    width: 100%;
+}
+
+.printing-payment-modal-body small {
+    color: #64748b;
+    display: block;
+    margin-top: 6px;
+}
+
+.printing-price-input-wrap {
+    align-items: center;
+    display: flex;
+    position: relative;
+    width: 100%;
+}
+
+.printing-price-input-wrap > span {
+    color: #475569;
+    font-weight: 700;
+    left: 14px;
+    line-height: 1;
+    pointer-events: none;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+
+.printing-price-input-wrap input {
+    box-sizing: border-box;
+    height: 46px;
+    margin: 0;
+    padding-left: 34px;
+}
+
+.printing-payment-choice {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 14px 16px 16px;
+}
+
+.printing-payment-choice legend {
+    color: #111827;
+    font-size: 0.86rem;
+    font-weight: 700;
+    padding: 0 5px;
+}
+
+.printing-payment-choice label {
+    align-items: center;
+    color: #111827;
+    cursor: pointer;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+    line-height: 1.35;
+    margin: 0;
+    width: 100%;
+}
+
+.printing-payment-choice input[type="radio"] {
+    appearance: auto;
+    flex: 0 0 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    width: 18px;
+}
+
+.printing-payment-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-md);
+    color: #b91c1c;
+    font-size: 0.86rem;
+    padding: 10px 12px;
+}
+
 .printing-file-preview-header {
     flex-shrink: 0;
 }

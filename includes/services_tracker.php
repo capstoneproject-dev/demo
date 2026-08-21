@@ -157,6 +157,10 @@ function stEnsureSchema(PDO $pdo): void
             processing_started_at DATETIME NULL,
             ready_at DATETIME NULL,
             claimed_at DATETIME NULL,
+            total_cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            payment_status VARCHAR(16) NOT NULL DEFAULT 'unpaid',
+            paid_at DATETIME NULL,
+            paid_by_user_id INT NULL,
             last_updated_by_user_id INT NULL,
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             KEY idx_print_jobs_org_status_order (org_id, status, queue_order, submitted_at),
@@ -166,15 +170,75 @@ function stEnsureSchema(PDO $pdo): void
                 ON DELETE CASCADE,
             CONSTRAINT fk_print_jobs_user
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
-                ON DELETE CASCADE
+                ON DELETE CASCADE,
+            CONSTRAINT fk_print_jobs_paid_by
+                FOREIGN KEY (paid_by_user_id) REFERENCES users(user_id)
+                ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
 
     $pdo->exec(
         "ALTER TABLE print_jobs
          ADD COLUMN IF NOT EXISTS provider_auto_assigned TINYINT(1) NOT NULL DEFAULT 0,
-         ADD COLUMN IF NOT EXISTS provider_accepted_at DATETIME NULL DEFAULT NULL"
+         ADD COLUMN IF NOT EXISTS provider_accepted_at DATETIME NULL DEFAULT NULL,
+         ADD COLUMN IF NOT EXISTS total_cost DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+         ADD COLUMN IF NOT EXISTS payment_status VARCHAR(16) NULL DEFAULT NULL,
+         ADD COLUMN IF NOT EXISTS paid_at DATETIME NULL DEFAULT NULL,
+         ADD COLUMN IF NOT EXISTS paid_by_user_id INT NULL DEFAULT NULL"
     );
+
+    // Preserve the legacy behavior for rows created before printing payments
+    // were tracked: claimed jobs were historically reported as paid.
+    $pdo->exec(
+        "UPDATE print_jobs
+         SET paid_at = CASE
+                 WHEN status = 'claimed' THEN COALESCE(paid_at, claimed_at)
+                 ELSE paid_at
+             END,
+             payment_status = CASE
+                 WHEN status = 'claimed' THEN 'paid'
+                 WHEN status = 'cancelled' THEN 'waived'
+                 ELSE 'unpaid'
+             END
+         WHERE payment_status IS NULL OR payment_status = ''"
+    );
+    $pdo->exec(
+        "ALTER TABLE print_jobs
+         MODIFY COLUMN payment_status VARCHAR(16) NOT NULL DEFAULT 'unpaid'"
+    );
+
+    $fkStmt = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM information_schema.REFERENTIAL_CONSTRAINTS
+         WHERE CONSTRAINT_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'print_jobs'
+           AND CONSTRAINT_NAME = 'fk_print_jobs_paid_by'"
+    );
+    $fkStmt->execute();
+    if ((int)$fkStmt->fetchColumn() === 0) {
+        $pdo->exec(
+            "ALTER TABLE print_jobs
+             ADD CONSTRAINT fk_print_jobs_paid_by
+             FOREIGN KEY (paid_by_user_id) REFERENCES users(user_id)
+             ON DELETE SET NULL"
+        );
+    }
+
+    $indexStmt = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'print_jobs'
+           AND INDEX_NAME = 'idx_print_jobs_user_org_payment'"
+    );
+    $indexStmt->execute();
+    if ((int)$indexStmt->fetchColumn() === 0) {
+        $pdo->exec(
+            "ALTER TABLE print_jobs
+             ADD INDEX idx_print_jobs_user_org_payment
+                (user_id, org_id, status, payment_status)"
+        );
+    }
 
     $done = true;
 }
@@ -657,6 +721,9 @@ function stAttachQueuePositions(PDO $pdo, array $rows): array
         $row['user_id'] = (int)$row['user_id'];
         $row['queue_order'] = (int)$row['queue_order'];
         $row['provider_auto_assigned'] = (int)($row['provider_auto_assigned'] ?? 0);
+        $row['total_cost'] = (float)($row['total_cost'] ?? 0);
+        $row['payment_status'] = strtolower((string)($row['payment_status'] ?? 'unpaid'));
+        $row['paid_by_user_id'] = isset($row['paid_by_user_id']) ? (int)$row['paid_by_user_id'] : null;
         $row['queue_position'] = strtolower((string)$row['status']) === 'queued'
             ? (int)($positionMap[(int)$row['print_job_id']] ?? 0)
             : null;
@@ -680,9 +747,12 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
     $org = stResolveOrganizationByRef($pdo, $orgRef);
     if (!$org) {
         $autoAssigned = 1;
-        $authorized = stListAuthorizedOrganizations($pdo, 'printing');
+        $authorized = array_values(array_filter(
+            stListAuthorizedOrganizations($pdo, 'printing'),
+            static fn(array $candidate): bool => !stHasUnpaidPrintingBalance($pdo, $userId, (int)$candidate['org_id'])
+        ));
         if (!$authorized) {
-            throw new ServiceTrackerValidationException('No organizations are currently authorized to offer printing services.');
+            throw new ServiceTrackerValidationException('You have an unpaid printing balance with every available provider. Settle a balance before submitting another print request.');
         }
 
         $fallback = null;
@@ -708,6 +778,9 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
 
     if (!stServiceEnabledForOrg($pdo, $orgId, 'printing')) {
         throw new ServiceTrackerValidationException('Selected organization is not authorized for printing services.');
+    }
+    if (stHasUnpaidPrintingBalance($pdo, $userId, $orgId)) {
+        throw new ServiceTrackerValidationException('You have an unpaid printing balance with this organization. Choose another provider or settle the balance first.');
     }
 
     $storedFile = stStoreUploadedPrintFile($file);
@@ -741,6 +814,95 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
         privatePdfDeleteStorageKey((string)$storedFile['file_url']);
         throw $e;
     }
+}
+
+function stHasUnpaidPrintingBalance(PDO $pdo, int $userId, int $orgId): bool
+{
+    if ($userId <= 0 || $orgId <= 0) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT 1
+         FROM print_jobs
+         WHERE user_id = :user_id
+           AND org_id = :org_id
+           AND status = 'claimed'
+           AND payment_status = 'unpaid'
+           AND total_cost > 0
+         LIMIT 1"
+    );
+    $stmt->execute([
+        ':user_id' => $userId,
+        ':org_id' => $orgId,
+    ]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function stRequireActiveOfficerIdentifier(PDO $pdo, int $orgId, string $identifier): int
+{
+    $identifier = trim($identifier);
+    if ($identifier === '') {
+        throw new ServiceTrackerValidationException('Scan a valid officer barcode before marking the payment as paid.');
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT u.user_id, u.student_number, u.employee_number, u.email
+         FROM users u
+         JOIN organization_members om
+           ON om.user_id = u.user_id
+          AND om.org_id = :org_id
+          AND om.is_active = 1
+         JOIN org_roles role
+           ON role.role_id = om.role_id
+          AND role.is_active = 1
+          AND role.can_access_org_dashboard = 1
+         WHERE u.is_active = 1"
+    );
+    $stmt->execute([':org_id' => $orgId]);
+    $scanned = strtolower($identifier);
+    foreach ($stmt->fetchAll() as $officer) {
+        $identifiers = array_filter([
+            trim((string)($officer['student_number'] ?? '')),
+            trim((string)($officer['employee_number'] ?? '')),
+            trim((string)($officer['email'] ?? '')),
+        ]);
+        foreach ($identifiers as $rawIdentifier) {
+            if (strtolower($rawIdentifier) === $scanned
+                || strtolower(stEncodeBarcodeReference($rawIdentifier, 'O')) === $scanned
+                || strtolower(stEncodeBarcodeReference($rawIdentifier, 'S')) === $scanned) {
+                return (int)$officer['user_id'];
+            }
+        }
+    }
+
+    throw new ServiceTrackerValidationException('Unknown officer ID. Scan a valid active officer barcode for this organization.');
+}
+
+function stEncodeBarcodeReference(string $raw, string $prefix): string
+{
+    if ($raw === '') {
+        return '';
+    }
+
+    $hash = 0;
+    $length = strlen($raw);
+    for ($index = 0; $index < $length; $index++) {
+        $hash = (($hash << 5) - $hash) + ord($raw[$index]);
+        $hash &= 0xFFFFFFFF;
+        if ($hash >= 0x80000000) {
+            $hash -= 0x100000000;
+        }
+    }
+
+    $number = abs($hash);
+    $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    $encoded = '';
+    for ($index = 0; $index < 4; $index++) {
+        $encoded = $characters[$number % 62] . $encoded;
+        $number = intdiv($number, 62);
+    }
+    return $prefix . $encoded;
 }
 
 function stListPrintJobs(PDO $pdo, array $filters = [], ?int $userScope = null, ?int $orgScope = null): array
@@ -838,7 +1000,7 @@ function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $upd
     $pdo->beginTransaction();
     try {
         $lock = $pdo->prepare(
-            "SELECT provider_auto_assigned, status
+            "SELECT provider_auto_assigned, status, user_id
              FROM print_jobs
              WHERE print_job_id = :print_job_id
              FOR UPDATE"
@@ -851,6 +1013,9 @@ function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $upd
 
         if ((int)($current['provider_auto_assigned'] ?? 0) !== 1 || strtolower((string)($current['status'] ?? '')) !== 'queued') {
             throw new ServiceTrackerValidationException('This print request has already been accepted by another organization.');
+        }
+        if (stHasUnpaidPrintingBalance($pdo, (int)$current['user_id'], $orgId)) {
+            throw new ServiceTrackerValidationException('This student has an unpaid printing balance with your organization and cannot submit another request here.');
         }
 
         $queueOrder = stGetNextQueueOrder($pdo, $orgId);
@@ -885,7 +1050,14 @@ function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $upd
     }
 }
 
-function stUpdatePrintJobStatus(PDO $pdo, int $orgId, int $printJobId, string $status, int $updatedByUserId): array
+function stUpdatePrintJobStatus(
+    PDO $pdo,
+    int $orgId,
+    int $printJobId,
+    string $status,
+    int $updatedByUserId,
+    array $paymentData = []
+): array
 {
     stEnsureSchema($pdo);
     $status = strtolower(trim($status));
@@ -894,13 +1066,33 @@ function stUpdatePrintJobStatus(PDO $pdo, int $orgId, int $printJobId, string $s
         throw new ServiceTrackerValidationException('Invalid print job status.');
     }
 
-    $current = stFetchPrintJob($pdo, $printJobId);
-    if ((int)$current['org_id'] !== $orgId) {
-        throw new ServiceTrackerAuthorizationException('You are not allowed to update this print job.');
-    }
-
     $pdo->beginTransaction();
     try {
+        $lock = $pdo->prepare(
+            "SELECT print_job_id, org_id, status
+             FROM print_jobs
+             WHERE print_job_id = :print_job_id
+             FOR UPDATE"
+        );
+        $lock->execute([':print_job_id' => $printJobId]);
+        $current = $lock->fetch();
+        if (!$current) {
+            throw new ServiceTrackerValidationException('Print job not found.');
+        }
+        if ((int)$current['org_id'] !== $orgId) {
+            throw new ServiceTrackerAuthorizationException('You are not allowed to update this print job.');
+        }
+
+        $currentStatus = strtolower((string)$current['status']);
+        $allowedTransitions = [
+            'queued' => ['processing', 'cancelled'],
+            'processing' => ['ready_to_claim', 'cancelled'],
+            'ready_to_claim' => ['claimed', 'cancelled'],
+        ];
+        if (!in_array($status, $allowedTransitions[$currentStatus] ?? [], true)) {
+            throw new ServiceTrackerValidationException('This print job changed status. Refresh the queue and try again.');
+        }
+
         $fields = [
             'status = :status',
             'last_updated_by_user_id = :updated_by',
@@ -916,7 +1108,40 @@ function stUpdatePrintJobStatus(PDO $pdo, int $orgId, int $printJobId, string $s
         } elseif ($status === 'ready_to_claim') {
             $fields[] = 'ready_at = NOW()';
         } elseif ($status === 'claimed') {
+            if (!isset($paymentData['total_cost']) || !is_numeric($paymentData['total_cost'])) {
+                throw new ServiceTrackerValidationException('Enter the final printing price before claiming this job.');
+            }
+            $totalCost = round((float)$paymentData['total_cost'], 2);
+            if ($totalCost <= 0 || $totalCost > 99999999.99) {
+                throw new ServiceTrackerValidationException('Printing price must be greater than P0.00 and within the supported amount.');
+            }
+            $paymentStatus = strtolower(trim((string)($paymentData['payment_status'] ?? 'unpaid')));
+            if (!in_array($paymentStatus, ['unpaid', 'paid'], true)) {
+                throw new ServiceTrackerValidationException('Choose whether the printing payment is paid or unpaid.');
+            }
+
             $fields[] = 'claimed_at = NOW()';
+            $fields[] = 'total_cost = :total_cost';
+            $fields[] = 'payment_status = :payment_status';
+            $params[':total_cost'] = $totalCost;
+            $params[':payment_status'] = $paymentStatus;
+            if ($paymentStatus === 'paid') {
+                $paidByUserId = stRequireActiveOfficerIdentifier(
+                    $pdo,
+                    $orgId,
+                    (string)($paymentData['officer_identifier'] ?? '')
+                );
+                $fields[] = 'paid_at = NOW()';
+                $fields[] = 'paid_by_user_id = :paid_by_user_id';
+                $params[':paid_by_user_id'] = $paidByUserId;
+            } else {
+                $fields[] = 'paid_at = NULL';
+                $fields[] = 'paid_by_user_id = NULL';
+            }
+        } elseif ($status === 'cancelled') {
+            $fields[] = "payment_status = 'waived'";
+            $fields[] = 'paid_at = NULL';
+            $fields[] = 'paid_by_user_id = NULL';
         }
 
         $stmt = $pdo->prepare(
@@ -926,7 +1151,7 @@ function stUpdatePrintJobStatus(PDO $pdo, int $orgId, int $printJobId, string $s
         );
         $stmt->execute($params);
 
-        if (strtolower((string)$current['status']) === 'queued' || $status === 'queued') {
+        if ($currentStatus === 'queued' || $status === 'queued') {
             stNormalizeQueuedOrders($pdo, $orgId);
         }
 
@@ -961,6 +1186,9 @@ function stCancelStudentPrintJob(PDO $pdo, int $userId, int $printJobId): array
         $stmt = $pdo->prepare(
             "UPDATE print_jobs
              SET status = 'cancelled',
+                 payment_status = 'waived',
+                 paid_at = NULL,
+                 paid_by_user_id = NULL,
                  last_updated_by_user_id = :updated_by
              WHERE print_job_id = :print_job_id"
         );
@@ -1035,7 +1263,7 @@ function stReorderPrintJob(PDO $pdo, int $orgId, int $printJobId, int $newQueueO
     }
 }
 
-function stGetStudentServicesOverview(PDO $pdo): array
+function stGetStudentServicesOverview(PDO $pdo, int $userId = 0): array
 {
     stEnsureSchema($pdo);
     $services = stListServiceCatalog($pdo);
@@ -1054,10 +1282,79 @@ function stGetStudentServicesOverview(PDO $pdo): array
         ];
     }
 
+    $printingProviders = stListAuthorizedOrganizations($pdo, 'printing');
+    foreach ($printingProviders as &$provider) {
+        $hasBalance = $userId > 0 && stHasUnpaidPrintingBalance($pdo, $userId, (int)$provider['org_id']);
+        $provider['has_unpaid_printing_balance'] = $hasBalance;
+        $provider['printing_request_allowed'] = !$hasBalance;
+    }
+    unset($provider);
+
     return [
         'modules' => $modules,
-        'printing_providers' => stListAuthorizedOrganizations($pdo, 'printing'),
+        'printing_providers' => $printingProviders,
     ];
+}
+
+function stMarkPrintJobPaid(PDO $pdo, int $orgId, int $printJobId, string $officerIdentifier): array
+{
+    stEnsureSchema($pdo);
+    if ($printJobId <= 0) {
+        throw new ServiceTrackerValidationException('A valid print job is required.');
+    }
+
+    $paidByUserId = stRequireActiveOfficerIdentifier($pdo, $orgId, $officerIdentifier);
+    $pdo->beginTransaction();
+    try {
+        $lock = $pdo->prepare(
+            "SELECT org_id, status, payment_status, total_cost
+             FROM print_jobs
+             WHERE print_job_id = :print_job_id
+             FOR UPDATE"
+        );
+        $lock->execute([':print_job_id' => $printJobId]);
+        $current = $lock->fetch();
+        if (!$current) {
+            throw new ServiceTrackerValidationException('Print job not found.');
+        }
+        if ((int)$current['org_id'] !== $orgId) {
+            throw new ServiceTrackerAuthorizationException('You are not allowed to update this print payment.');
+        }
+        if (strtolower((string)$current['status']) !== 'claimed'
+            || strtolower((string)$current['payment_status']) !== 'unpaid'
+            || (float)$current['total_cost'] <= 0) {
+            throw new ServiceTrackerValidationException('This print job is not eligible to be marked paid.');
+        }
+
+        $update = $pdo->prepare(
+            "UPDATE print_jobs
+             SET payment_status = 'paid',
+                 paid_at = NOW(),
+                 paid_by_user_id = :paid_by_user_id,
+                 last_updated_by_user_id = :updated_by
+             WHERE print_job_id = :print_job_id
+               AND org_id = :org_id
+               AND status = 'claimed'
+               AND payment_status = 'unpaid'"
+        );
+        $update->execute([
+            ':paid_by_user_id' => $paidByUserId,
+            ':updated_by' => $paidByUserId,
+            ':print_job_id' => $printJobId,
+            ':org_id' => $orgId,
+        ]);
+        if ($update->rowCount() !== 1) {
+            throw new ServiceTrackerValidationException('This print payment was already updated. Refresh the history and try again.');
+        }
+
+        $pdo->commit();
+        return stFetchPrintJob($pdo, $printJobId);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }
 
 function stGetLockerPeriodOptions(): array

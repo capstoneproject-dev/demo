@@ -1866,8 +1866,7 @@ function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
 
 function igpGetPrintingFinancialRows(PDO $pdo, int $orgId): array
 {
-    $hasPrintTotalCost = igpColumnExists($pdo, 'print_jobs', 'total_cost');
-    $totalCostSelectExpr = $hasPrintTotalCost ? 'COALESCE(pj.total_cost, 0)' : '0';
+    stEnsureSchema($pdo);
 
     $stmt = $pdo->prepare(
         "SELECT pj.print_job_id,
@@ -1877,7 +1876,9 @@ function igpGetPrintingFinancialRows(PDO $pdo, int $orgId): array
                 pj.processing_started_at,
                 pj.ready_at,
                 pj.claimed_at,
-                {$totalCostSelectExpr} AS total_cost,
+                COALESCE(pj.total_cost, 0) AS total_cost,
+                pj.payment_status,
+                pj.paid_at,
                 CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS student_name,
                 u.student_number,
                 CONCAT(COALESCE(updated_by.first_name, ''), ' ', COALESCE(updated_by.last_name, '')) AS processed_by
@@ -1903,10 +1904,12 @@ function igpGetPrintingFinancialRows(PDO $pdo, int $orgId): array
             'customer_section' => '',
             'processed_by' => trim((string)($row['processed_by'] ?? '')) ?: '-',
             'status' => $status,
-            'payment_status' => $status === 'claimed'
-                ? 'paid'
-                : ($status === 'cancelled' ? 'waived' : 'unpaid'),
-            'paid_at' => (string)($row['claimed_at'] ?? ''),
+            'payment_status' => $status === 'cancelled'
+                ? 'waived'
+                : (in_array(strtolower((string)($row['payment_status'] ?? 'unpaid')), ['paid', 'waived'], true)
+                    ? strtolower((string)$row['payment_status'])
+                    : 'unpaid'),
+            'paid_at' => (string)($row['paid_at'] ?? ''),
             'base_cost' => $totalCost,
             'overtime_cost' => 0.0,
             'total_cost' => $totalCost,
