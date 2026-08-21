@@ -16,7 +16,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>Events - QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260821-archive-repo-filter">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260821-archive-reset-compact">
 </head>
 
 <body>
