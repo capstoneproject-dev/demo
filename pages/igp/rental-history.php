@@ -90,11 +90,9 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             <div>
                 <a href="index.php" class="btn btn-outline-secondary me-2">Back to Rental System</a>
                 <a id="financialSummaryBtn" href="financial-summary.php" target="_top"
-                    class="btn btn-outline-success me-2">Financial Summary</a>
-                <button id="clearHistory" class="btn btn-danger me-2">Clear History</button>
+                    class="btn btn-outline-secondary me-2">Financial Summary</a>
                 <button id="exportExcel" class="btn btn-success me-2">Export to Excel</button>
-                <input type="file" id="importExcel" accept=".xlsx" style="display:inline-block; width:auto;"
-                    class="form-control form-control-sm" />
+                <input type="file" id="importExcel" accept=".xlsx" class="form-control form-control-sm" hidden />
             </div>
         </div>
         <div class="card">
