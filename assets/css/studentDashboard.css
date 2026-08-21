@@ -825,6 +825,12 @@ header {
     height: 100%;
 }
 
+.student-services-overview > #servicesCurrentRentalsSection {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+}
+
 /* --- PRINTING HERO SECTION --- */
 .printing-hero {
     background-color: var(--panel-2);
