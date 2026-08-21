@@ -38,10 +38,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     </li>
 
                     <li class="nav-item">
-                        <a class="nav-link" href="generate-qr.php">Generate Barcodes</a>
-                    </li>
-
-                    <li class="nav-item">
                         <a class="nav-link" href="../shared/student-database.php?return=../qr-attendance/index.php">Database</a>
                     </li>
                     <li class="nav-item">

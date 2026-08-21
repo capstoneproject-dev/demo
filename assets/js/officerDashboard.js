@@ -455,6 +455,53 @@ function initOfficerAuthContext() {
     initOrgDataFromOrgData();
 }
 
+function applyOfficerEmbeddedNavCenter(frame) {
+    if (!frame) return;
+
+    try {
+        const frameDocument = frame.contentDocument;
+        if (!frameDocument) return;
+        frameDocument.getElementById('officer-dashboard-embed-clearance')?.remove();
+        let style = frameDocument.getElementById('officer-dashboard-embed-nav-center');
+
+        if (!style) {
+            style = frameDocument.createElement('style');
+            style.id = 'officer-dashboard-embed-nav-center';
+            frameDocument.head.appendChild(style);
+        }
+
+        style.textContent = `
+            @media (min-width: 992px) {
+                .custom-navbar .nav-pills-custom {
+                    position: absolute !important;
+                    left: 50% !important;
+                    margin: 0 !important;
+                    transform: translateX(-50%) !important;
+                }
+            }
+        `;
+    } catch (_error) {
+        // Embedded subsystem pages are same-origin; keep the dashboard usable if a frame is unavailable.
+    }
+}
+
+function syncOfficerEmbeddedNavCenter() {
+    document.querySelectorAll('#events iframe, #tracker-rentals-view iframe').forEach(frame => {
+        applyOfficerEmbeddedNavCenter(frame);
+    });
+}
+
+function setupOfficerEmbeddedNavCenter() {
+    document.querySelectorAll('#events iframe, #tracker-rentals-view iframe').forEach(frame => {
+        frame.addEventListener('load', () => applyOfficerEmbeddedNavCenter(frame));
+        if (frame.contentDocument?.readyState === 'complete') {
+            applyOfficerEmbeddedNavCenter(frame);
+        }
+    });
+
+    window.addEventListener('resize', syncOfficerEmbeddedNavCenter);
+}
+
 function normalizeOfficerOrgName(name) {
     const normalized = String(name || '').trim().toUpperCase();
     const aliases = {
@@ -1122,6 +1169,7 @@ function toggleThemeMobile() {
 // Initialize Theme on Load
 document.addEventListener('DOMContentLoaded', () => {
     initOfficerAuthContext();
+    setupOfficerEmbeddedNavCenter();
     setupOfficerProfileEditor();
     setupOfficerPasswordForm();
     setupOfficerProfilePhotoUploader();
@@ -1213,6 +1261,7 @@ function navigate(viewId, element) {
     // Fullscreen layout for full-page service views.
     if ((viewId === 'events' || viewId === 'tracker') && mainContent) {
         mainContent.classList.add('tracker-fullscreen');
+        window.requestAnimationFrame(syncOfficerEmbeddedNavCenter);
     }
 
     // 4. Resize charts if Analytics tab is opened

@@ -68,15 +68,7 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
                     </li>
 
                     <li class="nav-item">
-                        <a class="nav-link" href="../qr-attendance/generate-qr.php">Generate Barcodes</a>
-                    </li>
-
-                    <li class="nav-item">
                         <a class="nav-link active" href="<?php echo htmlspecialchars($databaseReturnUrl, ENT_QUOTES, 'UTF-8'); ?>">Database</a>
-                    </li>
-
-                    <li class="nav-item">
-                        <a class="nav-link" href="../qr-attendance/index.php">Home</a>
                     </li>
                     <?php else: ?>
                     <li class="nav-item">

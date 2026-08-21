@@ -32,13 +32,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             <div class="collapse navbar-collapse" id="mainNav">
 
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0 nav-pills-custom">
-
                     <li class="nav-item">
                         <a class="nav-link" href="events.php">Events</a>
-                    </li>
-
-                    <li class="nav-item">
-                        <a class="nav-link" href="generate-qr.php">Generate Barcodes</a>
                     </li>
 
                     <li class="nav-item">
