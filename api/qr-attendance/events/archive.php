@@ -4,21 +4,31 @@ require_once __DIR__ . '/../../../includes/qr_attendance.php';
 
 header('Content-Type: application/json');
 apiGuard();
+requirePost();
 
 try {
     $ctx = qrRequireOfficerOrgContext();
-    $filters = [
-        'q' => trim((string)($_GET['q'] ?? '')),
-        'state' => trim((string)($_GET['state'] ?? 'active')),
-    ];
-    $items = qrListEvents(getPdo(), $ctx['org_id'], $filters);
-    jsonOk(['items' => $items]);
+    $body = getRequestBody();
+    $eventId = (int)($body['event_id'] ?? 0);
+    $action = trim((string)($body['action'] ?? ''));
+
+    qrSetEventArchived(
+        getPdo(),
+        (int)$ctx['org_id'],
+        (int)$ctx['user_id'],
+        $eventId,
+        $action
+    );
+
+    jsonOk([
+        'event_id' => $eventId,
+        'action' => strtolower($action),
+    ]);
 } catch (QrAttendanceAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
 } catch (PDOException $e) {
-    error_log('[api/qr-attendance/events/list] ' . $e->getMessage());
+    error_log('[api/qr-attendance/events/archive] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {
     jsonError($e->getMessage(), 400);
 }
-

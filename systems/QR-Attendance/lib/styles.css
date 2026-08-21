@@ -464,3 +464,57 @@ h1.mb-4 {
     background-color: #f8f9fa;
     color: var(--primary) !important;
 }
+
+.archive-month-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.archive-month-filters .btn {
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+.event-view-tabs.sub-view-nav {
+    display: flex;
+    gap: 15px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+}
+
+.event-view-tabs .sub-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--muted);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.event-view-tabs .sub-nav-btn:hover {
+    background-color: #f7f9ff;
+    color: var(--primary);
+}
+
+.event-view-tabs .sub-nav-btn.active {
+    background-color: var(--primary);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 33, 71, 0.15);
+}
+
+@media (max-width: 768px) {
+    #eventSearchInput {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 0 0.75rem !important;
+    }
+}

@@ -293,12 +293,16 @@ CREATE TABLE events (
     event_date DATE NOT NULL,
     event_type_id INT NOT NULL,
     is_published TINYINT(1) NOT NULL DEFAULT 0,
+    archived_at DATETIME NULL,
+    archived_by_user_id INT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_events_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE CASCADE,
     CONSTRAINT fk_events_creator FOREIGN KEY (created_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_events_archiver FOREIGN KEY (archived_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
     CONSTRAINT fk_events_type FOREIGN KEY (event_type_id) REFERENCES event_types(event_type_id) ON DELETE RESTRICT,
-    CONSTRAINT fk_events_org_type FOREIGN KEY (org_id, event_type_id) REFERENCES event_types(org_id, event_type_id) ON DELETE RESTRICT
+    CONSTRAINT fk_events_org_type FOREIGN KEY (org_id, event_type_id) REFERENCES event_types(org_id, event_type_id) ON DELETE RESTRICT,
+    INDEX idx_events_org_archive_sort (org_id, archived_at, event_date, event_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE announcements (

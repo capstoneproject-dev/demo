@@ -43,8 +43,8 @@
                 overflow: hidden;
                 border: 1px solid rgba(148, 163, 184, .28);
                 border-radius: 18px;
-                background: var(--panel, #fff);
-                color: var(--text, #172033);
+                background: #fff;
+                color: #0f172a;
                 box-shadow: 0 24px 70px rgba(15, 23, 42, .3);
                 transform: translateY(12px) scale(.985);
                 transition: transform .18s ease;
@@ -70,12 +70,12 @@
             .app-dialog-icon.error { background: #fee2e2; color: #b91c1c; }
             .app-dialog-copy h2 {
                 margin: 1px 0 7px;
-                color: #fff;
+                color: #0f172a;
                 font: 750 1.08rem/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             }
             .app-dialog-copy p {
                 margin: 0;
-                color: var(--muted, #64748b);
+                color: #334155;
                 font: 400 .92rem/1.58 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                 overflow-wrap: anywhere;
                 white-space: pre-wrap;
@@ -86,8 +86,8 @@
                 padding: 10px 12px;
                 border: 1px solid var(--border, #cbd5e1);
                 border-radius: 9px;
-                background: var(--panel-2, #f8fafc);
-                color: inherit;
+                background: #f8fafc;
+                color: #0f172a;
                 font: inherit;
                 outline: none;
             }
@@ -115,7 +115,7 @@
             .app-dialog-button.secondary {
                 border-color: var(--border, #cbd5e1);
                 background: transparent;
-                color: var(--text, #334155);
+                color: #334155;
             }
             .app-dialog-button.primary {
                 background: var(--primary, #2563eb);
@@ -123,8 +123,11 @@
             }
             .app-dialog-button.danger { background: #dc2626; color: #fff; }
             @media (prefers-color-scheme: dark) {
-                .app-dialog-panel { background: var(--panel, #172033); color: var(--text, #f8fafc); }
-                .app-dialog-copy p { color: var(--muted, #cbd5e1); }
+                .app-dialog-panel { background: #fff; color: #0f172a; }
+                .app-dialog-copy h2 { color: #0f172a; }
+                .app-dialog-copy p { color: #334155; }
+                .app-dialog-input { background: #f8fafc; color: #0f172a; }
+                .app-dialog-button.secondary { color: #334155; }
             }
             @media (max-width: 520px) {
                 .app-dialog-body { grid-template-columns: 40px minmax(0, 1fr); padding: 20px 18px 14px; }

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/services_tracker.php';
 require_once __DIR__ . '/../../../includes/documents.php';
 require_once __DIR__ . '/../../../includes/igp.php';
+require_once __DIR__ . '/../../../includes/qr_attendance.php';
 
 header('Content-Type: application/json');
 apiGuard();
@@ -61,6 +62,7 @@ try {
     stEnsureSchema($pdo);
     docEnsureTermColumns($pdo);
     igpExpireUnfulfilledReservations($pdo, $orgId);
+    qrEnsureEventArchiveColumns($pdo);
 
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 30;
     $limit = max(10, min(50, $limit));
@@ -268,6 +270,7 @@ try {
          FROM events
          WHERE org_id = :org_id
            AND is_published = 1
+           AND archived_at IS NULL
            AND event_datetime IS NOT NULL
            AND event_datetime BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 24 HOUR)
          ORDER BY event_datetime ASC, event_id ASC"
@@ -306,6 +309,7 @@ try {
          FROM attendance_records ar
          JOIN events e ON e.event_id = ar.event_id
          WHERE e.org_id = :org_id
+           AND e.archived_at IS NULL
            AND COALESCE(ar.updated_at, ar.created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
          ORDER BY COALESCE(ar.updated_at, ar.created_at) DESC, ar.record_id DESC
          LIMIT 100"

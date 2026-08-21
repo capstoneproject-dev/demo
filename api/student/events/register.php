@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../../includes/auth.php';
+require_once __DIR__ . '/../../../includes/qr_attendance.php';
 
 header('Content-Type: application/json');
 apiGuard();
@@ -26,12 +27,14 @@ try {
     }
 
     $pdo = getPdo();
+    qrEnsureEventArchiveColumns($pdo);
 
     $eventStmt = $pdo->prepare(
         "SELECT event_id
          FROM events
          WHERE event_id = :event_id
            AND is_published = 1
+           AND archived_at IS NULL
          LIMIT 1"
     );
     $eventStmt->execute([':event_id' => $eventId]);
