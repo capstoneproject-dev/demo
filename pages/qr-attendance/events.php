@@ -10,13 +10,13 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <html lang="en">
 
 <head>
-    <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
+    <script src="../../assets/js/app-dialog.js?v=20260821-white-panel"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Events - QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260821-event-sub-view-nav">
 </head>
 
 <body>
@@ -49,20 +49,29 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             </div>
         </div>
 
+        <div class="event-view-tabs sub-view-nav mb-3" role="tablist" aria-label="Event views">
+            <button type="button" class="sub-nav-btn active" id="activeEventsTab" data-event-view="active">
+                <i class="fa-solid fa-calendar-check"></i> Active Events
+            </button>
+            <button type="button" class="sub-nav-btn" id="archivedEventsTab" data-event-view="archived">
+                <i class="fa-solid fa-box-archive"></i> Archived Events
+            </button>
+        </div>
+
         <!-- Events List -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h2 class="h5 mb-0">All Events</h2>
+                <h2 class="h5 mb-0" id="eventsListTitle">Active Events</h2>
                 <div>
                     <input type="text" id="eventSearchInput" class="form-control form-control-sm me-2"
                         placeholder="Search events..." style="display:inline-block; width:auto; min-width:200px;">
-                    <button id="deleteAllEvents" class="btn btn-danger btn-sm me-2">Delete All Events</button>
                     <button id="exportAllEvents" class="btn btn-success btn-sm me-2">Export All Events</button>
                     <button id="importEvents" class="btn btn-primary btn-sm">Import Events</button>
                     <input type="file" id="importFile" accept=".xlsx" style="display: none;">
                 </div>
             </div>
             <div class="card-body">
+                <div id="archiveMonthFilters" class="archive-month-filters mb-3" style="display:none;" aria-label="Filter archived events by month"></div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -131,55 +140,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             </div>
         </div>
 
-        <!-- Delete Event Confirmation Modal -->
-        <div class="modal fade" id="deleteEventModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Delete Event</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="text-danger">Warning: This action cannot be undone. The event and all its attendance
-                            records will be permanently deleted.</p>
-                        <p><strong>Event Name:</strong> <span id="deleteEventName"></span></p>
-                        <p>To confirm, please type "Delete" in the box below:</p>
-                        <input type="text" class="form-control" id="deleteEventConfirmation"
-                            placeholder="Type 'Delete' to confirm">
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" id="confirmDeleteEvent" disabled>Delete
-                            Event</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Delete All Confirmation Modal -->
-        <div class="modal fade" id="deleteAllModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Delete All Events</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="text-danger">Warning: This action cannot be undone. All events and their attendance
-                            records will be permanently deleted.</p>
-                        <p>To confirm, please type "Delete" in the box below:</p>
-                        <input type="text" class="form-control" id="deleteConfirmation"
-                            placeholder="Type 'Delete' to confirm">
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" id="confirmDeleteAll" disabled>Delete All
-                            Events</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Create Event Modal -->
         <div class="modal fade" id="createEventModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog">
@@ -214,7 +174,10 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         const QR_API_BASE = '../../api/qr-attendance';
         let attendanceRecords = [];
         let events = [];
+        let archivedEvents = [];
         let currentEventDetails = null;
+        let currentEventsView = 'active';
+        let selectedArchiveMonth = 'all';
 
         // Helper function to normalize event names for consistent matching
         function normalizeEventName(name) {
@@ -227,10 +190,15 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 id: row.event_id,
                 name: row.event_name,
                 description: row.description || '',
-                status: row.status || 'active',
+                status: row.archived_at ? 'archived' : 'active',
                 createdAt: row.created_at || '',
+                eventDateTime: row.event_datetime || '',
                 firstDate: row.first_record_date || null,
                 lastDate: row.last_record_date || null,
+                archiveStartDate: row.archive_start_date || row.event_datetime || null,
+                archiveEndDate: row.archive_end_date || row.event_datetime || null,
+                archivedAt: row.archived_at || null,
+                archivedByUserId: row.archived_by_user_id || null,
                 attendanceCount: Number(row.attended_count ?? row.attendance_count ?? 0),
                 preRegisteredCount: Number(row.pre_registered_count || 0),
                 records: []
@@ -244,7 +212,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
         function getEventPreRegisteredCount(eventName, records = []) {
             const normalizedTargetName = normalizeEventName(eventName);
-            const apiEvent = events.find(event => normalizeEventName(event.name || event.event_name) === normalizedTargetName);
+            const apiEvent = [...events, ...archivedEvents].find(event => normalizeEventName(event.name || event.event_name) === normalizedTargetName);
             if (apiEvent) {
                 return Number(apiEvent.preRegisteredCount ?? apiEvent.pre_registered_count ?? 0);
             }
@@ -265,9 +233,13 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         }
 
         async function loadEventsFromApi() {
-            const payload = await qrApiRequest('/events/list.php', { method: 'GET' });
-            events = (payload.items || []).map(mapApiEvent);
-            return events;
+            // Load sequentially so the active request can safely apply the one-time
+            // archive schema migration before the archived query runs.
+            const activePayload = await qrApiRequest('/events/list.php?state=active', { method: 'GET' });
+            const archivedPayload = await qrApiRequest('/events/list.php?state=archived', { method: 'GET' });
+            events = (activePayload.items || []).map(mapApiEvent);
+            archivedEvents = (archivedPayload.items || []).map(mapApiEvent);
+            return [...events, ...archivedEvents];
         }
 
         // Initialize data
@@ -278,7 +250,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             } catch (error) {
                 console.warn('Unable to load events from API, falling back to localStorage.', error);
                 const localEvents = JSON.parse(localStorage.getItem('events')) || [];
-                events = localEvents.map(event => ({
+                const mappedLocalEvents = localEvents.map(event => ({
                     id: event.id || null,
                     name: event.name || event.eventName || '',
                     description: event.description || '',
@@ -286,8 +258,14 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     createdAt: event.createdAt || '',
                     firstDate: event.firstDate || null,
                     lastDate: event.lastDate || null,
+                    eventDateTime: event.eventDateTime || event.event_datetime || event.createdAt || '',
+                    archiveStartDate: event.firstDate || event.eventDateTime || event.createdAt || null,
+                    archiveEndDate: event.lastDate || event.eventDateTime || event.createdAt || null,
+                    archivedAt: event.archivedAt || event.archived_at || null,
                     records: []
                 }));
+                events = mappedLocalEvents.filter(event => !event.archivedAt && event.status !== 'archived');
+                archivedEvents = mappedLocalEvents.filter(event => event.archivedAt || event.status === 'archived');
             }
         }
 
@@ -341,169 +319,219 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             document.getElementById('eventSearchInput').addEventListener('input', function () {
                 updateEventsList();
             });
+            document.querySelectorAll('[data-event-view]').forEach(button => {
+                button.addEventListener('click', () => switchEventsView(button.dataset.eventView));
+            });
         });
 
         // Update events list
+        function escapeEventHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = String(value ?? '');
+            return div.innerHTML;
+        }
+
+        function eventSortTimestamp(value) {
+            const timestamp = new Date(value || 0).getTime();
+            return Number.isNaN(timestamp) ? 0 : timestamp;
+        }
+
+        function eventArchiveMonthKey(event) {
+            const raw = event.firstDate || event.archiveStartDate || event.eventDateTime || '';
+            const match = String(raw).match(/^(\d{4})-(\d{2})/);
+            return match ? `${match[1]}-${match[2]}` : '';
+        }
+
+        function formatArchiveMonthLabel(monthKey) {
+            const match = String(monthKey).match(/^(\d{4})-(\d{2})$/);
+            if (!match) return monthKey;
+            return new Date(Number(match[1]), Number(match[2]) - 1, 1)
+                .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        }
+
+        function renderArchiveMonthFilters(sourceEvents) {
+            const container = document.getElementById('archiveMonthFilters');
+            if (!container) return;
+            if (currentEventsView !== 'archived') {
+                container.style.display = 'none';
+                container.innerHTML = '';
+                return;
+            }
+
+            const months = Array.from(new Set(sourceEvents.map(eventArchiveMonthKey).filter(Boolean))).sort().reverse();
+            if (selectedArchiveMonth !== 'all' && !months.includes(selectedArchiveMonth)) {
+                selectedArchiveMonth = 'all';
+            }
+            container.style.display = 'flex';
+            container.innerHTML = [
+                `<button type="button" class="btn btn-sm ${selectedArchiveMonth === 'all' ? 'btn-primary' : 'btn-outline-primary'}" data-archive-month="all">All</button>`,
+                ...months.map(month => `<button type="button" class="btn btn-sm ${selectedArchiveMonth === month ? 'btn-primary' : 'btn-outline-primary'}" data-archive-month="${month}">${formatArchiveMonthLabel(month)}</button>`)
+            ].join('');
+            container.querySelectorAll('[data-archive-month]').forEach(button => {
+                button.addEventListener('click', () => {
+                    selectedArchiveMonth = button.dataset.archiveMonth || 'all';
+                    updateEventsList();
+                });
+            });
+        }
+
+        async function setEventArchiveState(eventId, eventName, action) {
+            const isArchive = action === 'archive';
+            const confirmed = await appConfirm(
+                `${isArchive ? 'Archive' : 'Restore'} "${eventName}"?${isArchive ? ' Attendance history will be preserved.' : ''}`,
+                {
+                    title: isArchive ? 'Archive event' : 'Restore event',
+                    confirmText: isArchive ? 'Archive' : 'Restore',
+                    cancelText: 'Cancel'
+                }
+            );
+            if (!confirmed) return;
+
+            try {
+                await qrApiRequest('/events/archive.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ event_id: Number(eventId), action })
+                });
+                await loadEventsFromApi();
+                updateEventsList();
+            } catch (error) {
+                alert(`Unable to ${action} event: ${error.message}`);
+            }
+        }
+
+        function switchEventsView(view) {
+            currentEventsView = view === 'archived' ? 'archived' : 'active';
+            document.getElementById('eventsListTitle').textContent = currentEventsView === 'archived' ? 'Archived Events' : 'Active Events';
+            document.querySelectorAll('[data-event-view]').forEach(button => {
+                const active = button.dataset.eventView === currentEventsView;
+                button.classList.toggle('active', active);
+            });
+            updateEventsList();
+        }
+
         function updateEventsList() {
             const eventsList = document.getElementById('eventsList');
             const eventsMap = new Map();
-            const searchTerm = (document.getElementById('eventSearchInput')?.value || '').toLowerCase();
+            const searchTerm = (document.getElementById('eventSearchInput')?.value || '').trim().toLowerCase();
+            const sourceEvents = currentEventsView === 'archived' ? archivedEvents : events;
+            const archivedEventNames = new Set(
+                archivedEvents
+                    .map(event => normalizeEventName(event.name || event.event_name).toLocaleLowerCase())
+                    .filter(Boolean)
+            );
 
-            // First, add all API events (normalize names to avoid duplicates)
-            events.forEach(event => {
+            sourceEvents.forEach(event => {
                 const normalizedName = normalizeEventName(event.name || event.event_name);
-                if (!normalizedName) return; // Skip events with empty names
-
-                // Only add if not already in map (avoid duplicates)
-                if (!eventsMap.has(normalizedName)) {
-                    eventsMap.set(normalizedName, {
-                        id: event.id || event.event_id || null,
-                        name: normalizedName,
-                        description: event.description || '',
-                        status: event.status || '',
-                        createdAt: event.createdAt || event.created_at || '',
-                        records: [],
-                        firstDate: event.firstDate || event.first_record_date || null,
-                        lastDate: event.lastDate || event.last_record_date || null,
-                        attendanceCount: Number(event.attendanceCount ?? event.attended_count ?? event.attendance_count ?? 0),
-                        preRegisteredCount: Number(event.preRegisteredCount ?? event.pre_registered_count ?? 0),
-                        hasApiCounts: Boolean(event.id || event.event_id)
-                    });
-                }
+                if (!normalizedName) return;
+                const key = Number(event.id || 0) > 0 ? `id:${event.id}` : `name:${normalizedName}`;
+                eventsMap.set(key, {
+                    ...event,
+                    id: event.id || event.event_id || null,
+                    name: normalizedName,
+                    records: [],
+                    firstDate: event.firstDate || event.first_record_date || null,
+                    lastDate: event.lastDate || event.last_record_date || null,
+                    attendanceCount: Number(event.attendanceCount ?? event.attended_count ?? event.attendance_count ?? 0),
+                    preRegisteredCount: Number(event.preRegisteredCount ?? event.pre_registered_count ?? 0),
+                    hasApiCounts: Boolean(event.id || event.event_id)
+                });
             });
 
-            // Then, add attendance records to their respective events
             attendanceRecords.forEach(record => {
-                if (!record.event) return;
                 const normalizedEventName = normalizeEventName(record.event);
                 if (!normalizedEventName) return;
-
-                if (!eventsMap.has(normalizedEventName)) {
-                    // Create event from attendance record if it doesn't exist in Cloud
-                    eventsMap.set(normalizedEventName, {
+                let target = Array.from(eventsMap.values()).find(event => event.name === normalizedEventName);
+                if (!target && currentEventsView === 'active' && archivedEventNames.has(normalizedEventName.toLocaleLowerCase())) {
+                    return;
+                }
+                if (!target && currentEventsView === 'active') {
+                    target = {
                         id: null,
                         name: normalizedEventName,
                         description: 'Event created from attendance records',
                         status: 'active',
-                        createdAt: new Date(),
+                        createdAt: record.date || '',
+                        eventDateTime: record.date || '',
+                        archiveStartDate: record.date || null,
+                        archiveEndDate: record.date || null,
                         records: [],
-                        firstDate: record.date,
-                        lastDate: record.date,
+                        firstDate: record.date || null,
+                        lastDate: record.date || null,
                         attendanceCount: 0,
                         preRegisteredCount: 0,
                         hasApiCounts: false
-                    });
+                    };
+                    eventsMap.set(`name:${normalizedEventName}`, target);
                 }
-                const event = eventsMap.get(normalizedEventName);
-                if (event) {
-                    event.records.push(record);
-                    if (!event.hasApiCounts) {
-                        if (isPreRegisteredRecord(record)) {
-                            event.preRegisteredCount += 1;
-                        } else {
-                            event.attendanceCount += 1;
-                        }
-                    }
-                    // Update first and last dates
-                    if (!event.firstDate || new Date(record.date) < new Date(event.firstDate)) {
-                        event.firstDate = record.date;
-                    }
-                    if (!event.lastDate || new Date(record.date) > new Date(event.lastDate)) {
-                        event.lastDate = record.date;
-                    }
+                if (!target) return;
+
+                target.records.push(record);
+                if (!target.hasApiCounts) {
+                    isPreRegisteredRecord(record) ? target.preRegisteredCount++ : target.attendanceCount++;
+                }
+                if (record.date && (!target.firstDate || eventSortTimestamp(record.date) < eventSortTimestamp(target.firstDate))) {
+                    target.firstDate = record.date;
+                }
+                if (record.date && (!target.lastDate || eventSortTimestamp(record.date) > eventSortTimestamp(target.lastDate))) {
+                    target.lastDate = record.date;
                 }
             });
 
-            // Sort events by last date (most recent first)
-            let sortedEvents = Array.from(eventsMap.values()).sort((a, b) => {
-                if (!a.lastDate && !b.lastDate) return 0;
-                if (!a.lastDate) return 1;
-                if (!b.lastDate) return -1;
-                return new Date(b.lastDate) - new Date(a.lastDate);
+            const unfilteredEvents = Array.from(eventsMap.values());
+            renderArchiveMonthFilters(unfilteredEvents);
+
+            let sortedEvents = unfilteredEvents.sort((a, b) => {
+                const startDifference = eventSortTimestamp(b.firstDate || b.archiveStartDate || b.eventDateTime)
+                    - eventSortTimestamp(a.firstDate || a.archiveStartDate || a.eventDateTime);
+                if (startDifference !== 0) return startDifference;
+                const endDifference = eventSortTimestamp(b.lastDate || b.archiveEndDate || b.eventDateTime)
+                    - eventSortTimestamp(a.lastDate || a.archiveEndDate || a.eventDateTime);
+                return endDifference !== 0 ? endDifference : Number(b.id || 0) - Number(a.id || 0);
             });
 
-            // Filter by search term
+            if (currentEventsView === 'archived' && selectedArchiveMonth !== 'all') {
+                sortedEvents = sortedEvents.filter(event => eventArchiveMonthKey(event) === selectedArchiveMonth);
+            }
             if (searchTerm) {
                 sortedEvents = sortedEvents.filter(event => {
-                    // Gather all sections in this event
-                    const sections = new Set(event.records.map(r => r.section).filter(Boolean));
-                    // Check if search term matches event name, description, any section, first date, or last date
-                    return (
-                        event.name.toLowerCase().includes(searchTerm) ||
-                        (event.description && event.description.toLowerCase().includes(searchTerm)) ||
-                        Array.from(sections).some(section => section.toLowerCase().includes(searchTerm)) ||
-                        (event.firstDate && event.firstDate.toLowerCase().includes(searchTerm)) ||
-                        (event.lastDate && event.lastDate.toLowerCase().includes(searchTerm))
-                    );
+                    const sections = new Set(event.records.map(record => record.section).filter(Boolean));
+                    return event.name.toLowerCase().includes(searchTerm)
+                        || String(event.description || '').toLowerCase().includes(searchTerm)
+                        || Array.from(sections).some(section => String(section).toLowerCase().includes(searchTerm))
+                        || String(event.firstDate || '').toLowerCase().includes(searchTerm)
+                        || String(event.lastDate || '').toLowerCase().includes(searchTerm);
                 });
             }
 
-            // Populate the table
             eventsList.innerHTML = '';
+            if (!sortedEvents.length) {
+                eventsList.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No ${currentEventsView} events found.</td></tr>`;
+                return;
+            }
+
             sortedEvents.forEach(event => {
                 const row = document.createElement('tr');
+                const safeName = escapeEventHtml(event.name || 'Unknown Event');
+                const hasDatabaseId = Number(event.id || 0) > 0;
+                const stateAction = currentEventsView === 'archived'
+                    ? `<button class="btn btn-sm btn-outline-primary restore-event" ${hasDatabaseId ? '' : 'disabled title="Database connection required"'}>Restore</button>`
+                    : `<button class="btn btn-sm btn-warning archive-event" ${hasDatabaseId ? '' : 'disabled title="Database connection required"'}>Archive</button>`;
+                const startAction = currentEventsView === 'active'
+                    ? `<button class="btn btn-sm btn-primary start-event">Start Attendance</button>`
+                    : '';
                 row.innerHTML = `
-                    <td>${event.name}</td>
+                    <td>${safeName}</td>
                     <td>${event.attendanceCount}</td>
                     <td>${event.preRegisteredCount}</td>
-                    <td>${event.firstDate || 'N/A'}</td>
-                    <td>${event.lastDate || 'N/A'}</td>
-                    <td class="text-end">
-                        <div class="d-inline-flex gap-2">
-                            <button class="btn btn-sm btn-danger delete-event" data-event="${event.name || 'Unknown Event'}" data-event-id="${event.id || ''}">Delete</button>
-                            <button class="btn btn-sm btn-info view-event" data-event="${event.name || 'Unknown Event'}">View Details</button>
-                            <button class="btn btn-sm btn-primary start-event" data-event="${event.name || 'Unknown Event'}">Start Attendance</button>
-                        </div>
-                    </td>
+                    <td>${escapeEventHtml(event.firstDate || 'N/A')}</td>
+                    <td>${escapeEventHtml(event.lastDate || 'N/A')}</td>
+                    <td class="text-end"><div class="d-inline-flex gap-2">${stateAction}<button class="btn btn-sm btn-info view-event">View Details</button>${startAction}</div></td>
                 `;
+                row.querySelector('.view-event').addEventListener('click', () => showEventDetails(event.name, event.id, currentEventsView === 'archived'));
+                row.querySelector('.archive-event')?.addEventListener('click', () => setEventArchiveState(event.id, event.name, 'archive'));
+                row.querySelector('.restore-event')?.addEventListener('click', () => setEventArchiveState(event.id, event.name, 'restore'));
+                row.querySelector('.start-event')?.addEventListener('click', () => startEventAttendance(event.name));
                 eventsList.appendChild(row);
-            });
-
-            // Add event listeners to view buttons
-            document.querySelectorAll('.view-event').forEach(button => {
-                button.addEventListener('click', function () {
-                    const eventName = this.getAttribute('data-event');
-                    showEventDetails(eventName);
-                });
-            });
-
-            // Add event listeners to start attendance buttons
-            document.querySelectorAll('.start-event').forEach(button => {
-                button.addEventListener('click', function () {
-                    const eventName = this.getAttribute('data-event');
-                    startEventAttendance(eventName);
-                });
-            });
-
-            // Add event listeners to delete buttons
-            document.querySelectorAll('.delete-event').forEach(button => {
-                button.addEventListener('click', function () {
-                    const eventName = this.getAttribute('data-event');
-                    const eventId = this.getAttribute('data-event-id');
-
-                    // Validate eventName
-                    if (!eventName || eventName === 'undefined' || eventName === 'null') {
-                        alert('Error: Event name is not valid. Cannot delete event.');
-                        return;
-                    }
-
-                    // Store the event to delete globally
-                    window.eventToDelete = {
-                        eventName: eventName,
-                        eventId: eventId
-                    };
-
-                    // Populate modal with event details
-                    document.getElementById('deleteEventName').textContent = eventName;
-                    const deleteEventConfirmationInput = document.getElementById('deleteEventConfirmation');
-                    if (deleteEventConfirmationInput) {
-                        deleteEventConfirmationInput.value = '';
-                    }
-                    document.getElementById('confirmDeleteEvent').disabled = true;
-
-                    // Show the modal
-                    deleteEventModal.show();
-                });
             });
         }
 
@@ -514,15 +542,36 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         }
 
         // Show event details in modal
-        function showEventDetails(eventName) {
-            const eventRecords = attendanceRecords.filter(r => r.event === eventName);
+        async function showEventDetails(eventName, eventId = null, isArchived = false) {
+            let eventRecords = attendanceRecords.filter(record => normalizeEventName(record.event) === normalizeEventName(eventName));
+            if (Number(eventId || 0) > 0) {
+                try {
+                    const payload = await qrApiRequest(`/attendance/list.php?event_id=${encodeURIComponent(eventId)}&limit=10000`, { method: 'GET' });
+                    eventRecords = (payload.items || []).map(record => ({
+                        studentId: record.student_number || '',
+                        studentName: record.student_name || '',
+                        section: record.section || '',
+                        event: record.event_name || eventName,
+                        date: record.attendance_date || String(record.time_in || record.created_at || '').slice(0, 10),
+                        timeIn: record.time_in ? String(record.time_in).slice(11, 19) : '',
+                        timeOut: record.time_out ? String(record.time_out).slice(11, 19) : '',
+                        status: record.attendance_status || ''
+                    }));
+                } catch (error) {
+                    console.warn('Unable to load event attendance from the API; using the local cache.', error);
+                }
+            }
             currentEventDetails = {
                 name: eventName,
+                id: Number(eventId || 0) || null,
+                archived: Boolean(isArchived),
                 records: eventRecords
             };
 
             document.getElementById('modalEventName').textContent = eventName;
             document.getElementById('modalPreRegisteredCount').textContent = `Pre Registered: ${getEventPreRegisteredCount(eventName, eventRecords)}`;
+            document.getElementById('startEventAttendance').style.display = isArchived ? 'none' : '';
+            document.getElementById('importEventDetails').style.display = isArchived ? 'none' : '';
             const modalRecords = document.getElementById('modalEventRecords');
             modalRecords.innerHTML = '';
 
@@ -539,15 +588,19 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${idx + 1}</td>
-                    <td>${record.studentId}</td>
-                    <td>${record.studentName}</td>
-                    <td>${record.section}</td>
-                    <td>${record.date}</td>
-                    <td>${record.timeIn || ''}</td>
-                    <td>${record.timeOut || ''}</td>
+                    <td>${escapeEventHtml(record.studentId)}</td>
+                    <td>${escapeEventHtml(record.studentName)}</td>
+                    <td>${escapeEventHtml(record.section)}</td>
+                    <td>${escapeEventHtml(record.date)}</td>
+                    <td>${escapeEventHtml(record.timeIn || '')}</td>
+                    <td>${escapeEventHtml(record.timeOut || '')}</td>
                 `;
                 modalRecords.appendChild(row);
             });
+
+            if (!uniqueRecords.size) {
+                modalRecords.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No attendance records found.</td></tr>';
+            }
 
             const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
             modal.show();
@@ -555,7 +608,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
         // Add event listener for modal start attendance button
         document.getElementById('startEventAttendance').addEventListener('click', function () {
-            if (currentEventDetails) {
+            if (currentEventDetails && !currentEventDetails.archived) {
                 startEventAttendance(currentEventDetails.name);
             }
         });
@@ -857,113 +910,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             return `${hours}h ${minutes}m`;
         }
 
-        // Delete Event functionality
-        const deleteEventModal = new bootstrap.Modal(document.getElementById('deleteEventModal'));
-        const deleteEventConfirmation = document.getElementById('deleteEventConfirmation');
-        const confirmDeleteEvent = document.getElementById('confirmDeleteEvent');
-        let eventToDelete = null;
-
-        deleteEventConfirmation.addEventListener('input', function () {
-            confirmDeleteEvent.disabled = this.value !== 'Delete';
-        });
-
-        // Allow pressing Enter to confirm deletion when the confirmation text is correct
-        deleteEventConfirmation.addEventListener('keydown', function (event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                if (deleteEventConfirmation.value === 'Delete' && !confirmDeleteEvent.disabled) {
-                    confirmDeleteEvent.click();
-                }
-            }
-        });
-
-        confirmDeleteEvent.addEventListener('click', async function () {
-            if (deleteEventConfirmation.value === 'Delete' && window.eventToDelete) {
-                const { eventName, eventId } = window.eventToDelete;
-                const normalizedTargetName = normalizeEventName(eventName);
-                const numericEventId = Number(eventId || 0);
-
-                try {
-                    if (numericEventId > 0) {
-                        await qrApiRequest('/events/delete.php', {
-                            method: 'POST',
-                            body: JSON.stringify({ event_id: numericEventId })
-                        });
-                    }
-
-                    // Keep temporary local attendance in sync with UI behavior
-                    attendanceRecords = attendanceRecords.filter(record => normalizeEventName(record.event) !== normalizedTargetName);
-                    localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-                    await loadEventsFromApi();
-
-                    // Hide modal and reset
-                    deleteEventModal.hide();
-                    window.eventToDelete = null;
-
-                    updateEventsList();
-                    alert(`Event "${eventName}" has been deleted successfully.`);
-                } catch (error) {
-                    console.error('Error deleting event:', error);
-                    alert('Error deleting event: ' + error.message);
-                }
-            }
-        });
-
-        // Delete All Events functionality
-        const deleteAllModal = new bootstrap.Modal(document.getElementById('deleteAllModal'));
-        const deleteConfirmation = document.getElementById('deleteConfirmation');
-        const confirmDeleteAll = document.getElementById('confirmDeleteAll');
-
-        document.getElementById('deleteAllEvents').addEventListener('click', function () {
-            deleteConfirmation.value = '';
-            confirmDeleteAll.disabled = true;
-            deleteAllModal.show();
-        });
-
-        deleteConfirmation.addEventListener('input', function () {
-            confirmDeleteAll.disabled = this.value !== 'Delete';
-        });
-
-        // Allow pressing Enter to confirm deletion when the confirmation text is correct
-        deleteConfirmation.addEventListener('keydown', function (event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                if (deleteConfirmation.value === 'Delete' && !confirmDeleteAll.disabled) {
-                    confirmDeleteAll.click();
-                }
-            }
-        });
-
-        confirmDeleteAll.addEventListener('click', async function () {
-            if (deleteConfirmation.value === 'Delete') {
-                try {
-                    // Delete all API events for this org
-                    await loadEventsFromApi();
-                    for (const event of events) {
-                        const eventId = Number(event.id || 0);
-                        if (eventId > 0) {
-                            await qrApiRequest('/events/delete.php', {
-                                method: 'POST',
-                                body: JSON.stringify({ event_id: eventId })
-                            });
-                        }
-                    }
-
-                    // Clear temporary local attendance cache to match current UI expectation
-                    localStorage.removeItem('attendanceRecords');
-                    attendanceRecords = [];
-                    await loadEventsFromApi();
-
-                    deleteAllModal.hide();
-                    updateEventsList();
-                    alert('All events have been deleted successfully.');
-                } catch (error) {
-                    console.error('Error clearing all events:', error);
-                    alert('Error clearing all events. Please try again.');
-                }
-            }
-        });
-
         // Import Events functionality
         document.getElementById('importEvents').addEventListener('click', function () {
             document.getElementById('importFile').click();
@@ -1101,7 +1047,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 try {
                     await loadEventsFromApi();
                     if (typeof updateEventsList === 'function') updateEventsList();
-                    const matchedEvent = events.find((item) =>
+                    const matchedEvent = [...events, ...archivedEvents].find((item) =>
                         (eventId > 0 && Number(item.id || 0) === eventId)
                         || (eventName && normalizeEventName(item.name) === eventName)
                     );
@@ -1113,7 +1059,9 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         }, window.location.origin);
                         return;
                     }
-                    showEventDetails(matchedEvent.name);
+                    const matchedIsArchived = Boolean(matchedEvent.archivedAt);
+                    if (matchedIsArchived) switchEventsView('archived');
+                    showEventDetails(matchedEvent.name, matchedEvent.id, matchedIsArchived);
                 } catch (_error) {
                     window.parent.postMessage({
                         type: 'OFFICER_NAVIGATION_TARGET_MISSING',

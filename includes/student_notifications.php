@@ -7,6 +7,7 @@
  */
 
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/qr_attendance.php';
 
 const STUDENT_NOTIFICATION_HISTORY_HOURS = 24;
 const STUDENT_NOTIFICATION_RECENT_LIMIT = 5;
@@ -441,6 +442,7 @@ function studentNotificationAttendanceItems(
     string $studentNumber,
     DateTimeImmutable $cutoff
 ): array {
+    qrEnsureEventArchiveColumns($pdo);
     $whereIdentity = 'ar.user_id = :user_id';
     $params = [
         ':user_id' => $userId,
@@ -466,6 +468,7 @@ function studentNotificationAttendanceItems(
          JOIN events e ON e.event_id = ar.event_id
          JOIN organizations o ON o.org_id = e.org_id
          WHERE {$whereIdentity}
+           AND e.archived_at IS NULL
            AND (ar.created_at >= :created_cutoff OR ar.time_in >= :checkin_cutoff OR ar.time_out >= :checkout_cutoff)
          ORDER BY COALESCE(ar.time_out, ar.time_in, ar.created_at) DESC"
     );

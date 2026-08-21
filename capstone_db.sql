@@ -278,6 +278,8 @@ CREATE TABLE `events` (
   `event_datetime` datetime DEFAULT NULL,
   `event_photo` longblob DEFAULT NULL,
   `is_published` tinyint(1) NOT NULL DEFAULT 0,
+  `archived_at` datetime DEFAULT NULL,
+  `archived_by_user_id` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1227,7 +1229,9 @@ ALTER TABLE `document_submissions`
 ALTER TABLE `events`
   ADD PRIMARY KEY (`event_id`),
   ADD KEY `fk_events_creator` (`created_by_user_id`),
-  ADD KEY `idx_events_org_datetime` (`org_id`,`event_datetime`);
+  ADD KEY `idx_events_org_datetime` (`org_id`,`event_datetime`),
+  ADD KEY `fk_events_archiver` (`archived_by_user_id`),
+  ADD KEY `idx_events_org_archive_sort` (`org_id`,`archived_at`,`event_datetime`,`event_id`);
 
 --
 -- Indexes for table `institutes`
@@ -1530,6 +1534,7 @@ ALTER TABLE `document_submissions`
 --
 ALTER TABLE `events`
   ADD CONSTRAINT `fk_events_creator` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `fk_events_archiver` FOREIGN KEY (`archived_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_events_org` FOREIGN KEY (`org_id`) REFERENCES `organizations` (`org_id`) ON DELETE CASCADE;
 
 --

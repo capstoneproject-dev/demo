@@ -27,6 +27,57 @@ function qrAttendanceColumnExists(PDO $pdo, string $table, string $column): bool
     return ((int)$stmt->fetchColumn() > 0);
 }
 
+function qrEnsureEventArchiveColumns(PDO $pdo): void
+{
+    static $ensuredConnections = [];
+    $connectionId = spl_object_id($pdo);
+    if (!empty($ensuredConnections[$connectionId])) {
+        return;
+    }
+
+    $columns = [
+        'archived_at' => "ALTER TABLE events ADD COLUMN archived_at DATETIME NULL AFTER is_published",
+        'archived_by_user_id' => "ALTER TABLE events ADD COLUMN archived_by_user_id INT NULL AFTER archived_at",
+    ];
+    foreach ($columns as $column => $alterSql) {
+        if (!qrAttendanceColumnExists($pdo, 'events', $column)) {
+            $pdo->exec($alterSql);
+        }
+    }
+
+    $indexStmt = $pdo->query(
+        "SELECT COUNT(*)
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'events'
+           AND INDEX_NAME = 'idx_events_org_archive_sort'"
+    );
+    if ((int)$indexStmt->fetchColumn() === 0) {
+        $pdo->exec(
+            "ALTER TABLE events
+             ADD INDEX idx_events_org_archive_sort (org_id, archived_at, event_datetime, event_id)"
+        );
+    }
+
+    $constraintStmt = $pdo->query(
+        "SELECT COUNT(*)
+         FROM information_schema.TABLE_CONSTRAINTS
+         WHERE CONSTRAINT_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'events'
+           AND CONSTRAINT_NAME = 'fk_events_archiver'
+           AND CONSTRAINT_TYPE = 'FOREIGN KEY'"
+    );
+    if ((int)$constraintStmt->fetchColumn() === 0) {
+        $pdo->exec(
+            "ALTER TABLE events
+             ADD CONSTRAINT fk_events_archiver
+             FOREIGN KEY (archived_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL"
+        );
+    }
+
+    $ensuredConnections[$connectionId] = true;
+}
+
 function qrRequireOfficerOrgContext(): array
 {
     $session = getPhpSession();
@@ -99,8 +150,16 @@ function qrSaveEventPhotoFromData(string $photoValue): string
 
 function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
 {
+    qrEnsureEventArchiveColumns($pdo);
     $where = ["e.org_id = :org"];
     $params = [':org' => $orgId];
+
+    $state = strtolower(trim((string)($filters['state'] ?? 'active')));
+    if ($state === 'archived') {
+        $where[] = 'e.archived_at IS NOT NULL';
+    } elseif ($state !== 'all') {
+        $where[] = 'e.archived_at IS NULL';
+    }
 
     $q = trim((string)($filters['q'] ?? ''));
     if ($q !== '') {
@@ -122,18 +181,24 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
                e.event_photo,
                e.event_datetime AS event_date,
                e.is_published,
+               e.archived_at,
+               e.archived_by_user_id,
                e.created_at,
                e.updated_at,
                COUNT(ar.record_id) AS attendance_count,
                COALESCE(SUM(CASE WHEN ar.time_in IS NULL AND ar.time_out IS NULL THEN 1 ELSE 0 END), 0) AS pre_registered_count,
                COALESCE(SUM(CASE WHEN ar.time_in IS NOT NULL OR ar.time_out IS NOT NULL THEN 1 ELSE 0 END), 0) AS attended_count,
                MIN(DATE(ar.time_in)) AS first_record_date,
-               MAX(DATE(ar.time_in)) AS last_record_date
+               MAX(DATE(ar.time_in)) AS last_record_date,
+               COALESCE(MIN(DATE(ar.time_in)), DATE(e.event_datetime)) AS archive_start_date,
+               COALESCE(MAX(DATE(ar.time_in)), DATE(e.event_datetime)) AS archive_end_date
         FROM events e
         LEFT JOIN attendance_records ar ON ar.event_id = e.event_id
         WHERE " . implode(' AND ', $where) . "
         GROUP BY e.event_id
-        ORDER BY COALESCE(MAX(ar.time_in), e.event_datetime) DESC, e.event_id DESC";
+        ORDER BY COALESCE(MIN(ar.time_in), e.event_datetime) DESC,
+                 COALESCE(MAX(ar.time_in), e.event_datetime) DESC,
+                 e.event_id DESC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -142,6 +207,9 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
         $row['event_id'] = (int)$row['event_id'];
         $row['org_id'] = (int)$row['org_id'];
         $row['created_by_user_id'] = (int)$row['created_by_user_id'];
+        $row['archived_by_user_id'] = $row['archived_by_user_id'] !== null
+            ? (int)$row['archived_by_user_id']
+            : null;
         $row['is_published'] = (int)$row['is_published'];
         $row['attendance_count'] = (int)$row['attendance_count'];
     }
@@ -150,8 +218,10 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
 
 function qrListPublishedEventsForStudents(PDO $pdo, array $filters = []): array
 {
+    qrEnsureEventArchiveColumns($pdo);
     $where = [
         'e.is_published = 1',
+        'e.archived_at IS NULL',
     ];
     $params = [];
 
@@ -215,6 +285,7 @@ function qrListPublishedEventsForStudents(PDO $pdo, array $filters = []): array
 
 function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
 {
+    qrEnsureEventArchiveColumns($pdo);
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
     $eventName = trim((string)($data['event_name'] ?? $data['name'] ?? ''));
     $description = trim((string)($data['description'] ?? ''));
@@ -282,7 +353,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     if ($location === '') $location = 'TBA';
 
     if ($eventId > 0) {
-        $chk = $pdo->prepare("SELECT event_id, event_photo FROM events WHERE event_id = :id AND org_id = :org LIMIT 1");
+        $chk = $pdo->prepare("SELECT event_id, event_photo FROM events WHERE event_id = :id AND org_id = :org AND archived_at IS NULL LIMIT 1");
         $chk->execute([':id' => $eventId, ':org' => $orgId]);
         $existing = $chk->fetch();
         if (!$existing) {
@@ -346,15 +417,69 @@ function qrDeleteEvent(PDO $pdo, int $orgId, int $eventId): void
     }
 }
 
+function qrSetEventArchived(PDO $pdo, int $orgId, int $userId, int $eventId, string $action): void
+{
+    qrEnsureEventArchiveColumns($pdo);
+    if ($eventId <= 0) {
+        throw new QrAttendanceValidationException('Invalid event_id.');
+    }
+    if ($userId <= 0) {
+        throw new QrAttendanceValidationException('Invalid officer user.');
+    }
+
+    $normalizedAction = strtolower(trim($action));
+    if (!in_array($normalizedAction, ['archive', 'restore'], true)) {
+        throw new QrAttendanceValidationException('action must be archive or restore.');
+    }
+
+    if ($normalizedAction === 'archive') {
+        $stmt = $pdo->prepare(
+            "UPDATE events
+             SET archived_at = CURRENT_TIMESTAMP,
+                 archived_by_user_id = :user_id
+             WHERE event_id = :event_id
+               AND org_id = :org_id
+               AND archived_at IS NULL"
+        );
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':event_id' => $eventId,
+            ':org_id' => $orgId,
+        ]);
+    } else {
+        $stmt = $pdo->prepare(
+            "UPDATE events
+             SET archived_at = NULL,
+                 archived_by_user_id = NULL
+             WHERE event_id = :event_id
+               AND org_id = :org_id
+               AND archived_at IS NOT NULL"
+        );
+        $stmt->execute([
+            ':event_id' => $eventId,
+            ':org_id' => $orgId,
+        ]);
+    }
+
+    if ($stmt->rowCount() !== 1) {
+        throw new QrAttendanceValidationException(
+            $normalizedAction === 'archive'
+                ? 'Active event not found for this organization.'
+                : 'Archived event not found for this organization.'
+        );
+    }
+}
+
 function qrFindEventIdByName(PDO $pdo, int $orgId, string $eventName): ?int
 {
+    qrEnsureEventArchiveColumns($pdo);
     $name = trim($eventName);
     if ($name === '') return null;
 
     $stmt = $pdo->prepare(
         "SELECT event_id
          FROM events
-         WHERE org_id = :org AND event_name = :name
+         WHERE org_id = :org AND event_name = :name AND archived_at IS NULL
          ORDER BY event_datetime DESC, event_id DESC
          LIMIT 1"
     );
@@ -365,9 +490,10 @@ function qrFindEventIdByName(PDO $pdo, int $orgId, string $eventName): ?int
 
 function qrResolveEventId(PDO $pdo, int $orgId, int $userId, array $data): int
 {
+    qrEnsureEventArchiveColumns($pdo);
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
     if ($eventId > 0) {
-        $chk = $pdo->prepare("SELECT event_id FROM events WHERE event_id = :id AND org_id = :org LIMIT 1");
+        $chk = $pdo->prepare("SELECT event_id FROM events WHERE event_id = :id AND org_id = :org AND archived_at IS NULL LIMIT 1");
         $chk->execute([':id' => $eventId, ':org' => $orgId]);
         if (!$chk->fetch()) {
             throw new QrAttendanceValidationException('Event not found for this organization.');
@@ -603,6 +729,7 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
 
 function qrCheckOut(PDO $pdo, int $orgId, int $userId, array $data): array
 {
+    qrEnsureEventArchiveColumns($pdo);
     $recordId = isset($data['record_id']) ? (int)$data['record_id'] : 0;
 
     $tz = new DateTimeZone('Asia/Manila');
@@ -616,6 +743,7 @@ function qrCheckOut(PDO $pdo, int $orgId, int $userId, array $data): array
              JOIN events e ON e.event_id = ar.event_id
              WHERE ar.record_id = :record_id
                AND e.org_id = :org
+               AND e.archived_at IS NULL
              LIMIT 1"
         );
         $sel->execute([':record_id' => $recordId, ':org' => $orgId]);
@@ -657,13 +785,17 @@ function qrCheckOut(PDO $pdo, int $orgId, int $userId, array $data): array
     }
 
     $upd = $pdo->prepare(
-        "UPDATE attendance_records
-         SET time_out = :time_out
-         WHERE record_id = :record_id"
+        "UPDATE attendance_records ar
+         JOIN events e ON e.event_id = ar.event_id
+         SET ar.time_out = :time_out
+         WHERE ar.record_id = :record_id
+           AND e.org_id = :org
+           AND e.archived_at IS NULL"
     );
     $upd->execute([
         ':time_out' => $now->format('Y-m-d H:i:s'),
         ':record_id' => (int)$row['record_id'],
+        ':org' => $orgId,
     ]);
 
     return [
@@ -676,6 +808,7 @@ function qrCheckOut(PDO $pdo, int $orgId, int $userId, array $data): array
 
 function qrUpdateAttendanceTime(PDO $pdo, int $orgId, array $data): array
 {
+    qrEnsureEventArchiveColumns($pdo);
     $recordId = isset($data['record_id']) ? (int)$data['record_id'] : 0;
     $field = trim((string)($data['field'] ?? ''));
     $value = trim((string)($data['value'] ?? ''));
@@ -693,6 +826,7 @@ function qrUpdateAttendanceTime(PDO $pdo, int $orgId, array $data): array
          JOIN events e ON e.event_id = ar.event_id
          WHERE ar.record_id = :record_id
            AND e.org_id = :org
+           AND e.archived_at IS NULL
          LIMIT 1"
     );
     $sel->execute([':record_id' => $recordId, ':org' => $orgId]);

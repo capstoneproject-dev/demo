@@ -227,6 +227,8 @@ CREATE TABLE dbo.events (
     event_datetime     DATETIME2(0)   NOT NULL,
     event_photo        VARBINARY(MAX) NULL,
     is_published       BIT            NOT NULL CONSTRAINT df_events_is_published DEFAULT 0,
+    archived_at        DATETIME2(0)   NULL,
+    archived_by_user_id INT           NULL,
     created_at         DATETIME2(0)   NOT NULL CONSTRAINT df_events_created_at DEFAULT SYSDATETIME(),
     updated_at         DATETIME2(0)   NOT NULL CONSTRAINT df_events_updated_at DEFAULT SYSDATETIME(),
     CONSTRAINT pk_events PRIMARY KEY (event_id)
@@ -431,6 +433,8 @@ GO
 -- events
 CREATE INDEX fk_events_creator       ON dbo.events(created_by_user_id);
 CREATE INDEX idx_events_org_datetime ON dbo.events(org_id, event_datetime);
+CREATE INDEX fk_events_archiver      ON dbo.events(archived_by_user_id);
+CREATE INDEX idx_events_org_archive_sort ON dbo.events(org_id, archived_at, event_datetime, event_id);
 GO
 
 -- institutes
@@ -564,6 +568,8 @@ GO
 ALTER TABLE dbo.events
     ADD CONSTRAINT fk_events_creator
             FOREIGN KEY (created_by_user_id) REFERENCES dbo.users(user_id),
+        CONSTRAINT fk_events_archiver
+            FOREIGN KEY (archived_by_user_id) REFERENCES dbo.users(user_id) ON DELETE SET NULL,
         CONSTRAINT fk_events_org
             FOREIGN KEY (org_id) REFERENCES dbo.organizations(org_id) ON DELETE CASCADE;
 GO
