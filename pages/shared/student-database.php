@@ -128,6 +128,9 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
     <div class="container main-content">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <a href="<?php echo htmlspecialchars($returnTo, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">&larr; Back</a>
+            <button type="button" id="downloadAllStudentBarcodes" class="btn btn-success" disabled>
+                <i class="fa-solid fa-file-zipper"></i> Download Displayed Barcodes
+            </button>
         </div>
         <h1 class="mb-4">Student Barcode Database</h1>
         <div class="row g-2 mb-3">
@@ -150,10 +153,12 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
 
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/JsBarcode.all.min.js"></script>
+    <script src="../../systems/QR-Attendance/lib/jszip.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../systems/IGPRentalSystem/lib/encoder.js"></script>
     <script src="../../assets/js/igp-api.js?v=20260227e"></script>
-    <script src="../../assets/js/igp-students-exact.js?v=20260731-readonly-1"></script>
+    <script src="../../assets/js/barcode-download.js?v=20260821-compact-white-background"></script>
+    <script src="../../assets/js/igp-students-exact.js?v=20260821-barcode-download"></script>
 </body>
 
 </html>
