@@ -1903,7 +1903,9 @@ function igpGetPrintingFinancialRows(PDO $pdo, int $orgId): array
             'customer_section' => '',
             'processed_by' => trim((string)($row['processed_by'] ?? '')) ?: '-',
             'status' => $status,
-            'payment_status' => $status === 'claimed' ? 'paid' : 'unpaid',
+            'payment_status' => $status === 'claimed'
+                ? 'paid'
+                : ($status === 'cancelled' ? 'waived' : 'unpaid'),
             'paid_at' => (string)($row['claimed_at'] ?? ''),
             'base_cost' => $totalCost,
             'overtime_cost' => 0.0,
@@ -1992,7 +1994,7 @@ function igpGetFinancialSummary(PDO $pdo, int $orgId, array $filters = []): arra
         if (($row['payment_status'] ?? 'unpaid') === 'paid') {
             $summary['paid_transactions']++;
             $summary['total_revenue'] += $cost;
-        } else {
+        } elseif (($row['payment_status'] ?? 'unpaid') === 'unpaid') {
             $summary['unpaid_transactions']++;
             $summary['total_unpaid'] += $cost;
         }
