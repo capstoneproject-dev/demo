@@ -293,6 +293,9 @@ CREATE TABLE events (
     event_date DATE NOT NULL,
     event_type_id INT NOT NULL,
     is_published TINYINT(1) NOT NULL DEFAULT 0,
+    academic_year VARCHAR(9) NULL,
+    semester ENUM('1st','2nd') NULL,
+    grading_period ENUM('prelim','midterm','finals') NULL,
     archived_at DATETIME NULL,
     archived_by_user_id INT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -302,7 +305,8 @@ CREATE TABLE events (
     CONSTRAINT fk_events_archiver FOREIGN KEY (archived_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
     CONSTRAINT fk_events_type FOREIGN KEY (event_type_id) REFERENCES event_types(event_type_id) ON DELETE RESTRICT,
     CONSTRAINT fk_events_org_type FOREIGN KEY (org_id, event_type_id) REFERENCES event_types(org_id, event_type_id) ON DELETE RESTRICT,
-    INDEX idx_events_org_archive_sort (org_id, archived_at, event_date, event_id)
+    INDEX idx_events_org_archive_sort (org_id, archived_at, event_date, event_id),
+    INDEX idx_events_org_academic_term (org_id, academic_year, semester, grading_period, archived_at, event_date)
 ) ENGINE=InnoDB;
 
 CREATE TABLE announcements (

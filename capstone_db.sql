@@ -278,6 +278,9 @@ CREATE TABLE `events` (
   `event_datetime` datetime DEFAULT NULL,
   `event_photo` longblob DEFAULT NULL,
   `is_published` tinyint(1) NOT NULL DEFAULT 0,
+  `academic_year` varchar(9) DEFAULT NULL,
+  `semester` enum('1st','2nd') DEFAULT NULL,
+  `grading_period` enum('prelim','midterm','finals') DEFAULT NULL,
   `archived_at` datetime DEFAULT NULL,
   `archived_by_user_id` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
@@ -1231,6 +1234,7 @@ ALTER TABLE `events`
   ADD KEY `fk_events_creator` (`created_by_user_id`),
   ADD KEY `idx_events_org_datetime` (`org_id`,`event_datetime`),
   ADD KEY `fk_events_archiver` (`archived_by_user_id`),
+  ADD KEY `idx_events_org_academic_term` (`org_id`,`academic_year`,`semester`,`grading_period`,`archived_at`,`event_datetime`),
   ADD KEY `idx_events_org_archive_sort` (`org_id`,`archived_at`,`event_datetime`,`event_id`);
 
 --

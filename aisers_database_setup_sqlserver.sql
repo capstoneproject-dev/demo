@@ -227,6 +227,9 @@ CREATE TABLE dbo.events (
     event_datetime     DATETIME2(0)   NOT NULL,
     event_photo        VARBINARY(MAX) NULL,
     is_published       BIT            NOT NULL CONSTRAINT df_events_is_published DEFAULT 0,
+    academic_year      VARCHAR(9)     NULL,
+    semester           VARCHAR(3)     NULL,
+    grading_period     VARCHAR(7)     NULL,
     archived_at        DATETIME2(0)   NULL,
     archived_by_user_id INT           NULL,
     created_at         DATETIME2(0)   NOT NULL CONSTRAINT df_events_created_at DEFAULT SYSDATETIME(),
@@ -434,6 +437,7 @@ GO
 CREATE INDEX fk_events_creator       ON dbo.events(created_by_user_id);
 CREATE INDEX idx_events_org_datetime ON dbo.events(org_id, event_datetime);
 CREATE INDEX fk_events_archiver      ON dbo.events(archived_by_user_id);
+CREATE INDEX idx_events_org_academic_term ON dbo.events(org_id, academic_year, semester, grading_period, archived_at, event_datetime);
 CREATE INDEX idx_events_org_archive_sort ON dbo.events(org_id, archived_at, event_datetime, event_id);
 GO
 

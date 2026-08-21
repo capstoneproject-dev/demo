@@ -7,6 +7,7 @@
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/upload_security.php';
+require_once __DIR__ . '/system_settings.php';
 
 class QrAttendanceValidationException extends RuntimeException {}
 class QrAttendanceAuthorizationException extends RuntimeException {}
@@ -38,6 +39,9 @@ function qrEnsureEventArchiveColumns(PDO $pdo): void
     $columns = [
         'archived_at' => "ALTER TABLE events ADD COLUMN archived_at DATETIME NULL AFTER is_published",
         'archived_by_user_id' => "ALTER TABLE events ADD COLUMN archived_by_user_id INT NULL AFTER archived_at",
+        'academic_year' => "ALTER TABLE events ADD COLUMN academic_year VARCHAR(9) NULL AFTER is_published",
+        'semester' => "ALTER TABLE events ADD COLUMN semester ENUM('1st','2nd') NULL AFTER academic_year",
+        'grading_period' => "ALTER TABLE events ADD COLUMN grading_period ENUM('prelim','midterm','finals') NULL AFTER semester",
     ];
     foreach ($columns as $column => $alterSql) {
         if (!qrAttendanceColumnExists($pdo, 'events', $column)) {
@@ -59,6 +63,21 @@ function qrEnsureEventArchiveColumns(PDO $pdo): void
         );
     }
 
+    $termIndexStmt = $pdo->query(
+        "SELECT COUNT(*)
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'events'
+           AND INDEX_NAME = 'idx_events_org_academic_term'"
+    );
+    if ((int)$termIndexStmt->fetchColumn() === 0) {
+        $pdo->exec(
+            "ALTER TABLE events
+             ADD INDEX idx_events_org_academic_term
+                (org_id, academic_year, semester, grading_period, archived_at, event_datetime)"
+        );
+    }
+
     $constraintStmt = $pdo->query(
         "SELECT COUNT(*)
          FROM information_schema.TABLE_CONSTRAINTS
@@ -74,6 +93,24 @@ function qrEnsureEventArchiveColumns(PDO $pdo): void
              FOREIGN KEY (archived_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL"
         );
     }
+
+    // Events created before term auditing was introduced receive the active
+    // OSA term once. New events snapshot the term when they are created.
+    $activeTerm = settingsGetActiveAcademicTerm($pdo);
+    $backfill = $pdo->prepare(
+        "UPDATE events
+         SET academic_year = :academic_year,
+             semester = :semester,
+             grading_period = :grading_period
+         WHERE academic_year IS NULL
+            OR semester IS NULL
+            OR grading_period IS NULL"
+    );
+    $backfill->execute([
+        ':academic_year' => $activeTerm['academic_year'],
+        ':semester' => $activeTerm['semester'],
+        ':grading_period' => $activeTerm['grading_period'],
+    ]);
 
     $ensuredConnections[$connectionId] = true;
 }
@@ -170,6 +207,19 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
         $params[':q_loc'] = $qLike;
     }
 
+    if (!empty($filters['academic_year'])) {
+        $where[] = 'e.academic_year = :academic_year';
+        $params[':academic_year'] = settingsValidateAcademicYear($filters['academic_year']);
+    }
+    if (!empty($filters['semester'])) {
+        $where[] = 'e.semester = :semester';
+        $params[':semester'] = settingsValidateSemester($filters['semester']);
+    }
+    if (!empty($filters['grading_period'])) {
+        $where[] = 'e.grading_period = :grading_period';
+        $params[':grading_period'] = settingsValidateGradingPeriod($filters['grading_period']);
+    }
+
     $sql = "
         SELECT e.event_id,
                e.org_id,
@@ -181,6 +231,9 @@ function qrListEvents(PDO $pdo, int $orgId, array $filters = []): array
                e.event_photo,
                e.event_datetime AS event_date,
                e.is_published,
+               e.academic_year,
+               e.semester,
+               e.grading_period,
                e.archived_at,
                e.archived_by_user_id,
                e.created_at,
@@ -386,11 +439,14 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         return $eventId;
     }
 
+    $activeTerm = settingsGetActiveAcademicTerm($pdo);
     $ins = $pdo->prepare(
         "INSERT INTO events
-            (org_id, created_by_user_id, event_name, description, location, event_datetime, event_photo, is_published)
+            (org_id, created_by_user_id, event_name, description, location, event_datetime, event_photo, is_published,
+             academic_year, semester, grading_period)
          VALUES
-            (:org, :uid, :name, :description, :location, :event_datetime, :event_photo, :is_published)"
+            (:org, :uid, :name, :description, :location, :event_datetime, :event_photo, :is_published,
+             :academic_year, :semester, :grading_period)"
     );
     $ins->execute([
         ':org' => $orgId,
@@ -401,6 +457,9 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
         ':event_datetime' => $eventDate,
         ':event_photo' => $photoPath !== '' ? $photoPath : null,
         ':is_published' => $isPublished,
+        ':academic_year' => $activeTerm['academic_year'],
+        ':semester' => $activeTerm['semester'],
+        ':grading_period' => $activeTerm['grading_period'],
     ]);
     return (int)$pdo->lastInsertId();
 }

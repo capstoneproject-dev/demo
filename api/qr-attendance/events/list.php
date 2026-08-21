@@ -10,6 +10,9 @@ try {
     $filters = [
         'q' => trim((string)($_GET['q'] ?? '')),
         'state' => trim((string)($_GET['state'] ?? 'active')),
+        'academic_year' => trim((string)($_GET['academic_year'] ?? '')),
+        'semester' => trim((string)($_GET['semester'] ?? '')),
+        'grading_period' => trim((string)($_GET['grading_period'] ?? '')),
     ];
     $items = qrListEvents(getPdo(), $ctx['org_id'], $filters);
     jsonOk(['items' => $items]);
