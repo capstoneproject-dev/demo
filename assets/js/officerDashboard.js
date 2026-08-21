@@ -1312,6 +1312,10 @@ let selectedLockerAssignStudent = null;
 let officerPrintingAutoRefreshTimer = null;
 let officerPrintingAutoRefreshInFlight = false;
 let officerPrintingAutoRefreshLastQueueRefresh = 0;
+const OFFICER_PRINTING_POLL_FAST_MS = 3000;
+const OFFICER_PRINTING_POLL_SLOW_MS = 30000;
+const OFFICER_PRINTING_QUEUE_REFRESH_FAST_MS = 15000;
+const OFFICER_PRINTING_QUEUE_REFRESH_SLOW_MS = 60000;
 
 function isOfficerPrintingQueueBeingEdited() {
     const active = document.activeElement;
@@ -1324,42 +1328,75 @@ function isOfficerPrintingQueueBeingEdited() {
 
 function stopOfficerPrintingAutoRefresh() {
     if (officerPrintingAutoRefreshTimer) {
-        clearInterval(officerPrintingAutoRefreshTimer);
+        clearTimeout(officerPrintingAutoRefreshTimer);
         officerPrintingAutoRefreshTimer = null;
     }
-    officerPrintingAutoRefreshInFlight = false;
 }
 
-function startOfficerPrintingAutoRefresh() {
+function isOfficerPrintingAutoRefreshActive() {
+    const trackerSection = document.getElementById('tracker');
+    return officerPrintingEnabled
+        && currentTrackerSubView === 'printing'
+        && (!trackerSection || trackerSection.classList.contains('active'));
+}
+
+function getOfficerPrintingPollDelay() {
+    return document.hidden
+        ? OFFICER_PRINTING_POLL_SLOW_MS
+        : OFFICER_PRINTING_POLL_FAST_MS;
+}
+
+function getOfficerPrintingQueueRefreshDelay() {
+    return document.hidden
+        ? OFFICER_PRINTING_QUEUE_REFRESH_SLOW_MS
+        : OFFICER_PRINTING_QUEUE_REFRESH_FAST_MS;
+}
+
+function scheduleOfficerPrintingAutoRefresh(delay = getOfficerPrintingPollDelay()) {
     stopOfficerPrintingAutoRefresh();
+    if (!isOfficerPrintingAutoRefreshActive()) return;
 
-    const pendingPollMs = 3000;
-    const queuePollMs = 15000;
+    officerPrintingAutoRefreshTimer = window.setTimeout(() => {
+        officerPrintingAutoRefreshTimer = null;
+        pollOfficerPrintingQueue().catch(() => {
+            // Keep background polling silent; the manual Refresh button reports errors.
+        });
+    }, delay);
+}
 
-    officerPrintingAutoRefreshTimer = setInterval(async () => {
-        if (document.hidden) return;
-        if (!officerPrintingEnabled) return;
-        if (currentTrackerSubView !== 'printing') return;
-        const trackerSection = document.getElementById('tracker');
-        if (trackerSection && !trackerSection.classList.contains('active')) return;
-        if (officerPrintingAutoRefreshInFlight) return;
-        officerPrintingAutoRefreshInFlight = true;
+async function pollOfficerPrintingQueue() {
+    if (!isOfficerPrintingAutoRefreshActive()) return;
+    if (officerPrintingAutoRefreshInFlight) {
+        scheduleOfficerPrintingAutoRefresh();
+        return;
+    }
 
-        try {
-            await loadOfficerPendingPrintRequests(false);
+    officerPrintingAutoRefreshInFlight = true;
+    try {
+        await loadOfficerPendingPrintRequests(false);
 
-            const now = Date.now();
-            const dueForQueueRefresh = now - Number(officerPrintingAutoRefreshLastQueueRefresh || 0) >= queuePollMs;
-            if (dueForQueueRefresh && !isOfficerPrintingQueueBeingEdited()) {
-                officerPrintingAutoRefreshLastQueueRefresh = now;
-                await loadOfficerPrintingQueue(false);
-            }
-        } catch (_error) {
-            // keep silent during auto-refresh
-        } finally {
-            officerPrintingAutoRefreshInFlight = false;
+        const now = Date.now();
+        const dueForQueueRefresh = now - Number(officerPrintingAutoRefreshLastQueueRefresh || 0)
+            >= getOfficerPrintingQueueRefreshDelay();
+        if (dueForQueueRefresh && !isOfficerPrintingQueueBeingEdited()) {
+            officerPrintingAutoRefreshLastQueueRefresh = now;
+            await loadOfficerPrintingQueue(false);
         }
-    }, pendingPollMs);
+    } finally {
+        officerPrintingAutoRefreshInFlight = false;
+        scheduleOfficerPrintingAutoRefresh();
+    }
+}
+
+function startOfficerPrintingAutoRefresh({ refreshNow = false } = {}) {
+    stopOfficerPrintingAutoRefresh();
+    if (!isOfficerPrintingAutoRefreshActive()) return;
+
+    if (refreshNow && !officerPrintingAutoRefreshInFlight) {
+        pollOfficerPrintingQueue().catch(() => {});
+        return;
+    }
+    scheduleOfficerPrintingAutoRefresh();
 }
 
 function isOfficerLockerEnabled() {
@@ -7228,6 +7265,13 @@ document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !officerDashboardMockPreviewActive && !isOfficerAnnouncementPreviewMode()) {
         loadOfficerDashboard(false);
         loadOfficerActionCenter(false);
+    }
+
+    if (isOfficerPrintingAutoRefreshActive()) {
+        if (!document.hidden) {
+            officerPrintingAutoRefreshLastQueueRefresh = 0;
+        }
+        startOfficerPrintingAutoRefresh({ refreshNow: !document.hidden });
     }
 });
 
