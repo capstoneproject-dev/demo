@@ -1473,6 +1473,86 @@ function igpStartReservedRental(PDO $pdo, int $orgId, int $rentalId): void
     }
 }
 
+function igpCancelStudentReservation(PDO $pdo, int $renterUserId, int $rentalId): void
+{
+    if ($renterUserId <= 0 || $rentalId <= 0) {
+        throw new IgpValidationException('Invalid reservation request.');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT rental_id, org_id, renter_user_id, rent_time, status
+             FROM rentals
+             WHERE rental_id = :rid AND renter_user_id = :uid
+             FOR UPDATE"
+        );
+        $stmt->execute([
+            ':rid' => $rentalId,
+            ':uid' => $renterUserId,
+        ]);
+        $rental = $stmt->fetch();
+        if (!$rental) {
+            throw new IgpValidationException('Reservation not found.');
+        }
+        if ((string)$rental['status'] !== 'reserved') {
+            throw new IgpValidationException('Only reserved rentals can be cancelled.');
+        }
+
+        $tz = new DateTimeZone('Asia/Manila');
+        $scheduledStart = new DateTimeImmutable((string)$rental['rent_time'], $tz);
+        $cancellationDeadline = $scheduledStart->modify('-30 minutes');
+        $now = new DateTimeImmutable('now', $tz);
+        if ($now > $cancellationDeadline) {
+            throw new IgpValidationException('This reservation can no longer be cancelled. Cancellations must be made at least 30 minutes before the scheduled start time.');
+        }
+
+        $set = [
+            "status = 'cancelled'",
+            "payment_status = 'waived'",
+            'total_cost = 0',
+        ];
+        if (igpColumnExists($pdo, 'rentals', 'notes')) {
+            $set[] = "notes = CONCAT_WS(CHAR(10), NULLIF(notes, ''), 'Cancelled by the student at least 30 minutes before the scheduled start time.')";
+        }
+
+        $updateRental = $pdo->prepare(
+            "UPDATE rentals
+             SET " . implode(', ', $set) . "
+             WHERE rental_id = :rid
+               AND renter_user_id = :uid
+               AND status = 'reserved'"
+        );
+        $updateRental->execute([
+            ':rid' => $rentalId,
+            ':uid' => $renterUserId,
+        ]);
+        if ($updateRental->rowCount() !== 1) {
+            throw new IgpValidationException('The reservation status changed before it could be cancelled. Please refresh and try again.');
+        }
+
+        $releaseItems = $pdo->prepare(
+            "UPDATE inventory_items i
+             JOIN rental_items ri ON ri.item_id = i.item_id
+             SET i.status = 'available'
+             WHERE ri.rental_id = :rid
+               AND i.org_id = :org"
+        );
+        $releaseItems->execute([
+            ':rid' => $rentalId,
+            ':org' => (int)$rental['org_id'],
+        ]);
+
+        igpRefreshUserDebtFlag($pdo, $renterUserId);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
 function igpMarkReservationNoShow(PDO $pdo, int $orgId, int $rentalId): void
 {
     if ($rentalId <= 0) {
