@@ -477,9 +477,9 @@ h1.mb-4 {
 
 .repo-filter-group {
     display: flex;
-    flex: 1;
-    min-width: 200px;
-    max-width: 260px;
+    flex: 1 1 0;
+    min-width: 170px;
+    max-width: none;
     flex-direction: column;
     gap: 6px;
 }
@@ -505,6 +505,8 @@ h1.mb-4 {
 
 .date-range-btn {
     display: inline-flex;
+    flex: 1 1 0;
+    min-width: 170px;
     height: 40px;
     align-items: center;
     gap: 8px;
@@ -530,8 +532,18 @@ h1.mb-4 {
 }
 
 .repo-filter-bar > .btn {
+    display: inline-flex;
+    flex: 0 0 auto;
+    min-width: auto;
+    height: 40px;
     min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 16px !important;
+    border-width: 1px !important;
     border-radius: 8px;
+    line-height: 1;
 }
 
 .date-picker-modal {
@@ -759,13 +771,19 @@ h1.mb-4 {
 
     .repo-filter-group {
         width: 100%;
+        min-width: 0;
         max-width: none;
     }
 
     .date-range-btn,
     .repo-filter-bar > .btn {
         width: 100%;
+        min-width: 0;
         justify-content: center;
+    }
+
+    .repo-filter-bar > .btn {
+        flex: 1 1 100%;
     }
 
     .date-range-display {
