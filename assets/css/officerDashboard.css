@@ -4331,6 +4331,28 @@ body.dark .btn-outline:hover {
     gap: 16px;
 }
 
+@media (min-width: 1025px) {
+    #tracker-financial-summary-view .financial-summary-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    }
+
+    #tracker-financial-summary-view .financial-summary-header-actions {
+        grid-column: 2;
+        justify-self: center;
+    }
+
+    #tracker-printing-view .printing-queue-panel > .card-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    }
+
+    #tracker-printing-view .printing-queue-panel > .card-header > .printing-queue-header-actions {
+        grid-column: 2;
+        justify-self: center;
+    }
+}
+
 .financial-summary-header-actions {
     display: flex;
     align-items: center;
