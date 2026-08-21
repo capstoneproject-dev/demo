@@ -465,16 +465,258 @@ h1.mb-4 {
     color: var(--primary) !important;
 }
 
-.archive-month-filters {
+.repo-filter-bar {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.65rem;
+    flex-flow: row wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
 }
 
-.archive-month-filters .btn {
-    border-radius: 999px;
+.repo-filter-group {
+    display: flex;
+    flex: 1;
+    min-width: 200px;
+    max-width: 260px;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.repo-filter-group label {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.75rem;
     font-weight: 600;
+    text-transform: uppercase;
+}
+
+.repo-filter-group select {
+    height: 40px;
+    margin: 0;
+    padding: 6px 34px 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background-color: #fff;
+    color: var(--text);
+    font-size: 0.85rem;
+}
+
+.date-range-btn {
+    display: inline-flex;
+    height: 40px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--text);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.date-range-btn:hover {
+    background: #e9eef5;
+}
+
+.date-range-btn.active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+}
+
+.repo-filter-bar > .btn {
+    min-height: 40px;
+    border-radius: 8px;
+}
+
+.date-picker-modal {
+    position: fixed;
+    z-index: 4000;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.date-picker-modal.active {
+    display: flex;
+}
+
+.date-picker-content {
+    width: min(500px, 100%);
+    overflow: hidden;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+}
+
+.date-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.date-picker-header h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.25rem;
+}
+
+.date-picker-header .close-modal {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 1.75rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.date-picker-body {
+    padding: 24px;
+}
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.calendar-nav button {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.calendar-nav button:hover {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+}
+
+.calendar-month-year {
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.calendar-grid {
+    margin-bottom: 20px;
+}
+
+.calendar-weekdays,
+.calendar-dates {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-weekdays {
+    margin-bottom: 8px;
+}
+
+.calendar-weekdays div {
+    padding: 8px 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.calendar-date {
+    display: flex;
+    aspect-ratio: 1;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.calendar-date:hover {
+    border-color: var(--primary);
+    background: rgba(0, 33, 71, 0.08);
+}
+
+.calendar-date.in-range {
+    border-color: rgba(0, 33, 71, 0.28);
+    background: rgba(0, 33, 71, 0.13);
+}
+
+.calendar-date.selected {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+}
+
+.calendar-date.today {
+    box-shadow: inset 0 0 0 2px var(--primary);
+    font-weight: 700;
+}
+
+.calendar-date.today.selected {
+    box-shadow: inset 0 0 0 2px #fff;
+}
+
+.date-range-display {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.date-range-item {
+    flex: 1;
+}
+
+.date-range-item label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.date-range-item span {
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.date-picker-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: #f8fafc;
 }
 
 .event-view-tabs.sub-view-nav {
@@ -511,6 +753,25 @@ h1.mb-4 {
 }
 
 @media (max-width: 768px) {
+    .repo-filter-bar {
+        align-items: stretch;
+    }
+
+    .repo-filter-group {
+        width: 100%;
+        max-width: none;
+    }
+
+    .date-range-btn,
+    .repo-filter-bar > .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .date-range-display {
+        flex-direction: column;
+    }
+
     #eventSearchInput {
         display: block !important;
         width: 100% !important;

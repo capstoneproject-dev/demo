@@ -16,7 +16,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>Events - QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260821-event-sub-view-nav">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260821-archive-repo-filter">
 </head>
 
 <body>
@@ -70,8 +70,41 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     <input type="file" id="importFile" accept=".xlsx" style="display: none;">
                 </div>
             </div>
+            <div id="archiveEventFilterBar" class="repo-filter-bar" style="display:none;">
+                <div class="repo-filter-group">
+                    <label for="archiveSemesterFilter">Semester:</label>
+                    <select id="archiveSemesterFilter" onchange="setArchiveTermFilter('semester', this.value)">
+                        <option value="1st">1st Semester</option>
+                        <option value="2nd">2nd Semester</option>
+                    </select>
+                </div>
+
+                <div class="repo-filter-group">
+                    <label for="archivePeriodFilter">Term:</label>
+                    <select id="archivePeriodFilter" onchange="setArchiveTermFilter('grading_period', this.value)">
+                        <option value="prelim">Prelim</option>
+                        <option value="midterm">Midterm</option>
+                        <option value="finals">Finals</option>
+                    </select>
+                </div>
+
+                <div class="repo-filter-group">
+                    <label for="archiveAcademicYearFilter">School Year:</label>
+                    <select id="archiveAcademicYearFilter" onchange="setArchiveTermFilter('academic_year', this.value)">
+                    </select>
+                </div>
+
+                <button type="button" class="date-range-btn" id="archiveDateRangeBtn" onclick="openArchiveDatePicker()">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <span id="archiveDateRangeLabel">Select Date Range</span>
+                </button>
+
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="resetArchiveEventFilters()">
+                    <i class="fa-solid fa-rotate-left"></i> Reset
+                </button>
+            </div>
+
             <div class="card-body">
-                <div id="archiveMonthFilters" class="archive-month-filters mb-3" style="display:none;" aria-label="Filter archived events by month"></div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -88,6 +121,45 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             <!-- Events will be populated here -->
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Archived Events Date Picker Modal -->
+        <div id="archive-date-picker-modal" class="date-picker-modal" role="dialog" aria-modal="true" aria-labelledby="archive-date-picker-title">
+            <div class="date-picker-content">
+                <div class="date-picker-header">
+                    <h3 id="archive-date-picker-title">Select Date Range</h3>
+                    <button type="button" class="close-modal" onclick="closeArchiveDatePicker()" aria-label="Close">&times;</button>
+                </div>
+                <div class="date-picker-body">
+                    <div class="calendar-nav">
+                        <button type="button" onclick="changeArchiveCalendarMonth(-1)" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button>
+                        <span class="calendar-month-year" id="archive-calendar-month-year"></span>
+                        <button type="button" onclick="changeArchiveCalendarMonth(1)" aria-label="Next month"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+
+                    <div class="calendar-grid">
+                        <div class="calendar-weekdays">
+                            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                        </div>
+                        <div class="calendar-dates" id="archive-calendar-grid"></div>
+                    </div>
+
+                    <div class="date-range-display">
+                        <div class="date-range-item">
+                            <label>From</label>
+                            <span id="archive-date-from-display">Select Date</span>
+                        </div>
+                        <div class="date-range-item">
+                            <label>To</label>
+                            <span id="archive-date-to-display">Select Date</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="date-picker-footer">
+                    <button type="button" class="btn btn-outline-primary" onclick="clearArchiveDateRangeSelection()">Clear</button>
+                    <button type="button" class="btn btn-primary" onclick="applyArchiveDateRange()">Apply</button>
                 </div>
             </div>
         </div>
@@ -177,7 +249,17 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         let archivedEvents = [];
         let currentEventDetails = null;
         let currentEventsView = 'active';
-        let selectedArchiveMonth = 'all';
+        let activeAcademicTerm = {
+            academic_year: '2026-2027',
+            semester: '1st',
+            grading_period: 'prelim'
+        };
+        let archiveEventTermFilter = { ...activeAcademicTerm };
+        let archiveEventDateFilter = { from: null, to: null };
+        let archiveSelectedFromDate = null;
+        let archiveSelectedToDate = null;
+        let archiveCalendarCurrentMonth = new Date().getMonth();
+        let archiveCalendarCurrentYear = new Date().getFullYear();
 
         // Helper function to normalize event names for consistent matching
         function normalizeEventName(name) {
@@ -193,6 +275,9 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 status: row.archived_at ? 'archived' : 'active',
                 createdAt: row.created_at || '',
                 eventDateTime: row.event_datetime || '',
+                academicYear: row.academic_year || '',
+                semester: row.semester || '',
+                gradingPeriod: row.grading_period || '',
                 firstDate: row.first_record_date || null,
                 lastDate: row.last_record_date || null,
                 archiveStartDate: row.archive_start_date || row.event_datetime || null,
@@ -242,9 +327,32 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             return [...events, ...archivedEvents];
         }
 
+        async function loadActiveAcademicTerm() {
+            const response = await fetch('../../api/settings/academic-term.php', {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok || !payload.term) {
+                throw new Error(payload.error || 'Unable to load the active academic term.');
+            }
+            activeAcademicTerm = {
+                academic_year: String(payload.term.academic_year || activeAcademicTerm.academic_year),
+                semester: String(payload.term.semester || activeAcademicTerm.semester),
+                grading_period: String(payload.term.grading_period || activeAcademicTerm.grading_period).toLowerCase()
+            };
+            archiveEventTermFilter = { ...activeAcademicTerm };
+        }
+
         // Initialize data
         async function initializeLocalData() {
             attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+            try {
+                await loadActiveAcademicTerm();
+            } catch (error) {
+                console.warn('Unable to load the OSA academic term; using the configured fallback.', error);
+            }
             try {
                 await loadEventsFromApi();
             } catch (error) {
@@ -259,6 +367,9 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     firstDate: event.firstDate || null,
                     lastDate: event.lastDate || null,
                     eventDateTime: event.eventDateTime || event.event_datetime || event.createdAt || '',
+                    academicYear: event.academicYear || event.academic_year || activeAcademicTerm.academic_year,
+                    semester: event.semester || activeAcademicTerm.semester,
+                    gradingPeriod: event.gradingPeriod || event.grading_period || activeAcademicTerm.grading_period,
                     archiveStartDate: event.firstDate || event.eventDateTime || event.createdAt || null,
                     archiveEndDate: event.lastDate || event.eventDateTime || event.createdAt || null,
                     archivedAt: event.archivedAt || event.archived_at || null,
@@ -322,6 +433,9 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             document.querySelectorAll('[data-event-view]').forEach(button => {
                 button.addEventListener('click', () => switchEventsView(button.dataset.eventView));
             });
+            document.getElementById('archive-date-picker-modal')?.addEventListener('click', event => {
+                if (event.target.id === 'archive-date-picker-modal') closeArchiveDatePicker();
+            });
         });
 
         // Update events list
@@ -336,43 +450,173 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             return Number.isNaN(timestamp) ? 0 : timestamp;
         }
 
-        function eventArchiveMonthKey(event) {
-            const raw = event.firstDate || event.archiveStartDate || event.eventDateTime || '';
-            const match = String(raw).match(/^(\d{4})-(\d{2})/);
-            return match ? `${match[1]}-${match[2]}` : '';
+        function parseArchiveEventDate(value) {
+            const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (!match) return null;
+            const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+            return Number.isNaN(date.getTime()) ? null : date;
         }
 
-        function formatArchiveMonthLabel(monthKey) {
-            const match = String(monthKey).match(/^(\d{4})-(\d{2})$/);
-            if (!match) return monthKey;
-            return new Date(Number(match[1]), Number(match[2]) - 1, 1)
-                .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        function getArchiveEventFilterDate(event) {
+            return parseArchiveEventDate(event.firstDate || event.archiveStartDate || event.eventDateTime);
         }
 
-        function renderArchiveMonthFilters(sourceEvents) {
-            const container = document.getElementById('archiveMonthFilters');
-            if (!container) return;
+        function renderArchiveEventFilters(sourceEvents) {
+            const filterBar = document.getElementById('archiveEventFilterBar');
+            const semesterSelect = document.getElementById('archiveSemesterFilter');
+            const periodSelect = document.getElementById('archivePeriodFilter');
+            const yearSelect = document.getElementById('archiveAcademicYearFilter');
+            if (!filterBar || !semesterSelect || !periodSelect || !yearSelect) return;
             if (currentEventsView !== 'archived') {
-                container.style.display = 'none';
-                container.innerHTML = '';
+                filterBar.style.display = 'none';
                 return;
             }
 
-            const months = Array.from(new Set(sourceEvents.map(eventArchiveMonthKey).filter(Boolean))).sort().reverse();
-            if (selectedArchiveMonth !== 'all' && !months.includes(selectedArchiveMonth)) {
-                selectedArchiveMonth = 'all';
-            }
-            container.style.display = 'flex';
-            container.innerHTML = [
-                `<button type="button" class="btn btn-sm ${selectedArchiveMonth === 'all' ? 'btn-primary' : 'btn-outline-primary'}" data-archive-month="all">All</button>`,
-                ...months.map(month => `<button type="button" class="btn btn-sm ${selectedArchiveMonth === month ? 'btn-primary' : 'btn-outline-primary'}" data-archive-month="${month}">${formatArchiveMonthLabel(month)}</button>`)
-            ].join('');
-            container.querySelectorAll('[data-archive-month]').forEach(button => {
-                button.addEventListener('click', () => {
-                    selectedArchiveMonth = button.dataset.archiveMonth || 'all';
-                    updateEventsList();
-                });
+            const years = Array.from(new Set([
+                activeAcademicTerm.academic_year,
+                ...sourceEvents.map(event => event.academicYear).filter(Boolean)
+            ])).sort().reverse();
+            filterBar.style.display = 'flex';
+            yearSelect.innerHTML = years
+                .map(year => `<option value="${escapeEventHtml(year)}">${escapeEventHtml(year)}</option>`)
+                .join('');
+            semesterSelect.value = archiveEventTermFilter.semester;
+            periodSelect.value = archiveEventTermFilter.grading_period;
+            yearSelect.value = archiveEventTermFilter.academic_year;
+            syncArchiveDateRangeButton();
+        }
+
+        function setArchiveTermFilter(field, value) {
+            if (!['academic_year', 'semester', 'grading_period'].includes(field)) return;
+            archiveEventTermFilter[field] = String(value || '').trim();
+            updateEventsList();
+        }
+
+        function openArchiveDatePicker() {
+            archiveSelectedFromDate = archiveEventDateFilter.from
+                ? new Date(archiveEventDateFilter.from.getTime())
+                : null;
+            archiveSelectedToDate = archiveEventDateFilter.to
+                ? new Date(archiveEventDateFilter.to.getTime())
+                : null;
+            const calendarAnchor = archiveSelectedFromDate || new Date();
+            archiveCalendarCurrentMonth = calendarAnchor.getMonth();
+            archiveCalendarCurrentYear = calendarAnchor.getFullYear();
+            updateArchiveDateRangeDisplay();
+            renderArchiveCalendar(archiveCalendarCurrentMonth, archiveCalendarCurrentYear);
+            document.getElementById('archive-date-picker-modal')?.classList.add('active');
+        }
+
+        function closeArchiveDatePicker() {
+            document.getElementById('archive-date-picker-modal')?.classList.remove('active');
+        }
+
+        function renderArchiveCalendar(month, year) {
+            const grid = document.getElementById('archive-calendar-grid');
+            const heading = document.getElementById('archive-calendar-month-year');
+            if (!grid || !heading) return;
+            grid.innerHTML = '';
+            heading.textContent = new Date(year, month, 1).toLocaleDateString('en-US', {
+                month: 'long', year: 'numeric'
             });
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            for (let index = 0; index < firstDay; index++) grid.appendChild(document.createElement('div'));
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const dateCell = document.createElement('button');
+                dateCell.type = 'button';
+                dateCell.className = 'calendar-date';
+                dateCell.textContent = day;
+                dateCell.setAttribute('aria-label', date.toLocaleDateString());
+                dateCell.addEventListener('click', () => selectArchiveDate(date));
+                if (date.getTime() === today.getTime()) dateCell.classList.add('today');
+                if (archiveSelectedFromDate && date.getTime() === archiveSelectedFromDate.getTime()) dateCell.classList.add('selected');
+                if (archiveSelectedToDate && date.getTime() === archiveSelectedToDate.getTime()) dateCell.classList.add('selected');
+                if (archiveSelectedFromDate && archiveSelectedToDate && date > archiveSelectedFromDate && date < archiveSelectedToDate) {
+                    dateCell.classList.add('in-range');
+                }
+                grid.appendChild(dateCell);
+            }
+        }
+
+        function changeArchiveCalendarMonth(step) {
+            archiveCalendarCurrentMonth += step;
+            if (archiveCalendarCurrentMonth > 11) {
+                archiveCalendarCurrentMonth = 0;
+                archiveCalendarCurrentYear++;
+            } else if (archiveCalendarCurrentMonth < 0) {
+                archiveCalendarCurrentMonth = 11;
+                archiveCalendarCurrentYear--;
+            }
+            renderArchiveCalendar(archiveCalendarCurrentMonth, archiveCalendarCurrentYear);
+        }
+
+        function selectArchiveDate(date) {
+            if (!archiveSelectedFromDate || archiveSelectedToDate) {
+                archiveSelectedFromDate = date;
+                archiveSelectedToDate = null;
+            } else if (date < archiveSelectedFromDate) {
+                archiveSelectedToDate = archiveSelectedFromDate;
+                archiveSelectedFromDate = date;
+            } else {
+                archiveSelectedToDate = date;
+            }
+            updateArchiveDateRangeDisplay();
+            renderArchiveCalendar(archiveCalendarCurrentMonth, archiveCalendarCurrentYear);
+        }
+
+        function updateArchiveDateRangeDisplay() {
+            const fromDisplay = document.getElementById('archive-date-from-display');
+            const toDisplay = document.getElementById('archive-date-to-display');
+            if (fromDisplay) fromDisplay.textContent = archiveSelectedFromDate ? archiveSelectedFromDate.toLocaleDateString() : 'Select Date';
+            if (toDisplay) toDisplay.textContent = archiveSelectedToDate ? archiveSelectedToDate.toLocaleDateString() : 'Select Date';
+        }
+
+        function clearArchiveDateRangeSelection() {
+            archiveSelectedFromDate = null;
+            archiveSelectedToDate = null;
+            updateArchiveDateRangeDisplay();
+            renderArchiveCalendar(archiveCalendarCurrentMonth, archiveCalendarCurrentYear);
+        }
+
+        function syncArchiveDateRangeButton() {
+            const button = document.getElementById('archiveDateRangeBtn');
+            const label = document.getElementById('archiveDateRangeLabel');
+            const hasRange = archiveEventDateFilter.from && archiveEventDateFilter.to;
+            if (label) {
+                label.textContent = hasRange
+                    ? `${archiveEventDateFilter.from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${archiveEventDateFilter.to.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                    : 'Select Date Range';
+            }
+            button?.classList.toggle('active', Boolean(hasRange));
+        }
+
+        function applyArchiveDateRange() {
+            if (!archiveSelectedFromDate || !archiveSelectedToDate) {
+                alert('Please select both a start date and an end date.');
+                return;
+            }
+            archiveEventDateFilter = {
+                from: new Date(archiveSelectedFromDate.getTime()),
+                to: new Date(archiveSelectedToDate.getTime())
+            };
+            syncArchiveDateRangeButton();
+            closeArchiveDatePicker();
+            updateEventsList();
+        }
+
+        function resetArchiveEventFilters() {
+            archiveEventTermFilter = { ...activeAcademicTerm };
+            archiveEventDateFilter = { from: null, to: null };
+            archiveSelectedFromDate = null;
+            archiveSelectedToDate = null;
+            syncArchiveDateRangeButton();
+            updateEventsList();
         }
 
         async function setEventArchiveState(eventId, eventName, action) {
@@ -478,7 +722,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             });
 
             const unfilteredEvents = Array.from(eventsMap.values());
-            renderArchiveMonthFilters(unfilteredEvents);
+            renderArchiveEventFilters(unfilteredEvents);
 
             let sortedEvents = unfilteredEvents.sort((a, b) => {
                 const startDifference = eventSortTimestamp(b.firstDate || b.archiveStartDate || b.eventDateTime)
@@ -489,8 +733,18 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 return endDifference !== 0 ? endDifference : Number(b.id || 0) - Number(a.id || 0);
             });
 
-            if (currentEventsView === 'archived' && selectedArchiveMonth !== 'all') {
-                sortedEvents = sortedEvents.filter(event => eventArchiveMonthKey(event) === selectedArchiveMonth);
+            if (currentEventsView === 'archived') {
+                sortedEvents = sortedEvents.filter(event =>
+                    String(event.academicYear || '') === archiveEventTermFilter.academic_year
+                    && String(event.semester || '') === archiveEventTermFilter.semester
+                    && String(event.gradingPeriod || '').toLowerCase() === archiveEventTermFilter.grading_period
+                );
+            }
+            if (currentEventsView === 'archived' && archiveEventDateFilter.from && archiveEventDateFilter.to) {
+                sortedEvents = sortedEvents.filter(event => {
+                    const eventDate = getArchiveEventFilterDate(event);
+                    return eventDate && eventDate >= archiveEventDateFilter.from && eventDate <= archiveEventDateFilter.to;
+                });
             }
             if (searchTerm) {
                 sortedEvents = sortedEvents.filter(event => {
