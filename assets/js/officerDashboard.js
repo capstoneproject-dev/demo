@@ -1543,6 +1543,22 @@ function getOfficerFinancialStatusLabel(status) {
         : 'Unknown';
 }
 
+function getOfficerFinancialPaymentStatus(item) {
+    const serviceType = String(item?.service_type || '').toLowerCase();
+    const transactionStatus = String(item?.status || '').toLowerCase();
+    if (serviceType === 'printing' && transactionStatus === 'cancelled') return 'waived';
+
+    const paymentStatus = String(item?.payment_status || '').toLowerCase();
+    return ['paid', 'waived'].includes(paymentStatus) ? paymentStatus : 'unpaid';
+}
+
+function getOfficerFinancialPaymentLabel(item) {
+    const paymentStatus = getOfficerFinancialPaymentStatus(item);
+    if (paymentStatus === 'paid') return 'Paid';
+    if (paymentStatus === 'waived') return 'Waived';
+    return 'Unpaid';
+}
+
 function formatOfficerFinancialDate(value) {
     if (!value) return '-';
     const parsed = new Date(value);
@@ -1630,7 +1646,7 @@ function populateOfficerFinancialItemFilter(items) {
     const uniqueLabels = new Map();
     (items || [])
         .filter((item) => !filters.service || String(item.service_type || '').toLowerCase() === filters.service)
-        .filter((item) => !filters.payment || String(item.payment_status || '').toLowerCase() === filters.payment)
+        .filter((item) => !filters.payment || getOfficerFinancialPaymentStatus(item) === filters.payment)
         .filter((item) => matchesOfficerFinancialDateFilter(item, filters.startDate, filters.endDate))
         .flatMap((item) => getOfficerFinancialItemFilterLabels(item))
         .forEach((label) => {
@@ -1649,7 +1665,7 @@ function getFilteredOfficerFinancialSummaryItems() {
     const filters = getOfficerFinancialSummaryFilters();
     return officerFinancialSummaryData.filter((item) => {
         const serviceType = String(item.service_type || '').toLowerCase();
-        const paymentStatus = String(item.payment_status || '').toLowerCase();
+        const paymentStatus = getOfficerFinancialPaymentStatus(item);
         const itemLabels = getOfficerFinancialItemFilterLabels(item);
         if (filters.service && serviceType !== filters.service) return false;
         if (filters.item && !itemLabels.some((label) => label.toLowerCase() === filters.item.toLowerCase())) return false;
@@ -1687,7 +1703,7 @@ function renderOfficerFinancialSummary() {
 
     rows.forEach((item) => {
         const totalCost = Number(item.total_cost || 0);
-        const paymentStatus = String(item.payment_status || '').toLowerCase();
+        const paymentStatus = getOfficerFinancialPaymentStatus(item);
         const dateValue = getOfficerFinancialDateValue(item);
         const parsedDate = dateValue ? new Date(dateValue) : null;
 
@@ -1716,7 +1732,7 @@ function renderOfficerFinancialSummary() {
             if (paymentStatus === 'paid') {
                 dayBucket.revenue += totalCost;
                 dayBucket.paid += 1;
-            } else {
+            } else if (paymentStatus === 'unpaid') {
                 dayBucket.unpaid += totalCost;
                 dayBucket.unpaidCount += 1;
             }
@@ -1775,7 +1791,7 @@ function renderOfficerFinancialSummary() {
                     <td>${escapeHtml(formatOfficerPeso(item.overtime_cost || 0))}</td>
                     <td>${escapeHtml(formatOfficerPeso(item.total_cost || 0))}</td>
                     <td>${escapeHtml(getOfficerFinancialStatusLabel(item.status))}</td>
-                    <td><span class="financial-payment-badge ${escapeHtml(String(item.payment_status || '').toLowerCase())}">${escapeHtml(String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : (String(item.payment_status || '').toLowerCase() === 'waived' ? 'Waived' : 'Unpaid'))}</span></td>
+                    <td><span class="financial-payment-badge ${escapeHtml(getOfficerFinancialPaymentStatus(item))}">${escapeHtml(getOfficerFinancialPaymentLabel(item))}</span></td>
                 </tr>
             `).join('');
         }
@@ -1829,11 +1845,12 @@ function exportOfficerFinancialSummaryXlsx() {
 
     rows.forEach((item) => {
         const totalCost = Number(item.total_cost || 0);
-        const isPaid = String(item.payment_status || '').toLowerCase() === 'paid';
+        const paymentStatus = getOfficerFinancialPaymentStatus(item);
+        const isPaid = paymentStatus === 'paid';
         if (isPaid) {
             totalRevenue += totalCost;
             paidTransactions += 1;
-        } else {
+        } else if (paymentStatus === 'unpaid') {
             totalUnpaid += totalCost;
             unpaidTransactions += 1;
         }
@@ -1855,7 +1872,7 @@ function exportOfficerFinancialSummaryXlsx() {
         if (isPaid) {
             day.revenue += totalCost;
             day.paid += 1;
-        } else {
+        } else if (paymentStatus === 'unpaid') {
             day.unpaid += totalCost;
             day.unpaidCount += 1;
         }
@@ -1904,7 +1921,7 @@ function exportOfficerFinancialSummaryXlsx() {
             Number(item.overtime_cost || 0),
             Number(item.total_cost || 0),
             getOfficerFinancialStatusLabel(item.status),
-            String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid',
+            getOfficerFinancialPaymentLabel(item),
         ]),
     ];
     const transactionsSheet = XLSX.utils.aoa_to_sheet(transactionRows);
@@ -6939,7 +6956,7 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
                 getOfficerFinancialItemDisplayLabel(item),
                 item.customer_name || '-',
                 formatOfficerPeso(item.total_cost || 0),
-                String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid',
+                getOfficerFinancialPaymentLabel(item),
             ]);
         });
     } else {
@@ -7132,7 +7149,7 @@ async function exportPDF(options = {}) {
                 getOfficerFinancialItemDisplayLabel(item),
                 item.customer_name || '-',
                 formatOfficerPeso(item.total_cost || 0),
-                String(item.payment_status || '').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid',
+                getOfficerFinancialPaymentLabel(item),
             ])
             : [['No financial transactions', '', '', '', '', '']],
         theme: 'striped',
