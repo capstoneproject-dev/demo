@@ -95,8 +95,9 @@ try {
         $r['hourly_rate'] = (float)$r['hourly_rate'];
         $r['service_kind'] = (string)($r['service_kind'] ?? 'rental');
         $scheduledStart = new DateTimeImmutable((string)$r['rent_time'], $manilaTimeZone);
+        $cancellationCutoff = $scheduledStart->modify('-30 minutes');
         $r['can_student_cancel'] = (string)$r['status'] === 'reserved'
-            && $serverNow <= $scheduledStart->modify('-30 minutes');
+            && $serverNow < $cancellationCutoff;
     }
 
     jsonOk(['items' => $rows]);

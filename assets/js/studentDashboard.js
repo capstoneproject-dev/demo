@@ -8123,7 +8123,7 @@ function downloadApplicationForm() {
 // === CURRENT RENTALS FEATURE ===
 let currentRentalsData = [];
 let rentalTimerInterval = null;
-const STUDENT_RENTAL_CANCELLATION_CUTOFF_MS = 30 * 60 * 1000;
+const STUDENT_RENTAL_CANCELLATION_LOCK_WINDOW_MS = 30 * 60 * 1000;
 
 function isStudentRentalNoShow(rental) {
     if (String(rental?.status || '').toLowerCase() !== 'reserved') return false;
@@ -8140,7 +8140,7 @@ function canStudentCancelReservation(rental) {
     const raw = String(rental.rent_time || '').trim();
     const scheduledStart = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
     return !Number.isNaN(scheduledStart)
-        && Date.now() <= scheduledStart - STUDENT_RENTAL_CANCELLATION_CUTOFF_MS;
+        && Date.now() < scheduledStart - STUDENT_RENTAL_CANCELLATION_LOCK_WINDOW_MS;
 }
 
 async function cancelStudentReservation(rentalId, button) {
@@ -8371,7 +8371,7 @@ function createRentalCard(rental) {
 
         <div class="rental-card-items rental-card-items-with-payment">
             <div class="rental-card-items-content">
-                <h4><i class="fa-solid fa-box"></i> Rented Items</h4>
+                <h4><i class="fa-solid fa-box"></i> Rented Item</h4>
                 <div class="rental-items-list">${itemsLabel || 'No items'}</div>
             </div>
             <div class="rental-payment-status ${rental.payment_status}">${rental.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</div>
