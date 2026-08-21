@@ -74,7 +74,8 @@ document.getElementById('bulkUploadForm').addEventListener('submit', async funct
                     displayValue: true,
                     fontSize: 8,
                     margin: 1,
-                    background: "transparent"
+                    lineColor: "#000000",
+                    background: "#ffffff"
                 });
 
                 // Store barcode data for bulk download
@@ -106,7 +107,7 @@ document.getElementById('downloadAllBarcodes').addEventListener('click', async f
     }
 
     const zip = new JSZip();
-    const padding = 10; // pixels
+    const padding = 0;
 
     // Create a hidden container for barcode rendering
     let hiddenContainer = document.getElementById('hiddenBarcodeContainer');
@@ -130,8 +131,13 @@ document.getElementById('downloadAllBarcodes').addEventListener('click', async f
             height: 60,
             displayValue: true,
             fontSize: 12,
-            margin: 5,
-            background: "transparent"
+            margin: 0,
+            marginTop: 4,
+            marginRight: 20,
+            marginBottom: 4,
+            marginLeft: 20,
+            lineColor: "#000000",
+            background: "#ffffff"
         });
 
         // Convert SVG to PNG
@@ -147,8 +153,8 @@ document.getElementById('downloadAllBarcodes').addEventListener('click', async f
 
         canvas.width = img.width + padding * 2;
         canvas.height = img.height + padding * 2;
-        // Remove the white background fill
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, padding, padding);
 
         // Add to zip
@@ -191,12 +197,17 @@ document.getElementById('barcodeForm').addEventListener('submit', async function
         // Generate barcode
         JsBarcode("#single-barcode", referenceNumber, {
             format: "CODE128",
-            width: 1,
-            height: 30,
+            width: 2,
+            height: 70,
             displayValue: true,
-            fontSize: 8,
-            margin: 1,
-            background: "transparent"
+            fontSize: 14,
+            margin: 0,
+            marginTop: 4,
+            marginRight: 20,
+            marginBottom: 4,
+            marginLeft: 20,
+            lineColor: "#000000",
+            background: "#ffffff"
         });
         
         // Show download button
@@ -218,13 +229,12 @@ document.getElementById('downloadBarcode').addEventListener('click', function() 
     img.onload = function() {
         canvas.width = img.width;
         canvas.height = img.height;
-        // Clear the canvas to ensure transparency
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
         
         const link = document.createElement('a');
         link.download = 'barcode.png';
-        // Set PNG with transparency
         link.href = canvas.toDataURL('image/png');
         link.click();
     };

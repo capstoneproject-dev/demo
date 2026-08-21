@@ -115,7 +115,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
     <script src="../../systems/QR-Attendance/lib/jszip.min.js"></script>
     <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
-    <script src="../../systems/QR-Attendance/lib/generate-qr.js"></script>
+    <script src="../../systems/QR-Attendance/lib/generate-qr.js?v=20260821-compact-white-background"></script>
 </body>
 
 </html>

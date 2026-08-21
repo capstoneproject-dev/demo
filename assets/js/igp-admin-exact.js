@@ -44,7 +44,11 @@
         if (!dbDiv) return;
         dbDiv.innerHTML = '';
 
-        const departments = groupByDepartment(filteredOfficers());
+        const visibleOfficers = filteredOfficers();
+        if ($('downloadAllOfficerBarcodes')) {
+            $('downloadAllOfficerBarcodes').disabled = visibleOfficers.length === 0;
+        }
+        const departments = groupByDepartment(visibleOfficers);
         Object.keys(departments).sort().forEach((department) => {
             const departmentDiv = document.createElement('div');
             departmentDiv.innerHTML = `<h2 class="section-title">Department: ${department}</h2>`;
@@ -58,18 +62,37 @@
                     <div class="col-md-3 col-12 text-center">
                         <svg id="barcode-${safeRef}"></svg>
                     </div>
-                    <div class="col-md-8 col-12">
+                    <div class="col-md-7 col-12">
                         <strong>ID:</strong> ${officer.officerId}<br>
                         <strong>Name:</strong> ${officer.officerName}<br>
                         <strong>Department:</strong> ${officer.department}<br>
                         <strong>Barcode Ref:</strong> ${ref}<br>
                         <small class="text-muted">Unique ID: ${officer.officerId}</small>
                     </div>
-                    <div class="col-md-1 col-12 text-end">
-                        <span class="badge bg-secondary">Read-only</span>
+                    <div class="col-md-2 col-12 text-end">
+                        <span class="badge bg-secondary d-block mb-2">Read-only</span>
+                        <button type="button" class="btn btn-outline-primary btn-sm download-officer-barcode">
+                            <i class="fa-solid fa-download"></i> Download
+                        </button>
                     </div>
                 `;
                 departmentDiv.appendChild(card);
+                card.querySelector('.download-officer-barcode')?.addEventListener('click', async event => {
+                    const button = event.currentTarget;
+                    button.disabled = true;
+                    try {
+                        await window.barcodeDownload.downloadOne({
+                            type: 'Officer',
+                            id: officer.officerId,
+                            name: officer.officerName,
+                            value: ref
+                        });
+                    } catch (error) {
+                        alert(error.message || 'The barcode could not be downloaded.');
+                    } finally {
+                        button.disabled = false;
+                    }
+                });
                 setTimeout(() => {
                     if (window.JsBarcode) {
                         window.JsBarcode(`#barcode-${safeRef}`, ref, {
@@ -186,6 +209,26 @@
             $('clearSearch').addEventListener('click', () => {
                 $('searchInput').value = '';
                 renderDatabase();
+            });
+        }
+
+        if ($('downloadAllOfficerBarcodes')) {
+            $('downloadAllOfficerBarcodes').addEventListener('click', async event => {
+                const button = event.currentTarget;
+                const records = filteredOfficers().map(officer => ({
+                    type: 'Officer',
+                    id: officer.officerId,
+                    name: officer.officerName,
+                    value: window.encodeStudentData ? window.encodeStudentData(officer.officerId) : officer.officerId
+                }));
+                button.disabled = true;
+                try {
+                    await window.barcodeDownload.downloadBulk(records, 'Officer_Barcodes');
+                } catch (error) {
+                    alert(error.message || 'The barcodes could not be downloaded.');
+                } finally {
+                    button.disabled = records.length === 0;
+                }
             });
         }
 

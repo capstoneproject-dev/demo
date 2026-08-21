@@ -88,6 +88,9 @@
         dbDiv.innerHTML = '';
 
         const visibleStudents = filteredStudents();
+        if ($('downloadAllStudentBarcodes')) {
+            $('downloadAllStudentBarcodes').disabled = visibleStudents.length === 0;
+        }
         const grouped = groupBySection(visibleStudents);
         const sections = Object.keys(grouped).sort();
 
@@ -105,14 +108,13 @@
                 const ref = window.encodeStudentData ? window.encodeStudentData(student.studentId) : student.studentId;
                 const safeRef = ref.replace(/[^A-Za-z0-9_-]/g, '_');
                 const programLabel = student.programCode.trim() !== '' ? student.programCode : 'Unassigned';
-                const actionHtml = `<span class="badge bg-secondary">Read-only</span>`;
                 const card = document.createElement('div');
                 card.className = 'student-card row align-items-center';
                 card.innerHTML = `
                     <div class="col-md-3 col-12 text-center">
                         <svg id="barcode-${safeRef}"></svg>
                     </div>
-                    <div class="col-md-8 col-12">
+                    <div class="col-md-7 col-12">
                         <strong>ID:</strong> ${student.studentId}<br>
                         <strong>Name:</strong> ${student.studentName}<br>
                         <strong>Program:</strong> ${programLabel}<br>
@@ -120,11 +122,30 @@
                         <strong>Barcode Ref:</strong> ${ref}<br>
                         <small class="text-muted">Unique ID: ${student.studentId}</small>
                     </div>
-                    <div class="col-md-1 col-12 text-end">
-                        ${actionHtml}
+                    <div class="col-md-2 col-12 text-end">
+                        <span class="badge bg-secondary d-block mb-2">Read-only</span>
+                        <button type="button" class="btn btn-outline-primary btn-sm download-student-barcode">
+                            <i class="fa-solid fa-download"></i> Download
+                        </button>
                     </div>
                 `;
                 sectionDiv.appendChild(card);
+                card.querySelector('.download-student-barcode')?.addEventListener('click', async event => {
+                    const button = event.currentTarget;
+                    button.disabled = true;
+                    try {
+                        await window.barcodeDownload.downloadOne({
+                            type: 'Student',
+                            id: student.studentId,
+                            name: student.studentName,
+                            value: ref
+                        });
+                    } catch (error) {
+                        alert(error.message || 'The barcode could not be downloaded.');
+                    } finally {
+                        button.disabled = false;
+                    }
+                });
                 setTimeout(() => {
                     if (window.JsBarcode) {
                         window.JsBarcode(`#barcode-${safeRef}`, ref, {
@@ -235,6 +256,26 @@
             $('clearSearch').addEventListener('click', () => {
                 $('searchInput').value = '';
                 renderDatabase();
+            });
+        }
+
+        if ($('downloadAllStudentBarcodes')) {
+            $('downloadAllStudentBarcodes').addEventListener('click', async event => {
+                const button = event.currentTarget;
+                const records = filteredStudents().map(student => ({
+                    type: 'Student',
+                    id: student.studentId,
+                    name: student.studentName,
+                    value: window.encodeStudentData ? window.encodeStudentData(student.studentId) : student.studentId
+                }));
+                button.disabled = true;
+                try {
+                    await window.barcodeDownload.downloadBulk(records, 'Student_Barcodes');
+                } catch (error) {
+                    alert(error.message || 'The barcodes could not be downloaded.');
+                } finally {
+                    button.disabled = records.length === 0;
+                }
             });
         }
 
