@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/services_tracker.php';
 require_once __DIR__ . '/../../../includes/documents.php';
+require_once __DIR__ . '/../../../includes/igp.php';
 
 header('Content-Type: application/json');
 apiGuard();
@@ -54,9 +55,12 @@ try {
     $context = stRequireOfficerContext();
     $orgId = (int)$context['org_id'];
     $pdo = getPdo();
+    $notificationTimezone = new DateTimeZone('Asia/Manila');
+    $notificationNow = new DateTimeImmutable('now', $notificationTimezone);
 
     stEnsureSchema($pdo);
     docEnsureTermColumns($pdo);
+    igpExpireUnfulfilledReservations($pdo, $orgId);
 
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 30;
     $limit = max(10, min(50, $limit));
@@ -94,14 +98,32 @@ try {
         $rentalId = (int)$row['rental_id'];
         $serviceKind = strtolower((string)$row['service_kind']);
         $status = strtolower((string)$row['status']);
+        $isLocker = $serviceKind === ST_LOCKER_SERVICE_KIND;
+        $reservationAttentionAt = null;
+        if (!$isLocker && $status === 'reserved') {
+            $scheduledStartRaw = trim((string)($row['rent_time'] ?? ''));
+            if ($scheduledStartRaw === '') {
+                continue;
+            }
+            try {
+                $scheduledStart = new DateTimeImmutable($scheduledStartRaw, $notificationTimezone);
+            } catch (Throwable $e) {
+                continue;
+            }
+            $reservationAttentionAt = $scheduledStart->modify('-15 minutes');
+            if ($notificationNow < $reservationAttentionAt) {
+                continue;
+            }
+        }
         $pastDue = !empty($row['expected_return_time'])
             && strtotime((string)$row['expected_return_time']) < time()
             && in_array($status, ['active', 'locker_active'], true);
-        $isLocker = $serviceKind === ST_LOCKER_SERVICE_KIND;
         $requiresAttention = in_array($status, ['reserved', 'overdue', 'locker_pending', 'locker_overdue'], true) || $pastDue;
         $studentName = officerActionCenterStudentName($row);
         $itemNames = trim((string)($row['item_names'] ?? ''));
-        $occurredAt = (string)($row['updated_at'] ?: $row['created_at'] ?: $row['rent_time']);
+        $occurredAt = $reservationAttentionAt
+            ? $reservationAttentionAt->format('Y-m-d H:i:s')
+            : (string)($row['updated_at'] ?: $row['created_at'] ?: $row['rent_time']);
 
         if ($isLocker) {
             $title = ($status === ST_LOCKER_PENDING) ? 'Locker request awaiting approval' : ($requiresAttention ? 'Locker rental needs attention' : 'Locker status updated');
