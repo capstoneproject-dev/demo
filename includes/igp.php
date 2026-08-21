@@ -1501,10 +1501,10 @@ function igpCancelStudentReservation(PDO $pdo, int $renterUserId, int $rentalId)
 
         $tz = new DateTimeZone('Asia/Manila');
         $scheduledStart = new DateTimeImmutable((string)$rental['rent_time'], $tz);
-        $cancellationDeadline = $scheduledStart->modify('-30 minutes');
+        $cancellationCutoff = $scheduledStart->modify('-30 minutes');
         $now = new DateTimeImmutable('now', $tz);
-        if ($now > $cancellationDeadline) {
-            throw new IgpValidationException('This reservation can no longer be cancelled. Cancellations must be made at least 30 minutes before the scheduled start time.');
+        if ($now >= $cancellationCutoff) {
+            throw new IgpValidationException('This reservation can no longer be cancelled. The final 30 minutes before its scheduled start time are locked.');
         }
 
         $set = [
@@ -1513,7 +1513,7 @@ function igpCancelStudentReservation(PDO $pdo, int $renterUserId, int $rentalId)
             'total_cost = 0',
         ];
         if (igpColumnExists($pdo, 'rentals', 'notes')) {
-            $set[] = "notes = CONCAT_WS(CHAR(10), NULLIF(notes, ''), 'Cancelled by the student at least 30 minutes before the scheduled start time.')";
+            $set[] = "notes = CONCAT_WS(CHAR(10), NULLIF(notes, ''), 'Cancelled by the student before the final 30-minute lock window.')";
         }
 
         $updateRental = $pdo->prepare(
