@@ -111,7 +111,9 @@
                 const card = document.createElement('div');
                 card.className = 'student-card row align-items-center';
                 card.innerHTML = `
-                    <div class="col-md-3 col-12 text-center">
+                    <div class="col-md-3 col-12 text-center position-relative">
+                        <span class="badge bg-secondary position-absolute top-50 start-0 translate-middle-y"
+                            style="font-size: 0.58rem; padding: 3px 5px; white-space: nowrap;">Read-only</span>
                         <svg id="barcode-${safeRef}"></svg>
                     </div>
                     <div class="col-md-7 col-12">
@@ -122,9 +124,8 @@
                         <strong>Barcode Ref:</strong> ${ref}<br>
                         <small class="text-muted">Unique ID: ${student.studentId}</small>
                     </div>
-                    <div class="col-md-2 col-12 text-end">
-                        <span class="badge bg-secondary d-block mb-2">Read-only</span>
-                        <button type="button" class="btn btn-outline-primary btn-sm download-student-barcode">
+                    <div class="col-md-2 col-12 d-flex align-items-center justify-content-center justify-content-md-end mt-3 mt-md-0">
+                        <button type="button" class="btn btn-primary btn-sm download-student-barcode">
                             <i class="fa-solid fa-download"></i> Download
                         </button>
                     </div>

@@ -104,9 +104,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <div class="container main-content">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <a href="index.php" class="btn btn-secondary">&larr; Back</a>
-            <button type="button" id="downloadAllOfficerBarcodes" class="btn btn-success" disabled>
-                <i class="fa-solid fa-file-zipper"></i> Download Displayed Barcodes
-            </button>
+            <button type="button" id="downloadAllOfficerBarcodes" class="btn btn-primary me-2" disabled>Download All Barcodes</button>
         </div>
         <h1 class="mb-4">Officer Barcode Databases</h1>
         <div class="mb-3">
@@ -126,7 +124,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/IGPRentalSystem/lib/encoder.js"></script>
     <script src="../../assets/js/igp-api.js"></script>
     <script src="../../assets/js/barcode-download.js?v=20260821-compact-white-background"></script>
-    <script src="../../assets/js/igp-admin-exact.js?v=20260821-barcode-download"></script>
+    <script src="../../assets/js/igp-admin-exact.js?v=20260821-readonly-compact"></script>
 </body>
 
 </html>
