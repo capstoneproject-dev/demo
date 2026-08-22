@@ -15,6 +15,7 @@ try {
 
     if ($isOsa) {
         $ctx = docRequireOsaContext();
+        $reviewStage = 'OSA';
     } else {
         $ctx = docRequireOfficerOrgContext();
         if (!docIsSscOrganization($pdo, (int)$ctx['org_id'])) {
@@ -22,6 +23,7 @@ try {
         }
         $requiredRecipient = 'SSC';
         $disallowedReviewerOrgId = (int)$ctx['org_id'];
+        $reviewStage = 'SSC';
     }
     $body = getRequestBody();
     $submissionId = (int)($body['submission_id'] ?? 0);
@@ -39,7 +41,8 @@ try {
         $decision,
         $notes,
         $requiredRecipient,
-        $disallowedReviewerOrgId
+        $disallowedReviewerOrgId,
+        $reviewStage
     );
     jsonOk(['item' => privatePdfDecorateDocumentRow($item)]);
 } catch (DocumentAuthorizationException $e) {

@@ -26,6 +26,7 @@ try {
         'from'      => $_GET['from']      ?? null,
         'to'        => $_GET['to']        ?? null,
     ];
+    if ($isOsa) $filters['osa_visible'] = true;
     if ($filters['status'] === null) unset($filters['status']);
 
     $items = docListSubmissions(getPdo(), $filters, $orgScope);

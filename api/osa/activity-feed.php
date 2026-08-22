@@ -175,6 +175,8 @@ function osaActivityBuildPayloads(PDO $pdo, array $rows): array
         JOIN organizations o ON o.org_id = ds.org_id
         LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
         WHERE ds.submission_id IN (__IDS__)
+          AND ds.status <> 'cancelled'
+          AND (UPPER(TRIM(ds.recipient)) = 'OSA' OR ds.status = 'approved')
     ");
 
     $payloads['repository_update'] = osaActivityFetchPayloadMap($pdo, $ids, 'repository_update', 'repo_id', "
@@ -423,6 +425,8 @@ try {
             FROM document_submissions ds
             JOIN organizations o ON o.org_id = ds.org_id
             LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
+            WHERE ds.status <> 'cancelled'
+              AND (UPPER(TRIM(ds.recipient)) = 'OSA' OR ds.status = 'approved')
 
             UNION ALL
 

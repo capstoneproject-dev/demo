@@ -784,6 +784,16 @@ async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
             type: getDocumentTypeDisplay(item.document_type, item.custom_document_type),
             org: item.org_name || '',
             status: item.status || 'pending',
+            sscDecision: item.ssc_decision || null,
+            sscReviewerName: item.ssc_reviewer_name || '',
+            sscReviewerNotes: item.ssc_reviewer_notes || '',
+            sscReviewedAt: item.ssc_reviewed_at || null,
+            osaDecision: item.osa_decision || null,
+            osaReviewerName: item.osa_reviewer_name || '',
+            osaReviewerNotes: item.osa_reviewer_notes || '',
+            osaReviewedAt: item.osa_reviewed_at || null,
+            forwardedAt: item.forwarded_at || null,
+            cancelledAt: item.cancelled_at || null,
             date: fmtDateShort(item.submitted_at),
             submittedAt: item.submitted_at || null,
             submittedByUserId: Number(item.submitted_by_user_id || 0),
@@ -1777,6 +1787,7 @@ function mapSubmissionStatusToRequestStatus(status) {
     const normalized = String(status || '').trim().toLowerCase();
     if (normalized === 'approved') return 'Approved';
     if (normalized === 'rejected') return 'Rejected';
+    if (normalized === 'cancelled') return 'Cancelled';
     return 'Pending';
 }
 
@@ -1833,6 +1844,16 @@ async function loadRequestsFromApi() {
                 annotationCount: Number(item.annotation_count || 0),
                 latestAnnotationAt: item.latest_annotation_at || null,
                 reviewerNotes: item.reviewer_notes || '',
+                sscDecision: item.ssc_decision || null,
+                sscReviewerName: item.ssc_reviewer_name || '',
+                sscReviewerNotes: item.ssc_reviewer_notes || '',
+                sscReviewedAt: item.ssc_reviewed_at || null,
+                osaDecision: item.osa_decision || null,
+                osaReviewerName: item.osa_reviewer_name || '',
+                osaReviewerNotes: item.osa_reviewer_notes || '',
+                osaReviewedAt: item.osa_reviewed_at || null,
+                forwardedAt: item.forwarded_at || null,
+                cancelledAt: item.cancelled_at || null,
                 versionNumber: Number(item.version_number || 1),
                 rootSubmissionId: Number(item.root_submission_id || item.submission_id || 0),
                 parentSubmissionId: item.parent_submission_id ? Number(item.parent_submission_id) : null,
@@ -2988,6 +3009,18 @@ function syncDocsTermControlsToActive() {
     if (periodSelect) periodSelect.value = activeAcademicTerm.grading_period;
 }
 
+function renderOsaDocumentStageReview(decision, reviewerName, pending = false) {
+    if (decision === 'approved') {
+        return `<span>${escapeDashboardHtml(reviewerName || '-')}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+    }
+    if (decision === 'rejected') {
+        return `<span>${escapeDashboardHtml(reviewerName || '-')}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
+    }
+    return pending
+        ? '<span style="color:var(--muted)">-</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>'
+        : '<span style="color:var(--muted)">-</span>';
+}
+
 function renderRecentDocs() {
     const list = document.getElementById('recent-docs-list');
     if (!list) return;
@@ -3006,13 +3039,15 @@ function renderRecentDocs() {
         } else if (status === 'rejected') {
             statusText = 'Rejected';
             statusClass = 'status-rejected';
+        } else if (status === 'cancelled') {
+            statusText = 'Cancelled';
+            statusClass = 'status-rejected';
         } else {
             statusText = 'Pending Review';
             statusClass = 'status-pending';
         }
 
         const sender = doc.submittedByName || `User #${doc.submittedByUserId || 'N/A'}`;
-
         return `
             <div class="recent-activity-item">
                 <div class="recent-activity-content">
@@ -3067,7 +3102,7 @@ function renderDocs(filter = 'All', btnElement = null) {
 
         // 1. Status Filter
         const matchesStatus = (filter === 'All') ||
-            (filter === 'Pending' && statusText === 'pending') ||
+            (filter === 'Pending' && ['pending', 'sent_to_osa'].includes(statusText)) ||
             (filter === 'Approved' && statusText === 'approved') ||
             (filter === 'Rejected' && statusText === 'rejected');
 
@@ -3113,9 +3148,12 @@ function renderDocs(filter = 'All', btnElement = null) {
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
         } else if (statusText === 'rejected') {
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
+        } else if (statusText === 'cancelled') {
+            statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Cancelled</span>';
         } else {
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
-            if (String(doc.recipient || 'OSA').trim().toUpperCase() === 'OSA') {
+            if (String(doc.recipient || 'OSA').trim().toUpperCase() === 'OSA'
+                && ['pending', 'sent_to_osa'].includes(statusText)) {
                 actionButtons += `
                     <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'approved')" title="Approve">
                         <i class="fa-solid fa-check"></i>
@@ -3127,6 +3165,12 @@ function renderDocs(filter = 'All', btnElement = null) {
         }
 
         const sender = doc.submittedByName || `User #${doc.submittedByUserId || 'N/A'}`;
+        const sscReviewHtml = renderOsaDocumentStageReview(doc.sscDecision, doc.sscReviewerName, false);
+        const osaReviewHtml = renderOsaDocumentStageReview(
+            doc.osaDecision,
+            doc.osaReviewerName,
+            ['pending', 'sent_to_osa'].includes(statusText)
+        );
 
         return `
         <div class="list-item" onclick="openPdfViewer('${doc.viewerId || ('doc_' + index)}')">
@@ -3144,8 +3188,8 @@ function renderDocs(filter = 'All', btnElement = null) {
                 </div>
             </div>
             <div class="col-sent mobile-hide">${escapeDashboardHtml(sender)}</div>
-            <div class="col-ssc mobile-hide">${doc.org || 'N/A'}</div>
-            <div class="col-osa mobile-hide">OSA Internal</div>
+            <div class="col-ssc mobile-hide">${sscReviewHtml}</div>
+            <div class="col-osa mobile-hide">${osaReviewHtml}</div>
             <div class="col-status">
                 <div class="req-action-group">
                     ${actionButtons}

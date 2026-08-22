@@ -223,6 +223,10 @@ CREATE TABLE `document_submissions` (
   `grading_period` enum('prelim','midterm','finals') DEFAULT NULL,
   `submitted_at` datetime NOT NULL DEFAULT current_timestamp(),
   `reviewed_at` datetime DEFAULT NULL,
+  `forwarded_at` datetime DEFAULT NULL,
+  `forwarded_by_user_id` int(11) DEFAULT NULL,
+  `cancelled_at` datetime DEFAULT NULL,
+  `cancelled_by_user_id` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ;
@@ -1231,7 +1235,10 @@ ALTER TABLE `document_submissions`
   ADD PRIMARY KEY (`submission_id`),
   ADD KEY `fk_doc_sub_reviewer` (`reviewed_by_user_id`),
   ADD KEY `idx_doc_sub_org_status` (`org_id`,`status`),
-  ADD KEY `idx_doc_sub_submitter` (`submitted_by_user_id`);
+  ADD KEY `idx_doc_sub_submitter` (`submitted_by_user_id`),
+  ADD KEY `idx_document_workflow_queue` (`recipient`,`status`,`submitted_at`),
+  ADD KEY `idx_document_forwarded_by` (`forwarded_by_user_id`),
+  ADD KEY `idx_document_cancelled_by` (`cancelled_by_user_id`);
 
 --
 -- Indexes for table `events`
@@ -1540,7 +1547,9 @@ ALTER TABLE `document_annotations`
 ALTER TABLE `document_submissions`
   ADD CONSTRAINT `fk_doc_sub_org` FOREIGN KEY (`org_id`) REFERENCES `organizations` (`org_id`),
   ADD CONSTRAINT `fk_doc_sub_reviewer` FOREIGN KEY (`reviewed_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `fk_doc_sub_submitter` FOREIGN KEY (`submitted_by_user_id`) REFERENCES `users` (`user_id`);
+  ADD CONSTRAINT `fk_doc_sub_submitter` FOREIGN KEY (`submitted_by_user_id`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `fk_document_forwarded_by` FOREIGN KEY (`forwarded_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_document_cancelled_by` FOREIGN KEY (`cancelled_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `events`

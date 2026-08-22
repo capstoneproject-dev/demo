@@ -3259,8 +3259,8 @@ body.dark .sub-nav-btn.active {
 #docs-list .list-item {
     display: grid !important;
     /* Columns: Name (2fr), Sent (1fr), SSC (1fr), OSA (1fr), Status (110px) */
-    grid-template-columns: 2fr 1fr 1fr 1fr 110px;
-    gap: 15px;
+    grid-template-columns: 2fr 1fr 1fr 1fr minmax(220px, auto);
+    gap: 10px;
     align-items: center;
 }
 
@@ -3694,6 +3694,24 @@ body.dark .sub-nav-btn.active {
     color: var(--muted);
     font-size: 0.78rem;
     margin: -8px 0 15px;
+}
+
+.document-review-route {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.document-review-route i {
+    color: var(--primary);
 }
 
 .printing-file-preview-spinner {
@@ -4388,6 +4406,39 @@ body.dark .btn-outline:hover {
 
 .printing-queue-panel .table-container {
     overflow-x: auto;
+}
+
+#docs-list .action-btn-group {
+    gap: 5px;
+    flex-wrap: nowrap;
+}
+
+#docs-list .action-btn-group .btn-sm {
+    min-height: 30px;
+    padding: 5px 8px;
+    gap: 5px;
+    font-size: 0.72rem;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+@media (max-width: 1350px) and (min-width: 901px) {
+    .list-header-row,
+    #docs-list .list-item {
+        grid-template-columns: 2fr 1fr 1fr 1fr 140px;
+    }
+
+    #docs-list .document-workflow-action {
+        width: 30px;
+        height: 30px;
+        min-height: 30px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    #docs-list .document-workflow-action .doc-action-label {
+        display: none;
+    }
 }
 
 .printing-queue-loading {

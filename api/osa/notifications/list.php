@@ -13,7 +13,7 @@ try {
     $attentionCount = (int)$pdo->query(
         "SELECT COUNT(*)
          FROM document_submissions
-         WHERE status = 'pending'
+         WHERE status IN ('pending', 'sent_to_osa')
            AND UPPER(TRIM(recipient)) = 'OSA'"
     )->fetchColumn();
 
@@ -28,7 +28,7 @@ try {
          FROM document_submissions ds
          JOIN organizations o ON o.org_id = ds.org_id
          LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
-         WHERE ds.status = 'pending'
+         WHERE ds.status IN ('pending', 'sent_to_osa')
            AND UPPER(TRIM(ds.recipient)) = 'OSA'
          ORDER BY ds.submitted_at ASC, ds.submission_id ASC
          LIMIT {$limit}"

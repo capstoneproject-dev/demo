@@ -276,6 +276,10 @@ CREATE TABLE dbo.document_submissions (
     academic_year        VARCHAR(9)    NULL,
     submitted_at         DATETIME2(0)  NOT NULL CONSTRAINT df_document_submissions_submitted_at DEFAULT SYSDATETIME(),
     reviewed_at          DATETIME2(0)  NULL,
+    forwarded_at         DATETIME2(0)  NULL,
+    forwarded_by_user_id INT           NULL,
+    cancelled_at         DATETIME2(0)  NULL,
+    cancelled_by_user_id INT           NULL,
     created_at           DATETIME2(0)  NOT NULL CONSTRAINT df_document_submissions_created_at  DEFAULT SYSDATETIME(),
     updated_at           DATETIME2(0)  NOT NULL CONSTRAINT df_document_submissions_updated_at  DEFAULT SYSDATETIME(),
     CONSTRAINT pk_document_submissions PRIMARY KEY (submission_id),
@@ -433,6 +437,7 @@ GO
 CREATE INDEX fk_doc_sub_reviewer    ON dbo.document_submissions(reviewed_by_user_id);
 CREATE INDEX idx_doc_sub_org_status ON dbo.document_submissions(org_id, status);
 CREATE INDEX idx_doc_sub_submitter  ON dbo.document_submissions(submitted_by_user_id);
+CREATE INDEX idx_document_workflow_queue ON dbo.document_submissions(recipient, status, submitted_at);
 GO
 
 -- events
@@ -568,7 +573,11 @@ ALTER TABLE dbo.document_submissions
         CONSTRAINT fk_doc_sub_reviewer
             FOREIGN KEY (reviewed_by_user_id)  REFERENCES dbo.users(user_id) ON DELETE SET NULL,
         CONSTRAINT fk_doc_sub_submitter
-            FOREIGN KEY (submitted_by_user_id) REFERENCES dbo.users(user_id);
+            FOREIGN KEY (submitted_by_user_id) REFERENCES dbo.users(user_id),
+        CONSTRAINT fk_document_forwarded_by
+            FOREIGN KEY (forwarded_by_user_id) REFERENCES dbo.users(user_id),
+        CONSTRAINT fk_document_cancelled_by
+            FOREIGN KEY (cancelled_by_user_id) REFERENCES dbo.users(user_id);
 GO
 
 ALTER TABLE dbo.events

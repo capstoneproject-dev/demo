@@ -8,12 +8,26 @@ $fixture = $pdo->query(
     "SELECT ds.org_id, ds.submitted_by_user_id, ds.file_url,
             COALESCE(ds.reviewed_by_user_id, ds.submitted_by_user_id) AS reviewer_id
      FROM document_submissions ds
+     JOIN organizations fixture_org ON fixture_org.org_id = ds.org_id
      WHERE ds.file_url IS NOT NULL AND ds.file_url <> ''
+       AND UPPER(TRIM(COALESCE(fixture_org.org_code, ''))) <> 'SSC'
+       AND UPPER(TRIM(fixture_org.org_name)) <> 'SUPREME STUDENT COUNCIL'
      ORDER BY ds.submission_id
      LIMIT 1"
 )->fetch();
 
-if (!$fixture || !privatePdfResolveStoredFile((string)$fixture['file_url'], ['documents'])) {
+$sscFixture = $pdo->query(
+    "SELECT o.org_id, COALESCE(MIN(om.user_id), MIN(u.user_id)) AS reviewer_id
+     FROM organizations o
+     LEFT JOIN organization_members om ON om.org_id = o.org_id AND om.is_active = 1
+     LEFT JOIN users u ON 1 = 1
+     WHERE UPPER(TRIM(COALESCE(o.org_code, ''))) = 'SSC'
+        OR UPPER(TRIM(o.org_name)) = 'SUPREME STUDENT COUNCIL'
+     GROUP BY o.org_id
+     LIMIT 1"
+)->fetch();
+
+if (!$fixture || !$sscFixture || !privatePdfResolveStoredFile((string)$fixture['file_url'], ['documents'])) {
     fwrite(STDERR, "FAIL: No stored document PDF is available for the test.\n");
     exit(1);
 }
@@ -38,14 +52,21 @@ try {
     $assert($root['version_number'] === 1, 'A new submission must start at version 1.');
     $assert($root['document_type'] === 'Others', 'The custom document category was not preserved.');
     $assert($root['custom_document_type'] === 'Compliance Matrix', 'The custom document type was not preserved.');
+    $assert($root['recipient'] === 'SSC', 'A non-SSC submission bypassed mandatory SSC routing.');
 
-    $rejected = docReviewSubmission($pdo, (int)$root['submission_id'], (int)$fixture['reviewer_id'], 'rejected', 'Please revise.');
+    $rejected = docReviewSubmission(
+        $pdo, (int)$root['submission_id'], (int)$sscFixture['reviewer_id'],
+        'rejected', 'Please revise.', 'SSC', (int)$sscFixture['org_id'], 'SSC'
+    );
     $assert($pdo->inTransaction(), 'Transaction ended while rejecting the root submission.');
     $assert($rejected['status'] === 'rejected', 'The first decision was not recorded.');
 
     $secondDecisionBlocked = false;
     try {
-        docReviewSubmission($pdo, (int)$root['submission_id'], (int)$fixture['reviewer_id'], 'approved', 'Changed decision');
+        docReviewSubmission(
+            $pdo, (int)$root['submission_id'], (int)$sscFixture['reviewer_id'],
+            'approved', 'Changed decision', 'SSC', (int)$sscFixture['org_id'], 'SSC'
+        );
     } catch (DocumentValidationException $e) {
         $secondDecisionBlocked = true;
     }
@@ -75,10 +96,46 @@ try {
     $assert($revision['parent_submission_id'] === (int)$root['submission_id'], 'The revision is not linked to its parent.');
     $assert($revision['document_type'] === 'Others', 'The revision changed the custom document category.');
     $assert($revision['custom_document_type'] === 'Compliance Matrix', 'The revision lost the custom document type.');
+    $assert($revision['recipient'] === 'SSC', 'A non-SSC revision bypassed mandatory SSC routing.');
+    $assert(
+        docResolveSubmissionAccess($pdo, (int)$revision['submission_id'], ['login_role' => 'osa']) === null,
+        'OSA could access a document before it was forwarded.'
+    );
 
-    $approved = docReviewSubmission($pdo, (int)$revision['submission_id'], (int)$fixture['reviewer_id'], 'approved', 'Approved revision.');
+    $sscApproved = docReviewSubmission(
+        $pdo, (int)$revision['submission_id'], (int)$sscFixture['reviewer_id'],
+        'approved', 'Approved by SSC.', 'SSC', (int)$sscFixture['org_id'], 'SSC'
+    );
+    $assert($sscApproved['status'] === 'ssc_approved', 'SSC approval did not enter the forwarding stage.');
+    $prematureRepoStmt = $pdo->prepare("SELECT COUNT(*) FROM documents_approved WHERE submission_id = :id");
+    $prematureRepoStmt->execute([':id' => (int)$revision['submission_id']]);
+    $assert((int)$prematureRepoStmt->fetchColumn() === 0, 'SSC approval created a final repository snapshot.');
+
+    $forwarded = docForwardSubmissionToOsa(
+        $pdo, (int)$revision['submission_id'], (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id']
+    );
+    $assert($forwarded['status'] === 'sent_to_osa' && $forwarded['recipient'] === 'OSA', 'SSC-approved document was not forwarded to OSA.');
+    $assert(
+        docResolveSubmissionAccess($pdo, (int)$revision['submission_id'], ['login_role' => 'osa']) !== null,
+        'OSA could not access a forwarded document.'
+    );
+
+    $approved = docReviewSubmission(
+        $pdo, (int)$revision['submission_id'], (int)$fixture['reviewer_id'],
+        'approved', 'Final OSA approval.', 'OSA', null, 'OSA'
+    );
     $assert($pdo->inTransaction(), 'Transaction ended while approving the revision.');
-    $assert($approved['status'] === 'approved', 'The revised submission was not approved.');
+    $assert($approved['status'] === 'approved', 'OSA did not issue the final approval.');
+    $assert($approved['ssc_decision'] === 'approved' && $approved['osa_decision'] === 'approved', 'Both staged decisions were not preserved.');
+    $finalCancellationBlocked = false;
+    try {
+        docCancelSubmission(
+            $pdo, (int)$revision['submission_id'], (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id']
+        );
+    } catch (DocumentValidationException $e) {
+        $finalCancellationBlocked = true;
+    }
+    $assert($finalCancellationBlocked, 'A finalized OSA decision could still be cancelled.');
     $approvedSnapshotStmt = $pdo->prepare(
         "SELECT document_type, custom_document_type FROM documents_approved WHERE submission_id = :id"
     );
@@ -96,8 +153,94 @@ try {
     }
     $assert($repoUpdateBlocked, 'The database allowed an approved snapshot to be overwritten.');
 
+    $cancelCandidate = docCreateSubmission($pdo, (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id'], [
+        'title' => 'Cancellation test document',
+        'document_type' => 'Activity Report',
+        'recipient' => 'OSA',
+        'storage_key' => (string)$fixture['file_url'],
+    ]);
+    $cancelled = docCancelSubmission(
+        $pdo, (int)$cancelCandidate['submission_id'], (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id']
+    );
+    $assert($cancelled['status'] === 'cancelled', 'Pending document cancellation was not persisted.');
+    $assert(
+        docResolveSubmissionAccess($pdo, (int)$cancelCandidate['submission_id'], [
+            'login_role' => 'org',
+            'active_org_id' => (int)$fixture['org_id'],
+        ]) !== null,
+        'The submitting organization lost access to its cancelled document.'
+    );
+    $assert(
+        docResolveSubmissionAccess($pdo, (int)$cancelCandidate['submission_id'], [
+            'login_role' => 'org',
+            'active_org_id' => (int)$sscFixture['org_id'],
+        ]) === null,
+        'SSC retained recipient-side access to a cancelled document.'
+    );
+    $ownerVisibleIds = array_column(docListSubmissions($pdo, [], (int)$fixture['org_id']), 'submission_id');
+    $sscVisibleIds = array_column(docListSubmissions($pdo, [], (int)$sscFixture['org_id']), 'submission_id');
+    $assert(in_array((int)$cancelCandidate['submission_id'], $ownerVisibleIds, true), 'Cancelled document was hidden from its sender list.');
+    $assert(!in_array((int)$cancelCandidate['submission_id'], $sscVisibleIds, true), 'Cancelled document remained in the SSC recipient list.');
+    $cancelReviewBlocked = false;
+    try {
+        docReviewSubmission(
+            $pdo, (int)$cancelCandidate['submission_id'], (int)$sscFixture['reviewer_id'],
+            'approved', null, 'SSC', (int)$sscFixture['org_id'], 'SSC'
+        );
+    } catch (DocumentValidationException $e) {
+        $cancelReviewBlocked = true;
+    }
+    $assert($cancelReviewBlocked, 'A cancelled document still accepted a reviewer decision.');
+
+    $forwardCancelCandidate = docCreateSubmission($pdo, (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id'], [
+        'title' => 'Forwarded cancellation test document',
+        'document_type' => 'Financial Statement',
+        'storage_key' => (string)$fixture['file_url'],
+    ]);
+    docReviewSubmission(
+        $pdo, (int)$forwardCancelCandidate['submission_id'], (int)$sscFixture['reviewer_id'],
+        'approved', null, 'SSC', (int)$sscFixture['org_id'], 'SSC'
+    );
+    docForwardSubmissionToOsa(
+        $pdo, (int)$forwardCancelCandidate['submission_id'], (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id']
+    );
+    $forwardCancelled = docCancelSubmission(
+        $pdo, (int)$forwardCancelCandidate['submission_id'], (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id']
+    );
+    $assert($forwardCancelled['status'] === 'cancelled', 'A document awaiting OSA review could not be cancelled.');
+    $assert(
+        docResolveSubmissionAccess($pdo, (int)$forwardCancelCandidate['submission_id'], ['login_role' => 'osa']) === null,
+        'OSA retained recipient-side access to a cancelled document.'
+    );
+    $osaVisibleIds = array_column(docListOsaRequestOverview($pdo, ['recipient' => 'OSA']), 'submission_id');
+    $assert(!in_array((int)$forwardCancelCandidate['submission_id'], $osaVisibleIds, true), 'Cancelled document remained in the OSA recipient list.');
+    $forwardCancelledReviewBlocked = false;
+    try {
+        docReviewSubmission(
+            $pdo, (int)$forwardCancelCandidate['submission_id'], (int)$fixture['reviewer_id'],
+            'approved', null, 'OSA', null, 'OSA'
+        );
+    } catch (DocumentValidationException $e) {
+        $forwardCancelledReviewBlocked = true;
+    }
+    $assert($forwardCancelledReviewBlocked, 'OSA reviewed a document after its organization cancelled it.');
+
+    $sscDirect = docCreateSubmission($pdo, (int)$sscFixture['org_id'], (int)$sscFixture['reviewer_id'], [
+        'title' => 'SSC direct-to-OSA test document',
+        'document_type' => 'Resolution',
+        'recipient' => 'SSC',
+        'storage_key' => (string)$fixture['file_url'],
+    ]);
+    $assert($sscDirect['recipient'] === 'OSA', 'An SSC-originated document was not routed directly to OSA.');
+    $sscDirectApproved = docReviewSubmission(
+        $pdo, (int)$sscDirect['submission_id'], (int)$fixture['reviewer_id'],
+        'approved', 'Direct OSA approval.', 'OSA', null, 'OSA'
+    );
+    $assert($sscDirectApproved['status'] === 'approved', 'SSC direct-to-OSA submission did not receive final approval.');
+    $assert($sscDirectApproved['ssc_decision'] === null && $sscDirectApproved['osa_decision'] === 'approved', 'SSC direct submission recorded the wrong review stages.');
+
     $pdo->rollBack();
-    echo "PASS: one-time decisions, immutable snapshots, and linked revisions are enforced.\n";
+    echo "PASS: hierarchical SSC-to-OSA decisions, cancellation, immutable snapshots, and linked revisions are enforced.\n";
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     fwrite(STDERR, 'FAIL: ' . $e->getMessage() . "\n");

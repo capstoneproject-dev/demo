@@ -109,6 +109,62 @@ function docEnsureTermColumns(PDO $pdo): void
     $pdo->exec("ALTER TABLE documents_approved ADD COLUMN IF NOT EXISTS grading_period ENUM('prelim','midterm','finals') DEFAULT NULL AFTER academic_year");
     $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS custom_document_type VARCHAR(100) DEFAULT NULL AFTER document_type");
     $pdo->exec("ALTER TABLE documents_approved ADD COLUMN IF NOT EXISTS custom_document_type VARCHAR(100) DEFAULT NULL AFTER document_type");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS forwarded_at DATETIME DEFAULT NULL AFTER reviewed_at");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS forwarded_by_user_id INT DEFAULT NULL AFTER forwarded_at");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS cancelled_at DATETIME DEFAULT NULL AFTER forwarded_by_user_id");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS cancelled_by_user_id INT DEFAULT NULL AFTER cancelled_at");
+    $pdo->exec("ALTER TABLE document_decisions ADD COLUMN IF NOT EXISTS review_stage ENUM('SSC','OSA') NOT NULL DEFAULT 'OSA' AFTER submission_id");
+
+    $schema = (string)$pdo->query('SELECT DATABASE()')->fetchColumn();
+    $indexStmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM information_schema.statistics
+         WHERE table_schema = :schema AND table_name = :table_name AND index_name = :index_name"
+    );
+    $indexExists = static function (string $table, string $index) use ($indexStmt, $schema): bool {
+        $indexStmt->execute([':schema' => $schema, ':table_name' => $table, ':index_name' => $index]);
+        return (int)$indexStmt->fetchColumn() > 0;
+    };
+    $hasLegacyDecisionIndex = $indexExists('document_decisions', 'uq_document_decisions_submission');
+    if ($hasLegacyDecisionIndex) {
+        // The legacy table allowed only one decision. Its recipient identifies
+        // whether that immutable historical decision belonged to SSC or OSA.
+        $pdo->exec("DROP TRIGGER IF EXISTS trg_document_decisions_immutable_update");
+        $pdo->exec(
+            "UPDATE document_decisions dd
+             JOIN document_submissions ds ON ds.submission_id = dd.submission_id
+             SET dd.review_stage = 'SSC'
+             WHERE dd.review_stage = 'OSA' AND UPPER(TRIM(ds.recipient)) = 'SSC'"
+        );
+        $pdo->exec(
+            "CREATE TRIGGER trg_document_decisions_immutable_update
+             BEFORE UPDATE ON document_decisions
+             FOR EACH ROW
+             SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Document decisions are append-only'"
+        );
+    }
+    if (!$indexExists('document_decisions', 'uq_document_decisions_submission_stage')) {
+        $pdo->exec("ALTER TABLE document_decisions ADD UNIQUE KEY uq_document_decisions_submission_stage (submission_id, review_stage)");
+    }
+    if ($hasLegacyDecisionIndex) {
+        $pdo->exec("ALTER TABLE document_decisions DROP INDEX uq_document_decisions_submission");
+    }
+    if (!$indexExists('document_submissions', 'idx_document_workflow_queue')) {
+        $pdo->exec("ALTER TABLE document_submissions ADD KEY idx_document_workflow_queue (recipient, status, submitted_at)");
+    }
+    $checkStmt = $pdo->prepare(
+        "SELECT check_clause FROM information_schema.check_constraints
+         WHERE constraint_schema = :schema AND constraint_name = 'chk_doc_status'
+         LIMIT 1"
+    );
+    $checkStmt->execute([':schema' => $schema]);
+    $statusCheck = $checkStmt->fetchColumn();
+    if (is_string($statusCheck) && stripos($statusCheck, 'cancelled') === false) {
+        $pdo->exec("ALTER TABLE document_submissions DROP CONSTRAINT chk_doc_status");
+        $pdo->exec(
+            "ALTER TABLE document_submissions ADD CONSTRAINT chk_doc_status
+             CHECK (status IN ('pending','sent_to_osa','ssc_approved','approved','rejected','cancelled'))"
+        );
+    }
     $pdo->exec("
         UPDATE document_submissions
         SET grading_period = CASE
@@ -170,10 +226,8 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
             throw new DocumentValidationException('custom_document_type must be 100 characters or fewer.');
         }
     }
-    $recipient    = strtoupper(trim((string)($data['recipient'] ?? 'OSA')) ?: 'OSA');
-    if (!in_array($recipient, ['OSA', 'SSC'], true)) {
-        throw new DocumentValidationException('recipient must be OSA or SSC.');
-    }
+    // Routing is an authorization rule, not a client preference.
+    $recipient = docIsSscOrganization($pdo, $orgId) ? 'OSA' : 'SSC';
     $description  = trim((string)($data['description'] ?? '')) ?: null;
     $fileUrl      = trim((string)($data['storage_key'] ?? ''));
     // Academic-term feature boundary: submissions use the active global term from system_settings.
@@ -227,15 +281,10 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
             }
             $rootSubmissionId = (int)$parent['root_submission_id'];
             $versionNumber = (int)$parent['version_number'] + 1;
-            $recipient = (string)$parent['recipient'];
             $documentType = (string)$parent['document_type'];
             $customDocumentType = $parent['custom_document_type'] !== null
                 ? (string)$parent['custom_document_type']
                 : null;
-        }
-
-        if ($recipient === 'SSC' && docIsSscOrganization($pdo, $orgId)) {
-            throw new DocumentAuthorizationException('SSC officers cannot send documents to SSC. Send the document to OSA instead.');
         }
 
         $stmt = $pdo->prepare(
@@ -288,11 +337,25 @@ function docFetchSubmission(PDO $pdo, int $id): array
 
     $stmt = $pdo->prepare(
         "SELECT ds.*, o.org_name,
+                ssc_decision.decision AS ssc_decision,
+                ssc_decision.reviewed_by_user_id AS ssc_reviewed_by_user_id,
+                ssc_decision.reviewer_name AS ssc_reviewer_name,
+                ssc_decision.reviewer_notes AS ssc_reviewer_notes,
+                ssc_decision.decided_at AS ssc_reviewed_at,
+                osa_decision.decision AS osa_decision,
+                osa_decision.reviewed_by_user_id AS osa_reviewed_by_user_id,
+                osa_decision.reviewer_name AS osa_reviewer_name,
+                osa_decision.reviewer_notes AS osa_reviewer_notes,
+                osa_decision.decided_at AS osa_reviewed_at,
                 dv.root_submission_id, dv.parent_submission_id, dv.version_number, dv.file_sha256,
                 EXISTS(SELECT 1 FROM document_versions child WHERE child.parent_submission_id = ds.submission_id) AS has_newer_version
          FROM document_submissions ds
          JOIN organizations o ON o.org_id = ds.org_id
          JOIN document_versions dv ON dv.submission_id = ds.submission_id
+         LEFT JOIN document_decisions ssc_decision
+           ON ssc_decision.submission_id = ds.submission_id AND ssc_decision.review_stage = 'SSC'
+         LEFT JOIN document_decisions osa_decision
+           ON osa_decision.submission_id = ds.submission_id AND osa_decision.review_stage = 'OSA'
          WHERE ds.submission_id = :id"
     );
     $stmt->execute([':id' => $id]);
@@ -302,6 +365,10 @@ function docFetchSubmission(PDO $pdo, int $id): array
     $row['org_id']        = (int)$row['org_id'];
     $row['submitted_by_user_id'] = (int)$row['submitted_by_user_id'];
     $row['reviewed_by_user_id']  = $row['reviewed_by_user_id'] !== null ? (int)$row['reviewed_by_user_id'] : null;
+    $row['ssc_reviewed_by_user_id'] = $row['ssc_reviewed_by_user_id'] !== null ? (int)$row['ssc_reviewed_by_user_id'] : null;
+    $row['osa_reviewed_by_user_id'] = $row['osa_reviewed_by_user_id'] !== null ? (int)$row['osa_reviewed_by_user_id'] : null;
+    $row['forwarded_by_user_id'] = $row['forwarded_by_user_id'] !== null ? (int)$row['forwarded_by_user_id'] : null;
+    $row['cancelled_by_user_id'] = $row['cancelled_by_user_id'] !== null ? (int)$row['cancelled_by_user_id'] : null;
     $row['root_submission_id'] = (int)$row['root_submission_id'];
     $row['parent_submission_id'] = $row['parent_submission_id'] !== null ? (int)$row['parent_submission_id'] : null;
     $row['version_number'] = (int)$row['version_number'];
@@ -318,7 +385,15 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
 
     if ($orgScope !== null) {
         $where[] = docIsSscOrganization($pdo, $orgScope)
-            ? "(ds.org_id = :org OR UPPER(TRIM(ds.recipient)) = 'SSC')"
+            ? "(ds.org_id = :org OR (
+                    ds.status <> 'cancelled'
+                    AND (
+                        UPPER(TRIM(ds.recipient)) = 'SSC'
+                        OR EXISTS (SELECT 1 FROM document_decisions visible_ssc
+                                   WHERE visible_ssc.submission_id = ds.submission_id
+                                     AND visible_ssc.review_stage = 'SSC')
+                    )
+                ))"
             : 'ds.org_id = :org';
         $params[':org'] = $orgScope;
     }
@@ -331,6 +406,9 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
     if (!empty($filters['recipient'])) {
         $where[] = 'ds.recipient = :recipient';
         $params[':recipient'] = $filters['recipient'];
+    }
+    if (!empty($filters['osa_visible'])) {
+        $where[] = "ds.status <> 'cancelled' AND (UPPER(TRIM(ds.recipient)) = 'OSA' OR ds.status = 'approved')";
     }
 
     if (!empty($filters['semester']) && $filters['semester'] !== 'all') {
@@ -366,6 +444,16 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
                    u.last_name AS submitted_by_last_name,
                    reviewer.first_name AS reviewer_first_name,
                    reviewer.last_name AS reviewer_last_name,
+                   ssc_decision.decision AS ssc_decision,
+                   ssc_decision.reviewed_by_user_id AS ssc_reviewed_by_user_id,
+                   ssc_decision.reviewer_name AS ssc_reviewer_name,
+                   ssc_decision.reviewer_notes AS ssc_reviewer_notes,
+                   ssc_decision.decided_at AS ssc_reviewed_at,
+                   osa_decision.decision AS osa_decision,
+                   osa_decision.reviewed_by_user_id AS osa_reviewed_by_user_id,
+                   osa_decision.reviewer_name AS osa_reviewer_name,
+                   osa_decision.reviewer_notes AS osa_reviewer_notes,
+                   osa_decision.decided_at AS osa_reviewed_at,
                    dv.root_submission_id, dv.parent_submission_id, dv.version_number, dv.file_sha256,
                    EXISTS(SELECT 1 FROM document_versions child WHERE child.parent_submission_id = ds.submission_id) AS has_newer_version
             FROM document_submissions ds
@@ -373,6 +461,10 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
             LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
             LEFT JOIN users reviewer ON reviewer.user_id = ds.reviewed_by_user_id
             JOIN document_versions dv ON dv.submission_id = ds.submission_id
+            LEFT JOIN document_decisions ssc_decision
+              ON ssc_decision.submission_id = ds.submission_id AND ssc_decision.review_stage = 'SSC'
+            LEFT JOIN document_decisions osa_decision
+              ON osa_decision.submission_id = ds.submission_id AND osa_decision.review_stage = 'OSA'
             " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
             ORDER BY ds.submitted_at DESC, ds.submission_id DESC";
 
@@ -384,6 +476,10 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
         $r['org_id']        = (int)$r['org_id'];
         $r['submitted_by_user_id'] = (int)$r['submitted_by_user_id'];
         $r['reviewed_by_user_id']  = $r['reviewed_by_user_id'] !== null ? (int)$r['reviewed_by_user_id'] : null;
+        $r['ssc_reviewed_by_user_id'] = $r['ssc_reviewed_by_user_id'] !== null ? (int)$r['ssc_reviewed_by_user_id'] : null;
+        $r['osa_reviewed_by_user_id'] = $r['osa_reviewed_by_user_id'] !== null ? (int)$r['osa_reviewed_by_user_id'] : null;
+        $r['forwarded_by_user_id'] = $r['forwarded_by_user_id'] !== null ? (int)$r['forwarded_by_user_id'] : null;
+        $r['cancelled_by_user_id'] = $r['cancelled_by_user_id'] !== null ? (int)$r['cancelled_by_user_id'] : null;
         $r['root_submission_id'] = (int)$r['root_submission_id'];
         $r['parent_submission_id'] = $r['parent_submission_id'] !== null ? (int)$r['parent_submission_id'] : null;
         $r['version_number'] = (int)$r['version_number'];
@@ -400,7 +496,8 @@ function docReviewSubmission(
     string $decision,
     ?string $notes = null,
     ?string $requiredRecipient = null,
-    ?int $disallowedReviewerOrgId = null
+    ?int $disallowedReviewerOrgId = null,
+    ?string $reviewStage = null
 ): array
 {
     docEnsureTermColumns($pdo);
@@ -425,6 +522,10 @@ function docReviewSubmission(
         $lock->execute([':id' => $submissionId]);
         $before = $lock->fetch();
         if (!$before) throw new DocumentValidationException('Submission not found.');
+        $stage = strtoupper(trim((string)($reviewStage ?: $requiredRecipient ?: $before['recipient'])));
+        if (!in_array($stage, ['SSC', 'OSA'], true)) {
+            throw new DocumentValidationException('Invalid document review stage.');
+        }
         if ($requiredRecipient !== null
             && strtoupper(trim((string)($before['recipient'] ?? ''))) !== strtoupper(trim($requiredRecipient))) {
             throw new DocumentAuthorizationException('This document is assigned to a different reviewing office.');
@@ -432,8 +533,10 @@ function docReviewSubmission(
         if ($disallowedReviewerOrgId !== null && (int)$before['org_id'] === $disallowedReviewerOrgId) {
             throw new DocumentAuthorizationException('An organization cannot review its own document.');
         }
-        if (strtolower((string)$before['status']) !== 'pending') {
-            throw new DocumentValidationException('This submission already has a final decision. Submit a new revision instead.');
+        $currentStatus = strtolower((string)$before['status']);
+        $allowedStatuses = $stage === 'SSC' ? ['pending'] : ['pending', 'sent_to_osa'];
+        if (!in_array($currentStatus, $allowedStatuses, true)) {
+            throw new DocumentValidationException('This submission is not awaiting ' . $stage . ' review.');
         }
 
         $reviewerStmt = $pdo->prepare(
@@ -444,21 +547,18 @@ function docReviewSubmission(
         $reviewer = $reviewerStmt->fetch();
         if (!$reviewer) throw new DocumentValidationException('Reviewer account not found.');
 
+        $nextStatus = $stage === 'SSC' && $decision === 'approved' ? 'ssc_approved' : $decision;
+        $statusPlaceholders = implode(',', array_fill(0, count($allowedStatuses), '?'));
         $stmt = $pdo->prepare(
             "UPDATE document_submissions
-             SET status = :status,
-                 reviewer_notes = :notes,
-                 reviewed_by_user_id = :uid,
+             SET status = ?,
+                 reviewer_notes = ?,
+                 reviewed_by_user_id = ?,
                  reviewed_at = CURRENT_TIMESTAMP,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE submission_id = :id AND status = 'pending'"
+             WHERE submission_id = ? AND status IN ({$statusPlaceholders})"
         );
-        $stmt->execute([
-            ':status' => $decision,
-            ':notes'  => $notes,
-            ':uid'    => $reviewerId,
-            ':id'     => $submissionId,
-        ]);
+        $stmt->execute(array_merge([$nextStatus, $notes, $reviewerId, $submissionId], $allowedStatuses));
         if ($stmt->rowCount() !== 1) {
             throw new DocumentValidationException('This submission was already reviewed. Refresh and try again.');
         }
@@ -466,11 +566,12 @@ function docReviewSubmission(
         $reviewerName = trim((string)$reviewer['first_name'] . ' ' . (string)$reviewer['last_name']) ?: null;
         $decisionStmt = $pdo->prepare(
             "INSERT INTO document_decisions
-             (submission_id, decision, reviewer_notes, reviewed_by_user_id, reviewer_name, reviewer_email, file_sha256, decided_at)
-             VALUES (:submission, :decision, :notes, :reviewer, :name, :email, :hash, CURRENT_TIMESTAMP)"
+             (submission_id, review_stage, decision, reviewer_notes, reviewed_by_user_id, reviewer_name, reviewer_email, file_sha256, decided_at)
+             VALUES (:submission, :stage, :decision, :notes, :reviewer, :name, :email, :hash, CURRENT_TIMESTAMP)"
         );
         $decisionStmt->execute([
             ':submission' => $submissionId,
+            ':stage' => $stage,
             ':decision' => $decision,
             ':notes' => $notes,
             ':reviewer' => $reviewerId,
@@ -480,16 +581,16 @@ function docReviewSubmission(
         ]);
 
         $submission = docFetchSubmission($pdo, $submissionId);
-        if ($decision === 'approved') docSyncApprovedRepository($pdo, $submission);
+        if ($stage === 'OSA' && $decision === 'approved') docSyncApprovedRepository($pdo, $submission);
 
         appendAuditLog(
-            'document_' . $decision,
+            'document_' . strtolower($stage) . '_' . $decision,
             'document_submission',
             (string)$submissionId,
             $reviewer,
             null,
-            ['status' => 'pending', 'version_number' => $submission['version_number']],
-            ['status' => $decision, 'version_number' => $submission['version_number'], 'reviewer_notes' => $notes],
+            ['status' => $currentStatus, 'review_stage' => $stage, 'version_number' => $submission['version_number']],
+            ['status' => $nextStatus, 'review_stage' => $stage, 'version_number' => $submission['version_number'], 'reviewer_notes' => $notes],
             'success',
             $pdo
         );
@@ -502,10 +603,136 @@ function docReviewSubmission(
     }
 }
 
+function docForwardSubmissionToOsa(PDO $pdo, int $submissionId, int $orgId, int $userId): array
+{
+    docEnsureTermColumns($pdo);
+    $ownsTransaction = !$pdo->inTransaction();
+    try {
+        if ($ownsTransaction) $pdo->beginTransaction();
+
+        $lock = $pdo->prepare(
+            "SELECT ds.submission_id, ds.org_id, ds.status, ds.recipient, ds.submitted_by_user_id,
+                    dv.version_number
+             FROM document_submissions ds
+             JOIN document_versions dv ON dv.submission_id = ds.submission_id
+             WHERE ds.submission_id = :id
+             FOR UPDATE"
+        );
+        $lock->execute([':id' => $submissionId]);
+        $before = $lock->fetch();
+        if (!$before) throw new DocumentValidationException('Submission not found.');
+        if ((int)$before['org_id'] !== $orgId) {
+            throw new DocumentAuthorizationException('Only the submitting organization can forward this document.');
+        }
+        if (docIsSscOrganization($pdo, $orgId)) {
+            throw new DocumentValidationException('SSC documents are submitted directly to OSA.');
+        }
+        if (strtolower((string)$before['status']) !== 'ssc_approved') {
+            throw new DocumentValidationException('Only an SSC-approved document can be sent to OSA.');
+        }
+        $approvedStmt = $pdo->prepare(
+            "SELECT 1 FROM document_decisions
+             WHERE submission_id = :id AND review_stage = 'SSC' AND decision = 'approved'
+             LIMIT 1"
+        );
+        $approvedStmt->execute([':id' => $submissionId]);
+        if (!$approvedStmt->fetchColumn()) {
+            throw new DocumentValidationException('The SSC approval record could not be verified.');
+        }
+
+        $update = $pdo->prepare(
+            "UPDATE document_submissions
+             SET recipient = 'OSA', status = 'sent_to_osa', forwarded_at = CURRENT_TIMESTAMP,
+                 forwarded_by_user_id = :user_id, updated_at = CURRENT_TIMESTAMP
+             WHERE submission_id = :id AND org_id = :org_id AND status = 'ssc_approved'"
+        );
+        $update->execute([':user_id' => $userId, ':id' => $submissionId, ':org_id' => $orgId]);
+        if ($update->rowCount() !== 1) {
+            throw new DocumentValidationException('This document changed before it could be forwarded. Refresh and try again.');
+        }
+
+        $actorStmt = $pdo->prepare("SELECT * FROM users WHERE user_id = :id LIMIT 1");
+        $actorStmt->execute([':id' => $userId]);
+        $actor = $actorStmt->fetch() ?: ['user_id' => $userId];
+        $submission = docFetchSubmission($pdo, $submissionId);
+        appendAuditLog(
+            'document_forwarded_to_osa', 'document_submission', (string)$submissionId,
+            $actor, null,
+            ['status' => 'ssc_approved', 'recipient' => 'SSC', 'version_number' => (int)$before['version_number']],
+            ['status' => 'sent_to_osa', 'recipient' => 'OSA', 'version_number' => (int)$before['version_number']],
+            'success', $pdo
+        );
+        if ($ownsTransaction) $pdo->commit();
+        return $submission;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function docCancelSubmission(PDO $pdo, int $submissionId, int $orgId, int $userId): array
+{
+    docEnsureTermColumns($pdo);
+    $ownsTransaction = !$pdo->inTransaction();
+    try {
+        if ($ownsTransaction) $pdo->beginTransaction();
+        $lock = $pdo->prepare(
+            "SELECT ds.submission_id, ds.org_id, ds.status, ds.recipient, dv.version_number
+             FROM document_submissions ds
+             JOIN document_versions dv ON dv.submission_id = ds.submission_id
+             WHERE ds.submission_id = :id
+             FOR UPDATE"
+        );
+        $lock->execute([':id' => $submissionId]);
+        $before = $lock->fetch();
+        if (!$before) throw new DocumentValidationException('Submission not found.');
+        if ((int)$before['org_id'] !== $orgId) {
+            throw new DocumentAuthorizationException('Only the submitting organization can cancel this document.');
+        }
+        $currentStatus = strtolower((string)$before['status']);
+        if (!in_array($currentStatus, ['pending', 'ssc_approved', 'sent_to_osa'], true)) {
+            throw new DocumentValidationException('Only a document awaiting a final decision can be cancelled.');
+        }
+
+        $update = $pdo->prepare(
+            "UPDATE document_submissions
+             SET status = 'cancelled', cancelled_at = CURRENT_TIMESTAMP,
+                 cancelled_by_user_id = :user_id, updated_at = CURRENT_TIMESTAMP
+             WHERE submission_id = :id AND org_id = :org_id AND status = :status"
+        );
+        $update->execute([
+            ':user_id' => $userId,
+            ':id' => $submissionId,
+            ':org_id' => $orgId,
+            ':status' => $currentStatus,
+        ]);
+        if ($update->rowCount() !== 1) {
+            throw new DocumentValidationException('This document received a decision before it could be cancelled. Refresh and try again.');
+        }
+
+        $actorStmt = $pdo->prepare("SELECT * FROM users WHERE user_id = :id LIMIT 1");
+        $actorStmt->execute([':id' => $userId]);
+        $actor = $actorStmt->fetch() ?: ['user_id' => $userId];
+        $submission = docFetchSubmission($pdo, $submissionId);
+        appendAuditLog(
+            'document_cancelled', 'document_submission', (string)$submissionId,
+            $actor, null,
+            ['status' => $currentStatus, 'recipient' => $before['recipient'], 'version_number' => (int)$before['version_number']],
+            ['status' => 'cancelled', 'recipient' => $before['recipient'], 'version_number' => (int)$before['version_number']],
+            'success', $pdo
+        );
+        if ($ownsTransaction) $pdo->commit();
+        return $submission;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
 function docSyncApprovedRepository(PDO $pdo, array $submission): void
 {
     $stmt = $pdo->prepare(
-        "INSERT INTO documents_approved
+        "INSERT IGNORE INTO documents_approved
          (submission_id, org_id, approved_by_user_id, title, document_type, custom_document_type, file_url, description, semester, academic_year, grading_period, approved_at)
          VALUES (:sid, :org, :approver, :title, :type, :custom_type, :file, :description, :semester, :ay, :period, NOW())"
     );
@@ -633,6 +860,7 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
 
     $where = [];
     $params = [];
+    $where[] = "ds.status <> 'cancelled'";
 
     if (!empty($filters['status']) && $filters['status'] !== 'all') {
         $where[] = 'ds.status = :status';
@@ -691,9 +919,23 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
                    ds.reviewed_at,
                    ds.created_at,
                    ds.updated_at,
+                   ds.forwarded_at,
+                   ds.forwarded_by_user_id,
+                   ds.cancelled_at,
+                   ds.cancelled_by_user_id,
                    o.org_name,
                    u.first_name AS submitted_by_first_name,
                    u.last_name AS submitted_by_last_name,
+                   ssc_decision.decision AS ssc_decision,
+                   ssc_decision.reviewed_by_user_id AS ssc_reviewed_by_user_id,
+                   ssc_decision.reviewer_name AS ssc_reviewer_name,
+                   ssc_decision.reviewer_notes AS ssc_reviewer_notes,
+                   ssc_decision.decided_at AS ssc_reviewed_at,
+                   osa_decision.decision AS osa_decision,
+                   osa_decision.reviewed_by_user_id AS osa_reviewed_by_user_id,
+                   osa_decision.reviewer_name AS osa_reviewer_name,
+                   osa_decision.reviewer_notes AS osa_reviewer_notes,
+                   osa_decision.decided_at AS osa_reviewed_at,
                    da.repo_id,
                    da.approved_at,
                    dv.root_submission_id,
@@ -706,6 +948,10 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
             FROM document_submissions ds
             JOIN organizations o ON o.org_id = ds.org_id
             LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
+            LEFT JOIN document_decisions ssc_decision
+              ON ssc_decision.submission_id = ds.submission_id AND ssc_decision.review_stage = 'SSC'
+            LEFT JOIN document_decisions osa_decision
+              ON osa_decision.submission_id = ds.submission_id AND osa_decision.review_stage = 'OSA'
             LEFT JOIN documents_approved da ON da.submission_id = ds.submission_id
             JOIN document_versions dv ON dv.submission_id = ds.submission_id
             LEFT JOIN (
@@ -727,6 +973,10 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
         $row['org_id'] = (int)$row['org_id'];
         $row['submitted_by_user_id'] = (int)$row['submitted_by_user_id'];
         $row['reviewed_by_user_id'] = $row['reviewed_by_user_id'] !== null ? (int)$row['reviewed_by_user_id'] : null;
+        $row['ssc_reviewed_by_user_id'] = $row['ssc_reviewed_by_user_id'] !== null ? (int)$row['ssc_reviewed_by_user_id'] : null;
+        $row['osa_reviewed_by_user_id'] = $row['osa_reviewed_by_user_id'] !== null ? (int)$row['osa_reviewed_by_user_id'] : null;
+        $row['forwarded_by_user_id'] = $row['forwarded_by_user_id'] !== null ? (int)$row['forwarded_by_user_id'] : null;
+        $row['cancelled_by_user_id'] = $row['cancelled_by_user_id'] !== null ? (int)$row['cancelled_by_user_id'] : null;
         $row['repo_id'] = $row['repo_id'] !== null ? (int)$row['repo_id'] : null;
         $row['root_submission_id'] = (int)$row['root_submission_id'];
         $row['parent_submission_id'] = $row['parent_submission_id'] !== null ? (int)$row['parent_submission_id'] : null;
@@ -742,7 +992,7 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
 function docResolveSubmissionAccess(PDO $pdo, int $submissionId, array $session): ?array
 {
     $stmt = $pdo->prepare(
-        "SELECT ds.submission_id, ds.org_id, ds.recipient
+        "SELECT ds.submission_id, ds.org_id, ds.recipient, ds.status
          FROM document_submissions ds
          WHERE ds.submission_id = :id
          LIMIT 1"
@@ -752,14 +1002,28 @@ function docResolveSubmissionAccess(PDO $pdo, int $submissionId, array $session)
     if (!$row) return null;
 
     $isOsa = (($session['login_role'] ?? '') === 'osa' || ($session['account_type'] ?? '') === 'osa_staff');
-    if ($isOsa) return $row;
+    if ($isOsa) {
+        return strtolower((string)$row['status']) !== 'cancelled'
+            && (strtoupper(trim((string)$row['recipient'])) === 'OSA'
+                || strtolower((string)$row['status']) === 'approved')
+            ? $row
+            : null;
+    }
 
     if (($session['login_role'] ?? '') !== 'org') return null;
     $activeOrgId = (int)($session['active_org_id'] ?? 0);
     if ($activeOrgId <= 0) return null;
     if ($activeOrgId === (int)$row['org_id']) return $row;
-    if (strtoupper(trim((string)($row['recipient'] ?? ''))) !== 'SSC') return null;
     if (!docIsSscOrganization($pdo, $activeOrgId)) return null;
+    if (strtolower((string)$row['status']) === 'cancelled') return null;
+
+    $sscAccessStmt = $pdo->prepare(
+        "SELECT 1 FROM document_decisions
+         WHERE submission_id = :id AND review_stage = 'SSC'
+         LIMIT 1"
+    );
+    $sscAccessStmt->execute([':id' => $submissionId]);
+    if (strtoupper(trim((string)($row['recipient'] ?? ''))) !== 'SSC' && !$sscAccessStmt->fetchColumn()) return null;
 
     return $row;
 }

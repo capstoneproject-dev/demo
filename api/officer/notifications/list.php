@@ -227,9 +227,9 @@ try {
         "SELECT submission_id, title, status, reviewer_notes, submitted_at, reviewed_at, updated_at
          FROM document_submissions
          WHERE org_id = :org_id
-           AND status IN ('approved', 'rejected')
+           AND status IN ('ssc_approved', 'sent_to_osa', 'approved', 'rejected')
            AND (
-                status = 'rejected'
+                status IN ('rejected', 'ssc_approved')
                 OR COALESCE(reviewed_at, updated_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
            )
          ORDER BY COALESCE(reviewed_at, updated_at) DESC, submission_id DESC"
@@ -238,16 +238,26 @@ try {
     foreach ($documentStmt->fetchAll() as $row) {
         $submissionId = (int)$row['submission_id'];
         $status = strtolower((string)$row['status']);
-        $requiresAttention = $status === 'rejected';
+        $requiresAttention = in_array($status, ['rejected', 'ssc_approved'], true);
         $notes = trim((string)($row['reviewer_notes'] ?? ''));
-        $summary = $status === 'rejected'
-            ? ($notes !== '' ? $notes : 'Review the submission and prepare a corrected version.')
-            : 'The submission was approved.';
+        if ($status === 'rejected') {
+            $summary = $notes !== '' ? $notes : 'Review the submission and prepare a corrected version.';
+            $title = 'Document rejected: ' . (string)$row['title'];
+        } elseif ($status === 'ssc_approved') {
+            $summary = 'SSC approved this document. Send it to OSA for final review when ready.';
+            $title = 'Document ready for OSA: ' . (string)$row['title'];
+        } elseif ($status === 'sent_to_osa') {
+            $summary = 'The document is awaiting final OSA review.';
+            $title = 'Document sent to OSA: ' . (string)$row['title'];
+        } else {
+            $summary = 'The submission received final OSA approval.';
+            $title = 'Document approved: ' . (string)$row['title'];
+        }
         $item = officerActionCenterItem(
             "document:{$submissionId}:{$status}",
             'document',
-            $requiresAttention ? 'danger' : 'success',
-            ($status === 'rejected' ? 'Document rejected: ' : 'Document approved: ') . (string)$row['title'],
+            $status === 'rejected' ? 'danger' : ($status === 'ssc_approved' ? 'warning' : 'success'),
+            $title,
             $summary,
             (string)($row['reviewed_at'] ?: $row['updated_at'] ?: $row['submitted_at']),
             $status,
