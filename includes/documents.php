@@ -314,11 +314,14 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
                    o.org_name,
                    u.first_name AS submitted_by_first_name,
                    u.last_name AS submitted_by_last_name,
+                   reviewer.first_name AS reviewer_first_name,
+                   reviewer.last_name AS reviewer_last_name,
                    dv.root_submission_id, dv.parent_submission_id, dv.version_number, dv.file_sha256,
                    EXISTS(SELECT 1 FROM document_versions child WHERE child.parent_submission_id = ds.submission_id) AS has_newer_version
             FROM document_submissions ds
             JOIN organizations o ON o.org_id = ds.org_id
             LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
+            LEFT JOIN users reviewer ON reviewer.user_id = ds.reviewed_by_user_id
             JOIN document_versions dv ON dv.submission_id = ds.submission_id
             " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
             ORDER BY ds.submitted_at DESC, ds.submission_id DESC";

@@ -5167,10 +5167,6 @@ function renderDocs(filter = 'All', btnElement = null) {
     const termYear = document.getElementById('docs-filter-year')?.value || officerActiveAcademicTerm.academic_year;
     const termPeriod = document.getElementById('docs-filter-period')?.value || officerActiveAcademicTerm.grading_period;
 
-    // DATA SIMULATION POOLS
-    const sscOfficers = ["Pres. Cruz", "VP Santos", "Sec. Reyes"];
-    const osaAdmins = ["Dir. Fury", "Mrs. Potts", "Admin Stark"];
-
     // 1. Filter by Status (Existing Logic)
     let filteredData = getOfficerScopedDocs().filter(doc => {
         if (filter === 'All') return true;
@@ -5218,8 +5214,12 @@ function renderDocs(filter = 'All', btnElement = null) {
         let statusBadge = '';
 
         const sender = doc.submittedByName || `User #${doc.submittedByUserId ?? 'N/A'}`;
-        const sscOfficer = sscOfficers[doc.title.length % sscOfficers.length];
-        const osaAdmin = osaAdmins[doc.title.length % osaAdmins.length];
+        const reviewerName = doc.reviewerName ? escapeHtml(doc.reviewerName) : '-';
+        const recipient = String(doc.recipient || 'OSA').trim().toUpperCase();
+        const wasSentToSsc = recipient === 'SSC';
+        const emptyReview = '<span style="color:var(--muted)">-</span>';
+        const approvedReview = `<span>${reviewerName}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+        const rejectedReview = `<span>${reviewerName}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
         const reviewNoteButton = (['Approved', 'Rejected'].includes(doc.status) && doc.reviewerNotes)
             ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.reviewerNotes)}')">
                     <i class="fa-regular fa-message"></i> Comment
@@ -5233,9 +5233,8 @@ function renderDocs(filter = 'All', btnElement = null) {
         const versionBadge = `<span class="status-badge" style="font-size:0.65rem; padding:2px 6px; margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>`;
 
         if (doc.status === 'Approved') {
-            // Both Approved
-            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-            osaHtml = `<span>${osaAdmin}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+            sscHtml = wasSentToSsc ? approvedReview : emptyReview;
+            osaHtml = wasSentToSsc ? emptyReview : approvedReview;
             actionButtons = `
                 <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
                     <i class="fa-solid fa-eye"></i>
@@ -5245,8 +5244,8 @@ function renderDocs(filter = 'All', btnElement = null) {
         }
         else if (doc.status === 'SSC Approved') {
             // SSC Approved - User must Submit to OSA
-            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Action Required</span>`;
+            sscHtml = approvedReview;
+            osaHtml = `<span style="color:var(--muted)">-</span><span class="sub-status waiting">Action Required</span>`;
             actionButtons = `
                 <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); submitToOSA(${index})">
                     Submit <i class="fa-solid fa-paper-plane"></i>
@@ -5254,9 +5253,9 @@ function renderDocs(filter = 'All', btnElement = null) {
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Ready</span>';
         }
         else if (doc.status.includes('Sent to OSA')) {
-            // SSC Approved, OSA Pending
-            sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
+            // A direct-to-OSA submission has no SSC reviewer.
+            sscHtml = doc.reviewerName ? approvedReview : emptyReview;
+            osaHtml = `<span style="color:var(--muted)">-</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
             actionButtons = `
                 <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
                     <i class="fa-solid fa-eye"></i>
@@ -5264,22 +5263,15 @@ function renderDocs(filter = 'All', btnElement = null) {
             statusBadge = '<span class="status-badge status-sent" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Sent to OSA</span>';
         }
         else if (doc.status.includes('Rejected')) {
-            // Rejected by either SSC or OSA
-            const rejectedBySSC = (doc.title.length % 2 === 0);
-            if (rejectedBySSC) {
-                sscHtml = `<span>${sscOfficer}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
-                osaHtml = `<span style="color:var(--muted)">--</span>`;
-            } else {
-                sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-                osaHtml = `<span>${osaAdmin}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
-            }
+            sscHtml = wasSentToSsc ? rejectedReview : emptyReview;
+            osaHtml = wasSentToSsc ? emptyReview : rejectedReview;
             actionButtons = revisionButton || '<span style="color:var(--muted); font-size:0.8rem;">Revision submitted</span>';
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
         }
         else {
-            // Pending SSC
-            sscHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
-            osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting</span>`;
+            const pendingReview = `<span style="color:var(--muted)">-</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
+            sscHtml = wasSentToSsc ? pendingReview : emptyReview;
+            osaHtml = wasSentToSsc ? emptyReview : pendingReview;
             actionButtons = `
                 <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
                     <i class="fa-solid fa-eye"></i>
@@ -7730,6 +7722,11 @@ async function loadDocsFromApi({ silent = false, skipUnchanged = false } = {}) {
             viewerId: `submission_${item.submission_id}`,
             submittedByUserId: item.submitted_by_user_id,
             submittedByName: [item.submitted_by_first_name, item.submitted_by_last_name]
+                .filter(Boolean)
+                .join(' ')
+                .trim(),
+            reviewerUserId: item.reviewed_by_user_id ? Number(item.reviewed_by_user_id) : null,
+            reviewerName: [item.reviewer_first_name, item.reviewer_last_name]
                 .filter(Boolean)
                 .join(' ')
                 .trim(),
