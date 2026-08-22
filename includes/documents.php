@@ -107,6 +107,8 @@ function docEnsureTermColumns(PDO $pdo): void
 
     $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS grading_period ENUM('prelim','midterm','finals') DEFAULT NULL AFTER academic_year");
     $pdo->exec("ALTER TABLE documents_approved ADD COLUMN IF NOT EXISTS grading_period ENUM('prelim','midterm','finals') DEFAULT NULL AFTER academic_year");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS custom_document_type VARCHAR(100) DEFAULT NULL AFTER document_type");
+    $pdo->exec("ALTER TABLE documents_approved ADD COLUMN IF NOT EXISTS custom_document_type VARCHAR(100) DEFAULT NULL AFTER document_type");
     $pdo->exec("
         UPDATE document_submissions
         SET grading_period = CASE
@@ -156,6 +158,18 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
 
     $title        = trim((string)($data['title'] ?? ''));
     $documentType = docValidateType((string)($data['document_type'] ?? ''));
+    $customDocumentType = null;
+    if (strcasecmp($documentType, 'Others') === 0) {
+        $documentType = 'Others';
+        $customDocumentType = trim((string)($data['custom_document_type'] ?? ''));
+        if ($customDocumentType === '') {
+            throw new DocumentValidationException('custom_document_type is required when document_type is Others.');
+        }
+        $customTypeLength = function_exists('mb_strlen') ? mb_strlen($customDocumentType) : strlen($customDocumentType);
+        if ($customTypeLength > 100) {
+            throw new DocumentValidationException('custom_document_type must be 100 characters or fewer.');
+        }
+    }
     $recipient    = strtoupper(trim((string)($data['recipient'] ?? 'OSA')) ?: 'OSA');
     if (!in_array($recipient, ['OSA', 'SSC'], true)) {
         throw new DocumentValidationException('recipient must be OSA or SSC.');
@@ -189,6 +203,7 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
         if ($revisionOf > 0) {
             $parentStmt = $pdo->prepare(
                 "SELECT ds.submission_id, ds.org_id, ds.status, ds.recipient,
+                        ds.document_type, ds.custom_document_type,
                         dv.root_submission_id, dv.version_number,
                         EXISTS(
                             SELECT 1 FROM document_versions child
@@ -213,18 +228,27 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
             $rootSubmissionId = (int)$parent['root_submission_id'];
             $versionNumber = (int)$parent['version_number'] + 1;
             $recipient = (string)$parent['recipient'];
+            $documentType = (string)$parent['document_type'];
+            $customDocumentType = $parent['custom_document_type'] !== null
+                ? (string)$parent['custom_document_type']
+                : null;
+        }
+
+        if ($recipient === 'SSC' && docIsSscOrganization($pdo, $orgId)) {
+            throw new DocumentAuthorizationException('SSC officers cannot send documents to SSC. Send the document to OSA instead.');
         }
 
         $stmt = $pdo->prepare(
             "INSERT INTO document_submissions
-             (org_id, submitted_by_user_id, title, document_type, file_url, recipient, description, status, semester, academic_year, grading_period)
-             VALUES (:org, :uid, :title, :type, :file, :recipient, :description, 'pending', :semester, :ay, :period)"
+             (org_id, submitted_by_user_id, title, document_type, custom_document_type, file_url, recipient, description, status, semester, academic_year, grading_period)
+             VALUES (:org, :uid, :title, :type, :custom_type, :file, :recipient, :description, 'pending', :semester, :ay, :period)"
         );
         $stmt->execute([
             ':org'         => $orgId,
             ':uid'         => $userId,
             ':title'       => $title,
             ':type'        => $documentType,
+            ':custom_type' => $customDocumentType,
             ':file'        => $fileUrl,
             ':recipient'   => $recipient,
             ':description' => $description,
@@ -323,7 +347,7 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
     }
 
     if (!empty($filters['q'])) {
-        $where[] = '(ds.title LIKE :q OR ds.document_type LIKE :q)';
+        $where[] = '(ds.title LIKE :q OR ds.document_type LIKE :q OR ds.custom_document_type LIKE :q)';
         $params[':q'] = '%' . trim($filters['q']) . '%';
     }
 
@@ -482,8 +506,8 @@ function docSyncApprovedRepository(PDO $pdo, array $submission): void
 {
     $stmt = $pdo->prepare(
         "INSERT INTO documents_approved
-         (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, grading_period, approved_at)
-         VALUES (:sid, :org, :approver, :title, :type, :file, :description, :semester, :ay, :period, NOW())"
+         (submission_id, org_id, approved_by_user_id, title, document_type, custom_document_type, file_url, description, semester, academic_year, grading_period, approved_at)
+         VALUES (:sid, :org, :approver, :title, :type, :custom_type, :file, :description, :semester, :ay, :period, NOW())"
     );
     $stmt->execute([
         ':sid' => (int)$submission['submission_id'],
@@ -491,6 +515,7 @@ function docSyncApprovedRepository(PDO $pdo, array $submission): void
         ':approver' => (int)($submission['reviewed_by_user_id'] ?? $submission['submitted_by_user_id']),
         ':title' => (string)$submission['title'],
         ':type' => (string)$submission['document_type'],
+        ':custom_type' => $submission['custom_document_type'] ?? null,
         ':file' => (string)$submission['file_url'],
         ':description' => $submission['description'] ?? null,
         ':semester' => $submission['semester'] ?? null,
@@ -511,13 +536,14 @@ function docBackfillApprovedRepository(PDO $pdo, ?int $orgScope = null): void
 
     $sql = "
         INSERT INTO documents_approved
-            (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, grading_period, approved_at)
+            (submission_id, org_id, approved_by_user_id, title, document_type, custom_document_type, file_url, description, semester, academic_year, grading_period, approved_at)
         SELECT
             ds.submission_id,
             ds.org_id,
             COALESCE(ds.reviewed_by_user_id, ds.submitted_by_user_id),
             ds.title,
             ds.document_type,
+            ds.custom_document_type,
             ds.file_url,
             ds.description,
             ds.semester,
@@ -572,7 +598,7 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
         $params[':to'] = $filters['to'];
     }
     if (!empty($filters['q'])) {
-        $where[] = '(da.title LIKE :q OR da.document_type LIKE :q)';
+        $where[] = '(da.title LIKE :q OR da.document_type LIKE :q OR da.custom_document_type LIKE :q)';
         $params[':q'] = '%' . trim($filters['q']) . '%';
     }
 
@@ -632,7 +658,7 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
     }
 
     if (!empty($filters['q'])) {
-        $where[] = '(ds.title LIKE :q OR ds.document_type LIKE :q OR o.org_name LIKE :q)';
+        $where[] = '(ds.title LIKE :q OR ds.document_type LIKE :q OR ds.custom_document_type LIKE :q OR o.org_name LIKE :q)';
         $params[':q'] = '%' . trim((string)$filters['q']) . '%';
     }
 
@@ -653,6 +679,7 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
                    ds.title,
                    ds.description,
                    ds.document_type,
+                   ds.custom_document_type,
                    ds.file_url,
                    ds.recipient,
                    ds.status,

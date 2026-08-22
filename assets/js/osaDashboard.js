@@ -732,6 +732,22 @@ function fmtDateShort(iso) {
     return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
 }
 
+function normalizeDocumentTypeCategory(value) {
+    const raw = String(value || '').trim();
+    const aliases = {
+        'proposal': 'Event Proposal',
+        'event proposal': 'Event Proposal',
+    };
+    return aliases[raw.toLowerCase()] || raw || 'Others';
+}
+
+function getDocumentTypeDisplay(category, customType = '') {
+    const normalizedCategory = normalizeDocumentTypeCategory(category);
+    return normalizedCategory === 'Others' && String(customType || '').trim()
+        ? `Others: ${String(customType).trim()}`
+        : normalizedCategory;
+}
+
 function resolvePdfUrl(fileUrl) {
     if (!fileUrl) return '';
     let raw = String(fileUrl).trim().replace(/\\/g, '/');
@@ -763,7 +779,9 @@ async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
             id: item.submission_id,
             submission_id: item.submission_id,
             title: item.title,
-            type: item.document_type,
+            typeCategory: normalizeDocumentTypeCategory(item.document_type),
+            customDocumentType: item.custom_document_type || '',
+            type: getDocumentTypeDisplay(item.document_type, item.custom_document_type),
             org: item.org_name || '',
             status: item.status || 'pending',
             date: fmtDateShort(item.submitted_at),
@@ -818,7 +836,9 @@ async function loadRepoFromApi({ skipUnchanged = false, silent = false } = {}) {
             id: item.repo_id,
             submission_id: item.submission_id,
             name: item.title,
-            category: item.document_type,
+            category: normalizeDocumentTypeCategory(item.document_type),
+            customDocumentType: item.custom_document_type || '',
+            typeLabel: getDocumentTypeDisplay(item.document_type, item.custom_document_type),
             org: item.org_name || '',
             date: fmtDateShort(item.approved_at),
             approvedAt: item.approved_at || null,
@@ -1798,8 +1818,8 @@ async function loadRequestsFromApi() {
                 id: item.submission_id,
                 submissionId: item.submission_id,
                 repoId: item.repo_id || null,
-                type: mapDocumentTypeToRequestType(item.document_type),
-                documentType: item.document_type || 'Document',
+                type: mapDocumentTypeToRequestType(normalizeDocumentTypeCategory(item.document_type)),
+                documentType: getDocumentTypeDisplay(item.document_type, item.custom_document_type),
                 org: item.org_name || '',
                 sender: buildRequestSenderLabel(item),
                 title: item.title || 'Untitled Document',
@@ -3932,7 +3952,8 @@ function updateRepoCategoryDropdown() {
         "Financial Statement",
         "Event Proposal",
         "Resolution",
-        "Operational Plan"
+        "Operational Plan",
+        "Others"
     ];
 
     // Calculate total
@@ -3977,7 +3998,8 @@ function renderRepoTable() {
 
         // 3. Search Text
         const matchesSearch = item.name.toLowerCase().includes(searchInput) ||
-            item.org.toLowerCase().includes(searchInput);
+            item.org.toLowerCase().includes(searchInput) ||
+            String(item.typeLabel || '').toLowerCase().includes(searchInput);
 
         // 4. Term and Date Logic
         const itemHasTerm = !!(item.semester || item.academicYear || item.gradingPeriod);
@@ -4034,7 +4056,7 @@ function renderRepoTable() {
                     <span class="status-badge" style="font-size:0.65rem; padding:2px 6px;">v${Number(item.versionNumber || 1)}</span>
                 </div>
             </td>
-            <td><span class="repo-category-tag">${item.category}</span></td>
+            <td><span class="repo-category-tag">${escapeDashboardHtml(item.typeLabel || item.category)}</span></td>
             <td>${item.org}</td>
             <td>${item.date}</td>
             <td class="text-right">
