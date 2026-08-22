@@ -265,6 +265,46 @@ try {
         }
     }
 
+    if (docIsSscOrganization($pdo, $orgId)) {
+        $sscDocumentStmt = $pdo->prepare(
+            "SELECT ds.submission_id,
+                    ds.title,
+                    ds.document_type,
+                    ds.submitted_at,
+                    COALESCE(NULLIF(o.org_code, ''), o.org_name) AS organization,
+                    TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS submitted_by
+             FROM document_submissions ds
+             JOIN organizations o ON o.org_id = ds.org_id
+             LEFT JOIN users u ON u.user_id = ds.submitted_by_user_id
+             WHERE UPPER(TRIM(ds.recipient)) = 'SSC'
+               AND ds.status = 'pending'
+               AND ds.org_id <> :ssc_org_id
+             ORDER BY ds.submitted_at ASC, ds.submission_id ASC"
+        );
+        $sscDocumentStmt->execute([':ssc_org_id' => $orgId]);
+        foreach ($sscDocumentStmt->fetchAll() as $row) {
+            $submissionId = (int)$row['submission_id'];
+            $organization = trim((string)$row['organization']) ?: 'An organization';
+            $submitter = trim((string)$row['submitted_by']) ?: 'an organization officer';
+            $documentType = trim((string)$row['document_type']) ?: 'document';
+            $attentionItems[] = officerActionCenterItem(
+                "document:{$submissionId}:ssc-pending",
+                'document',
+                'warning',
+                'Document awaiting SSC review',
+                "{$organization} submitted a {$documentType} through {$submitter}.",
+                (string)$row['submitted_at'],
+                'pending',
+                true,
+                [
+                    'view' => 'documents',
+                    'entity_id' => $submissionId,
+                    'action' => 'open_document',
+                ]
+            );
+        }
+    }
+
     $eventStmt = $pdo->prepare(
         "SELECT event_id, event_name, event_datetime, location
          FROM events

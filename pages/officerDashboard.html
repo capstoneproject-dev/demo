@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260821-printing-payments-3">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260822-ssc-document-review">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -2022,6 +2022,44 @@
         </div>
     </div>
 
+    <div id="officer-document-approve-modal" class="modal-overlay">
+        <div class="modal-content document-review-modal-content">
+            <div class="modal-header">
+                <h3>Approve Document</h3>
+                <button type="button" class="close-modal" onclick="closeOfficerDocumentReviewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="document-review-modal-copy">You can add an optional reviewer note before approving.</p>
+                <textarea id="officer-document-approve-notes" rows="4" placeholder="Optional comments..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeOfficerDocumentReviewModal()">Cancel</button>
+                <button id="officer-document-approve-confirm" type="button" class="btn btn-success" onclick="confirmOfficerDocumentReview()">
+                    <i class="fa-solid fa-check"></i> Approve
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="officer-document-reject-modal" class="modal-overlay">
+        <div class="modal-content document-review-modal-content">
+            <div class="modal-header">
+                <h3>Reject Document</h3>
+                <button type="button" class="close-modal" onclick="closeOfficerDocumentReviewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="document-review-modal-copy">You can add an optional reviewer note before rejecting.</p>
+                <textarea id="officer-document-reject-notes" rows="4" placeholder="Optional comments..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeOfficerDocumentReviewModal()">Cancel</button>
+                <button id="officer-document-reject-confirm" type="button" class="btn btn-danger" onclick="confirmOfficerDocumentReview()">
+                    <i class="fa-solid fa-xmark"></i> Reject
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- PDF Viewer Modal (Google Drive Style) -->
     <div id="pdf-modal" class="pdf-modal">
         <div class="pdf-modal-content">
@@ -2173,7 +2211,7 @@
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260822-document-reviewers"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260822-ssc-document-review"></script>
 </body>
 
 </html>

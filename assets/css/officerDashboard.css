@@ -829,6 +829,20 @@ body.notif-drawer-open {
     cursor: default;
 }
 
+.btn-danger {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.btn-danger:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
 .btn-sm {
     padding: 6px 12px;
     font-size: 0.8rem;
@@ -3460,6 +3474,20 @@ body.dark .sub-nav-btn.active {
     padding: 14px;
     white-space: normal;
     word-break: break-word;
+}
+
+.document-review-modal-content {
+    max-width: 520px;
+}
+
+.document-review-modal-copy {
+    color: var(--muted);
+    margin: 0 0 12px;
+}
+
+.document-review-modal-content textarea {
+    margin-bottom: 0;
+    resize: vertical;
 }
 
 .modal-footer {

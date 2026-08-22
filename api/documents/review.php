@@ -7,7 +7,22 @@ apiGuard();
 requirePost();
 
 try {
-    $ctx  = docRequireOsaContext();
+    $pdo = getPdo();
+    $session = getPhpSession();
+    $isOsa = ($session['login_role'] ?? '') === 'osa' || ($session['account_type'] ?? '') === 'osa_staff';
+    $requiredRecipient = 'OSA';
+    $disallowedReviewerOrgId = null;
+
+    if ($isOsa) {
+        $ctx = docRequireOsaContext();
+    } else {
+        $ctx = docRequireOfficerOrgContext();
+        if (!docIsSscOrganization($pdo, (int)$ctx['org_id'])) {
+            throw new DocumentAuthorizationException('Only SSC officers can review SSC-addressed documents.');
+        }
+        $requiredRecipient = 'SSC';
+        $disallowedReviewerOrgId = (int)$ctx['org_id'];
+    }
     $body = getRequestBody();
     $submissionId = (int)($body['submission_id'] ?? 0);
     $decision     = $body['decision'] ?? '';
@@ -17,7 +32,15 @@ try {
         throw new DocumentValidationException('submission_id is required.');
     }
 
-    $item = docReviewSubmission(getPdo(), $submissionId, $ctx['user_id'], $decision, $notes);
+    $item = docReviewSubmission(
+        $pdo,
+        $submissionId,
+        (int)$ctx['user_id'],
+        $decision,
+        $notes,
+        $requiredRecipient,
+        $disallowedReviewerOrgId
+    );
     jsonOk(['item' => privatePdfDecorateDocumentRow($item)]);
 } catch (DocumentAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
