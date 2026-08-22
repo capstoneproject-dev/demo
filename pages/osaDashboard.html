@@ -172,9 +172,9 @@
                 <div class="stat-card">
                     <div class="stat-info">
                         <div style="display: flex; align-items: baseline; gap: 6px;">
-                            <h3>8</h3>
+                            <h3 id="dashboard-active-officers">&mdash;</h3>
                             <span style="color: #059669; font-size: 0.8rem; font-weight: 600;">
-                                <i class="fa-solid fa-circle"></i> Online
+                                <i class="fa-solid fa-circle"></i> Active
                             </span>
                         </div>
                         <p>Active Officers</p>
@@ -185,9 +185,9 @@
                 <div class="stat-card">
                     <div class="stat-info">
                         <div style="display: flex; align-items: baseline; gap: 6px;">
-                            <h3>450</h3>
+                            <h3 id="dashboard-active-students">&mdash;</h3>
                             <span style="color: #059669; font-size: 0.8rem; font-weight: 600;">
-                                <i class="fa-solid fa-circle"></i> Online
+                                <i class="fa-solid fa-circle"></i> Active
                             </span>
                         </div>
                         <p>Active Students</p>
@@ -198,7 +198,7 @@
                 <div class="stat-card">
                     <div class="stat-info">
                         <div style="display: flex; align-items: baseline; gap: 6px;">
-                            <h3>12</h3>
+                            <h3 id="dashboard-request-queue">&mdash;</h3>
                             <span style="color: #d97706; font-size: 0.8rem; font-weight: 600;">
                                 <i class="fa-regular fa-clock"></i> Pending
                             </span>
@@ -213,7 +213,7 @@
                         style="width: 100%; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
                         <div>
                             <span style="font-weight: 600; color: var(--text); display: block;">Document Status</span>
-                            <small style="color: var(--muted); font-size: 0.75rem;">(February)</small>
+                            <small id="dashboard-document-month" style="color: var(--muted); font-size: 0.75rem;">(Current month)</small>
                         </div>
                         <i class="fa-solid fa-file-contract" style="color: var(--muted);"></i>
                     </div>
@@ -221,16 +221,16 @@
                     <div
                         style="width: 100%; display: flex; justify-content: space-between; text-align: center; padding-top: 5px;">
                         <div style="flex: 1;">
-                            <h3 style="color: #d97706; font-size: 1.2rem; margin-bottom: 0;">2</h3>
+                            <h3 id="dashboard-documents-pending" style="color: #d97706; font-size: 1.2rem; margin-bottom: 0;">&mdash;</h3>
                             <p style="font-size: 0.7rem; color: var(--muted);">Pending</p>
                         </div>
                         <div
                             style="flex: 1; border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
-                            <h3 style="color: #059669; font-size: 1.2rem; margin-bottom: 0;">15</h3>
+                            <h3 id="dashboard-documents-accepted" style="color: #059669; font-size: 1.2rem; margin-bottom: 0;">&mdash;</h3>
                             <p style="font-size: 0.7rem; color: var(--muted);">Accepted</p>
                         </div>
                         <div style="flex: 1;">
-                            <h3 style="color: #dc2626; font-size: 1.2rem; margin-bottom: 0;">1</h3>
+                            <h3 id="dashboard-documents-rejected" style="color: #dc2626; font-size: 1.2rem; margin-bottom: 0;">&mdash;</h3>
                             <p style="font-size: 0.7rem; color: var(--muted);">Rejected</p>
                         </div>
                     </div>
