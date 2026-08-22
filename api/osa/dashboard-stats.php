@@ -16,13 +16,21 @@ try {
              FROM organization_members om
              JOIN users u ON u.user_id = om.user_id
              JOIN org_roles r ON r.role_id = om.role_id
+             JOIN user_presence presence ON presence.user_id = u.user_id
              WHERE om.is_active = 1
                AND u.is_active = 1
                AND u.account_type = 'student'
                AND r.is_active = 1
-               AND r.can_access_org_dashboard = 1) AS active_officers,
-            (SELECT COUNT(*) FROM users
-             WHERE account_type = 'student' AND is_active = 1) AS active_students"
+               AND r.can_access_org_dashboard = 1
+               AND presence.login_context = 'org'
+               AND presence.last_seen_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 75 SECOND)) AS online_officers,
+            (SELECT COUNT(DISTINCT u.user_id)
+             FROM users u
+             JOIN user_presence presence ON presence.user_id = u.user_id
+             WHERE u.account_type = 'student'
+               AND u.is_active = 1
+               AND presence.login_context = 'student'
+               AND presence.last_seen_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 75 SECOND)) AS online_students"
     )->fetch(PDO::FETCH_ASSOC) ?: [];
 
     $documents = $pdo->query(
@@ -47,8 +55,8 @@ try {
     $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Manila'));
     jsonOk([
         'stats' => [
-            'active_officers' => (int)($accounts['active_officers'] ?? 0),
-            'active_students' => (int)($accounts['active_students'] ?? 0),
+            'online_officers' => (int)($accounts['online_officers'] ?? 0),
+            'online_students' => (int)($accounts['online_students'] ?? 0),
             'request_queue' => (int)($documents['request_queue'] ?? 0),
             'documents' => [
                 'month_label' => $now->format('F'),

@@ -296,6 +296,7 @@
     let lastGenuineActivity = Date.now();
     let lastActivityHeartbeat = 0;
     let activityHeartbeatTimer = null;
+    const presenceHeartbeatMs = 30000;
 
     ['pointerdown', 'keydown', 'touchstart'].forEach((eventName) => {
         window.addEventListener(eventName, () => {
@@ -331,6 +332,25 @@
             }
         }, 500);
     }
+
+    async function sendVisiblePresenceHeartbeat() {
+        if (!hasBrowserAuthentication() || document.visibilityState !== 'visible') return;
+        try {
+            const response = await nativeFetch(activityEndpoint, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+            });
+            const data = await response.clone().json().catch(() => ({}));
+            if (!response.ok) handleExpiredSession(data);
+        } catch (_error) {
+            // Presence is best-effort and will recover on the next heartbeat.
+        }
+    }
+
+    window.setInterval(sendVisiblePresenceHeartbeat, presenceHeartbeatMs);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') sendVisiblePresenceHeartbeat();
+    });
 
     function isSameOriginApi(url) {
         try {

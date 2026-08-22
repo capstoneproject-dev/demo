@@ -1140,9 +1140,15 @@ async function handleLogout(e) {
         title: 'Log out',
         confirmText: 'Log out'
     })) {
-        try { await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
-        localStorage.removeItem(AUTH_SESSION_KEY);
-        window.location.href = '../pages/login.html';
+        try {
+            const response = await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
+            localStorage.removeItem(AUTH_SESSION_KEY);
+            window.location.href = '../pages/login.html';
+        } catch (error) {
+            await appAlert(error.message || 'Could not log out. Please try again.', { type: 'error' });
+        }
     }
 }
 
