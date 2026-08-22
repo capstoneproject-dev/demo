@@ -532,6 +532,7 @@ const DOCUMENTS_API_BASE = '../api/documents';
 const OSA_DOCUMENTS_FAST_REFRESH_MS = 5000;
 const OSA_DOCUMENTS_SLOW_REFRESH_MS = 30000;
 const OSA_ACTIVITY_FEED_API = '../api/osa/activity-feed.php';
+const OSA_DASHBOARD_STATS_API = '../api/osa/dashboard-stats.php';
 const OSA_ACADEMIC_TERM_API = '../api/osa/settings/academic-term.php';
 const OSA_AUDIT_API_BASE = '../api/osa/audit-logs';
 const OSA_AUDIT_PAGE_SIZE = 25;
@@ -2074,13 +2075,56 @@ let osaSectionPollingTimer = null;
 let requestsPollingInFlight = false;
 let monitoringCardPollingInFlight = false;
 let monitoringActivityPollingInFlight = false;
+let dashboardStatsPollingInFlight = false;
 let lastMonitoringCardPollAt = 0;
+let lastDashboardStatsPollAt = 0;
 const MONITORING_CARD_POLL_MS = 15000;
+const DASHBOARD_STATS_POLL_MS = 15000;
 const MONITORING_ACTIVITY_POLL_MS = 3000;
 const OSA_SECTION_POLL_MS = MONITORING_ACTIVITY_POLL_MS;
 
 function getActiveOsaSectionId() {
     return document.querySelector('.section-view.active')?.id || 'dashboard';
+}
+
+function setDashboardStatValue(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = Number(value || 0).toLocaleString('en-US');
+}
+
+async function loadDashboardStats(force = false) {
+    if (dashboardStatsPollingInFlight) return;
+    const now = Date.now();
+    if (!force && now - lastDashboardStatsPollAt < DASHBOARD_STATS_POLL_MS) return;
+
+    dashboardStatsPollingInFlight = true;
+    try {
+        const response = await fetch(OSA_DASHBOARD_STATS_API, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load dashboard statistics.');
+        }
+
+        const stats = data.stats || {};
+        const documents = stats.documents || {};
+        setDashboardStatValue('dashboard-active-officers', stats.active_officers);
+        setDashboardStatValue('dashboard-active-students', stats.active_students);
+        setDashboardStatValue('dashboard-request-queue', stats.request_queue);
+        setDashboardStatValue('dashboard-documents-pending', documents.pending);
+        setDashboardStatValue('dashboard-documents-accepted', documents.accepted);
+        setDashboardStatValue('dashboard-documents-rejected', documents.rejected);
+
+        const month = document.getElementById('dashboard-document-month');
+        if (month) month.textContent = `(${documents.month_label || 'Current month'})`;
+        lastDashboardStatsPollAt = Date.now();
+    } catch (error) {
+        console.error('[loadDashboardStats]', error);
+    } finally {
+        dashboardStatsPollingInFlight = false;
+    }
 }
 
 async function pollRequestsPage() {
@@ -2137,7 +2181,9 @@ async function pollMonitoringActivities() {
 
 function runActiveOsaSectionPoll() {
     const activeSection = getActiveOsaSectionId();
-    if (activeSection === 'requests') {
+    if (activeSection === 'dashboard') {
+        loadDashboardStats();
+    } else if (activeSection === 'requests') {
         pollRequestsPage();
     } else if (activeSection === 'monitoring') {
         pollMonitoringActivities();
@@ -3842,6 +3888,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Initialize Dashboard
     renderDashboardPreview();
     loadOsaActivityFeed();
+    loadDashboardStats(true);
 
     // Initialize Documents Logic
     initDocOrgFilter(); // Initialize document organization filter
