@@ -5219,7 +5219,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                     <i class="fa-regular fa-message"></i> Comment
                 </button>`
             : '';
-        const revisionButton = !doc.hasNewerVersion
+        const revisionButton = doc.status !== 'Approved' && !doc.hasNewerVersion
             ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openDocumentRevisionModal(${Number(doc.submission_id || doc.id || 0)})">
                     <i class="fa-solid fa-code-branch"></i> Submit Revision
                 </button>`
