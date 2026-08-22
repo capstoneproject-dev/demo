@@ -3689,6 +3689,13 @@ body.dark .sub-nav-btn.active {
     color: var(--text);
 }
 
+.document-type-helper {
+    display: block;
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin: -8px 0 15px;
+}
+
 .printing-file-preview-spinner {
     animation: printing-file-preview-spin 0.8s linear infinite;
     border: 3px solid var(--border);

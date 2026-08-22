@@ -4800,6 +4800,48 @@ function loadMockActiveRentals() {
 
 // --- MODAL FUNCTIONS ---
 
+function normalizeDocumentTypeCategory(value) {
+    const raw = String(value || '').trim();
+    const aliases = {
+        'proposal': 'Event Proposal',
+        'event proposal': 'Event Proposal',
+    };
+    return aliases[raw.toLowerCase()] || raw || 'Others';
+}
+
+function getDocumentTypeDisplay(category, customType = '') {
+    const normalizedCategory = normalizeDocumentTypeCategory(category);
+    return normalizedCategory === 'Others' && String(customType || '').trim()
+        ? `Others: ${String(customType).trim()}`
+        : normalizedCategory;
+}
+
+function toggleCustomDocumentTypeField() {
+    const typeSelect = document.getElementById('doc-type');
+    const field = document.getElementById('doc-custom-type-field');
+    const input = document.getElementById('doc-custom-type');
+    if (!typeSelect || !field || !input) return;
+    const isOthers = typeSelect.value === 'Others';
+    field.hidden = !isOthers;
+    input.required = isOthers;
+    if (!isOthers) input.value = '';
+}
+
+function syncDocumentRecipientOptions(preferredRecipient = 'OSA') {
+    const recipientSelect = document.getElementById('doc-recipient');
+    if (!recipientSelect) return;
+
+    const sscOption = recipientSelect.querySelector('option[value="SSC"]');
+    const isSscOfficer = isActiveOfficerSscOrganization();
+    if (sscOption) {
+        sscOption.hidden = isSscOfficer;
+        sscOption.disabled = isSscOfficer;
+    }
+
+    recipientSelect.value = isSscOfficer ? 'OSA' : preferredRecipient;
+    if (!recipientSelect.value) recipientSelect.value = 'OSA';
+}
+
 function openSubmitModal() {
     const form = document.getElementById('doc-form');
     if (form) form.reset();
@@ -4809,6 +4851,8 @@ function openSubmitModal() {
     if (heading) heading.textContent = 'Submit Document';
     const submitLabel = document.getElementById('doc-submit-button-label');
     if (submitLabel) submitLabel.textContent = 'Submit';
+    syncDocumentRecipientOptions('OSA');
+    toggleCustomDocumentTypeField();
     updateFileUploadLabel(document.getElementById('doc-file-input'));
     const modal = document.getElementById('submit-doc-modal');
     modal.classList.add('show');
@@ -4828,8 +4872,10 @@ function openDocumentRevisionModal(submissionId) {
     const form = document.getElementById('doc-form');
     if (form) form.reset();
     document.getElementById('doc-revision-of').value = String(submissionId);
-    document.getElementById('doc-recipient').value = doc.recipient || 'OSA';
-    document.getElementById('doc-type').value = doc.type || 'Activity Report';
+    syncDocumentRecipientOptions(doc.recipient || 'OSA');
+    document.getElementById('doc-type').value = doc.typeCategory || 'Activity Report';
+    document.getElementById('doc-custom-type').value = doc.customDocumentType || '';
+    toggleCustomDocumentTypeField();
     document.getElementById('doc-title').value = doc.title || '';
     document.getElementById('doc-description').value = doc.description || '';
     document.getElementById('submit-doc-modal-title').textContent = `Submit Revision (Version ${Number(doc.versionNumber || 1) + 1})`;
@@ -4846,6 +4892,7 @@ function closeSubmitModal() {
     if (label) label.textContent = ' Click to upload PDF';
     const fileInput = document.getElementById('doc-file-input');
     if (fileInput) fileInput.value = '';
+    toggleCustomDocumentTypeField();
     // Optional: Reset form on close if desired
     // document.getElementById('doc-form').reset();
 }
@@ -6453,12 +6500,24 @@ async function handleDocSubmit(e) {
     const file = fileInput?.files?.[0] || null;
     const recipient = document.getElementById('doc-recipient').value;
     const type = document.getElementById('doc-type').value;
+    const customDocumentType = (document.getElementById('doc-custom-type')?.value || '').trim();
     const title = (document.getElementById('doc-title')?.value || '').trim();
     const description = (document.getElementById('doc-description')?.value || '').trim();
     const revisionOfSubmissionId = Number(document.getElementById('doc-revision-of')?.value || 0);
 
+    if (isActiveOfficerSscOrganization() && recipient === 'SSC') {
+        alert('SSC officers can only send documents to OSA.');
+        syncDocumentRecipientOptions('OSA');
+        return;
+    }
+
     if (!title) {
         alert('Title is required.');
+        return;
+    }
+    if (type === 'Others' && !customDocumentType) {
+        alert('Please enter a custom document type.');
+        document.getElementById('doc-custom-type')?.focus();
         return;
     }
     if (!file) {
@@ -6486,6 +6545,7 @@ async function handleDocSubmit(e) {
             body: JSON.stringify({
                 title,
                 document_type: type,
+                custom_document_type: type === 'Others' ? customDocumentType : null,
                 recipient,
                 description,
                 upload_token: uploadData.upload_token,
@@ -7813,7 +7873,9 @@ async function loadDocsFromApi({ silent = false, skipUnchanged = false } = {}) {
         officerDocumentsListSignature = signature;
         docsData = items.map(item => ({
             title: item.title,
-            type: item.document_type,
+            typeCategory: normalizeDocumentTypeCategory(item.document_type),
+            customDocumentType: item.custom_document_type || '',
+            type: getDocumentTypeDisplay(item.document_type, item.custom_document_type),
             date: fmtDateShort(item.submitted_at),
             submittedAt: item.submitted_at || null,
             status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
@@ -7873,7 +7935,9 @@ async function loadRepoFromApi({ silent = false, skipUnchanged = false } = {}) {
             id: item.repo_id,
             submission_id: item.submission_id,
             name: item.title,
-            category: item.document_type,
+            category: normalizeDocumentTypeCategory(item.document_type),
+            customDocumentType: item.custom_document_type || '',
+            typeLabel: getDocumentTypeDisplay(item.document_type, item.custom_document_type),
             org: item.org_name,
             orgId: Number(item.org_id || 0),
             date: fmtDateShort(item.approved_at),
@@ -7945,7 +8009,8 @@ function updateRepoCategoryDropdown() {
         "Financial Statement",
         "Event Proposal",
         "Resolution",
-        "Operational Plan"
+        "Operational Plan",
+        "Others"
     ];
 
     // Calculate total
@@ -7990,7 +8055,8 @@ function renderRepoTable() {
 
         // 2. Search Text
         const matchesSearch = item.name.toLowerCase().includes(searchInput) ||
-            item.category.toLowerCase().includes(searchInput);
+            item.category.toLowerCase().includes(searchInput) ||
+            String(item.typeLabel || '').toLowerCase().includes(searchInput);
 
         // 3. Academic Term + Date Logic
         const itemHasTerm = !!(item.semester || item.academicYear || item.gradingPeriod);
@@ -8060,7 +8126,7 @@ function renderRepoTable() {
                     <span class="status-badge" style="font-size:0.65rem; padding:2px 6px;">v${Number(item.versionNumber || 1)}</span>
                 </div>
             </td>
-            <td><span class="repo-category-tag">${item.category}</span></td>
+            <td><span class="repo-category-tag">${escapeHtml(item.typeLabel || item.category)}</span></td>
             <td>${item.org}</td>
             <td>${item.date}</td>
             <td class="text-right">

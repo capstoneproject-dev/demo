@@ -28,13 +28,16 @@ $pdo->beginTransaction();
 try {
     $root = docCreateSubmission($pdo, (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id'], [
         'title' => 'Integrity test document',
-        'document_type' => 'Activity Report',
+        'document_type' => 'Others',
+        'custom_document_type' => 'Compliance Matrix',
         'recipient' => 'OSA',
         'description' => 'Rolled back automatically after the test.',
         'storage_key' => (string)$fixture['file_url'],
     ]);
     $assert($pdo->inTransaction(), 'Transaction ended while creating the root submission.');
     $assert($root['version_number'] === 1, 'A new submission must start at version 1.');
+    $assert($root['document_type'] === 'Others', 'The custom document category was not preserved.');
+    $assert($root['custom_document_type'] === 'Compliance Matrix', 'The custom document type was not preserved.');
 
     $rejected = docReviewSubmission($pdo, (int)$root['submission_id'], (int)$fixture['reviewer_id'], 'rejected', 'Please revise.');
     $assert($pdo->inTransaction(), 'Transaction ended while rejecting the root submission.');
@@ -70,10 +73,19 @@ try {
     $assert($pdo->inTransaction(), 'Transaction ended while creating the revision.');
     $assert($revision['version_number'] === 2, 'The revision was not assigned version 2.');
     $assert($revision['parent_submission_id'] === (int)$root['submission_id'], 'The revision is not linked to its parent.');
+    $assert($revision['document_type'] === 'Others', 'The revision changed the custom document category.');
+    $assert($revision['custom_document_type'] === 'Compliance Matrix', 'The revision lost the custom document type.');
 
     $approved = docReviewSubmission($pdo, (int)$revision['submission_id'], (int)$fixture['reviewer_id'], 'approved', 'Approved revision.');
     $assert($pdo->inTransaction(), 'Transaction ended while approving the revision.');
     $assert($approved['status'] === 'approved', 'The revised submission was not approved.');
+    $approvedSnapshotStmt = $pdo->prepare(
+        "SELECT document_type, custom_document_type FROM documents_approved WHERE submission_id = :id"
+    );
+    $approvedSnapshotStmt->execute([':id' => (int)$revision['submission_id']]);
+    $approvedSnapshot = $approvedSnapshotStmt->fetch();
+    $assert(($approvedSnapshot['document_type'] ?? '') === 'Others', 'The approved snapshot lost the Others category.');
+    $assert(($approvedSnapshot['custom_document_type'] ?? '') === 'Compliance Matrix', 'The approved snapshot lost the custom document type.');
 
     $repoUpdateBlocked = false;
     try {

@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260822-ssc-document-review">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260822-custom-document-types">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -1420,6 +1420,7 @@
                                 <option value="Event Proposal">Event Proposal</option>
                                 <option value="Resolution">Resolution</option>
                                 <option value="Operational Plan">Operational Plan</option>
+                                <option value="Others">Others</option>
                             </select>
                         </div>
 
@@ -1975,13 +1976,20 @@
                     </select>
 
                     <label>Document Type</label>
-                    <select id="doc-type" required>
+                    <select id="doc-type" required onchange="toggleCustomDocumentTypeField()">
                         <option value="Activity Report">Activity Report</option>
                         <option value="Financial Statement">Financial Statement</option>
-                        <option value="Proposal">Event Proposal</option>
+                        <option value="Event Proposal">Event Proposal</option>
                         <option value="Resolution">Resolution</option>
                         <option value="Operational Plan">Operational Plan</option>
+                        <option value="Others">Others</option>
                     </select>
+
+                    <div id="doc-custom-type-field" hidden>
+                        <label for="doc-custom-type">Custom Document Type</label>
+                        <input type="text" id="doc-custom-type" maxlength="100" placeholder="Enter the document type">
+                        <small class="document-type-helper">This will be listed under the Others category.</small>
+                    </div>
 
                     <label>Title</label>
                     <input type="text" id="doc-title" placeholder="e.g., Semestral Financial Report" required>
@@ -2211,7 +2219,7 @@
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260822-ssc-document-review"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260822-ssc-recipient-guard"></script>
 </body>
 
 </html>

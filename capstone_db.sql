@@ -156,6 +156,7 @@ CREATE TABLE `documents_approved` (
   `approved_by_user_id` int(11) NOT NULL,
   `title` varchar(255) NOT NULL,
   `document_type` varchar(50) NOT NULL,
+  `custom_document_type` varchar(100) DEFAULT NULL,
   `file_url` varchar(500) DEFAULT NULL,
   `description` text DEFAULT NULL,
   `semester` enum('1st','2nd') DEFAULT NULL,
@@ -212,6 +213,7 @@ CREATE TABLE `document_submissions` (
   `title` varchar(255) NOT NULL,
   `description` text DEFAULT NULL,
   `document_type` varchar(50) NOT NULL,
+  `custom_document_type` varchar(100) DEFAULT NULL,
   `file_url` varchar(500) DEFAULT NULL,
   `recipient` varchar(50) NOT NULL DEFAULT 'OSA',
   `status` varchar(30) NOT NULL DEFAULT 'pending',
@@ -240,14 +242,15 @@ DELIMITER $$
 CREATE TRIGGER `trg_doc_sub_to_repo` AFTER UPDATE ON `document_submissions` FOR EACH ROW BEGIN
   IF NEW.status='approved' AND OLD.status <> 'approved' THEN
     INSERT INTO documents_approved
-      (submission_id, org_id, approved_by_user_id, title, document_type, file_url, description, semester, academic_year, grading_period, approved_at)
+      (submission_id, org_id, approved_by_user_id, title, document_type, custom_document_type, file_url, description, semester, academic_year, grading_period, approved_at)
     VALUES
       (NEW.submission_id, NEW.org_id, COALESCE(NEW.reviewed_by_user_id, NEW.submitted_by_user_id),
-       NEW.title, NEW.document_type, NEW.file_url, NEW.description, NEW.semester, NEW.academic_year, NEW.grading_period, NOW())
+       NEW.title, NEW.document_type, NEW.custom_document_type, NEW.file_url, NEW.description, NEW.semester, NEW.academic_year, NEW.grading_period, NOW())
     ON DUPLICATE KEY UPDATE
       approved_at = VALUES(approved_at),
       file_url = VALUES(file_url),
       description = VALUES(description),
+      custom_document_type = VALUES(custom_document_type),
       semester = VALUES(semester),
       academic_year = VALUES(academic_year),
       grading_period = VALUES(grading_period);
