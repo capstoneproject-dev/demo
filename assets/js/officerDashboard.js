@@ -5237,8 +5237,8 @@ function renderDocs(filter = 'All', btnElement = null) {
             sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
             osaHtml = `<span>${osaAdmin}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
             actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')">
-                    <i class="fa-solid fa-eye"></i> View
+                <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
+                    <i class="fa-solid fa-eye"></i>
                 </button>
                 ${revisionButton}`;
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
@@ -5258,8 +5258,8 @@ function renderDocs(filter = 'All', btnElement = null) {
             sscHtml = `<span>${sscOfficer}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
             osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
             actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')">
-                    <i class="fa-solid fa-eye"></i> View
+                <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
+                    <i class="fa-solid fa-eye"></i>
                 </button>`;
             statusBadge = '<span class="status-badge status-sent" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Sent to OSA</span>';
         }
@@ -5281,8 +5281,8 @@ function renderDocs(filter = 'All', btnElement = null) {
             sscHtml = `<span style="color:var(--muted)">--</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
             osaHtml = `<span style="color:var(--muted)">--</span><span class="sub-status waiting">Waiting</span>`;
             actionButtons = `
-                <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')">
-                    <i class="fa-solid fa-eye"></i> View
+                <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
+                    <i class="fa-solid fa-eye"></i>
                 </button>`;
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
         }
