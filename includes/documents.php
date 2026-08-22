@@ -47,6 +47,27 @@ function docRequireOsaContext(): array
     ];
 }
 
+function docIsSscOrganization(PDO $pdo, int $orgId): bool
+{
+    static $cache = [];
+    if ($orgId <= 0) return false;
+    if (array_key_exists($orgId, $cache)) return $cache[$orgId];
+
+    $stmt = $pdo->prepare(
+        "SELECT 1
+         FROM organizations
+         WHERE org_id = :org_id
+           AND (
+                UPPER(TRIM(COALESCE(org_code, ''))) = 'SSC'
+                OR UPPER(TRIM(org_name)) = 'SUPREME STUDENT COUNCIL'
+           )
+         LIMIT 1"
+    );
+    $stmt->execute([':org_id' => $orgId]);
+    $cache[$orgId] = (bool)$stmt->fetchColumn();
+    return $cache[$orgId];
+}
+
 function docValidateAcademicYear(?string $ay): ?string
 {
     $ay = $ay ? trim($ay) : null;
@@ -135,7 +156,10 @@ function docCreateSubmission(PDO $pdo, int $orgId, int $userId, array $data): ar
 
     $title        = trim((string)($data['title'] ?? ''));
     $documentType = docValidateType((string)($data['document_type'] ?? ''));
-    $recipient    = trim((string)($data['recipient'] ?? 'OSA')) ?: 'OSA';
+    $recipient    = strtoupper(trim((string)($data['recipient'] ?? 'OSA')) ?: 'OSA');
+    if (!in_array($recipient, ['OSA', 'SSC'], true)) {
+        throw new DocumentValidationException('recipient must be OSA or SSC.');
+    }
     $description  = trim((string)($data['description'] ?? '')) ?: null;
     $fileUrl      = trim((string)($data['storage_key'] ?? ''));
     // Academic-term feature boundary: submissions use the active global term from system_settings.
@@ -269,7 +293,9 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
     $params = [];
 
     if ($orgScope !== null) {
-        $where[] = 'ds.org_id = :org';
+        $where[] = docIsSscOrganization($pdo, $orgScope)
+            ? "(ds.org_id = :org OR UPPER(TRIM(ds.recipient)) = 'SSC')"
+            : 'ds.org_id = :org';
         $params[':org'] = $orgScope;
     }
 
@@ -343,7 +369,15 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
     return $rows;
 }
 
-function docReviewSubmission(PDO $pdo, int $submissionId, int $reviewerId, string $decision, ?string $notes = null): array
+function docReviewSubmission(
+    PDO $pdo,
+    int $submissionId,
+    int $reviewerId,
+    string $decision,
+    ?string $notes = null,
+    ?string $requiredRecipient = null,
+    ?int $disallowedReviewerOrgId = null
+): array
 {
     docEnsureTermColumns($pdo);
 
@@ -367,6 +401,13 @@ function docReviewSubmission(PDO $pdo, int $submissionId, int $reviewerId, strin
         $lock->execute([':id' => $submissionId]);
         $before = $lock->fetch();
         if (!$before) throw new DocumentValidationException('Submission not found.');
+        if ($requiredRecipient !== null
+            && strtoupper(trim((string)($before['recipient'] ?? ''))) !== strtoupper(trim($requiredRecipient))) {
+            throw new DocumentAuthorizationException('This document is assigned to a different reviewing office.');
+        }
+        if ($disallowedReviewerOrgId !== null && (int)$before['org_id'] === $disallowedReviewerOrgId) {
+            throw new DocumentAuthorizationException('An organization cannot review its own document.');
+        }
         if (strtolower((string)$before['status']) !== 'pending') {
             throw new DocumentValidationException('This submission already has a final decision. Submit a new revision instead.');
         }
@@ -495,12 +536,15 @@ function docBackfillApprovedRepository(PDO $pdo, ?int $orgScope = null): void
 function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null): array
 {
     docEnsureTermColumns($pdo);
-    docBackfillApprovedRepository($pdo, $orgScope);
+    $isSscScope = $orgScope !== null && docIsSscOrganization($pdo, $orgScope);
+    docBackfillApprovedRepository($pdo, $isSscScope ? null : $orgScope);
 
     $where  = [];
     $params = [];
     if ($orgScope !== null) {
-        $where[] = 'da.org_id = :org';
+        $where[] = $isSscScope
+            ? "(da.org_id = :org OR UPPER(TRIM(ds.recipient)) = 'SSC')"
+            : 'da.org_id = :org';
         $params[':org'] = $orgScope;
     }
     if (!empty($filters['document_type']) && $filters['document_type'] !== 'All') {
@@ -532,10 +576,11 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
         $params[':q'] = '%' . trim($filters['q']) . '%';
     }
 
-    $sql = "SELECT da.*, o.org_name,
+    $sql = "SELECT da.*, o.org_name, ds.recipient,
                    dv.root_submission_id, dv.parent_submission_id, dv.version_number, dv.file_sha256
             FROM documents_approved da
             JOIN organizations o ON o.org_id = da.org_id
+            JOIN document_submissions ds ON ds.submission_id = da.submission_id
             JOIN document_versions dv ON dv.submission_id = da.submission_id
             " . (count($where) ? 'WHERE ' . implode(' AND ', $where) : '') . "
             ORDER BY da.approved_at DESC, da.repo_id DESC";
@@ -566,6 +611,11 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
     if (!empty($filters['status']) && $filters['status'] !== 'all') {
         $where[] = 'ds.status = :status';
         $params[':status'] = $filters['status'];
+    }
+
+    if (!empty($filters['recipient'])) {
+        $where[] = 'UPPER(TRIM(ds.recipient)) = :recipient';
+        $params[':recipient'] = strtoupper(trim((string)$filters['recipient']));
     }
 
     if (!empty($filters['semester']) && $filters['semester'] !== 'all') {
@@ -665,7 +715,7 @@ function docListOsaRequestOverview(PDO $pdo, array $filters = []): array
 function docResolveSubmissionAccess(PDO $pdo, int $submissionId, array $session): ?array
 {
     $stmt = $pdo->prepare(
-        "SELECT ds.submission_id, ds.org_id
+        "SELECT ds.submission_id, ds.org_id, ds.recipient
          FROM document_submissions ds
          WHERE ds.submission_id = :id
          LIMIT 1"
@@ -679,7 +729,10 @@ function docResolveSubmissionAccess(PDO $pdo, int $submissionId, array $session)
 
     if (($session['login_role'] ?? '') !== 'org') return null;
     $activeOrgId = (int)($session['active_org_id'] ?? 0);
-    if ($activeOrgId <= 0 || $activeOrgId !== (int)$row['org_id']) return null;
+    if ($activeOrgId <= 0) return null;
+    if ($activeOrgId === (int)$row['org_id']) return $row;
+    if (strtoupper(trim((string)($row['recipient'] ?? ''))) !== 'SSC') return null;
+    if (!docIsSscOrganization($pdo, $activeOrgId)) return null;
 
     return $row;
 }

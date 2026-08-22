@@ -10,6 +10,7 @@ try {
 
     $filters = [
         'status' => $_GET['status'] ?? 'all',
+        'recipient' => 'OSA',
         'semester' => $_GET['semester'] ?? null,
         'academic_year' => $_GET['academic_year'] ?? null,
         'grading_period' => $_GET['grading_period'] ?? null,

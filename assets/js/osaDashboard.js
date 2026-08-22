@@ -776,6 +776,7 @@ async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
             semester: item.semester || null,
             academicYear: item.academic_year || null,
             gradingPeriod: item.grading_period || null,
+            recipient: item.recipient || 'OSA',
             fileUrl: resolvePdfUrl(item.file_url),
             viewerId: `submission_${item.submission_id}`,
             rootSubmissionId: Number(item.root_submission_id || item.submission_id || 0),
@@ -1808,6 +1809,7 @@ async function loadRequestsFromApi() {
                 approvedAt: item.approved_at || null,
                 status: mapSubmissionStatusToRequestStatus(item.status),
                 rawStatus: item.status || 'pending',
+                recipient: item.recipient || 'OSA',
                 annotationCount: Number(item.annotation_count || 0),
                 latestAnnotationAt: item.latest_annotation_at || null,
                 reviewerNotes: item.reviewer_notes || '',
@@ -3093,13 +3095,15 @@ function renderDocs(filter = 'All', btnElement = null) {
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
         } else {
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
-            actionButtons += `
-                <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'approved')" title="Approve">
-                    <i class="fa-solid fa-check"></i>
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'rejected')" title="Reject">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>`;
+            if (String(doc.recipient || 'OSA').trim().toUpperCase() === 'OSA') {
+                actionButtons += `
+                    <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'approved')" title="Approve">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); reviewDocument(${doc.id}, 'rejected')" title="Reject">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>`;
+            }
         }
 
         const sender = doc.submittedByName || `User #${doc.submittedByUserId || 'N/A'}`;

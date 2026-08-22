@@ -562,6 +562,19 @@ function officerOrgMatch(orgValue) {
     return normalizeOfficerOrgName(orgValue) === activeName;
 }
 
+function isActiveOfficerSscOrganization() {
+    const session = readAuthSession();
+    const activeName = normalizeOfficerOrgName(session.active_org_name || '');
+    const activeCode = String(session.active_org_code || '').trim().toUpperCase();
+    return activeCode === 'SSC' || activeName === 'SUPREME STUDENT COUNCIL' || activeName === 'SSC';
+}
+
+function isOfficerDocumentVisibleToActiveOrg(item) {
+    if (officerOrgMatch(item?.orgId || item?.org)) return true;
+    return isActiveOfficerSscOrganization()
+        && String(item?.recipient || '').trim().toUpperCase() === 'SSC';
+}
+
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -620,7 +633,7 @@ function getOfficerScopedRentals() {
 }
 
 function getOfficerScopedDocs() {
-    return docsData.filter(item => officerOrgMatch(item.org));
+    return docsData.filter(item => isOfficerDocumentVisibleToActiveOrg(item));
 }
 
 function getOfficerScopedAnnouncements() {
@@ -4858,6 +4871,83 @@ function closeReviewerNoteModal() {
     if (modal) modal.classList.remove('show');
 }
 
+let pendingOfficerDocumentReview = null;
+
+function openOfficerDocumentReviewModal(submissionId, decision) {
+    const normalizedDecision = String(decision || '').toLowerCase();
+    if (!['approved', 'rejected'].includes(normalizedDecision)) return;
+
+    const modalId = normalizedDecision === 'approved'
+        ? 'officer-document-approve-modal'
+        : 'officer-document-reject-modal';
+    const textareaId = normalizedDecision === 'approved'
+        ? 'officer-document-approve-notes'
+        : 'officer-document-reject-notes';
+    const modal = document.getElementById(modalId);
+    const textarea = document.getElementById(textareaId);
+    if (!modal || !textarea) return;
+
+    pendingOfficerDocumentReview = {
+        submissionId: Number(submissionId) || 0,
+        decision: normalizedDecision,
+    };
+    if (!pendingOfficerDocumentReview.submissionId) return;
+    textarea.value = '';
+    modal.classList.add('show');
+    textarea.focus();
+}
+
+function closeOfficerDocumentReviewModal() {
+    ['officer-document-approve-modal', 'officer-document-reject-modal'].forEach((id) => {
+        document.getElementById(id)?.classList.remove('show');
+    });
+    ['officer-document-approve-notes', 'officer-document-reject-notes'].forEach((id) => {
+        const textarea = document.getElementById(id);
+        if (textarea) textarea.value = '';
+    });
+    pendingOfficerDocumentReview = null;
+}
+
+async function confirmOfficerDocumentReview() {
+    if (!pendingOfficerDocumentReview) return;
+    const { submissionId, decision } = pendingOfficerDocumentReview;
+    const textareaId = decision === 'approved'
+        ? 'officer-document-approve-notes'
+        : 'officer-document-reject-notes';
+    const buttonId = decision === 'approved'
+        ? 'officer-document-approve-confirm'
+        : 'officer-document-reject-confirm';
+    const notes = (document.getElementById(textareaId)?.value || '').trim();
+    const confirmButton = document.getElementById(buttonId);
+    if (confirmButton) confirmButton.disabled = true;
+
+    try {
+        const response = await fetch(`${DOCUMENTS_API_BASE}/review.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                submission_id: submissionId,
+                decision,
+                notes,
+            }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not review this document.');
+        }
+
+        closeOfficerDocumentReviewModal();
+        await Promise.all([loadDocsFromApi(), loadRepoFromApi()]);
+        loadOfficerActionCenter(false);
+        showToast(`Document ${decision === 'approved' ? 'approved' : 'rejected'} successfully.`, decision === 'approved' ? 'success' : 'info');
+    } catch (error) {
+        showToast(error.message || 'Could not review this document.', 'error');
+    } finally {
+        if (confirmButton) confirmButton.disabled = false;
+    }
+}
+
 function updateFileUploadLabel(input) {
     const label = document.getElementById('file-upload-label');
     if (!label) return;
@@ -4879,6 +4969,11 @@ window.addEventListener('click', function (event) {
     const reviewCommentModal = document.getElementById('review-comment-modal');
     if (event.target === reviewCommentModal) {
         closeReviewerNoteModal();
+    }
+    const approveModal = document.getElementById('officer-document-approve-modal');
+    const rejectModal = document.getElementById('officer-document-reject-modal');
+    if (event.target === approveModal || event.target === rejectModal) {
+        closeOfficerDocumentReviewModal();
     }
 });
 
@@ -5217,6 +5312,11 @@ function renderDocs(filter = 'All', btnElement = null) {
         const reviewerName = doc.reviewerName ? escapeHtml(doc.reviewerName) : '-';
         const recipient = String(doc.recipient || 'OSA').trim().toUpperCase();
         const wasSentToSsc = recipient === 'SSC';
+        const isOwnedByActiveOrg = officerOrgMatch(doc.orgId || doc.org);
+        const canReviewForSsc = isActiveOfficerSscOrganization()
+            && wasSentToSsc
+            && !isOwnedByActiveOrg
+            && doc.status === 'Pending';
         const emptyReview = '<span style="color:var(--muted)">-</span>';
         const approvedReview = `<span>${reviewerName}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
         const rejectedReview = `<span>${reviewerName}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
@@ -5225,21 +5325,21 @@ function renderDocs(filter = 'All', btnElement = null) {
                     <i class="fa-regular fa-message"></i> Comment
                 </button>`
             : '';
-        const revisionButton = doc.status !== 'Approved' && !doc.hasNewerVersion
+        const revisionButton = isOwnedByActiveOrg && doc.status !== 'Approved' && !doc.hasNewerVersion
             ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openDocumentRevisionModal(${Number(doc.submission_id || doc.id || 0)})">
                     <i class="fa-solid fa-code-branch"></i> Submit Revision
                 </button>`
             : '';
+        const viewButton = `
+            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
+                <i class="fa-solid fa-eye"></i>
+            </button>`;
         const versionBadge = `<span class="status-badge" style="font-size:0.65rem; padding:2px 6px; margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>`;
 
         if (doc.status === 'Approved') {
             sscHtml = wasSentToSsc ? approvedReview : emptyReview;
             osaHtml = wasSentToSsc ? emptyReview : approvedReview;
-            actionButtons = `
-                <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
-                    <i class="fa-solid fa-eye"></i>
-                </button>
-                ${revisionButton}`;
+            actionButtons = `${viewButton}${revisionButton}`;
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
         }
         else if (doc.status === 'SSC Approved') {
@@ -5265,17 +5365,22 @@ function renderDocs(filter = 'All', btnElement = null) {
         else if (doc.status.includes('Rejected')) {
             sscHtml = wasSentToSsc ? rejectedReview : emptyReview;
             osaHtml = wasSentToSsc ? emptyReview : rejectedReview;
-            actionButtons = revisionButton || '<span style="color:var(--muted); font-size:0.8rem;">Revision submitted</span>';
+            actionButtons = `${viewButton}${revisionButton}`;
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
         }
         else {
             const pendingReview = `<span style="color:var(--muted)">-</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
             sscHtml = wasSentToSsc ? pendingReview : emptyReview;
             osaHtml = wasSentToSsc ? emptyReview : pendingReview;
-            actionButtons = `
-                <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
-                    <i class="fa-solid fa-eye"></i>
-                </button>`;
+            actionButtons = canReviewForSsc
+                ? `${viewButton}
+                    <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); openOfficerDocumentReviewModal(${Number(doc.submission_id || doc.id || 0)}, 'approved')" title="Approve">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); openOfficerDocumentReviewModal(${Number(doc.submission_id || doc.id || 0)}, 'rejected')" title="Reject">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>`
+                : viewButton;
             statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Pending</span>';
         }
 
@@ -7713,6 +7818,7 @@ async function loadDocsFromApi({ silent = false, skipUnchanged = false } = {}) {
             submittedAt: item.submitted_at || null,
             status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
             org: item.org_name || '',
+            orgId: Number(item.org_id || 0),
             id: item.submission_id,
             submission_id: item.submission_id,
             semester: item.semester || null,
@@ -7769,6 +7875,7 @@ async function loadRepoFromApi({ silent = false, skipUnchanged = false } = {}) {
             name: item.title,
             category: item.document_type,
             org: item.org_name,
+            orgId: Number(item.org_id || 0),
             date: fmtDateShort(item.approved_at),
             approvedAt: item.approved_at || null,
             semester: item.semester || null,
@@ -7777,6 +7884,7 @@ async function loadRepoFromApi({ silent = false, skipUnchanged = false } = {}) {
             file_url: resolvePdfUrl(item.file_url),
             viewerId: `submission_${item.submission_id}`,
             versionNumber: Number(item.version_number || 1),
+            recipient: item.recipient || 'OSA',
         }));
         repositoryData.forEach(item => {
             if (typeof PDFViewer !== 'undefined' && item.file_url) {
@@ -7875,7 +7983,7 @@ function renderRepoTable() {
     const filterPeriod = document.getElementById('repo-filter-period')?.value || officerActiveAcademicTerm.grading_period;
 
     const evaluateRepoItem = (item) => {
-        const matchesActiveOrg = officerOrgMatch(item.org);
+        const matchesActiveOrg = isOfficerDocumentVisibleToActiveOrg(item);
 
         // 1. File Type
         const matchesType = filterType === 'All' || item.category === filterType;
