@@ -730,12 +730,13 @@ function renderOfficerActionCenterSection(title, items, emptyMessage, totalCount
 }
 
 function renderOfficerActionCenter(data) {
-    const attentionItems = Array.isArray(data.attention_items) ? data.attention_items : [];
+    const attentionItems = (Array.isArray(data.attention_items) ? data.attention_items : [])
+        .filter((item) => item?.requires_attention !== false && item?.is_resolved !== true);
     const recentItems = Array.isArray(data.recent_items) ? data.recent_items : [];
     const allItems = [...attentionItems, ...recentItems];
     officerActionCenterItems = new Map(allItems.map((item) => [String(item.key || ''), item]));
 
-    const count = Math.max(0, Number(data.attention_count) || 0);
+    const count = attentionItems.length;
     const countEl = document.getElementById('notif-count');
     if (countEl) {
         countEl.textContent = count > 99 ? '99+' : String(count);

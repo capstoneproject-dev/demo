@@ -1521,9 +1521,19 @@ function renderStudentAlertSection(title, items, emptyMessage) {
         </section>`;
 }
 
+const STUDENT_RESOLVED_ALERT_STATUSES = new Set([
+    'returned', 'returned_late', 'cancelled', 'no_show', 'released',
+    'rejected', 'claimed', 'checked_in', 'checked_out', 'registered'
+]);
+
+function isStudentAttentionUnresolved(item) {
+    return Boolean(item?.is_unresolved)
+        && !STUDENT_RESOLVED_ALERT_STATUSES.has(String(item?.status || '').trim().toLowerCase());
+}
+
 function renderStudentAlerts(items) {
     studentAlertItems = Array.isArray(items) ? items : [];
-    const attentionItems = studentAlertItems.filter((item) => Boolean(item?.is_unresolved));
+    const attentionItems = studentAlertItems.filter(isStudentAttentionUnresolved);
     const recentItems = studentAlertItems.filter((item) =>
         !item?.is_unresolved && isStudentNotificationFromToday(item)
     );
@@ -1587,7 +1597,7 @@ async function loadStudentTransactionNotifications(showFeedback = false) {
 
             const allItems = Array.isArray(data.items) ? data.items : [];
             databaseTransactionNotifications = allItems.filter((item) =>
-                Boolean(item?.is_unresolved) || isStudentNotificationFromToday(item)
+                isStudentAttentionUnresolved(item) || (!item?.is_unresolved && isStudentNotificationFromToday(item))
             );
             studentNotificationsFailed = false;
             renderStudentAlerts(allItems);
