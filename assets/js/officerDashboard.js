@@ -654,6 +654,8 @@ function setActiveRentalsCount(count) {
 }
 
 let officerDashboardRefreshTimer = null;
+const OFFICER_DASHBOARD_REFRESH_FAST_MS = 5000;
+const OFFICER_DASHBOARD_REFRESH_SLOW_MS = 30000;
 let officerDashboardRequest = null;
 let officerDashboardMockPreviewActive = false;
 
@@ -1123,14 +1125,50 @@ async function loadOfficerDashboard(showFeedback = false) {
     return officerDashboardRequest;
 }
 
-function startOfficerDashboardRealtime() {
-    if (officerDashboardRefreshTimer) clearInterval(officerDashboardRefreshTimer);
-    officerDashboardRefreshTimer = setInterval(() => {
-        if (!document.hidden && !officerDashboardMockPreviewActive) {
-            loadOfficerDashboard(false);
-            loadOfficerActionCenter(false);
+function isOfficerMainDashboardActive() {
+    return document.getElementById('dashboard')?.classList.contains('active') === true;
+}
+
+function getOfficerDashboardRefreshDelay() {
+    return document.hidden
+        ? OFFICER_DASHBOARD_REFRESH_SLOW_MS
+        : OFFICER_DASHBOARD_REFRESH_FAST_MS;
+}
+
+function stopOfficerDashboardRealtime() {
+    if (!officerDashboardRefreshTimer) return;
+    window.clearTimeout(officerDashboardRefreshTimer);
+    officerDashboardRefreshTimer = null;
+}
+
+function scheduleOfficerDashboardRealtime() {
+    stopOfficerDashboardRealtime();
+    if (!isOfficerMainDashboardActive() || isOfficerAnnouncementPreviewMode()) return;
+
+    officerDashboardRefreshTimer = window.setTimeout(async () => {
+        officerDashboardRefreshTimer = null;
+        if (!officerDashboardMockPreviewActive) {
+            await Promise.allSettled([
+                loadOfficerDashboard(false),
+                loadOfficerActionCenter(false)
+            ]);
         }
-    }, 30000);
+        scheduleOfficerDashboardRealtime();
+    }, getOfficerDashboardRefreshDelay());
+}
+
+function startOfficerDashboardRealtime({ refreshNow = false } = {}) {
+    stopOfficerDashboardRealtime();
+    if (!isOfficerMainDashboardActive() || isOfficerAnnouncementPreviewMode()) return;
+
+    if (refreshNow && !officerDashboardMockPreviewActive) {
+        Promise.allSettled([
+            loadOfficerDashboard(false),
+            loadOfficerActionCenter(false)
+        ]).finally(scheduleOfficerDashboardRealtime);
+        return;
+    }
+    scheduleOfficerDashboardRealtime();
 }
 
 // --- LOGOUT HANDLER ---
@@ -1299,6 +1337,12 @@ function navigate(viewId, element) {
         startOfficerDocumentsAutoRefresh({ refreshNow: true });
     } else {
         stopOfficerDocumentsAutoRefresh();
+    }
+
+    if (viewId === 'dashboard') {
+        startOfficerDashboardRealtime({ refreshNow: !document.hidden });
+    } else {
+        stopOfficerDashboardRealtime();
     }
 }
 
@@ -7828,10 +7872,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !officerDashboardMockPreviewActive && !isOfficerAnnouncementPreviewMode()) {
-        loadOfficerDashboard(false);
-        loadOfficerActionCenter(false);
-    }
+    startOfficerDashboardRealtime({ refreshNow: !document.hidden });
 
     if (isOfficerPrintingAutoRefreshActive()) {
         if (!document.hidden) {
