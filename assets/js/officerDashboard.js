@@ -1274,6 +1274,12 @@ function navigate(viewId, element) {
     } else if (currentTrackerSubView === 'printing' && officerPrintingEnabled) {
         startOfficerPrintingAutoRefresh();
     }
+
+    if (viewId === 'documents') {
+        startOfficerDocumentsAutoRefresh({ refreshNow: true });
+    } else {
+        stopOfficerDocumentsAutoRefresh();
+    }
 }
 
 let currentTrackerSubView = 'rentals';
@@ -7575,6 +7581,9 @@ window.addEventListener('DOMContentLoaded', () => {
     fetchAnnouncementsFromApi();
     loadDocsFromApi();
     loadRepoFromApi();
+    if (isOfficerDocumentsAutoRefreshActive()) {
+        startOfficerDocumentsAutoRefresh();
+    }
     officerOrgSyncPromise
         .catch(() => {})
         .finally(() => {
@@ -7602,12 +7611,81 @@ document.addEventListener('visibilitychange', () => {
         }
         startOfficerPrintingAutoRefresh({ refreshNow: !document.hidden });
     }
+
+    if (isOfficerDocumentsAutoRefreshActive()) {
+        startOfficerDocumentsAutoRefresh({ refreshNow: !document.hidden });
+    }
 });
 
 
 // --- DOCUMENT REPOSITORY LOGIC ---
 
 const DOCUMENTS_API_BASE = '../api/documents';
+const OFFICER_DOCUMENTS_POLL_FAST_MS = 5000;
+const OFFICER_DOCUMENTS_POLL_SLOW_MS = 30000;
+let currentDocsSubView = 'status';
+let officerDocumentsAutoRefreshTimer = null;
+let officerDocumentsAutoRefreshInFlight = false;
+let officerDocumentsListSignature = '';
+let officerDocumentsRepositorySignature = '';
+
+function isOfficerDocumentsAutoRefreshActive() {
+    return document.getElementById('documents')?.classList.contains('active') === true;
+}
+
+function getOfficerDocumentsPollDelay() {
+    return document.hidden
+        ? OFFICER_DOCUMENTS_POLL_SLOW_MS
+        : OFFICER_DOCUMENTS_POLL_FAST_MS;
+}
+
+function stopOfficerDocumentsAutoRefresh() {
+    if (officerDocumentsAutoRefreshTimer) {
+        window.clearTimeout(officerDocumentsAutoRefreshTimer);
+        officerDocumentsAutoRefreshTimer = null;
+    }
+}
+
+function scheduleOfficerDocumentsAutoRefresh(delay = getOfficerDocumentsPollDelay()) {
+    stopOfficerDocumentsAutoRefresh();
+    if (!isOfficerDocumentsAutoRefreshActive()) return;
+    officerDocumentsAutoRefreshTimer = window.setTimeout(() => {
+        officerDocumentsAutoRefreshTimer = null;
+        pollOfficerDocuments().catch(() => {
+            // Background refresh errors stay silent; the existing data remains visible.
+        });
+    }, delay);
+}
+
+async function pollOfficerDocuments() {
+    if (!isOfficerDocumentsAutoRefreshActive()) return;
+    if (officerDocumentsAutoRefreshInFlight) {
+        scheduleOfficerDocumentsAutoRefresh();
+        return;
+    }
+
+    officerDocumentsAutoRefreshInFlight = true;
+    try {
+        if (currentDocsSubView === 'repository') {
+            await loadRepoFromApi({ silent: true, skipUnchanged: true });
+        } else {
+            await loadDocsFromApi({ silent: true, skipUnchanged: true });
+        }
+    } finally {
+        officerDocumentsAutoRefreshInFlight = false;
+        scheduleOfficerDocumentsAutoRefresh();
+    }
+}
+
+function startOfficerDocumentsAutoRefresh({ refreshNow = false } = {}) {
+    stopOfficerDocumentsAutoRefresh();
+    if (!isOfficerDocumentsAutoRefreshActive()) return;
+    if (refreshNow && !officerDocumentsAutoRefreshInFlight) {
+        pollOfficerDocuments().catch(() => {});
+        return;
+    }
+    scheduleOfficerDocumentsAutoRefresh();
+}
 
 function fmtDateShort(iso) {
     if (!iso) return '';
@@ -7627,12 +7705,16 @@ function resolvePdfUrl(fileUrl) {
     return `../${raw}`;
 }
 
-async function loadDocsFromApi() {
+async function loadDocsFromApi({ silent = false, skipUnchanged = false } = {}) {
     try {
         const res = await fetch(`${DOCUMENTS_API_BASE}/list.php`, { credentials: 'same-origin' });
         const data = await res.json();
         if (!data.ok) return;
-        docsData = (data.items || []).map(item => ({
+        const items = Array.isArray(data.items) ? data.items : [];
+        const signature = JSON.stringify(items);
+        if (skipUnchanged && signature === officerDocumentsListSignature) return;
+        officerDocumentsListSignature = signature;
+        docsData = items.map(item => ({
             title: item.title,
             type: item.document_type,
             date: fmtDateShort(item.submitted_at),
@@ -7670,17 +7752,21 @@ async function loadDocsFromApi() {
         renderDocs(currentDocFilter);
         renderRecentDocs();
     } catch (e) {
-        console.error('loadDocsFromApi failed', e);
+        if (!silent) console.error('loadDocsFromApi failed', e);
     }
 }
 
-async function loadRepoFromApi() {
+async function loadRepoFromApi({ silent = false, skipUnchanged = false } = {}) {
     try {
         const params = new URLSearchParams();
         const res = await fetch(`${DOCUMENTS_API_BASE}/repository.php?${params.toString()}`, { credentials: 'same-origin' });
         const data = await res.json();
         if (!data.ok) return;
-        repositoryData = (data.items || []).map(item => ({
+        const items = Array.isArray(data.items) ? data.items : [];
+        const signature = JSON.stringify(items);
+        if (skipUnchanged && signature === officerDocumentsRepositorySignature) return;
+        officerDocumentsRepositorySignature = signature;
+        repositoryData = items.map(item => ({
             id: item.repo_id,
             submission_id: item.submission_id,
             name: item.title,
@@ -7703,13 +7789,14 @@ async function loadRepoFromApi() {
         renderRepoTable();
         updateRepoCategoryDropdown();
     } catch (e) {
-        console.error('loadRepoFromApi failed', e);
+        if (!silent) console.error('loadRepoFromApi failed', e);
     }
 }
 
 // 1. Switch View Function (Status Board <-> Repository)
 // 1. Switch View Function (Status Board <-> Repository)
 function switchDocsSubView(view, btn) {
+    currentDocsSubView = view === 'repository' ? 'repository' : 'status';
     // Toggle Button Active State
     const buttons = document.querySelectorAll('.sub-nav-btn');
     buttons.forEach(b => b.classList.remove('active'));
@@ -7726,7 +7813,9 @@ function switchDocsSubView(view, btn) {
     } else {
         statusView.style.display = ''; // Let CSS class (docs-layout grid) take over
         repoView.style.display = 'none';
+        loadDocsFromApi();
     }
+    startOfficerDocumentsAutoRefresh();
 }
 
 let currentRepoCategory = 'All';

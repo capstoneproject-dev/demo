@@ -528,6 +528,8 @@ function initOsaAuthContext() {
 }
 
 const DOCUMENTS_API_BASE = '../api/documents';
+const OSA_DOCUMENTS_FAST_REFRESH_MS = 5000;
+const OSA_DOCUMENTS_SLOW_REFRESH_MS = 30000;
 const OSA_ACTIVITY_FEED_API = '../api/osa/activity-feed.php';
 const OSA_ACADEMIC_TERM_API = '../api/osa/settings/academic-term.php';
 const OSA_AUDIT_API_BASE = '../api/osa/audit-logs';
@@ -536,6 +538,12 @@ let osaAuditPage = 1;
 let osaAuditTotal = 0;
 let osaAuditLoaded = false;
 let osaAuditLoading = false;
+let currentOsaDocsSubView = 'status';
+let osaDocumentsRefreshTimer = null;
+let osaDocumentsRefreshInFlight = false;
+let osaDocumentsRefreshQueued = false;
+let osaDocumentsStatusSignature = '';
+let osaDocumentsRepositorySignature = '';
 
 function formatOsaAuditDate(value) {
     if (!value) return 'N/A';
@@ -736,15 +744,22 @@ function resolvePdfUrl(fileUrl) {
     return `../${raw}`;
 }
 
-async function loadDocsFromApi() {
+async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
     try {
         const params = new URLSearchParams({ status: 'all' });
         const response = await fetch(`${DOCUMENTS_API_BASE}/list.php?${params.toString()}`, {
-            credentials: 'same-origin'
+            credentials: 'same-origin',
+            cache: 'no-store'
         });
         const data = await response.json();
-        if (!data.ok) return;
-        docsData = (data.items || []).map(item => ({
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load document submissions.');
+        }
+        const items = Array.isArray(data.items) ? data.items : [];
+        const signature = JSON.stringify(items);
+        if (skipUnchanged && signature === osaDocumentsStatusSignature) return false;
+        osaDocumentsStatusSignature = signature;
+        docsData = items.map(item => ({
             id: item.submission_id,
             submission_id: item.submission_id,
             title: item.title,
@@ -777,19 +792,28 @@ async function loadDocsFromApi() {
         renderRecentDocs();
         renderMonitoringComplianceForCurrentOrg();
         loadOsaActivityFeed();
+        return true;
     } catch (error) {
-        console.error('loadDocsFromApi failed', error);
+        if (!silent) console.error('loadDocsFromApi failed', error);
+        return false;
     }
 }
 
-async function loadRepoFromApi() {
+async function loadRepoFromApi({ skipUnchanged = false, silent = false } = {}) {
     try {
         const response = await fetch(`${DOCUMENTS_API_BASE}/repository.php`, {
-            credentials: 'same-origin'
+            credentials: 'same-origin',
+            cache: 'no-store'
         });
         const data = await response.json();
-        if (!data.ok) return;
-        repositoryData = (data.items || []).map(item => ({
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load the document repository.');
+        }
+        const items = Array.isArray(data.items) ? data.items : [];
+        const signature = JSON.stringify(items);
+        if (skipUnchanged && signature === osaDocumentsRepositorySignature) return false;
+        osaDocumentsRepositorySignature = signature;
+        repositoryData = items.map(item => ({
             id: item.repo_id,
             submission_id: item.submission_id,
             name: item.title,
@@ -813,8 +837,74 @@ async function loadRepoFromApi() {
         renderRepoTable();
         renderMonitoringComplianceForCurrentOrg();
         loadOsaActivityFeed();
+        return true;
     } catch (error) {
-        console.error('loadRepoFromApi failed', error);
+        if (!silent) console.error('loadRepoFromApi failed', error);
+        return false;
+    }
+}
+
+function isOsaDocumentsViewActive() {
+    return getActiveOsaSectionId() === 'documents';
+}
+
+function getOsaDocumentsRefreshDelay() {
+    return document.hidden ? OSA_DOCUMENTS_SLOW_REFRESH_MS : OSA_DOCUMENTS_FAST_REFRESH_MS;
+}
+
+function stopOsaDocumentsAutoRefresh() {
+    if (osaDocumentsRefreshTimer !== null) {
+        window.clearTimeout(osaDocumentsRefreshTimer);
+        osaDocumentsRefreshTimer = null;
+    }
+    osaDocumentsRefreshQueued = false;
+}
+
+function scheduleOsaDocumentsAutoRefresh() {
+    if (!isOsaDocumentsViewActive()) return;
+    if (osaDocumentsRefreshTimer !== null) window.clearTimeout(osaDocumentsRefreshTimer);
+    osaDocumentsRefreshTimer = window.setTimeout(() => {
+        osaDocumentsRefreshTimer = null;
+        pollActiveOsaDocumentsView();
+    }, getOsaDocumentsRefreshDelay());
+}
+
+async function pollActiveOsaDocumentsView() {
+    if (!isOsaDocumentsViewActive()) {
+        stopOsaDocumentsAutoRefresh();
+        return;
+    }
+    if (osaDocumentsRefreshInFlight) {
+        osaDocumentsRefreshQueued = true;
+        return;
+    }
+
+    osaDocumentsRefreshInFlight = true;
+    try {
+        if (currentOsaDocsSubView === 'repository') {
+            await loadRepoFromApi({ skipUnchanged: true, silent: true });
+        } else {
+            await loadDocsFromApi({ skipUnchanged: true, silent: true });
+        }
+    } finally {
+        osaDocumentsRefreshInFlight = false;
+        if (!isOsaDocumentsViewActive()) return;
+        if (osaDocumentsRefreshQueued) {
+            osaDocumentsRefreshQueued = false;
+            pollActiveOsaDocumentsView();
+        } else {
+            scheduleOsaDocumentsAutoRefresh();
+        }
+    }
+}
+
+function startOsaDocumentsAutoRefresh({ refreshNow = true } = {}) {
+    stopOsaDocumentsAutoRefresh();
+    if (!isOsaDocumentsViewActive()) return;
+    if (refreshNow) {
+        pollActiveOsaDocumentsView();
+    } else {
+        scheduleOsaDocumentsAutoRefresh();
     }
 }
 
@@ -2058,6 +2148,11 @@ function navigate(viewId, element) {
     };
     document.getElementById('page-title').innerText = titleMap[viewId] || 'OSA Portal';
     if (viewId === 'audit' && !osaAuditLoaded) loadOsaAuditLogs(1);
+    if (viewId === 'documents') {
+        startOsaDocumentsAutoRefresh();
+    } else {
+        stopOsaDocumentsAutoRefresh();
+    }
     startOsaSectionPolling();
 }
 
@@ -3733,6 +3828,7 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
     startOsaSectionPolling();
+    if (isOsaDocumentsViewActive()) startOsaDocumentsAutoRefresh();
     loadOsaAlerts().catch((error) => console.error(error));
     if (!osaAlertsRefreshTimer) {
         osaAlertsRefreshTimer = window.setInterval(() => {
@@ -3747,6 +3843,9 @@ document.addEventListener('pdfviewer:ready', () => {
 });
 
 document.addEventListener('visibilitychange', () => {
+    if (isOsaDocumentsViewActive()) {
+        startOsaDocumentsAutoRefresh({ refreshNow: !document.hidden });
+    }
     if (!document.hidden) {
         runActiveOsaSectionPoll();
         loadOsaAlerts().catch((error) => console.error('[loadOsaAlerts]', error));
@@ -3972,13 +4071,16 @@ function switchDocsSubView(view, btn) {
     const statusView = document.getElementById('docs-status-view');
     const repoView = document.getElementById('docs-repository-view');
 
-    if (view === 'repository') {
+    currentOsaDocsSubView = view === 'repository' ? 'repository' : 'status';
+
+    if (currentOsaDocsSubView === 'repository') {
         statusView.style.display = 'none';
         repoView.style.display = 'block';
-        loadRepoFromApi();
         initRepository();
     } else {
         statusView.style.display = 'grid';
         repoView.style.display = 'none';
     }
+
+    if (isOsaDocumentsViewActive()) startOsaDocumentsAutoRefresh();
 }
