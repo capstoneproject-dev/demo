@@ -109,6 +109,7 @@ function startUserSession(array $payload, bool $establishAuthentication = false)
     }
     $_SESSION['user_id']      = $payload['user_id'];
     $_SESSION['naap_session'] = $payload;
+    if ($establishAuthentication) authRecordPresence();
 }
 
 /** Updates only the active-org fields without rebuilding the full session. */
@@ -118,10 +119,12 @@ function updateActiveOrg(int $orgId, string $orgName, string $roleName): void
     $_SESSION['naap_session']['active_org_name'] = $orgName;
     $_SESSION['naap_session']['active_role_name']= $roleName;
     $_SESSION['naap_session']['login_role']      = 'org';
+    authRecordPresence();
 }
 
 function destroySession(): void
 {
+    authClearPresence();
     $_SESSION = [];
     if (session_status() === PHP_SESSION_ACTIVE) {
         $name = session_name();
@@ -129,6 +132,72 @@ function destroySession(): void
             setcookie($name, '', authSessionCookieOptions(time() - 42000));
         }
         session_destroy();
+    }
+}
+
+/** Record genuine activity for the current browser session. */
+function authRecordPresence(): void
+{
+    $userId = (int)($_SESSION['user_id'] ?? 0);
+    $sessionId = session_id();
+    if ($userId <= 0 || $sessionId === '') return;
+    $loginContext = strtolower(trim((string)(getPhpSession()['login_role'] ?? 'student')));
+    if (!in_array($loginContext, ['student', 'org', 'osa'], true)) $loginContext = 'student';
+
+    try {
+        $stmt = getPdo()->prepare(
+            "INSERT INTO user_presence (session_hash, user_id, login_context, logged_in_at, last_seen_at)
+             VALUES (:session_hash, :user_id, :login_context, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             ON DUPLICATE KEY UPDATE
+                user_id = VALUES(user_id),
+                login_context = VALUES(login_context),
+                last_seen_at = CURRENT_TIMESTAMP"
+        );
+        $stmt->execute([
+            ':session_hash' => hash('sha256', $sessionId),
+            ':user_id' => $userId,
+            ':login_context' => $loginContext,
+        ]);
+    } catch (PDOException $e) {
+        // Presence must never prevent authentication or normal application use.
+        error_log('[auth/presence-record] ' . $e->getMessage());
+    }
+}
+
+/** Remove only the current browser session; other devices remain online. */
+function authClearPresence(): bool
+{
+    $sessionId = session_id();
+    if ($sessionId === '') return true;
+
+    try {
+        $stmt = getPdo()->prepare('DELETE FROM user_presence WHERE session_hash = :session_hash');
+        $stmt->execute([':session_hash' => hash('sha256', $sessionId)]);
+        return true;
+    } catch (PDOException $e) {
+        error_log('[auth/presence-clear] ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Clear every presence row for the authenticated account on explicit logout.
+ * This removes orphaned rows left by earlier regenerated browser sessions.
+ * A genuinely active session in another browser will register itself again on
+ * its next visible-page heartbeat.
+ */
+function authClearUserPresence(): bool
+{
+    $userId = (int)($_SESSION['user_id'] ?? 0);
+    if ($userId <= 0) return authClearPresence();
+
+    try {
+        $stmt = getPdo()->prepare('DELETE FROM user_presence WHERE user_id = :user_id');
+        $stmt->execute([':user_id' => $userId]);
+        return true;
+    } catch (PDOException $e) {
+        error_log('[auth/user-presence-clear] ' . $e->getMessage());
+        return false;
     }
 }
 
@@ -194,6 +263,7 @@ function authEnforceSessionLifetime(): void
     }
     if (authHasRecentUserActivityHeader()) {
         $_SESSION['capstone_security']['last_activity_at'] = time();
+        authRecordPresence();
     }
 }
 

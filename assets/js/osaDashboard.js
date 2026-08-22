@@ -1015,9 +1015,15 @@ async function handleLogout(e) {
         title: 'Log out',
         confirmText: 'Log out'
     })) {
-        try { await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
-        localStorage.removeItem(AUTH_SESSION_KEY);
-        window.location.href = '../pages/login.html';
+        try {
+            const response = await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
+            localStorage.removeItem(AUTH_SESSION_KEY);
+            window.location.href = '../pages/login.html';
+        } catch (error) {
+            await appAlert(error.message || 'Could not log out. Please try again.', { type: 'error' });
+        }
     }
 }
 
@@ -2072,6 +2078,7 @@ async function handlePdfUpload(event) {
 }
 let currentOrgId = null;
 let osaSectionPollingTimer = null;
+let dashboardStatsRefreshTimer = null;
 let requestsPollingInFlight = false;
 let monitoringCardPollingInFlight = false;
 let monitoringActivityPollingInFlight = false;
@@ -2079,7 +2086,7 @@ let dashboardStatsPollingInFlight = false;
 let lastMonitoringCardPollAt = 0;
 let lastDashboardStatsPollAt = 0;
 const MONITORING_CARD_POLL_MS = 15000;
-const DASHBOARD_STATS_POLL_MS = 15000;
+const DASHBOARD_STATS_POLL_MS = 1000;
 const MONITORING_ACTIVITY_POLL_MS = 3000;
 const OSA_SECTION_POLL_MS = MONITORING_ACTIVITY_POLL_MS;
 
@@ -2110,8 +2117,8 @@ async function loadDashboardStats(force = false) {
 
         const stats = data.stats || {};
         const documents = stats.documents || {};
-        setDashboardStatValue('dashboard-active-officers', stats.active_officers);
-        setDashboardStatValue('dashboard-active-students', stats.active_students);
+        setDashboardStatValue('dashboard-active-officers', stats.online_officers);
+        setDashboardStatValue('dashboard-active-students', stats.online_students);
         setDashboardStatValue('dashboard-request-queue', stats.request_queue);
         setDashboardStatValue('dashboard-documents-pending', documents.pending);
         setDashboardStatValue('dashboard-documents-accepted', documents.accepted);
@@ -2125,6 +2132,15 @@ async function loadDashboardStats(force = false) {
     } finally {
         dashboardStatsPollingInFlight = false;
     }
+}
+
+function startDashboardStatsPolling() {
+    if (dashboardStatsRefreshTimer) return;
+    dashboardStatsRefreshTimer = window.setInterval(() => {
+        if (!document.hidden && getActiveOsaSectionId() === 'dashboard') {
+            loadDashboardStats();
+        }
+    }, DASHBOARD_STATS_POLL_MS);
 }
 
 async function pollRequestsPage() {
@@ -3889,6 +3905,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderDashboardPreview();
     loadOsaActivityFeed();
     loadDashboardStats(true);
+    startDashboardStatsPolling();
 
     // Initialize Documents Logic
     initDocOrgFilter(); // Initialize document organization filter
