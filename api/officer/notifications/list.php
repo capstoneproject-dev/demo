@@ -32,6 +32,7 @@ function officerActionCenterItem(
         'occurred_at' => $occurredAt,
         'status' => $status,
         'requires_attention' => $requiresAttention,
+        'is_resolved' => !$requiresAttention,
         'target' => $target,
     ];
 }
@@ -75,6 +76,7 @@ try {
                 r.status,
                 r.rent_time,
                 r.expected_return_time,
+                r.actual_return_time,
                 r.created_at,
                 r.updated_at,
                 CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS renter_name,
@@ -120,7 +122,9 @@ try {
         $pastDue = !empty($row['expected_return_time'])
             && strtotime((string)$row['expected_return_time']) < time()
             && in_array($status, ['active', 'locker_active'], true);
-        $requiresAttention = in_array($status, ['reserved', 'overdue', 'locker_pending', 'locker_overdue'], true) || $pastDue;
+        $hasReturned = !empty($row['actual_return_time']);
+        $requiresAttention = !$hasReturned
+            && (in_array($status, ['reserved', 'overdue', 'locker_pending', 'locker_overdue'], true) || $pastDue);
         $studentName = officerActionCenterStudentName($row);
         $itemNames = trim((string)($row['item_names'] ?? ''));
         $occurredAt = $reservationAttentionAt
@@ -224,15 +228,25 @@ try {
     }
 
     $documentStmt = $pdo->prepare(
-        "SELECT submission_id, title, status, reviewer_notes, submitted_at, reviewed_at, updated_at
-         FROM document_submissions
-         WHERE org_id = :org_id
-           AND status IN ('ssc_approved', 'sent_to_osa', 'approved', 'rejected')
+        "SELECT ds.submission_id, ds.title, ds.status, ds.reviewer_notes, ds.submitted_at, ds.reviewed_at, ds.updated_at
+         FROM document_submissions ds
+         WHERE ds.org_id = :org_id
+           AND ds.status IN ('ssc_approved', 'sent_to_osa', 'approved', 'rejected')
            AND (
-                status IN ('rejected', 'ssc_approved')
-                OR COALESCE(reviewed_at, updated_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                ds.status = 'ssc_approved'
+                OR (
+                    ds.status = 'rejected'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM document_versions newer
+                        WHERE newer.parent_submission_id = ds.submission_id
+                    )
+                )
+                OR (
+                    ds.status IN ('sent_to_osa', 'approved')
+                    AND COALESCE(ds.reviewed_at, ds.updated_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                )
            )
-         ORDER BY COALESCE(reviewed_at, updated_at) DESC, submission_id DESC"
+         ORDER BY COALESCE(ds.reviewed_at, ds.updated_at) DESC, ds.submission_id DESC"
     );
     $documentStmt->execute([':org_id' => $orgId]);
     foreach ($documentStmt->fetchAll() as $row) {

@@ -112,13 +112,14 @@ function renderOsaAlertSection(title, items, emptyMessage, totalCount = null) {
 }
 
 function renderOsaAlerts(data) {
-    const attentionItems = Array.isArray(data.attention_items) ? data.attention_items : [];
+    const attentionItems = (Array.isArray(data.attention_items) ? data.attention_items : [])
+        .filter((item) => item?.requires_attention !== false && item?.is_resolved !== true);
     const recentItems = Array.isArray(data.recent_items) ? data.recent_items : [];
     osaAlertItems = new Map(
         [...attentionItems, ...recentItems].map((item) => [String(item.key || ''), item])
     );
 
-    const attentionCount = Math.max(0, Number(data.attention_count) || 0);
+    const attentionCount = attentionItems.length;
     const countEl = document.getElementById('osa-notif-count');
     if (countEl) {
         countEl.textContent = attentionCount > 99 ? '99+' : String(attentionCount);

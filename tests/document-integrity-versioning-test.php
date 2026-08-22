@@ -97,6 +97,18 @@ try {
     $assert($revision['document_type'] === 'Others', 'The revision changed the custom document category.');
     $assert($revision['custom_document_type'] === 'Compliance Matrix', 'The revision lost the custom document type.');
     $assert($revision['recipient'] === 'SSC', 'A non-SSC revision bypassed mandatory SSC routing.');
+    $rejectedAlertStmt = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM document_submissions rejected_submission
+         WHERE rejected_submission.submission_id = :id
+           AND rejected_submission.status = 'rejected'
+           AND NOT EXISTS (
+                SELECT 1 FROM document_versions newer
+                WHERE newer.parent_submission_id = rejected_submission.submission_id
+           )"
+    );
+    $rejectedAlertStmt->execute([':id' => (int)$root['submission_id']]);
+    $assert((int)$rejectedAlertStmt->fetchColumn() === 0, 'A rejected document remained actionable after its revision was submitted.');
     $assert(
         docResolveSubmissionAccess($pdo, (int)$revision['submission_id'], ['login_role' => 'osa']) === null,
         'OSA could access a document before it was forwarded.'

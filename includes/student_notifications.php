@@ -176,7 +176,7 @@ function studentNotificationBuildPrinting(array $row, DateTimeImmutable $cutoff)
     $updatedAt = studentNotificationDate($row['updated_at'] ?? null) ?? $submittedAt;
     $isAwaitingProvider = (int)($row['provider_auto_assigned'] ?? 0) === 1;
 
-    if ($status === 'queued') {
+    if ($status === 'queued' && !$claimedAt) {
         if ($acceptedAt) {
             return studentNotificationItem(
                 "printing:{$printJobId}:accepted", 'printing', $printJobId, 'accepted', 'info',
@@ -196,7 +196,7 @@ function studentNotificationBuildPrinting(array $row, DateTimeImmutable $cutoff)
         );
     }
 
-    if ($status === 'processing') {
+    if ($status === 'processing' && !$claimedAt) {
         return studentNotificationItem(
             "printing:{$printJobId}:processing", 'printing', $printJobId, 'processing', 'info',
             'Document is being printed',
@@ -205,7 +205,7 @@ function studentNotificationBuildPrinting(array $row, DateTimeImmutable $cutoff)
         );
     }
 
-    if ($status === 'ready_to_claim') {
+    if ($status === 'ready_to_claim' && !$claimedAt) {
         return studentNotificationItem(
             "printing:{$printJobId}:ready_to_claim", 'printing', $printJobId, 'ready_to_claim', 'urgent',
             'Document ready to claim',
@@ -258,7 +258,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
         ?? studentNotificationDate($row['created_at'] ?? null)
         ?? $rentAt;
 
-    if ($status === 'reserved') {
+    if ($status === 'reserved' && !$actualAt) {
         if ($dueAt && $dueAt <= $now) {
             return studentNotificationItem(
                 "rental:{$rentalId}:no_show", 'rental', $rentalId, 'no_show', 'danger',
@@ -276,7 +276,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
         );
     }
 
-    if ($status === 'active') {
+    if ($status === 'active' && !$actualAt) {
         $secondsRemaining = $dueAt ? $dueAt->getTimestamp() - $now->getTimestamp() : PHP_INT_MAX;
         if ($secondsRemaining <= 0) {
             return studentNotificationItem(
@@ -375,8 +375,8 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
         );
     }
 
-    $isEffectivelyOverdue = $status === 'locker_overdue'
-        || ($status === 'locker_active' && $dueAt && $dueAt < $now);
+    $isEffectivelyOverdue = !$actualAt && ($status === 'locker_overdue'
+        || ($status === 'locker_active' && $dueAt && $dueAt < $now));
     if ($isEffectivelyOverdue) {
         $message = $overdueMessage !== ''
             ? $overdueMessage
@@ -387,7 +387,7 @@ function studentNotificationBuildLocker(array $row, DateTimeImmutable $now, Date
         );
     }
 
-    if ($status === 'locker_active') {
+    if ($status === 'locker_active' && !$actualAt) {
         $warningEnd = $now->modify('+' . STUDENT_NOTIFICATION_LOCKER_WARNING_DAYS . ' days');
         if ($dueAt && $dueAt >= $now && $dueAt <= $warningEnd) {
             $message = $upcomingMessage !== ''

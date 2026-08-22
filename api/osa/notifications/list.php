@@ -45,6 +45,13 @@ try {
          JOIN organizations o ON o.org_id = ds.org_id
          WHERE ds.status IN ('approved', 'rejected')
            AND UPPER(TRIM(ds.recipient)) = 'OSA'
+           AND (
+                ds.status <> 'rejected'
+                OR NOT EXISTS (
+                    SELECT 1 FROM document_versions newer
+                    WHERE newer.parent_submission_id = ds.submission_id
+                )
+           )
            AND ds.reviewed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
          ORDER BY ds.reviewed_at DESC, ds.submission_id DESC
          LIMIT {$limit}"
@@ -69,6 +76,8 @@ try {
             'summary' => "{$organization} submitted a {$documentType} through {$sender} for OSA review.",
             'occurred_at' => $row['submitted_at'],
             'status' => 'pending',
+            'requires_attention' => true,
+            'is_resolved' => false,
             'organization' => $organization,
             'target' => $target($id),
         ];
@@ -87,6 +96,8 @@ try {
             'summary' => "{$organization}: {$title}",
             'occurred_at' => $row['reviewed_at'],
             'status' => $status,
+            'requires_attention' => false,
+            'is_resolved' => true,
             'organization' => $organization,
             'target' => $target($id),
         ];
