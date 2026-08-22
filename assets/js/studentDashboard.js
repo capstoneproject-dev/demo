@@ -76,7 +76,6 @@ let studentNotificationsLoaded = false;
 let studentNotificationsFailed = false;
 let studentAlertsRequest = null;
 let studentAlertsPreviousFocus = null;
-let studentAlertsRefreshTimer = null;
 const studentNotificationToastQueue = [];
 let activeStudentNotificationToastCount = 0;
 let studentAnnouncementCalendarDate = new Date();
@@ -3615,7 +3614,7 @@ function navigate(viewId, element) {
     } else {
         startStudentPrintingAutoRefresh();
     }
-    syncStudentPagePolling();
+    syncStudentPagePolling({ refreshNow: viewId === 'dashboard' && !document.hidden });
     syncStudentAnnouncementPolling({
         refreshNow: viewId === 'announcements' && studentAnnouncementFeedState.initialized
     });
@@ -5084,14 +5083,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     eventsLoadPromise.finally(() => {
         openStudentActivityPreviewFromUrl();
     });
-    window.setInterval(() => {
-        loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
-        loadStudentRecentActivity().catch((error) => console.error(error));
-    }, 60000);
-    studentAlertsRefreshTimer = window.setInterval(() => {
-        loadStudentTransactionNotifications().catch((error) => console.error(error));
-    }, 30000);
-
     // Initialize Dashboard Carousel for the new layout
     initDashboardCarousel();
     syncStudentPagePolling();
@@ -5100,12 +5091,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 document.addEventListener('visibilitychange', () => {
     syncStudentAnnouncementPolling({ refreshNow: !document.hidden });
+    syncStudentPagePolling({ refreshNow: !document.hidden });
     if (document.hidden) return;
-    syncStudentPagePolling();
-    loadStudentAnnouncementsFromApi().catch((error) => console.error('[loadStudentAnnouncementsFromApi]', error));
-    loadStudentTransactionNotifications().catch((error) => console.error('[loadStudentTransactionNotifications]', error));
-    loadStudentRecentActivity().catch((error) => console.error('[loadStudentRecentActivity]', error));
-    pollActiveStudentPage().catch((error) => console.error('[pollActiveStudentPage]', error));
+    if (getActiveStudentPageView() !== 'dashboard') {
+        loadStudentAnnouncementsFromApi().catch((error) => console.error('[loadStudentAnnouncementsFromApi]', error));
+        loadStudentTransactionNotifications().catch((error) => console.error('[loadStudentTransactionNotifications]', error));
+        loadStudentRecentActivity().catch((error) => console.error('[loadStudentRecentActivity]', error));
+    }
 });
 
 // --- MODAL LOGIC ---
@@ -5503,7 +5495,9 @@ const studentCancellingPrintJobs = new Set();
 let studentPrintingAutoRefreshInterval = null;
 let studentPrintingAutoRefreshInFlight = false;
 let studentServicesTrackerPromise = null;
-const STUDENT_PAGE_POLL_INTERVAL_MS = 3000;
+const STUDENT_DASHBOARD_POLL_FAST_MS = 5000;
+const STUDENT_DASHBOARD_POLL_SLOW_MS = 30000;
+const STUDENT_SERVICES_POLL_MS = 3000;
 let studentPagePollingInterval = null;
 let studentPagePollingInFlight = false;
 const STUDENT_ANNOUNCEMENT_POLL_FAST_MS = 3000;
@@ -5526,6 +5520,15 @@ function getActiveStudentPageView() {
 
 function isStudentPagePollingView(viewId = getActiveStudentPageView()) {
     return viewId === 'dashboard' || viewId === 'services';
+}
+
+function getStudentPagePollingDelay(viewId = getActiveStudentPageView()) {
+    if (viewId === 'dashboard') {
+        return document.hidden
+            ? STUDENT_DASHBOARD_POLL_SLOW_MS
+            : STUDENT_DASHBOARD_POLL_FAST_MS;
+    }
+    return STUDENT_SERVICES_POLL_MS;
 }
 
 function isStudentAnnouncementPollingActive() {
@@ -5592,14 +5595,22 @@ function syncStudentAnnouncementPolling({ refreshNow = false } = {}) {
 
 async function pollActiveStudentPage() {
     const activeView = getActiveStudentPageView();
-    if (document.hidden || !isStudentPagePollingView(activeView) || studentPagePollingInFlight) {
+    if (!isStudentPagePollingView(activeView) || studentPagePollingInFlight) {
+        return;
+    }
+    if (document.hidden && activeView !== 'dashboard') {
         return;
     }
 
     studentPagePollingInFlight = true;
     try {
         if (activeView === 'dashboard') {
-            await loadStudentEventsFromApi();
+            await Promise.allSettled([
+                loadStudentEventsFromApi(),
+                loadStudentAnnouncementsFromApi(),
+                loadStudentRecentActivity(),
+                loadStudentTransactionNotifications()
+            ]);
             renderDashboard();
             initDashboardCarousel();
             return;
@@ -5634,23 +5645,37 @@ async function pollActiveStudentPage() {
 
 function stopStudentPagePolling() {
     if (studentPagePollingInterval) {
-        clearInterval(studentPagePollingInterval);
+        clearTimeout(studentPagePollingInterval);
         studentPagePollingInterval = null;
     }
-    studentPagePollingInFlight = false;
 }
 
-function syncStudentPagePolling() {
+function scheduleStudentPagePolling() {
+    stopStudentPagePolling();
+    const activeView = getActiveStudentPageView();
+    if (isOsaStudentPreviewModeFromUrl() || !isStudentPagePollingView(activeView)) return;
+
+    studentPagePollingInterval = window.setTimeout(() => {
+        studentPagePollingInterval = null;
+        pollActiveStudentPage()
+            .catch((error) => console.error('[pollActiveStudentPage]', error))
+            .finally(scheduleStudentPagePolling);
+    }, getStudentPagePollingDelay(activeView));
+}
+
+function syncStudentPagePolling({ refreshNow = false } = {}) {
+    stopStudentPagePolling();
     if (isOsaStudentPreviewModeFromUrl() || !isStudentPagePollingView()) {
-        stopStudentPagePolling();
         return;
     }
 
-    if (studentPagePollingInterval) return;
-
-    studentPagePollingInterval = setInterval(() => {
-        pollActiveStudentPage().catch((error) => console.error('[pollActiveStudentPage]', error));
-    }, STUDENT_PAGE_POLL_INTERVAL_MS);
+    if (refreshNow && !studentPagePollingInFlight) {
+        pollActiveStudentPage()
+            .catch((error) => console.error('[pollActiveStudentPage]', error))
+            .finally(scheduleStudentPagePolling);
+        return;
+    }
+    scheduleStudentPagePolling();
 }
 
 function isStudentPrintingHeroAutoRefreshActive() {

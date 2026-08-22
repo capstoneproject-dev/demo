@@ -2086,7 +2086,8 @@ let dashboardStatsPollingInFlight = false;
 let lastMonitoringCardPollAt = 0;
 let lastDashboardStatsPollAt = 0;
 const MONITORING_CARD_POLL_MS = 15000;
-const DASHBOARD_STATS_POLL_MS = 1000;
+const OSA_DASHBOARD_REFRESH_FAST_MS = 1000;
+const OSA_DASHBOARD_REFRESH_SLOW_MS = 30000;
 const MONITORING_ACTIVITY_POLL_MS = 3000;
 const OSA_SECTION_POLL_MS = MONITORING_ACTIVITY_POLL_MS;
 
@@ -2102,7 +2103,7 @@ function setDashboardStatValue(id, value) {
 async function loadDashboardStats(force = false) {
     if (dashboardStatsPollingInFlight) return;
     const now = Date.now();
-    if (!force && now - lastDashboardStatsPollAt < DASHBOARD_STATS_POLL_MS) return;
+    if (!force && now - lastDashboardStatsPollAt < OSA_DASHBOARD_REFRESH_FAST_MS) return;
 
     dashboardStatsPollingInFlight = true;
     try {
@@ -2134,13 +2135,38 @@ async function loadDashboardStats(force = false) {
     }
 }
 
-function startDashboardStatsPolling() {
-    if (dashboardStatsRefreshTimer) return;
-    dashboardStatsRefreshTimer = window.setInterval(() => {
-        if (!document.hidden && getActiveOsaSectionId() === 'dashboard') {
-            loadDashboardStats();
-        }
-    }, DASHBOARD_STATS_POLL_MS);
+function getDashboardStatsRefreshDelay() {
+    return document.hidden
+        ? OSA_DASHBOARD_REFRESH_SLOW_MS
+        : OSA_DASHBOARD_REFRESH_FAST_MS;
+}
+
+function stopDashboardStatsPolling() {
+    if (!dashboardStatsRefreshTimer) return;
+    window.clearTimeout(dashboardStatsRefreshTimer);
+    dashboardStatsRefreshTimer = null;
+}
+
+function scheduleDashboardStatsPolling() {
+    stopDashboardStatsPolling();
+    if (getActiveOsaSectionId() !== 'dashboard') return;
+
+    dashboardStatsRefreshTimer = window.setTimeout(async () => {
+        dashboardStatsRefreshTimer = null;
+        await loadDashboardStats();
+        scheduleDashboardStatsPolling();
+    }, getDashboardStatsRefreshDelay());
+}
+
+function startDashboardStatsPolling({ refreshNow = false } = {}) {
+    stopDashboardStatsPolling();
+    if (getActiveOsaSectionId() !== 'dashboard') return;
+
+    if (refreshNow) {
+        loadDashboardStats(true).finally(scheduleDashboardStatsPolling);
+        return;
+    }
+    scheduleDashboardStatsPolling();
 }
 
 async function pollRequestsPage() {
@@ -2197,9 +2223,7 @@ async function pollMonitoringActivities() {
 
 function runActiveOsaSectionPoll() {
     const activeSection = getActiveOsaSectionId();
-    if (activeSection === 'dashboard') {
-        loadDashboardStats();
-    } else if (activeSection === 'requests') {
+    if (activeSection === 'requests') {
         pollRequestsPage();
     } else if (activeSection === 'monitoring') {
         pollMonitoringActivities();
@@ -2258,6 +2282,11 @@ function navigate(viewId, element) {
         startOsaDocumentsAutoRefresh();
     } else {
         stopOsaDocumentsAutoRefresh();
+    }
+    if (viewId === 'dashboard') {
+        startDashboardStatsPolling({ refreshNow: !document.hidden });
+    } else {
+        stopDashboardStatsPolling();
     }
     startOsaSectionPolling();
 }
@@ -3904,8 +3933,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Initialize Dashboard
     renderDashboardPreview();
     loadOsaActivityFeed();
-    loadDashboardStats(true);
-    startDashboardStatsPolling();
+    startDashboardStatsPolling({ refreshNow: true });
 
     // Initialize Documents Logic
     initDocOrgFilter(); // Initialize document organization filter
@@ -3976,6 +4004,7 @@ document.addEventListener('pdfviewer:ready', () => {
 });
 
 document.addEventListener('visibilitychange', () => {
+    startDashboardStatsPolling({ refreshNow: !document.hidden });
     if (isOsaDocumentsViewActive()) {
         startOsaDocumentsAutoRefresh({ refreshNow: !document.hidden });
     }
