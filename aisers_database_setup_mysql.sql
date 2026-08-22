@@ -362,14 +362,20 @@ CREATE TABLE document_submissions (
     reviewer_notes TEXT NULL,
     submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at DATETIME NULL,
+    forwarded_at DATETIME NULL,
+    forwarded_by_user_id INT NULL,
+    cancelled_at DATETIME NULL,
+    cancelled_by_user_id INT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_doc_type CHECK (document_type IN ('Activity Report', 'Financial Statement', 'Event Proposal', 'Resolution', 'Operational Plan', 'Others')),
     CONSTRAINT chk_doc_recipient CHECK (recipient IN ('OSA', 'SSC')),
-    CONSTRAINT chk_doc_status CHECK (status IN ('pending', 'sent_to_osa', 'ssc_approved', 'approved', 'rejected')),
+    CONSTRAINT chk_doc_status CHECK (status IN ('pending', 'sent_to_osa', 'ssc_approved', 'approved', 'rejected', 'cancelled')),
     CONSTRAINT fk_doc_sub_org FOREIGN KEY (org_id) REFERENCES organizations(org_id) ON DELETE RESTRICT,
     CONSTRAINT fk_doc_sub_submitter FOREIGN KEY (submitted_by_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
-    CONSTRAINT fk_doc_sub_reviewer FOREIGN KEY (reviewed_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL
+    CONSTRAINT fk_doc_sub_reviewer FOREIGN KEY (reviewed_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    CONSTRAINT fk_document_forwarded_by FOREIGN KEY (forwarded_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    CONSTRAINT fk_document_cancelled_by FOREIGN KEY (cancelled_by_user_id) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- Student number whitelist – admins populate this; students verify against it to register
@@ -439,6 +445,7 @@ CREATE INDEX idx_attendance_student ON attendance_records(student_number);
 CREATE INDEX idx_attendance_user    ON attendance_records(user_id);
 CREATE INDEX idx_doc_sub_org_status ON document_submissions(org_id, status);
 CREATE INDEX idx_doc_sub_submitter  ON document_submissions(submitted_by_user_id);
+CREATE INDEX idx_document_workflow_queue ON document_submissions(recipient, status, submitted_at);
 CREATE INDEX idx_student_numbers_sn      ON student_numbers(student_number, is_active);
 CREATE INDEX idx_student_numbers_program ON student_numbers(program_id);
 CREATE INDEX idx_student_numbers_inst    ON student_numbers(institute_id);

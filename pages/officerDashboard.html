@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260822-custom-document-types">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260822-compact-document-actions">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -1969,11 +1969,12 @@
             <div class="modal-body">
                 <form id="doc-form" onsubmit="handleDocSubmit(event)">
                     <input type="hidden" id="doc-revision-of" value="">
-                    <label>Send To</label>
-                    <select id="doc-recipient" required>
-                        <option value="OSA">Office of Student Affairs (OSA)</option>
-                        <option value="SSC">Supreme Student Council (SSC)</option>
-                    </select>
+                    <label>Review Route</label>
+                    <input type="hidden" id="doc-recipient" value="SSC">
+                    <div class="document-review-route" id="doc-review-route" role="status">
+                        <i class="fa-solid fa-route"></i>
+                        <span>Supreme Student Council (SSC) → Office of Student Affairs (OSA)</span>
+                    </div>
 
                     <label>Document Type</label>
                     <select id="doc-type" required onchange="toggleCustomDocumentTypeField()">
@@ -2219,7 +2220,7 @@
     <script src="../assets/js/pdfViewer.js"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260724-insights-copy-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260822-ssc-recipient-guard"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260822-compact-document-actions"></script>
 </body>
 
 </html>
