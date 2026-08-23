@@ -10,6 +10,7 @@ const officerAnalyticsState = {
     snapshot: null,
     liveEvents: [],
     liveAttendance: [],
+    liveRentals: null,
     mockRetentionProfile: null,
     mockData: null, // Temporary mock data for testing
 };
@@ -121,6 +122,9 @@ function getOfficerAnalyticsFinancialRows() {
 }
 
 function getOfficerAnalyticsLiveRentals() {
+    if (Array.isArray(officerAnalyticsState.liveRentals)) {
+        return officerAnalyticsState.liveRentals;
+    }
     if (typeof getOfficerScopedRentals !== 'function') return [];
     return getOfficerScopedRentals().filter((item) => {
         return Boolean(item && (item.rental_id || item.id || item.dueAt));
@@ -377,6 +381,182 @@ function getOfficerAnalyticsRetentionLevel(events) {
     return 'Low';
 }
 
+function buildOfficerDocumentRejectionPatterns(documents) {
+    const categories = [
+        { key: 'missing_requirements', label: 'Missing requirements or attachments', pattern: /\b(missing|incomplete|lack(?:ing)?|absent|attach(?:ments?|ed)?|requirements?|kulang)\b/i },
+        { key: 'signature_approval', label: 'Missing signature or approval', pattern: /\b(signatures?|signatory|signed|approval|approve|endorse(?:ment)?|pirma)\b/i },
+        { key: 'formatting_template', label: 'Formatting or template issue', pattern: /\b(format(?:ting)?|template|layout|font|margin|spacing|file\s*name|filename)\b/i },
+        { key: 'budget_financial', label: 'Budget or financial inconsistency', pattern: /\b(budget|financial|expense|cost|amount|quotation|receipt|liquidation|gastos)\b/i },
+        { key: 'schedule_venue', label: 'Schedule, date, time, or venue issue', pattern: /\b(schedule|date|time|venue|conflict|calendar|petsa|oras|lugar)\b/i },
+        { key: 'content_details', label: 'Insufficient content or details', pattern: /\b(detail|information|content|description|objective|rationale|mechanics|participant|beneficiar|explain|specif)\w*/i },
+        { key: 'inconsistent_incorrect', label: 'Incorrect, unclear, or inconsistent information', pattern: /\b(incorrect|wrong|unclear|clarify|inconsisten|discrepanc|mismatch|errors?|mali)\w*/i },
+        { key: 'policy_compliance', label: 'Policy or compliance issue', pattern: /\b(policy|guideline|compliance|prohibited|violation|rule|procedure)\b/i },
+    ];
+    const rejectedDocuments = (Array.isArray(documents) ? documents : []).filter((documentItem) => {
+        const status = String(documentItem.rawStatus || documentItem.status || '').toLowerCase();
+        return status.includes('reject');
+    });
+    const counts = new Map(categories.map((category) => [category.key, 0]));
+    counts.set('other', 0);
+    let withNotes = 0;
+
+    rejectedDocuments.forEach((documentItem) => {
+        const rejectedNotes = [];
+        if (String(documentItem.sscDecision || '').toLowerCase() === 'rejected' && documentItem.sscReviewerNotes) {
+            rejectedNotes.push(documentItem.sscReviewerNotes);
+        }
+        if (String(documentItem.osaDecision || '').toLowerCase() === 'rejected' && documentItem.osaReviewerNotes) {
+            rejectedNotes.push(documentItem.osaReviewerNotes);
+        }
+        if (documentItem.reviewerNotes) {
+            rejectedNotes.push(documentItem.reviewerNotes);
+        }
+        if (!rejectedNotes.length) {
+            [documentItem.sscReviewerNotes, documentItem.osaReviewerNotes]
+                .filter(Boolean)
+                .forEach((note) => rejectedNotes.push(note));
+        }
+
+        const combinedNotes = rejectedNotes.map((note) => String(note).trim()).filter(Boolean).join(' ');
+        if (!combinedNotes) return;
+        withNotes += 1;
+        const matches = categories.filter((category) => category.pattern.test(combinedNotes));
+        if (!matches.length) {
+            counts.set('other', counts.get('other') + 1);
+            return;
+        }
+        matches.forEach((category) => counts.set(category.key, counts.get(category.key) + 1));
+    });
+
+    const categoryRows = categories
+        .map((category) => ({
+            key: category.key,
+            label: category.label,
+            count: counts.get(category.key) || 0,
+        }))
+        .concat([{ key: 'other', label: 'Other or uncategorized reason', count: counts.get('other') || 0 }])
+        .filter((category) => category.count > 0)
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+    return {
+        rejectedDocuments: rejectedDocuments.length,
+        rejectedWithNotes: withNotes,
+        rejectedWithoutNotes: Math.max(rejectedDocuments.length - withNotes, 0),
+        categories: categoryRows,
+        categoryMethod: 'A rejected document may appear in more than one category.',
+    };
+}
+
+function splitOfficerRentalItemNames(rental) {
+    const raw = String(rental?.itemsLabel || rental?.item || '').trim();
+    if (!raw || raw === '-') return [];
+    return raw.split(/\s*,\s*/)
+        .map((item) => item.replace(/\s*\[[^\]]+\]\s*/g, ' ').replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+}
+
+function buildOfficerRentalFrequencyPatterns(rentals) {
+    const itemCounts = new Map();
+    (Array.isArray(rentals) ? rentals : []).forEach((rental) => {
+        const uniqueItems = new Map();
+        splitOfficerRentalItemNames(rental).forEach((name) => uniqueItems.set(name.toLowerCase(), name));
+        uniqueItems.forEach((name, key) => {
+            const current = itemCounts.get(key) || { name, count: 0 };
+            current.count += 1;
+            itemCounts.set(key, current);
+        });
+    });
+
+    const frequencies = Array.from(itemCounts.values())
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    const maximum = frequencies.length ? frequencies[0].count : 0;
+    const minimum = frequencies.length ? frequencies[frequencies.length - 1].count : 0;
+
+    return {
+        rentalRecords: Array.isArray(rentals) ? rentals.length : 0,
+        observedItems: frequencies.length,
+        mostRented: frequencies.filter((item) => item.count === maximum).slice(0, 5),
+        leastRented: frequencies.filter((item) => item.count === minimum).slice(0, 5),
+        mostRentedTieCount: frequencies.filter((item) => item.count === maximum).length,
+        leastRentedTieCount: frequencies.filter((item) => item.count === minimum).length,
+        frequencies: frequencies.slice(0, 20),
+        scopeNote: 'Least rented refers only to items appearing in the selected rental records, not inventory items with zero rentals.',
+    };
+}
+
+function buildOfficerFinancialBalancePatterns(financialRows) {
+    const rows = Array.isArray(financialRows) ? financialRows : [];
+    const customerRecords = new Map();
+    let outstandingTransactions = 0;
+    let outstandingAmount = 0;
+
+    rows.forEach((item) => {
+        const status = String(item.payment_status || '').toLowerCase();
+        const amount = Math.max(0, Number(item.total_cost || 0));
+        const isOutstanding = !['paid', 'waived'].includes(status) && amount > 0;
+        if (isOutstanding) {
+            outstandingTransactions += 1;
+            outstandingAmount += amount;
+        }
+
+        const identifier = String(item.customer_identifier || item.customer_name || '').trim();
+        if (!identifier || identifier === '-') return;
+        const key = identifier.toLowerCase();
+        const record = customerRecords.get(key) || { transactions: 0, outstanding: 0 };
+        record.transactions += 1;
+        if (isOutstanding) record.outstanding += 1;
+        customerRecords.set(key, record);
+    });
+
+    const customerValues = Array.from(customerRecords.values());
+    const customersWithOutstanding = customerValues.filter((record) => record.outstanding > 0);
+
+    return {
+        transactions: rows.length,
+        outstandingTransactions,
+        outstandingTransactionRate: rows.length ? (outstandingTransactions / rows.length) * 100 : 0,
+        outstandingAmount: Number(outstandingAmount.toFixed(2)),
+        identifiedCustomers: customerValues.length,
+        customersWithOutstanding: customersWithOutstanding.length,
+        customerOutstandingRate: customerValues.length ? (customersWithOutstanding.length / customerValues.length) * 100 : 0,
+        repeatOutstandingCustomers: customersWithOutstanding.filter((record) => record.outstanding >= 2).length,
+        maximumOutstandingTransactionsPerCustomer: customersWithOutstanding.length
+            ? Math.max(...customersWithOutstanding.map((record) => record.outstanding))
+            : 0,
+    };
+}
+
+function buildOfficerEventParticipationPatterns(events) {
+    const values = (Array.isArray(events) ? events : []).map((event) => Math.max(0, Number(event.participants || 0)));
+    if (!values.length) {
+        return {
+            eventCount: 0,
+            medianAttendance: 0,
+            zeroAttendanceEvents: 0,
+            aboveAverageEvents: 0,
+            coefficientOfVariation: 0,
+        };
+    }
+
+    const total = values.reduce((sum, value) => sum + value, 0);
+    const average = total / values.length;
+    const sorted = values.slice().sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2
+        ? sorted[middle]
+        : (sorted[middle - 1] + sorted[middle]) / 2;
+    const variance = values.reduce((sum, value) => sum + ((value - average) ** 2), 0) / values.length;
+    const standardDeviation = Math.sqrt(variance);
+
+    return {
+        eventCount: values.length,
+        medianAttendance: Number(median.toFixed(1)),
+        zeroAttendanceEvents: values.filter((value) => value === 0).length,
+        aboveAverageEvents: values.filter((value) => value > average).length,
+        coefficientOfVariation: average > 0 ? Number(((standardDeviation / average) * 100).toFixed(1)) : 0,
+    };
+}
+
 function getOfficerAnalyticsSnapshot(overrides = {}) {
     const filters = getOfficerAnalyticsFilters(overrides);
     const source = getOfficerAnalyticsSourceData();
@@ -394,7 +574,7 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
     });
 
     const filteredRentals = source.rentals.filter((item) => {
-        const date = parseOfficerAnalyticsDate(item.dueAt || item.due);
+        const date = parseOfficerAnalyticsDate(item.borrowedAt || item.dueAt || item.due);
         return isOfficerAnalyticsDateMatch(date, filters);
     });
 
@@ -407,6 +587,19 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         if (String(item.payment_status || '').toLowerCase() !== 'paid') return sum;
         return sum + Number(item.total_cost || 0);
     }, 0);
+
+    const paidTransactionCount = filteredFinancial.filter((item) => String(item.payment_status || '').toLowerCase() === 'paid').length;
+    const waivedTransactionCount = filteredFinancial.filter((item) => String(item.payment_status || '').toLowerCase() === 'waived').length;
+    const outstandingTransactionCount = filteredFinancial.filter((item) => {
+        const status = String(item.payment_status || '').toLowerCase();
+        return !['paid', 'waived'].includes(status) && Number(item.total_cost || 0) > 0;
+    }).length;
+    const financialCounts = {
+        total: filteredFinancial.length,
+        paid: paidTransactionCount,
+        waived: waivedTransactionCount,
+        outstanding: outstandingTransactionCount,
+    };
 
     const revenueGrowthBreakdown = getOfficerAnalyticsRevenueGrowthBreakdown(source.financial, filters);
     const revenueTrend = formatOfficerAnalyticsRevenueTrend(revenueGrowthBreakdown);
@@ -421,7 +614,7 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         const status = String(item.status || '').toLowerCase();
         if (status.includes('overdue')) rentalCounts.overdue += 1;
         else if (status.includes('reserved') || status.includes('pending')) rentalCounts.pending += 1;
-        else rentalCounts.active += 1;
+        else if (status === 'active') rentalCounts.active += 1;
     });
 
     const docCounts = { approved: 0, pending: 0, rejected: 0 };
@@ -475,6 +668,13 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
             value: Number(event.participants || 0),
         }));
 
+    const patterns = {
+        documentRejections: buildOfficerDocumentRejectionPatterns(filteredDocs),
+        rentalFrequency: buildOfficerRentalFrequencyPatterns(filteredRentals),
+        financialBalances: buildOfficerFinancialBalancePatterns(filteredFinancial),
+        eventParticipation: buildOfficerEventParticipationPatterns(filteredEvents),
+    };
+
     const filterSummary = (() => {
         if (filters.mode.type === 'range') {
             if (filters.mode.startDate && !filters.mode.endDate) {
@@ -522,9 +722,11 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
             filterSummary,
         },
         counts: {
+            financial: financialCounts,
             rentals: rentalCounts,
             docs: docCounts,
         },
+        patterns,
         charts: {
             revenue: {
                 labels: revenueLabels.length ? revenueLabels : ['No revenue data'],
@@ -697,6 +899,7 @@ function buildOfficerAnalyticsInsightsRequest(snapshot) {
             counts: snapshot?.counts || {},
             summaries: snapshot?.summaries || {},
             charts: snapshot?.charts || {},
+            patterns: snapshot?.patterns || {},
             events: Array.isArray(snapshot?.events)
                 ? snapshot.events.map((event) => ({
                     id: event.id || event.event_id || null,
@@ -724,6 +927,7 @@ function buildOfficerAnalyticsInsightsCacheKey(snapshot) {
         counts: snapshot?.counts || {},
         summaries: snapshot?.summaries || {},
         charts: snapshot?.charts || {},
+        patterns: snapshot?.patterns || {},
         eventIds: Array.isArray(snapshot?.events) ? snapshot.events.map((event) => [event.id || event.event_id || event.title, event.participants || 0, event.date || '']) : [],
     };
     return JSON.stringify(payload);
@@ -778,7 +982,8 @@ function renderOfficerAnalyticsInsights(insights) {
     Object.entries(mappings).forEach(([id, text]) => {
         const element = document.getElementById(id);
         if (element) {
-            element.textContent = text;
+            element.style.whiteSpace = 'pre-line';
+            element.textContent = formatOfficerAnalyticsInsightLines(text);
         }
     });
 
@@ -798,15 +1003,66 @@ function renderOfficerAnalyticsInsights(insights) {
     }
 }
 
-function buildOfficerAnalyticsFallbackInsights() {
+function formatOfficerAnalyticsInsightLines(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    const existingLines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const lines = existingLines.length > 1
+        ? existingLines
+        : text.split(/(?<=[.!?])\s+(?=[A-Z0-9])/u).filter(Boolean);
+    return lines
+        .map((line) => `- ${String(line).replace(/^(?:[-*•]\s*)+/, '').trim()}`)
+        .join('\n');
+}
+
+function buildOfficerAnalyticsFallbackInsights(snapshot = {}) {
+    const revenue = Number(snapshot?.totals?.revenue || 0);
+    const participationTotal = Number(snapshot?.totals?.participationTotal || 0);
+    const participationAverage = Number(snapshot?.totals?.participationAverage || 0);
+    const eventCount = Array.isArray(snapshot?.events) ? snapshot.events.length : 0;
+    const rentals = snapshot?.counts?.rentals || {};
+    const docs = snapshot?.counts?.docs || {};
+    const financialCounts = snapshot?.counts?.financial || {};
+    const patterns = snapshot?.patterns || {};
+    const balancePattern = patterns.financialBalances || {};
+    const rentalPattern = patterns.rentalFrequency || {};
+    const rejectionPattern = patterns.documentRejections || {};
+    const eventPattern = patterns.eventParticipation || {};
+    const topRental = Array.isArray(rentalPattern.mostRented) ? rentalPattern.mostRented[0] : null;
+    const lowRental = Array.isArray(rentalPattern.leastRented) ? rentalPattern.leastRented[0] : null;
+    const topRejection = Array.isArray(rejectionPattern.categories) ? rejectionPattern.categories[0] : null;
+    const balanceFinding = Number(balancePattern.transactions || 0) > 0
+        ? `${Number(balancePattern.outstandingTransactions || 0)} of ${Number(balancePattern.transactions || 0)} transactions have a positive remaining balance, affecting ${Number(balancePattern.customersWithOutstanding || 0)} of ${Number(balancePattern.identifiedCustomers || 0)} identified students/customers.`
+        : 'No transactions are available for remaining-balance analysis.';
+    const rentalFinding = topRental && lowRental
+        ? `${topRental.name} appears most often (${Number(topRental.count || 0)} rental records), while ${lowRental.name} appears least often among rented items (${Number(lowRental.count || 0)}).`
+        : 'The available rental history is insufficient for a most-versus-least item comparison.';
+    const rejectionFinding = topRejection && Number(rejectionPattern.rejectedWithNotes || 0) >= 2
+        ? `${topRejection.label} is the most frequent categorized rejection issue, appearing in ${Number(topRejection.count || 0)} of ${Number(rejectionPattern.rejectedWithNotes || 0)} rejected documents with usable notes.`
+        : 'The available rejection notes are insufficient to identify a common rejection issue.';
+    const eventFinding = Number(eventPattern.eventCount || 0) > 0
+        ? `Median attendance is ${Number(eventPattern.medianAttendance || 0)}, with ${Number(eventPattern.zeroAttendanceEvents || 0)} zero-attendance event(s) and ${Number(eventPattern.coefficientOfVariation || 0).toFixed(1)}% relative dispersion.`
+        : 'The available event data is insufficient for participation-distribution analysis.';
+    const financial = `Recorded paid revenue is ${formatOfficerPeso(revenue)} for the selected filters. The local emergency summary cannot establish a more detailed pattern without the analytics endpoint.`;
+    const participation = `Recorded participation totals ${participationTotal} across ${eventCount} event(s), with an average of ${participationAverage}. ${eventFinding}`;
+    const inventory = `Rental statuses include ${Number(rentals.active || 0)} active, ${Number(rentals.pending || 0)} pending, and ${Number(rentals.overdue || 0)} overdue records. ${rentalFinding}`;
+    const documents = `Document statuses include ${Number(docs.approved || 0)} approved, ${Number(docs.pending || 0)} pending, and ${Number(docs.rejected || 0)} rejected submissions. ${rejectionFinding}`;
+
     return {
         chartSummaries: {
-            financial: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
-            participation: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
-            inventory: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
-            documents: 'Insights are temporarily unavailable. Exporting or reloading will use the built-in fallback summary.',
+            financial: formatOfficerAnalyticsInsightLines(`${financial} ${balanceFinding}`),
+            participation: formatOfficerAnalyticsInsightLines(participation),
+            inventory: formatOfficerAnalyticsInsightLines(inventory),
+            documents: formatOfficerAnalyticsInsightLines(documents),
         },
-        exportSummary: 'AI-generated insights are temporarily unavailable. The export used the rule-based dashboard summary instead.',
+        exportSections: {
+            revenueSeries: formatOfficerAnalyticsInsightLines(`${financial} Recorded revenue values remain available in the accompanying table.`),
+            eventParticipation: formatOfficerAnalyticsInsightLines(`${participation} Event-level values remain available in the accompanying table.`),
+            financialTransactions: formatOfficerAnalyticsInsightLines(`The selected data contains ${Number(financialCounts.total || 0)} financial transaction(s): ${Number(financialCounts.paid || 0)} paid and ${Number(financialCounts.outstanding || 0)} outstanding. Paid transactions account for ${formatOfficerPeso(revenue)} in recorded revenue. ${balanceFinding}`),
+            rentalRecords: formatOfficerAnalyticsInsightLines(`${inventory} The accompanying table provides the underlying rental records.`),
+            documentWorkflow: formatOfficerAnalyticsInsightLines(`${documents} The accompanying table provides the underlying document records.`),
+        },
+        exportSummary: formatOfficerAnalyticsInsightLines(`${financial} ${participation} ${inventory} ${documents}`),
         provider: 'rule-based',
         fallbackUsed: true,
     };
@@ -827,13 +1083,8 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
         return cached;
     }
 
-    // Gemini requests are manual-only while the project is on a small free
-    // quota. Non-interactive consumers such as exports may reuse cached
-    // insights, but they must not create a new provider request.
-    if (!forceRefresh && options.allowRequest !== true) {
-        return buildOfficerAnalyticsFallbackInsights();
-    }
-
+    // Every uncached consumer uses the normal backend provider sequence:
+    // Gemini first, followed by deterministic rule-based fallback.
     if (officerAnalyticsInsightsState.pending.has(cacheKey)) {
         try {
             const pending = await officerAnalyticsInsightsState.pending.get(cacheKey);
@@ -844,7 +1095,7 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
             return pending;
         } catch (error) {
             console.error('getOfficerAnalyticsInsightsData pending request failed', error);
-            const fallback = buildOfficerAnalyticsFallbackInsights();
+            const fallback = buildOfficerAnalyticsFallbackInsights(snapshot);
             if (render) {
                 renderOfficerAnalyticsInsights(fallback);
             }
@@ -887,7 +1138,7 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
         return payload;
     } catch (error) {
         console.error('getOfficerAnalyticsInsightsData failed', error);
-        const fallback = buildOfficerAnalyticsFallbackInsights();
+        const fallback = buildOfficerAnalyticsFallbackInsights(snapshot);
         if (render) {
             renderOfficerAnalyticsInsights(fallback);
         }
@@ -1084,7 +1335,7 @@ function initializeOfficerAnalyticsYearOptions() {
 
     source.financial.forEach((item) => pushDate(item?.transaction_date || item?.transaction_datetime || item?.submitted_at));
     source.docs.forEach((item) => pushDate(item.submittedAt || item.date));
-    source.rentals.forEach((item) => pushDate(item.dueAt || item.due));
+    source.rentals.forEach((item) => pushDate(item.borrowedAt || item.dueAt || item.due));
     source.events.forEach((item) => pushDate(item.date));
 
     const years = Array.from(yearSet).sort((a, b) => b.localeCompare(a));

@@ -4781,17 +4781,25 @@ async function loadRentalsFromApi() {
     }
 
     try {
-        const res = await window.igpApi.getRentals({ status: 'active' });
+        const res = await window.igpApi.getRentals({});
         const items = res.items || [];
 
-        rentalsData = items.map(item => ({
+        const analyticsRentals = items.map(item => ({
+            rental_id: Number(item.rental_id || 0),
             item: String(item.items_label || '-').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || '-',
+            itemsLabel: String(item.items_label || '').trim(),
             renter: item.renter_name || '-',
+            renterIdentifier: item.renter_student_number || '',
+            borrowedAt: item.rent_time || null,
             due: fmtDateShort(item.expected_return_time),
             dueAt: item.expected_return_time || null,
             status: item.status || 'active',
             org: item.org_id
         }));
+        if (typeof officerAnalyticsState !== 'undefined') {
+            officerAnalyticsState.liveRentals = analyticsRentals;
+        }
+        rentalsData = analyticsRentals.filter((item) => String(item.status).toLowerCase() === 'active');
 
         if (typeof initializeOfficerAnalyticsYearOptions === 'function') {
             initializeOfficerAnalyticsYearOptions();
@@ -4800,6 +4808,9 @@ async function loadRentalsFromApi() {
     } catch (e) {
         console.error('loadRentalsFromApi failed', e);
         rentalsData = [];
+        if (typeof officerAnalyticsState !== 'undefined') {
+            officerAnalyticsState.liveRentals = [];
+        }
         setActiveRentalsCount(0);
         if (dashTable) {
             dashTable.innerHTML = `
@@ -7416,14 +7427,21 @@ function normalizeAnalyticsPdfText(value) {
 }
 
 function addAnalyticsPdfSectionDescription(doc, title, description, startY) {
-    doc.setFontSize(12);
-    doc.setTextColor(0, 33, 71);
-    doc.setFont('helvetica', 'bold');
-    doc.text(normalizeAnalyticsPdfText(title), 14, startY);
+    const normalizedTitle = normalizeAnalyticsPdfText(title);
     const bodyLines = doc.splitTextToSize(
         normalizeAnalyticsPdfText(description || 'No descriptive analysis available.'),
         180
     );
+    const requiredHeight = 10 + (bodyLines.length * 4);
+    if (startY + requiredHeight > 278) {
+        doc.addPage();
+        startY = 20;
+    }
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 33, 71);
+    doc.setFont('helvetica', 'bold');
+    doc.text(normalizedTitle, 14, startY);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(60);
