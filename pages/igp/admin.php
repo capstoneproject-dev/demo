@@ -125,7 +125,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../assets/js/igp-api.js"></script>
     <script src="../../assets/js/barcode-download.js?v=20260821-compact-white-background"></script>
     <script src="../../assets/js/igp-admin-exact.js?v=20260821-readonly-compact"></script>
-    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-1"></script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 
 </html>

@@ -329,7 +329,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <audio id="beepSound" src="../../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
     <script src="../../assets/js/igp-api.js?v=20260819-payment-officer-1"></script>
     <script src="../../assets/js/igp-rental-history-exact.js?v=20260819-payment-order-1"></script>
-    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-1"></script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 
 </html>

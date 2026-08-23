@@ -52,6 +52,7 @@
     }
 
     function addBanner() {
+        if (window.self !== window.top) return;
         if (document.getElementById('organizationAdviserReadOnlyBanner')) return;
         var banner = document.createElement('div');
         banner.id = 'organizationAdviserReadOnlyBanner';
@@ -59,13 +60,36 @@
         banner.setAttribute('role', 'status');
         banner.innerHTML = '<i class="fa-solid fa-eye" aria-hidden="true"></i> Organization Adviser — View-only access';
         document.body.insertBefore(banner, document.body.firstChild);
+        document.body.classList.add('org-read-only-banner-visible');
+    }
+
+    function positionBelowFixedNavbar() {
+        var navbar = document.querySelector('.navbar.fixed-top, .fixed-top.custom-navbar');
+        if (!navbar) {
+            document.body.classList.remove('org-read-only-fixed-navbar');
+            document.documentElement.style.removeProperty('--org-read-only-navbar-height');
+            return;
+        }
+
+        var navbarHeight = Math.max(navbar.getBoundingClientRect().height, navbar.scrollHeight);
+        document.body.classList.add('org-read-only-fixed-navbar');
+        document.documentElement.style.setProperty('--org-read-only-navbar-height', Math.ceil(navbarHeight) + 'px');
+    }
+
+    function syncBannerHeight() {
+        var banner = document.getElementById('organizationAdviserReadOnlyBanner');
+        if (!banner) return;
+        document.documentElement.style.setProperty(
+            '--org-read-only-banner-height',
+            Math.ceil(banner.getBoundingClientRect().height) + 'px'
+        );
     }
 
     function addStyles() {
         if (document.getElementById('organizationAdviserReadOnlyStyles')) return;
         var style = document.createElement('style');
         style.id = 'organizationAdviserReadOnlyStyles';
-        style.textContent = '.organization-adviser-readonly-banner{position:sticky;top:0;z-index:10050;padding:9px 16px;text-align:center;background:#fff7d6;color:#714f00;border-bottom:1px solid #eed27a;font:600 14px/1.4 system-ui,sans-serif}.organization-adviser-readonly-banner i{margin-right:7px}[data-readonly-hidden="1"]{display:none!important}';
+        style.textContent = 'body.org-read-only-banner-visible{padding-top:var(--org-read-only-banner-height,39px)}.organization-adviser-readonly-banner{position:fixed;top:0;left:0;right:0;width:100%;z-index:10050;padding:9px 16px;text-align:center;background:#fff7d6;color:#714f00;border-bottom:1px solid #eed27a;font:600 14px/1.4 system-ui,sans-serif}.org-read-only-fixed-navbar .organization-adviser-readonly-banner{top:var(--org-read-only-navbar-height,70px)}body.org-read-only-banner-visible:not(.org-read-only-fixed-navbar) .sidebar{top:var(--org-read-only-banner-height,39px);height:calc(100vh - var(--org-read-only-banner-height,39px))}.organization-adviser-readonly-banner i{margin-right:7px}[data-readonly-hidden="1"]{display:none!important}';
         document.head.appendChild(style);
     }
 
@@ -74,6 +98,20 @@
         document.body.classList.add('org-read-only');
         addStyles();
         addBanner();
+        positionBelowFixedNavbar();
+        syncBannerHeight();
+        window.addEventListener('resize', function () {
+            positionBelowFixedNavbar();
+            syncBannerHeight();
+        }, { passive: true });
+        var fixedNavbar = document.querySelector('.navbar.fixed-top, .fixed-top.custom-navbar');
+        if (fixedNavbar && typeof ResizeObserver === 'function') {
+            new ResizeObserver(positionBelowFixedNavbar).observe(fixedNavbar);
+        }
+        var readOnlyBanner = document.getElementById('organizationAdviserReadOnlyBanner');
+        if (readOnlyBanner && typeof ResizeObserver === 'function') {
+            new ResizeObserver(syncBannerHeight).observe(readOnlyBanner);
+        }
         apply(document);
         new MutationObserver(function (records) {
             records.forEach(function (record) {
