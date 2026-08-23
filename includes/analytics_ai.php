@@ -52,14 +52,6 @@ function analyticsAiGenerateInsights(array $snapshot, array $filters, int $orgId
         }
     }
 
-    if (!$result && ANALYTICS_AI_LLAMA_ENABLED && ANALYTICS_AI_LLAMA_BASE_URL !== '') {
-        try {
-            $result = analyticsAiGenerateWithLlama($snapshot, $filters);
-        } catch (Throwable $error) {
-            $errors[] = 'llama: ' . $error->getMessage();
-        }
-    }
-
     if (!$result) {
         $result = analyticsAiBuildRuleBasedInsights($snapshot, $filters);
         $result['provider'] = 'rule-based';
@@ -77,7 +69,7 @@ function analyticsAiGenerateInsights(array $snapshot, array $filters, int $orgId
 function analyticsAiBuildCacheKey(array $snapshot, array $filters, int $orgId): string
 {
     $payload = [
-        'version' => 3,
+        'version' => 4,
         'orgId' => $orgId,
         'filters' => $filters,
         'snapshotHash' => sha1(json_encode($snapshot)),
@@ -170,30 +162,6 @@ function analyticsAiGetGeminiModels(): array
     }
 
     return array_values(array_unique($models));
-}
-
-function analyticsAiGenerateWithLlama(array $snapshot, array $filters): array
-{
-    $prompt = analyticsAiBuildPrompt($snapshot, $filters);
-    $baseUrl = rtrim(ANALYTICS_AI_LLAMA_BASE_URL, '/');
-    $url = str_ends_with($baseUrl, '/api/generate') ? $baseUrl : $baseUrl . '/api/generate';
-
-    $response = analyticsAiHttpJsonRequest($url, [
-        'model' => ANALYTICS_AI_LLAMA_MODEL,
-        'prompt' => $prompt,
-        'stream' => false,
-        'format' => 'json',
-    ]);
-
-    $text = $response['response'] ?? '';
-    if (!is_string($text) || trim($text) === '') {
-        throw new AnalyticsAiException('Llama returned an empty response.');
-    }
-
-    $decoded = analyticsAiDecodeStructuredResponse($text);
-    $decoded['provider'] = 'llama-local';
-    $decoded['fallbackUsed'] = false;
-    return analyticsAiNormalizeStructuredInsights($decoded, $snapshot, $filters);
 }
 
 function analyticsAiHttpJsonRequest(string $url, array $payload, array $headers = []): array

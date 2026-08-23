@@ -21,8 +21,6 @@ The application also accepts these optional environment variables:
 ```text
 ANALYTICS_AI_GEMINI_MODEL=gemini-2.5-flash
 ANALYTICS_AI_GEMINI_MODELS=gemini-2.5-flash,gemini-2.5-flash-lite
-ANALYTICS_AI_LLAMA_BASE_URL=http://127.0.0.1:11434
-ANALYTICS_AI_LLAMA_MODEL=llama3.2:3b
 ```
 
 ## Local XAMPP

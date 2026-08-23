@@ -787,7 +787,7 @@ function renderOfficerAnalyticsInsights(insights) {
         const providerName = String(insights?.provider || 'rule-based').toLowerCase();
         const providerLabel = providerName.startsWith('gemini')
             ? 'Gemini'
-            : (providerName === 'llama-local' ? 'Llama Local' : 'Rule-based');
+            : 'Rule-based';
         providerBadge.style.display = 'inline-flex';
         providerBadge.textContent = insights?.fallbackUsed ? `${providerLabel} fallback` : providerLabel;
     }

@@ -29,18 +29,6 @@ if (!defined('ANALYTICS_AI_GEMINI_MODELS')) {
     );
 }
 
-if (!defined('ANALYTICS_AI_LLAMA_ENABLED')) {
-    define('ANALYTICS_AI_LLAMA_ENABLED', true);
-}
-
-if (!defined('ANALYTICS_AI_LLAMA_BASE_URL')) {
-    define('ANALYTICS_AI_LLAMA_BASE_URL', getenv('ANALYTICS_AI_LLAMA_BASE_URL') ?: 'http://127.0.0.1:11434');
-}
-
-if (!defined('ANALYTICS_AI_LLAMA_MODEL')) {
-    define('ANALYTICS_AI_LLAMA_MODEL', getenv('ANALYTICS_AI_LLAMA_MODEL') ?: 'llama3.2:3b');
-}
-
 if (!defined('ANALYTICS_AI_CACHE_DIR')) {
     define('ANALYTICS_AI_CACHE_DIR', __DIR__ . '/../storage/cache/analytics_ai');
 }
