@@ -103,6 +103,7 @@ function sendOtpEmail(string $recipient, string $otp, string $purpose): void
     $labels = [
         'student_registration' => 'student registration',
         'org_registration' => 'organization registration',
+        'organization_adviser_registration' => 'organization adviser registration',
         'osa_registration' => 'OSA registration',
         'osa_login' => 'OSA account login',
         'password_reset' => 'password reset',

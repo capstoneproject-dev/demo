@@ -122,15 +122,20 @@ function otpRecipientIsEligible(
         $stmt = $pdo->prepare(
             "SELECT NOT EXISTS (
                         SELECT 1 FROM users
-                        WHERE LOWER(email) = :email OR employee_number = :identifier
+                        WHERE LOWER(email) = :user_email OR employee_number = :user_identifier
                     )
                     AND NOT EXISTS (
                         SELECT 1 FROM pending_registrations
                         WHERE status = 'pending'
-                          AND (LOWER(email) = :email OR employee_number = :identifier)
+                          AND (LOWER(email) = :request_email OR employee_number = :request_identifier)
                     )"
         );
-        $stmt->execute([':email' => $email, ':identifier' => $identifier]);
+        $stmt->execute([
+            ':user_email' => $email,
+            ':user_identifier' => $identifier,
+            ':request_email' => $email,
+            ':request_identifier' => $identifier,
+        ]);
         return (bool)$stmt->fetchColumn();
     }
 

@@ -633,7 +633,7 @@ CREATE TABLE `email_otp_challenges` (
   `challenge_id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `challenge_token_hash` char(64) NOT NULL,
   `verification_token_hash` char(64) DEFAULT NULL,
-  `purpose` varchar(32) NOT NULL,
+  `purpose` varchar(64) NOT NULL,
   `email` varchar(255) NOT NULL,
   `identifier` varchar(50) NOT NULL,
   `otp_hash` varchar(255) NOT NULL,

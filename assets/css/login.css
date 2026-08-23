@@ -369,6 +369,10 @@
     text-align: left;
   }
 
+  #org-student-lookup-message {
+    margin-top: 6px;
+  }
+
   .org-lookup-message.success {
     color: #0f766e;
   }
