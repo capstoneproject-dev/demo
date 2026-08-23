@@ -56,6 +56,10 @@ function officerActionCenterSort(array &$items): void
 try {
     $context = stRequireOfficerContext();
     $orgId = (int)$context['org_id'];
+    $membership = authRequireActiveOrgMembership(false);
+    $isAdviser = ($membership['account_type'] ?? '') === 'organization_adviser'
+        && (int)($membership['can_review_org_documents'] ?? 0) === 1
+        && (int)($membership['can_manage_org_dashboard'] ?? 0) === 0;
     $pdo = getPdo();
     $notificationTimezone = new DateTimeZone('Asia/Manila');
     $notificationNow = new DateTimeImmutable('now', $notificationTimezone);
@@ -231,9 +235,9 @@ try {
         "SELECT ds.submission_id, ds.title, ds.status, ds.reviewer_notes, ds.submitted_at, ds.reviewed_at, ds.updated_at
          FROM document_submissions ds
          WHERE ds.org_id = :org_id
-           AND ds.status IN ('ssc_approved', 'sent_to_osa', 'approved', 'rejected')
+           AND ds.status IN ('adviser_pending', 'adviser_approved', 'ssc_approved', 'sent_to_osa', 'approved', 'rejected')
            AND (
-                ds.status = 'ssc_approved'
+                ds.status IN ('adviser_pending', 'adviser_approved', 'ssc_approved')
                 OR (
                     ds.status = 'rejected'
                     AND NOT EXISTS (
@@ -252,9 +256,23 @@ try {
     foreach ($documentStmt->fetchAll() as $row) {
         $submissionId = (int)$row['submission_id'];
         $status = strtolower((string)$row['status']);
-        $requiresAttention = in_array($status, ['rejected', 'ssc_approved'], true);
+        $requiresAttention = $status === 'adviser_pending'
+            ? $isAdviser
+            : ($status === 'adviser_approved'
+                ? !$isAdviser
+                : ($status === 'rejected' ? !$isAdviser : $status === 'ssc_approved'));
         $notes = trim((string)($row['reviewer_notes'] ?? ''));
-        if ($status === 'rejected') {
+        if ($status === 'adviser_pending') {
+            $summary = $isAdviser
+                ? 'Review this document for your organization.'
+                : 'The document is awaiting Organization Adviser review.';
+            $title = 'Document awaiting adviser review: ' . (string)$row['title'];
+        } elseif ($status === 'adviser_approved') {
+            $summary = docIsSscOrganization($pdo, $orgId)
+                ? 'The Organization Adviser approved this document. Send it to OSA when ready.'
+                : 'The Organization Adviser approved this document. Send it to SSC when ready.';
+            $title = 'Adviser-approved document ready to forward: ' . (string)$row['title'];
+        } elseif ($status === 'rejected') {
             $summary = $notes !== '' ? $notes : 'Review the submission and prepare a corrected version.';
             $title = 'Document rejected: ' . (string)$row['title'];
         } elseif ($status === 'ssc_approved') {
@@ -270,7 +288,7 @@ try {
         $item = officerActionCenterItem(
             "document:{$submissionId}:{$status}",
             'document',
-            $status === 'rejected' ? 'danger' : ($status === 'ssc_approved' ? 'warning' : 'success'),
+            $status === 'rejected' ? 'danger' : (in_array($status, ['adviser_pending', 'adviser_approved', 'ssc_approved'], true) ? 'warning' : 'success'),
             $title,
             $summary,
             (string)($row['reviewed_at'] ?: $row['updated_at'] ?: $row['submitted_at']),
@@ -289,7 +307,7 @@ try {
         }
     }
 
-    if (docIsSscOrganization($pdo, $orgId)) {
+    if (docIsSscOrganization($pdo, $orgId) && !$isAdviser) {
         $sscDocumentStmt = $pdo->prepare(
             "SELECT ds.submission_id,
                     ds.title,

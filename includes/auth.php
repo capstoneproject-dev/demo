@@ -118,7 +118,8 @@ function updateActiveOrg(
     string $orgName,
     string $roleName,
     bool $canManageOrgDashboard = false,
-    ?string $positionTitle = null
+    ?string $positionTitle = null,
+    bool $canReviewOrgDocuments = false
 ): void
 {
     $_SESSION['naap_session']['active_org_id']   = $orgId;
@@ -126,6 +127,7 @@ function updateActiveOrg(
     $_SESSION['naap_session']['active_role_name']= $roleName;
     $_SESSION['naap_session']['active_position_title'] = $positionTitle ?: $roleName;
     $_SESSION['naap_session']['can_manage_org_dashboard'] = $canManageOrgDashboard;
+    $_SESSION['naap_session']['can_review_org_documents'] = $canReviewOrgDocuments;
     $_SESSION['naap_session']['is_read_only'] = !$canManageOrgDashboard;
     $_SESSION['naap_session']['login_role']      = 'org';
     authRecordPresence();
@@ -150,9 +152,9 @@ function authRequireActiveOrgMembership(bool $requireManage = false): array
 
     try {
         $stmt = getPdo()->prepare(
-            "SELECT om.membership_id, om.user_id, om.org_id, om.position_title,
+            "SELECT om.membership_id, om.user_id, om.org_id, om.position_title, u.account_type,
                     o.org_name, r.role_id, r.role_name,
-                    r.can_access_org_dashboard, r.can_manage_org_dashboard
+                    r.can_access_org_dashboard, r.can_manage_org_dashboard, r.can_review_org_documents
              FROM organization_members om
              JOIN organizations o ON o.org_id = om.org_id
              JOIN org_roles r ON r.role_id = om.role_id AND r.org_id = om.org_id
@@ -189,6 +191,36 @@ function authRequireActiveOrgMembership(bool $requireManage = false): array
 function apiRequireOrgManageAccess(): array
 {
     return authRequireActiveOrgMembership(true);
+}
+
+function apiRequireOrgDocumentReviewAccess(): array
+{
+    $membership = authRequireActiveOrgMembership(false);
+    if (
+        ($membership['account_type'] ?? '') !== 'organization_adviser'
+        || (int)($membership['can_review_org_documents'] ?? 0) !== 1
+        || (int)($membership['can_manage_org_dashboard'] ?? 0) === 1
+    ) {
+        jsonError('Organization adviser document-review access is required.', 403, [
+            'error_code' => 'ORG_DOCUMENT_REVIEW_REQUIRED',
+        ]);
+    }
+    return $membership;
+}
+
+function apiRequireOrgManageOrDocumentReviewAccess(): array
+{
+    $membership = authRequireActiveOrgMembership(false);
+    if ((int)($membership['can_manage_org_dashboard'] ?? 0) === 1) return $membership;
+    if (
+        ($membership['account_type'] ?? '') === 'organization_adviser'
+        && (int)($membership['can_review_org_documents'] ?? 0) === 1
+    ) {
+        return $membership;
+    }
+    jsonError('Organization document access is required.', 403, [
+        'error_code' => 'ORG_DOCUMENT_ACCESS_REQUIRED',
+    ]);
 }
 
 function destroySession(): void
@@ -430,7 +462,8 @@ function apiGuard(): void
         $orgId = (int)($session['active_org_id'] ?? 0);
         try {
             $stmt = getPdo()->prepare(
-                "SELECT r.role_name, om.position_title, r.can_manage_org_dashboard
+                "SELECT r.role_name, om.position_title, r.can_manage_org_dashboard,
+                        r.can_review_org_documents
                  FROM organization_members om
                  JOIN org_roles r ON r.role_id = om.role_id AND r.org_id = om.org_id
                  JOIN organizations o ON o.org_id = om.org_id
@@ -459,6 +492,8 @@ function apiGuard(): void
         $_SESSION['naap_session']['active_position_title'] =
             (string)($membership['position_title'] ?: $membership['role_name']);
         $_SESSION['naap_session']['can_manage_org_dashboard'] = $canManage;
+        $_SESSION['naap_session']['can_review_org_documents'] =
+            (int)($membership['can_review_org_documents'] ?? 0) === 1;
         $_SESSION['naap_session']['is_read_only'] = !$canManage;
     }
 }

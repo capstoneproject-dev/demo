@@ -46,6 +46,16 @@ function readAuthSession() {
     }
 }
 
+function isOrganizationAdviserDocumentReviewer() {
+    const session = readAuthSession();
+    return session.account_type === 'organization_adviser'
+        && session.can_manage_org_dashboard !== true;
+}
+
+function canManageOrganizationDashboard() {
+    return readAuthSession().can_manage_org_dashboard === true;
+}
+
 function formatLocalDateKey(date) {
     if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
         return '';
@@ -4881,6 +4891,8 @@ function getDocumentTypeDisplay(category, customType = '') {
 function formatDocumentWorkflowStatus(status) {
     const normalized = String(status || '').trim().toLowerCase();
     const labels = {
+        adviser_pending: 'Adviser Pending',
+        adviser_approved: 'Adviser Approved',
         pending: 'Pending',
         ssc_approved: 'SSC Approved',
         sent_to_osa: 'Sent to OSA',
@@ -4906,12 +4918,12 @@ function syncDocumentRecipientOptions() {
     const recipientInput = document.getElementById('doc-recipient');
     const routeText = document.querySelector('#doc-review-route span');
     const isSscOfficer = isActiveOfficerSscOrganization();
-    const recipient = isSscOfficer ? 'OSA' : 'SSC';
+    const recipient = 'ADVISER';
     if (recipientInput) recipientInput.value = recipient;
     if (routeText) {
         routeText.textContent = isSscOfficer
-            ? 'Office of Student Affairs (OSA) — Direct Review'
-            : 'Supreme Student Council (SSC) → Office of Student Affairs (OSA)';
+            ? 'Organization Adviser → Office of Student Affairs (OSA)'
+            : 'Organization Adviser → Supreme Student Council (SSC) → Office of Student Affairs (OSA)';
     }
 }
 
@@ -5011,6 +5023,17 @@ function openOfficerDocumentReviewModal(submissionId, decision) {
         submissionId: Number(submissionId) || 0,
         decision: normalizedDecision,
     };
+    const rejectCopy = document.getElementById('officer-document-reject-copy');
+    if (rejectCopy) {
+        rejectCopy.textContent = isOrganizationAdviserDocumentReviewer()
+            ? 'A rejection comment is required so the officer can prepare a corrected revision.'
+            : 'You can add an optional reviewer note before rejecting.';
+    }
+    if (normalizedDecision === 'rejected') {
+        textarea.placeholder = isOrganizationAdviserDocumentReviewer()
+            ? 'Required rejection explanation...'
+            : 'Optional comments...';
+    }
     if (!pendingOfficerDocumentReview.submissionId) return;
     textarea.value = '';
     modal.classList.add('show');
@@ -5038,6 +5061,11 @@ async function confirmOfficerDocumentReview() {
         ? 'officer-document-approve-confirm'
         : 'officer-document-reject-confirm';
     const notes = (document.getElementById(textareaId)?.value || '').trim();
+    if (decision === 'rejected' && isOrganizationAdviserDocumentReviewer() && !notes) {
+        showToast('A rejection comment is required.', 'error');
+        document.getElementById(textareaId)?.focus();
+        return;
+    }
     const confirmButton = document.getElementById(buttonId);
     if (confirmButton) confirmButton.disabled = true;
 
@@ -5385,7 +5413,10 @@ function renderDocs(filter = 'All', btnElement = null) {
     // 1. Filter by Status (Existing Logic)
     let filteredData = getOfficerScopedDocs().filter(doc => {
         if (filter === 'All') return true;
-        if (filter === 'Pending') return doc.status.includes('Sent') || doc.status.includes('Pending') || doc.status === 'SSC Approved';
+        if (filter === 'Pending') return doc.status.includes('Sent')
+            || doc.status.includes('Pending')
+            || doc.status === 'Adviser Approved'
+            || doc.status === 'SSC Approved';
         return doc.status.includes(filter);
     });
 
@@ -5423,47 +5454,71 @@ function renderDocs(filter = 'All', btnElement = null) {
 
     list.innerHTML = filteredData.map((doc, index) => {
         // --- WORKFLOW LOGIC ---
+        let adviserHtml = '';
         let sscHtml = '';
         let osaHtml = '';
         let actionButtons = '';
         let statusBadge = '';
 
         const sender = doc.submittedByName || `User #${doc.submittedByUserId ?? 'N/A'}`;
+        const adviserReviewerName = doc.adviserReviewerName ? escapeHtml(doc.adviserReviewerName) : '-';
         const sscReviewerName = doc.sscReviewerName ? escapeHtml(doc.sscReviewerName) : '-';
         const osaReviewerName = doc.osaReviewerName ? escapeHtml(doc.osaReviewerName) : '-';
         const recipient = String(doc.recipient || 'OSA').trim().toUpperCase();
         const wasSentToSsc = recipient === 'SSC';
         const isOwnedByActiveOrg = officerOrgMatch(doc.orgId || doc.org);
+        const isAdviserReviewer = isOrganizationAdviserDocumentReviewer();
+        const canManageDashboard = canManageOrganizationDashboard();
+        const canReviewForAdviser = isAdviserReviewer
+            && isOwnedByActiveOrg
+            && doc.rawStatus === 'adviser_pending';
         const canReviewForSsc = isActiveOfficerSscOrganization()
+            && canManageDashboard
             && wasSentToSsc
             && !isOwnedByActiveOrg
             && doc.status === 'Pending';
         const emptyReview = '<span style="color:var(--muted)">-</span>';
-        const approvedReview = (name) => `<span>${name}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
-        const rejectedReview = (name) => `<span>${name}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
+        const reviewDate = (value) => value
+            ? `<span class="sub-status waiting">${escapeHtml(fmtDateShort(value))}</span>`
+            : '';
+        const approvedReview = (name, reviewedAt = null) => `<span>${name}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>${reviewDate(reviewedAt)}`;
+        const rejectedReview = (name, reviewedAt = null) => `<span>${name}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>${reviewDate(reviewedAt)}`;
+        adviserHtml = doc.adviserDecision === 'approved'
+            ? approvedReview(adviserReviewerName, doc.adviserReviewedAt)
+            : doc.adviserDecision === 'rejected'
+                ? rejectedReview(adviserReviewerName, doc.adviserReviewedAt)
+                : doc.rawStatus === 'adviser_pending'
+                    ? `<span style="color:var(--muted)">-</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`
+                    : emptyReview;
         const stageNoteButtons = [];
+        if (doc.adviserReviewerNotes) {
+            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.adviserReviewerNotes)}')" title="View Adviser Comment" aria-label="View Adviser Comment">
+                <i class="fa-regular fa-message"></i><span class="doc-action-label">Adviser Comment</span>
+            </button>`);
+        }
         if (doc.sscReviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.sscReviewerNotes)}')" title="View SSC Comment" aria-label="View SSC Comment">
+            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.sscReviewerNotes)}')" title="View SSC Comment" aria-label="View SSC Comment">
                 <i class="fa-regular fa-message"></i><span class="doc-action-label">SSC Comment</span>
             </button>`);
         }
         if (doc.osaReviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.osaReviewerNotes)}')" title="View OSA Comment" aria-label="View OSA Comment">
+            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.osaReviewerNotes)}')" title="View OSA Comment" aria-label="View OSA Comment">
                 <i class="fa-regular fa-message"></i><span class="doc-action-label">OSA Comment</span>
             </button>`);
         }
         if (stageNoteButtons.length === 0 && doc.reviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.reviewerNotes)}')" title="View Reviewer Comment" aria-label="View Reviewer Comment">
+            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.reviewerNotes)}')" title="View Reviewer Comment" aria-label="View Reviewer Comment">
                 <i class="fa-regular fa-message"></i><span class="doc-action-label">Comment</span>
             </button>`);
         }
         const reviewNoteButton = stageNoteButtons.join('');
-        const revisionButton = isOwnedByActiveOrg && doc.status === 'Rejected' && !doc.hasNewerVersion
+        const revisionButton = canManageDashboard && isOwnedByActiveOrg && doc.status === 'Rejected' && !doc.hasNewerVersion
             ? `<button class="btn btn-outline btn-sm document-workflow-action" onclick="event.stopPropagation(); openDocumentRevisionModal(${Number(doc.submission_id || doc.id || 0)})" title="Submit Revision" aria-label="Submit Revision">
                     <i class="fa-solid fa-code-branch"></i><span class="doc-action-label">Submit Revision</span>
                 </button>`
             : '';
-        const canCancel = isOwnedByActiveOrg && ['Pending', 'SSC Approved', 'Sent to OSA'].includes(doc.status);
+        const canCancel = canManageDashboard && isOwnedByActiveOrg
+            && ['Adviser Pending', 'Adviser Approved', 'Pending', 'SSC Approved', 'Sent to OSA'].includes(doc.status);
         const cancelButton = canCancel
             ? `<button class="btn btn-sm btn-danger document-workflow-action" onclick="event.stopPropagation(); cancelDocumentSubmission(${Number(doc.submission_id || doc.id || 0)})" title="Cancel Document" aria-label="Cancel Document">
                     <i class="fa-solid fa-ban"></i><span class="doc-action-label">Cancel</span>
@@ -5476,14 +5531,43 @@ function renderDocs(filter = 'All', btnElement = null) {
         const versionBadge = `<span class="status-badge" style="font-size:0.65rem; padding:2px 6px; margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>`;
 
         if (doc.status === 'Approved') {
-            sscHtml = doc.sscDecision === 'approved' ? approvedReview(sscReviewerName) : emptyReview;
-            osaHtml = doc.osaDecision === 'approved' ? approvedReview(osaReviewerName) : (wasSentToSsc ? emptyReview : approvedReview(osaReviewerName));
+            sscHtml = doc.sscDecision === 'approved' ? approvedReview(sscReviewerName, doc.sscReviewedAt) : emptyReview;
+            osaHtml = doc.osaDecision === 'approved' ? approvedReview(osaReviewerName, doc.osaReviewedAt) : (wasSentToSsc ? emptyReview : approvedReview(osaReviewerName, doc.osaReviewedAt));
             actionButtons = `${viewButton}${revisionButton}`;
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
         }
+        else if (doc.status === 'Adviser Approved') {
+            sscHtml = emptyReview;
+            osaHtml = emptyReview;
+            if (canManageDashboard && isOwnedByActiveOrg) {
+                const forwardLabel = isActiveOfficerSscOrganization() ? 'Send to OSA' : 'Send to SSC';
+                const forwardAction = isActiveOfficerSscOrganization() ? 'submitToOSA' : 'submitToSSC';
+                actionButtons = `${viewButton}
+                    <button class="btn btn-primary btn-sm document-workflow-action" onclick="event.stopPropagation(); ${forwardAction}(${Number(doc.submission_id || doc.id || 0)})" title="${forwardLabel}" aria-label="${forwardLabel}">
+                        <span class="doc-action-label">${forwardLabel}</span><i class="fa-solid fa-paper-plane"></i>
+                    </button>${cancelButton}`;
+            } else {
+                actionButtons = viewButton;
+            }
+            statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Ready to Forward</span>';
+        }
+        else if (doc.status === 'Adviser Pending') {
+            sscHtml = emptyReview;
+            osaHtml = emptyReview;
+            actionButtons = canReviewForAdviser
+                ? `${viewButton}
+                    <button class="btn btn-sm btn-success" data-readonly-allow onclick="event.stopPropagation(); openOfficerDocumentReviewModal(${Number(doc.submission_id || doc.id || 0)}, 'approved')" title="Approve">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" data-readonly-allow onclick="event.stopPropagation(); openOfficerDocumentReviewModal(${Number(doc.submission_id || doc.id || 0)}, 'rejected')" title="Reject">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>`
+                : `${viewButton}${cancelButton}`;
+            statusBadge = '<span class="status-badge status-pending" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Adviser Review</span>';
+        }
         else if (doc.status === 'SSC Approved') {
             // SSC Approved - User must Submit to OSA
-            sscHtml = approvedReview(sscReviewerName);
+            sscHtml = approvedReview(sscReviewerName, doc.sscReviewedAt);
             osaHtml = `<span style="color:var(--muted)">-</span><span class="sub-status waiting">${isOwnedByActiveOrg ? 'Action Required' : 'Awaiting Organization'}</span>`;
             actionButtons = isOwnedByActiveOrg
                 ? `${viewButton}
@@ -5495,19 +5579,19 @@ function renderDocs(filter = 'All', btnElement = null) {
         }
         else if (doc.status.includes('Sent to OSA')) {
             // A direct-to-OSA submission has no SSC reviewer.
-            sscHtml = doc.sscDecision === 'approved' ? approvedReview(sscReviewerName) : emptyReview;
+            sscHtml = doc.sscDecision === 'approved' ? approvedReview(sscReviewerName, doc.sscReviewedAt) : emptyReview;
             osaHtml = `<span style="color:var(--muted)">-</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`;
             actionButtons = `${viewButton}${cancelButton}`;
             statusBadge = '<span class="status-badge status-sent" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Sent to OSA</span>';
         }
         else if (doc.status.includes('Rejected')) {
-            sscHtml = doc.sscDecision === 'rejected' ? rejectedReview(sscReviewerName) : (doc.sscDecision === 'approved' ? approvedReview(sscReviewerName) : emptyReview);
-            osaHtml = doc.osaDecision === 'rejected' ? rejectedReview(osaReviewerName) : emptyReview;
+            sscHtml = doc.sscDecision === 'rejected' ? rejectedReview(sscReviewerName, doc.sscReviewedAt) : (doc.sscDecision === 'approved' ? approvedReview(sscReviewerName, doc.sscReviewedAt) : emptyReview);
+            osaHtml = doc.osaDecision === 'rejected' ? rejectedReview(osaReviewerName, doc.osaReviewedAt) : emptyReview;
             actionButtons = `${viewButton}${revisionButton}`;
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
         }
         else if (doc.status === 'Cancelled') {
-            sscHtml = doc.sscDecision === 'approved' ? approvedReview(sscReviewerName) : emptyReview;
+            sscHtml = doc.sscDecision === 'approved' ? approvedReview(sscReviewerName, doc.sscReviewedAt) : emptyReview;
             osaHtml = emptyReview;
             actionButtons = viewButton;
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Cancelled</span>';
@@ -5545,6 +5629,8 @@ function renderDocs(filter = 'All', btnElement = null) {
             </div>
 
             <div class="col-sent mobile-hide">${sender}</div>
+
+            <div class="col-adviser mobile-hide">${adviserHtml}</div>
 
             <div class="col-ssc mobile-hide">${sscHtml}</div>
 
@@ -7769,7 +7855,32 @@ async function exportPDF(options = {}) {
     doc.save(`${getAnalyticsExportFileStem(meta)}.pdf`);
 }
 
-// --- WORKFLOW ACTION: Submit to OSA ---
+// --- WORKFLOW ACTIONS: officer-only forwarding ---
+async function submitToSSC(submissionId) {
+    if (await appConfirm('Send this adviser-approved document to SSC for review?', {
+        title: 'Send document to SSC',
+        confirmText: 'Send to SSC'
+    })) {
+        try {
+            const response = await fetch(`${DOCUMENTS_API_BASE}/forward-to-ssc.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ submission_id: Number(submissionId) }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Could not send this document to SSC.');
+            }
+            await loadDocsFromApi();
+            loadOfficerActionCenter(false);
+            showToast('Document sent to SSC for review.', 'success');
+        } catch (error) {
+            showToast(error.message || 'Could not send this document to SSC.', 'error');
+        }
+    }
+}
+
 async function submitToOSA(submissionId) {
     if (await appConfirm('Submit this approved document to OSA for final review?', {
         title: 'Submit document',
@@ -8030,6 +8141,11 @@ async function loadDocsFromApi({ silent = false, skipUnchanged = false } = {}) {
                 .join(' ')
                 .trim(),
             reviewerNotes: item.reviewer_notes || '',
+            adviserDecision: item.adviser_decision || null,
+            adviserReviewerUserId: item.adviser_reviewed_by_user_id ? Number(item.adviser_reviewed_by_user_id) : null,
+            adviserReviewerName: item.adviser_reviewer_name || '',
+            adviserReviewerNotes: item.adviser_reviewer_notes || '',
+            adviserReviewedAt: item.adviser_reviewed_at || null,
             sscDecision: item.ssc_decision || null,
             sscReviewerUserId: item.ssc_reviewed_by_user_id ? Number(item.ssc_reviewed_by_user_id) : null,
             sscReviewerName: item.ssc_reviewer_name || '',

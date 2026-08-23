@@ -87,6 +87,7 @@ function getOfficerMemberships(int $userId): array
                 om.position_title,
                 r.can_access_org_dashboard,
                 r.can_manage_org_dashboard,
+                r.can_review_org_documents,
                 CASE WHEN r.can_manage_org_dashboard = 1 THEN 0 ELSE 1 END AS is_read_only
          FROM   organization_members om
          JOIN   organizations o  ON o.org_id   = om.org_id
@@ -158,6 +159,9 @@ function buildSessionPayload(
                                     : ($loginRole === 'osa' ? 'osa_staff' : null),
         'can_manage_org_dashboard' => $activeOrg
                                     ? (int)($activeOrg['can_manage_org_dashboard'] ?? 0) === 1
+                                    : false,
+        'can_review_org_documents' => $activeOrg
+                                    ? (int)($activeOrg['can_review_org_documents'] ?? 0) === 1
                                     : false,
         'is_read_only'        => $activeOrg
                                     ? (int)($activeOrg['can_manage_org_dashboard'] ?? 0) !== 1

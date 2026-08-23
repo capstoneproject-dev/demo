@@ -94,11 +94,12 @@ try {
 
                 $pdo->prepare(
                     "INSERT INTO org_roles
-                        (org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, is_active)
-                     VALUES (:org_id, 'organization_adviser', 1, 0, 1)
+                        (org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, can_review_org_documents, is_active)
+                     VALUES (:org_id, 'organization_adviser', 1, 0, 1, 1)
                      ON DUPLICATE KEY UPDATE
                         can_access_org_dashboard = 1,
                         can_manage_org_dashboard = 0,
+                        can_review_org_documents = 1,
                         is_active = 1"
                 )->execute([':org_id' => $orgId]);
                 $roleStmt = $pdo->prepare(

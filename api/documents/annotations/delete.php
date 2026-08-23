@@ -4,7 +4,7 @@ require_once __DIR__ . '/../../../includes/documents.php';
 
 header('Content-Type: application/json');
 apiGuard();
-if ((getPhpSession()['login_role'] ?? '') === 'org') apiRequireOrgManageAccess();
+if ((getPhpSession()['login_role'] ?? '') === 'org') apiRequireOrgManageOrDocumentReviewAccess();
 requirePost();
 
 try {

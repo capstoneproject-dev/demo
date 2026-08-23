@@ -19,7 +19,10 @@ try {
         'to' => $_GET['to'] ?? null,
     ];
 
-    $items = docListOsaRequestOverview(getPdo(), $filters);
+    $items = docRedactExternalAdviserFeedbackList(
+        docListOsaRequestOverview(getPdo(), $filters),
+        getPhpSession()
+    );
     jsonOk(['items' => $items]);
 } catch (DocumentAuthorizationException $e) {
     jsonError($e->getMessage(), 403);

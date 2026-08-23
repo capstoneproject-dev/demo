@@ -14,6 +14,10 @@ try {
     if (!$log) jsonError('Audit entry not found.', 404);
     $log['before_state'] = $log['before_state'] ? json_decode($log['before_state'], true) : null;
     $log['after_state'] = $log['after_state'] ? json_decode($log['after_state'], true) : null;
+    if (str_starts_with(strtolower((string)($log['action'] ?? '')), 'document_adviser_')) {
+        if (is_array($log['before_state'])) unset($log['before_state']['reviewer_notes']);
+        if (is_array($log['after_state'])) unset($log['after_state']['reviewer_notes']);
+    }
     jsonOk(['log' => $log]);
 } catch (PDOException $e) {
     error_log('[api/osa/audit-logs/detail] ' . $e->getMessage());

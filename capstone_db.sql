@@ -599,6 +599,7 @@ CREATE TABLE `org_roles` (
   `role_name` varchar(50) NOT NULL,
   `can_access_org_dashboard` tinyint(1) NOT NULL DEFAULT 0,
   `can_manage_org_dashboard` tinyint(1) NOT NULL DEFAULT 0,
+  `can_review_org_documents` tinyint(1) NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
@@ -608,10 +609,13 @@ CREATE TABLE `org_roles` (
 -- Dumping data for table `org_roles`
 --
 
-INSERT INTO `org_roles` (`role_id`, `org_id`, `role_name`, `can_access_org_dashboard`, `can_manage_org_dashboard`, `is_active`, `created_at`, `updated_at`) VALUES
-(10, 2, 'officer', 1, 1, 1, '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
-(11, 3, 'officer', 1, 1, 1, '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
-(12, 1, 'officer', 1, 1, 1, '2026-02-28 19:45:28', '2026-02-28 19:45:28');
+INSERT INTO `org_roles` (`role_id`, `org_id`, `role_name`, `can_access_org_dashboard`, `can_manage_org_dashboard`, `can_review_org_documents`, `is_active`, `created_at`, `updated_at`) VALUES
+(10, 2, 'officer', 1, 1, 0, 1, '2026-02-27 11:44:45', '2026-02-27 11:44:45'),
+(11, 3, 'officer', 1, 1, 0, 1, '2026-02-27 13:46:39', '2026-02-27 13:46:39'),
+(12, 1, 'officer', 1, 1, 0, 1, '2026-02-28 19:45:28', '2026-02-28 19:45:28'),
+(13, 1, 'organization_adviser', 1, 0, 1, 1, '2026-08-23 00:00:00', '2026-08-23 00:00:00'),
+(14, 2, 'organization_adviser', 1, 0, 1, 1, '2026-08-23 00:00:00', '2026-08-23 00:00:00'),
+(15, 3, 'organization_adviser', 1, 0, 1, 1, '2026-08-23 00:00:00', '2026-08-23 00:00:00');
 
 --
 -- Triggers `org_roles`
@@ -1459,7 +1463,7 @@ ALTER TABLE `organization_members`
 -- AUTO_INCREMENT for table `org_roles`
 --
 ALTER TABLE `org_roles`
-  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `pending_registrations`

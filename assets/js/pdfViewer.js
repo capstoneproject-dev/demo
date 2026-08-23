@@ -1249,6 +1249,20 @@ const PDFViewer = {
         return this.annotations || [];
     },
 
+    canShowAnnotationDelete(annotation) {
+        let session = {};
+        try {
+            session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}');
+        } catch (_error) {
+            session = {};
+        }
+        const isAdviser = session.account_type === 'organization_adviser'
+            && session.can_manage_org_dashboard !== true;
+        if (!isAdviser) return true;
+        return Number(session.user_id || 0) > 0
+            && Number(session.user_id) === Number(annotation?.createdByUserId || 0);
+    },
+
     async fetchAnnotationsFromApi() {
         if (!this.currentSubmissionId) return [];
         const res = await fetch(
@@ -1540,11 +1554,11 @@ const PDFViewer = {
                         <i class="fa-solid ${ann.comment ? 'fa-comment' : 'fa-highlighter'}"></i>
                         <span>Page ${ann.page}</span>
                     </div>
-                    <button class="pdf-annotation-delete" 
+                    ${this.canShowAnnotationDelete(ann) ? `<button class="pdf-annotation-delete" data-readonly-allow
                             onclick="event.stopPropagation(); PDFViewer.deleteAnnotation('${ann.id}').catch(function(e){console.error(e);})"
                             title="Delete">
                         <i class="fa-solid fa-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
                 <div class="pdf-annotation-text">"${this.escapeHtml(ann.text.substring(0, 100))}${ann.text.length > 100 ? '...' : ''}"</div>
                 ${ann.comment ? `<div class="pdf-annotation-comment">${this.escapeHtml(ann.comment)}</div>` : ''}

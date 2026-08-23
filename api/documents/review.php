@@ -4,7 +4,6 @@ require_once __DIR__ . '/../../includes/documents.php';
 
 header('Content-Type: application/json');
 apiGuard();
-if ((getPhpSession()['login_role'] ?? '') === 'org') apiRequireOrgManageAccess();
 requirePost();
 
 try {
@@ -13,18 +12,30 @@ try {
     $isOsa = ($session['login_role'] ?? '') === 'osa' || ($session['account_type'] ?? '') === 'osa_staff';
     $requiredRecipient = 'OSA';
     $disallowedReviewerOrgId = null;
+    $requiredSubmissionOrgId = null;
 
     if ($isOsa) {
         $ctx = docRequireOsaContext();
         $reviewStage = 'OSA';
     } else {
         $ctx = docRequireOfficerOrgContext();
-        if (!docIsSscOrganization($pdo, (int)$ctx['org_id'])) {
-            throw new DocumentAuthorizationException('Only SSC officers can review SSC-addressed documents.');
+        $membership = authRequireActiveOrgMembership(false);
+        $isAdviserReviewer = ($membership['account_type'] ?? '') === 'organization_adviser'
+            && (int)($membership['can_review_org_documents'] ?? 0) === 1
+            && (int)($membership['can_manage_org_dashboard'] ?? 0) === 0;
+        if ($isAdviserReviewer) {
+            $requiredRecipient = 'ADVISER';
+            $requiredSubmissionOrgId = (int)$ctx['org_id'];
+            $reviewStage = 'ADVISER';
+        } else {
+            apiRequireOrgManageAccess();
+            if (!docIsSscOrganization($pdo, (int)$ctx['org_id'])) {
+                throw new DocumentAuthorizationException('Only SSC officers can review SSC-addressed documents.');
+            }
+            $requiredRecipient = 'SSC';
+            $disallowedReviewerOrgId = (int)$ctx['org_id'];
+            $reviewStage = 'SSC';
         }
-        $requiredRecipient = 'SSC';
-        $disallowedReviewerOrgId = (int)$ctx['org_id'];
-        $reviewStage = 'SSC';
     }
     $body = getRequestBody();
     $submissionId = (int)($body['submission_id'] ?? 0);
@@ -43,8 +54,10 @@ try {
         $notes,
         $requiredRecipient,
         $disallowedReviewerOrgId,
-        $reviewStage
+        $reviewStage,
+        $requiredSubmissionOrgId
     );
+    $item = docRedactExternalAdviserFeedback($item, getPhpSession());
     jsonOk(['item' => privatePdfDecorateDocumentRow($item)]);
 } catch (DocumentAuthorizationException $e) {
     jsonError($e->getMessage(), 403);

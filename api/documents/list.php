@@ -27,9 +27,18 @@ try {
         'to'        => $_GET['to']        ?? null,
     ];
     if ($isOsa) $filters['osa_visible'] = true;
+    if (!$isOsa
+        && strtolower(trim((string)($session['account_type'] ?? ''))) === 'organization_adviser'
+        && !empty($session['can_review_org_documents'])
+        && empty($session['can_manage_org_dashboard'])) {
+        $filters['strict_org_scope'] = true;
+    }
     if ($filters['status'] === null) unset($filters['status']);
 
-    $items = docListSubmissions(getPdo(), $filters, $orgScope);
+    $items = docRedactExternalAdviserFeedbackList(
+        docListSubmissions(getPdo(), $filters, $orgScope),
+        $session
+    );
     jsonOk(['items' => $items]);
 } catch (DocumentAuthorizationException $e) {
     jsonError($e->getMessage(), 403);

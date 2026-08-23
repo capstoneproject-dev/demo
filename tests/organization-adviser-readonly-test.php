@@ -25,6 +25,8 @@ adviserAssert(str_contains($readonlyUi, 'Organization Adviser — View-only acce
 $guardedMutations = [
     'api/announcements/create.php',
     'api/documents/submit.php',
+    'api/documents/forward-to-ssc.php',
+    'api/documents/forward-to-osa.php',
     'api/igp/inventory/save.php',
     'api/igp/rentals/rent.php',
     'api/qr-attendance/events/save.php',
@@ -50,8 +52,8 @@ try {
 
     $pdo->prepare(
         "INSERT INTO org_roles
-            (org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, is_active)
-         VALUES (:org_id, 'organization_adviser', 1, 0, 1)"
+            (org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, can_review_org_documents, is_active)
+         VALUES (:org_id, 'organization_adviser', 1, 0, 1, 1)"
     )->execute([':org_id' => $orgId]);
     $roleId = (int)$pdo->lastInsertId();
 
@@ -76,12 +78,14 @@ try {
     adviserAssert(count($memberships) === 1, 'Organization adviser cannot access the assigned organization.');
     adviserAssert((int)$memberships[0]['can_access_org_dashboard'] === 1, 'Organization adviser lacks view permission.');
     adviserAssert((int)$memberships[0]['can_manage_org_dashboard'] === 0, 'Organization adviser unexpectedly has manage permission.');
+    adviserAssert((int)$memberships[0]['can_review_org_documents'] === 1, 'Organization adviser lacks document-review permission.');
     adviserAssert((int)$memberships[0]['is_read_only'] === 1, 'Organization adviser membership is not marked read-only.');
 
     $user = getUserById($userId);
     $session = buildSessionPayload($user, $memberships, 'org', $orgId);
     adviserAssert($session['is_read_only'] === true, 'Organization adviser session is not read-only.');
     adviserAssert($session['can_manage_org_dashboard'] === false, 'Organization adviser session can manage organization data.');
+    adviserAssert($session['can_review_org_documents'] === true, 'Organization adviser session lacks document-review permission.');
 } finally {
     if ($pdo->inTransaction()) $pdo->rollBack();
 }

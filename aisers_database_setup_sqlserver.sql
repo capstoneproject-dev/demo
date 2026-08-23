@@ -115,6 +115,7 @@ CREATE TABLE dbo.org_roles (
     role_name                VARCHAR(50)  NOT NULL,
     can_access_org_dashboard BIT          NOT NULL CONSTRAINT df_org_roles_can_access_org_dashboard DEFAULT 0,
     can_manage_org_dashboard BIT          NOT NULL CONSTRAINT df_org_roles_can_manage_org_dashboard DEFAULT 0,
+    can_review_org_documents BIT          NOT NULL CONSTRAINT df_org_roles_can_review_org_documents DEFAULT 0,
     is_active                BIT          NOT NULL CONSTRAINT df_org_roles_is_active                DEFAULT 1,
     created_at               DATETIME2(0) NOT NULL CONSTRAINT df_org_roles_created_at DEFAULT SYSDATETIME(),
     updated_at               DATETIME2(0) NOT NULL CONSTRAINT df_org_roles_updated_at DEFAULT SYSDATETIME(),

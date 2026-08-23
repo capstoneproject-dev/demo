@@ -2966,14 +2966,14 @@ body.dark #organizations label.btn-primary:hover {
     }
 }
 
-/* --- UPDATED LIST GRID SYSTEM (5 Columns) --- */
+/* --- UPDATED LIST GRID SYSTEM (6 Columns) --- */
 
 /* 1. Define the Grid Layout for both Header and Items */
 .list-header-row,
 #docs-list .list-item {
     display: grid !important;
-    /* Columns: Name (2fr), Sent (1fr), SSC (1fr), OSA (1fr), Status (110px) */
-    grid-template-columns: 2fr 1fr 1fr 1fr 110px;
+    /* Columns: Name (2fr), Sent, Adviser, SSC, OSA, Status */
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 110px;
     gap: 15px;
     align-items: center;
 }
@@ -3012,6 +3012,7 @@ body.dark #organizations label.btn-primary:hover {
 
 /* 3. Text Alignment & Styling for Columns */
 .col-sent,
+.col-adviser,
 .col-ssc,
 .col-osa {
     font-size: 0.85rem;

@@ -52,11 +52,12 @@ try {
     $assert($root['version_number'] === 1, 'A new submission must start at version 1.');
     $assert($root['document_type'] === 'Others', 'The custom document category was not preserved.');
     $assert($root['custom_document_type'] === 'Compliance Matrix', 'The custom document type was not preserved.');
-    $assert($root['recipient'] === 'SSC', 'A non-SSC submission bypassed mandatory SSC routing.');
+    $assert($root['recipient'] === 'ADVISER', 'A non-SSC submission bypassed mandatory adviser routing.');
+    $assert($root['status'] === 'adviser_pending', 'A new submission did not start in adviser review.');
 
     $rejected = docReviewSubmission(
-        $pdo, (int)$root['submission_id'], (int)$sscFixture['reviewer_id'],
-        'rejected', 'Please revise.', 'SSC', (int)$sscFixture['org_id'], 'SSC'
+        $pdo, (int)$root['submission_id'], (int)$fixture['reviewer_id'],
+        'rejected', 'Please revise.', 'ADVISER', null, 'ADVISER', (int)$fixture['org_id']
     );
     $assert($pdo->inTransaction(), 'Transaction ended while rejecting the root submission.');
     $assert($rejected['status'] === 'rejected', 'The first decision was not recorded.');
@@ -64,8 +65,8 @@ try {
     $secondDecisionBlocked = false;
     try {
         docReviewSubmission(
-            $pdo, (int)$root['submission_id'], (int)$sscFixture['reviewer_id'],
-            'approved', 'Changed decision', 'SSC', (int)$sscFixture['org_id'], 'SSC'
+            $pdo, (int)$root['submission_id'], (int)$fixture['reviewer_id'],
+            'approved', 'Changed decision', 'ADVISER', null, 'ADVISER', (int)$fixture['org_id']
         );
     } catch (DocumentValidationException $e) {
         $secondDecisionBlocked = true;
@@ -96,7 +97,8 @@ try {
     $assert($revision['parent_submission_id'] === (int)$root['submission_id'], 'The revision is not linked to its parent.');
     $assert($revision['document_type'] === 'Others', 'The revision changed the custom document category.');
     $assert($revision['custom_document_type'] === 'Compliance Matrix', 'The revision lost the custom document type.');
-    $assert($revision['recipient'] === 'SSC', 'A non-SSC revision bypassed mandatory SSC routing.');
+    $assert($revision['recipient'] === 'ADVISER', 'A non-SSC revision bypassed mandatory adviser routing.');
+    $assert($revision['status'] === 'adviser_pending', 'A revision did not restart adviser review.');
     $rejectedAlertStmt = $pdo->prepare(
         "SELECT COUNT(*)
          FROM document_submissions rejected_submission
@@ -114,6 +116,14 @@ try {
         'OSA could access a document before it was forwarded.'
     );
 
+    $adviserApproved = docReviewSubmission(
+        $pdo, (int)$revision['submission_id'], (int)$fixture['reviewer_id'],
+        'approved', 'Approved by adviser.', 'ADVISER', null, 'ADVISER', (int)$fixture['org_id']
+    );
+    $assert($adviserApproved['status'] === 'adviser_approved', 'Adviser approval did not unlock officer forwarding.');
+    docForwardSubmissionToSsc(
+        $pdo, (int)$revision['submission_id'], (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id']
+    );
     $sscApproved = docReviewSubmission(
         $pdo, (int)$revision['submission_id'], (int)$sscFixture['reviewer_id'],
         'approved', 'Approved by SSC.', 'SSC', (int)$sscFixture['org_id'], 'SSC'
@@ -138,7 +148,12 @@ try {
     );
     $assert($pdo->inTransaction(), 'Transaction ended while approving the revision.');
     $assert($approved['status'] === 'approved', 'OSA did not issue the final approval.');
-    $assert($approved['ssc_decision'] === 'approved' && $approved['osa_decision'] === 'approved', 'Both staged decisions were not preserved.');
+    $assert(
+        $approved['adviser_decision'] === 'approved'
+        && $approved['ssc_decision'] === 'approved'
+        && $approved['osa_decision'] === 'approved',
+        'All staged decisions were not preserved.'
+    );
     $finalCancellationBlocked = false;
     try {
         docCancelSubmission(
@@ -196,8 +211,8 @@ try {
     $cancelReviewBlocked = false;
     try {
         docReviewSubmission(
-            $pdo, (int)$cancelCandidate['submission_id'], (int)$sscFixture['reviewer_id'],
-            'approved', null, 'SSC', (int)$sscFixture['org_id'], 'SSC'
+            $pdo, (int)$cancelCandidate['submission_id'], (int)$fixture['reviewer_id'],
+            'approved', null, 'ADVISER', null, 'ADVISER', (int)$fixture['org_id']
         );
     } catch (DocumentValidationException $e) {
         $cancelReviewBlocked = true;
@@ -209,6 +224,13 @@ try {
         'document_type' => 'Financial Statement',
         'storage_key' => (string)$fixture['file_url'],
     ]);
+    docReviewSubmission(
+        $pdo, (int)$forwardCancelCandidate['submission_id'], (int)$fixture['reviewer_id'],
+        'approved', null, 'ADVISER', null, 'ADVISER', (int)$fixture['org_id']
+    );
+    docForwardSubmissionToSsc(
+        $pdo, (int)$forwardCancelCandidate['submission_id'], (int)$fixture['org_id'], (int)$fixture['submitted_by_user_id']
+    );
     docReviewSubmission(
         $pdo, (int)$forwardCancelCandidate['submission_id'], (int)$sscFixture['reviewer_id'],
         'approved', null, 'SSC', (int)$sscFixture['org_id'], 'SSC'
@@ -243,16 +265,29 @@ try {
         'recipient' => 'SSC',
         'storage_key' => (string)$fixture['file_url'],
     ]);
-    $assert($sscDirect['recipient'] === 'OSA', 'An SSC-originated document was not routed directly to OSA.');
+    $assert($sscDirect['recipient'] === 'ADVISER', 'An SSC-originated document bypassed its adviser.');
+    $sscAdviserApproved = docReviewSubmission(
+        $pdo, (int)$sscDirect['submission_id'], (int)$sscFixture['reviewer_id'],
+        'approved', 'Approved by SSC adviser.', 'ADVISER', null, 'ADVISER', (int)$sscFixture['org_id']
+    );
+    $assert($sscAdviserApproved['status'] === 'adviser_approved', 'SSC adviser approval did not unlock forwarding.');
+    docForwardSubmissionToOsa(
+        $pdo, (int)$sscDirect['submission_id'], (int)$sscFixture['org_id'], (int)$sscFixture['reviewer_id']
+    );
     $sscDirectApproved = docReviewSubmission(
         $pdo, (int)$sscDirect['submission_id'], (int)$fixture['reviewer_id'],
         'approved', 'Direct OSA approval.', 'OSA', null, 'OSA'
     );
     $assert($sscDirectApproved['status'] === 'approved', 'SSC direct-to-OSA submission did not receive final approval.');
-    $assert($sscDirectApproved['ssc_decision'] === null && $sscDirectApproved['osa_decision'] === 'approved', 'SSC direct submission recorded the wrong review stages.');
+    $assert(
+        $sscDirectApproved['adviser_decision'] === 'approved'
+        && $sscDirectApproved['ssc_decision'] === null
+        && $sscDirectApproved['osa_decision'] === 'approved',
+        'SSC direct submission recorded the wrong review stages.'
+    );
 
     $pdo->rollBack();
-    echo "PASS: hierarchical SSC-to-OSA decisions, cancellation, immutable snapshots, and linked revisions are enforced.\n";
+    echo "PASS: hierarchical adviser-to-SSC-to-OSA decisions, cancellation, immutable snapshots, and linked revisions are enforced.\n";
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     fwrite(STDERR, 'FAIL: ' . $e->getMessage() . "\n");

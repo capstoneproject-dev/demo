@@ -809,6 +809,10 @@ async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
             type: getDocumentTypeDisplay(item.document_type, item.custom_document_type),
             org: item.org_name || '',
             status: item.status || 'pending',
+            adviserDecision: item.adviser_decision || null,
+            adviserReviewerName: item.adviser_reviewer_name || '',
+            adviserReviewerNotes: item.adviser_reviewer_notes || '',
+            adviserReviewedAt: item.adviser_reviewed_at || null,
             sscDecision: item.ssc_decision || null,
             sscReviewerName: item.ssc_reviewer_name || '',
             sscReviewerNotes: item.ssc_reviewer_notes || '',
@@ -1875,6 +1879,10 @@ async function loadRequestsFromApi() {
                 annotationCount: Number(item.annotation_count || 0),
                 latestAnnotationAt: item.latest_annotation_at || null,
                 reviewerNotes: item.reviewer_notes || '',
+                adviserDecision: item.adviser_decision || null,
+                adviserReviewerName: item.adviser_reviewer_name || '',
+                adviserReviewerNotes: item.adviser_reviewer_notes || '',
+                adviserReviewedAt: item.adviser_reviewed_at || null,
                 sscDecision: item.ssc_decision || null,
                 sscReviewerName: item.ssc_reviewer_name || '',
                 sscReviewerNotes: item.ssc_reviewer_notes || '',
@@ -3124,12 +3132,19 @@ function syncDocsTermControlsToActive() {
     if (periodSelect) periodSelect.value = activeAcademicTerm.grading_period;
 }
 
-function renderOsaDocumentStageReview(decision, reviewerName, pending = false) {
+function renderOsaDocumentStageReview(decision, reviewerName, pending = false, reviewerNotes = '', reviewedAt = null) {
+    const notes = String(reviewerNotes || '').trim();
+    const notesHtml = notes
+        ? ` <i class="fa-regular fa-comment" title="${escapeDashboardHtml(notes)}" aria-label="Review comment"></i>`
+        : '';
+    const dateHtml = reviewedAt
+        ? `<span class="sub-status waiting">${escapeDashboardHtml(fmtDateShort(reviewedAt))}</span>`
+        : '';
     if (decision === 'approved') {
-        return `<span>${escapeDashboardHtml(reviewerName || '-')}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>`;
+        return `<span>${escapeDashboardHtml(reviewerName || '-')}${notesHtml}</span><span class="sub-status approved"><i class="fa-solid fa-check"></i> Approved</span>${dateHtml}`;
     }
     if (decision === 'rejected') {
-        return `<span>${escapeDashboardHtml(reviewerName || '-')}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>`;
+        return `<span>${escapeDashboardHtml(reviewerName || '-')}${notesHtml}</span><span class="sub-status rejected"><i class="fa-solid fa-xmark"></i> Rejected</span>${dateHtml}`;
     }
     return pending
         ? '<span style="color:var(--muted)">-</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>'
@@ -3280,11 +3295,26 @@ function renderDocs(filter = 'All', btnElement = null) {
         }
 
         const sender = doc.submittedByName || `User #${doc.submittedByUserId || 'N/A'}`;
-        const sscReviewHtml = renderOsaDocumentStageReview(doc.sscDecision, doc.sscReviewerName, false);
+        const adviserReviewHtml = renderOsaDocumentStageReview(
+            doc.adviserDecision,
+            doc.adviserReviewerName,
+            false,
+            doc.adviserReviewerNotes,
+            doc.adviserReviewedAt
+        );
+        const sscReviewHtml = renderOsaDocumentStageReview(
+            doc.sscDecision,
+            doc.sscReviewerName,
+            false,
+            doc.sscReviewerNotes,
+            doc.sscReviewedAt
+        );
         const osaReviewHtml = renderOsaDocumentStageReview(
             doc.osaDecision,
             doc.osaReviewerName,
-            ['pending', 'sent_to_osa'].includes(statusText)
+            ['pending', 'sent_to_osa'].includes(statusText),
+            doc.osaReviewerNotes,
+            doc.osaReviewedAt
         );
 
         return `
@@ -3303,6 +3333,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                 </div>
             </div>
             <div class="col-sent mobile-hide">${escapeDashboardHtml(sender)}</div>
+            <div class="col-adviser mobile-hide">${adviserReviewHtml}</div>
             <div class="col-ssc mobile-hide">${sscReviewHtml}</div>
             <div class="col-osa mobile-hide">${osaReviewHtml}</div>
             <div class="col-status">

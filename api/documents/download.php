@@ -5,7 +5,18 @@ require_once __DIR__ . '/../../includes/documents.php';
 require_once __DIR__ . '/../../includes/private_pdf_storage.php';
 
 apiGuard();
-if ((getPhpSession()['login_role'] ?? '') === 'org') apiRequireOrgManageAccess();
+$documentMembership = null;
+if ((getPhpSession()['login_role'] ?? '') === 'org') {
+    $documentMembership = apiRequireOrgManageOrDocumentReviewAccess();
+    if (
+        (int)($documentMembership['can_manage_org_dashboard'] ?? 0) !== 1
+        && isset($_GET['download'])
+    ) {
+        jsonError('Organization advisers may preview documents but cannot download them.', 403, [
+            'error_code' => 'ORG_READ_ONLY',
+        ]);
+    }
+}
 
 $submissionId = (int)($_GET['submission_id'] ?? 0);
 if ($submissionId <= 0) {

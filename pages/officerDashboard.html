@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260822-compact-document-actions">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260823-adviser-review-1">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -1371,6 +1371,7 @@
                     <div class="list-header-row">
                         <span class="col-name">Document Name</span>
                         <span class="col-sent mobile-hide">Sent By</span>
+                        <span class="col-adviser mobile-hide">Adviser Review</span>
                         <span class="col-ssc mobile-hide">SSC Review</span>
                         <span class="col-osa mobile-hide">OSA Review</span>
                         <span class="col-status" style="text-align: right;">Actions</span>
@@ -2043,7 +2044,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeOfficerDocumentReviewModal()">Cancel</button>
-                <button id="officer-document-approve-confirm" type="button" class="btn btn-success" onclick="confirmOfficerDocumentReview()">
+                <button id="officer-document-approve-confirm" type="button" class="btn btn-success" data-readonly-allow onclick="confirmOfficerDocumentReview()">
                     <i class="fa-solid fa-check"></i> Approve
                 </button>
             </div>
@@ -2057,12 +2058,12 @@
                 <button type="button" class="close-modal" onclick="closeOfficerDocumentReviewModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="document-review-modal-copy">You can add an optional reviewer note before rejecting.</p>
+                <p id="officer-document-reject-copy" class="document-review-modal-copy">You can add an optional reviewer note before rejecting.</p>
                 <textarea id="officer-document-reject-notes" rows="4" placeholder="Optional comments..."></textarea>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeOfficerDocumentReviewModal()">Cancel</button>
-                <button id="officer-document-reject-confirm" type="button" class="btn btn-danger" onclick="confirmOfficerDocumentReview()">
+                <button id="officer-document-reject-confirm" type="button" class="btn btn-danger" data-readonly-allow onclick="confirmOfficerDocumentReview()">
                     <i class="fa-solid fa-xmark"></i> Reject
                 </button>
             </div>
@@ -2098,11 +2099,11 @@
                     </button>
                     <div class="pdf-toolbar-divider"></div>
                     <!-- Annotation Tools -->
-                    <button id="pdf-highlight-btn" class="btn btn-sm btn-outline" onclick="togglePdfHighlightMode()"
+                    <button id="pdf-highlight-btn" class="btn btn-sm btn-outline" data-readonly-allow onclick="togglePdfHighlightMode()"
                         title="Highlight Text">
                         <i class="fa-solid fa-highlighter"></i>
                     </button>
-                    <button id="pdf-comment-btn" class="btn btn-sm btn-outline" onclick="togglePdfCommentMode()"
+                    <button id="pdf-comment-btn" class="btn btn-sm btn-outline" data-readonly-allow onclick="togglePdfCommentMode()"
                         title="Add Comment">
                         <i class="fa-solid fa-comment"></i>
                     </button>
@@ -2207,7 +2208,7 @@
             <textarea id="pdf-comment-textarea" placeholder="Enter your comment..."></textarea>
             <div class="pdf-comment-modal-actions">
                 <button class="btn btn-sm btn-outline" onclick="cancelPdfComment()">Cancel</button>
-                <button class="btn btn-sm btn-primary" onclick="savePdfComment()">Save</button>
+                <button class="btn btn-sm btn-primary" data-readonly-allow onclick="savePdfComment()">Save</button>
             </div>
         </div>
     </div>
@@ -2217,10 +2218,10 @@
     <!-- Org-specific data config — must load before officerDashboard.js -->
     <script src="../data/orgData.js"></script>
     <script src="../assets/js/igp-api.js"></script>
-    <script src="../assets/js/pdfViewer.js"></script>
+    <script src="../assets/js/pdfViewer.js?v=20260823-adviser-review-1"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260823-pattern-insights-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260823-organization-adviser-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260823-adviser-review-1"></script>
     <script src="../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

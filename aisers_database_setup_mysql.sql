@@ -117,6 +117,7 @@ CREATE TABLE org_roles (
     role_name VARCHAR(50) NOT NULL,
     can_access_org_dashboard TINYINT(1) NOT NULL DEFAULT 0,
     can_manage_org_dashboard TINYINT(1) NOT NULL DEFAULT 0,
+    can_review_org_documents TINYINT(1) NOT NULL DEFAULT 0,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -747,20 +748,20 @@ INSERT INTO users (
 (4, NULL, NULL, NULL, 'OSA-0001', 'osa.staff@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Olivia', 'Garcia', 'osa_staff', 1);
 
 INSERT INTO org_roles (
-    role_id, org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, is_active
+    role_id, org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, can_review_org_documents, is_active
 ) VALUES
-(1, 1, 'officer', 1, 1, 1),
-(2, 1, 'auditor', 1, 1, 1),
-(3, 1, 'member', 0, 0, 1),
-(4, 2, 'officer', 1, 1, 1),
-(5, 2, 'auditor', 1, 1, 1),
-(6, 2, 'member', 0, 0, 1),
-(7, 3, 'officer', 1, 1, 1),
-(8, 3, 'auditor', 1, 1, 1),
-(9, 3, 'member', 0, 0, 1),
-(10, 1, 'organization_adviser', 1, 0, 1),
-(11, 2, 'organization_adviser', 1, 0, 1),
-(12, 3, 'organization_adviser', 1, 0, 1);
+(1, 1, 'officer', 1, 1, 0, 1),
+(2, 1, 'auditor', 1, 1, 0, 1),
+(3, 1, 'member', 0, 0, 0, 1),
+(4, 2, 'officer', 1, 1, 0, 1),
+(5, 2, 'auditor', 1, 1, 0, 1),
+(6, 2, 'member', 0, 0, 0, 1),
+(7, 3, 'officer', 1, 1, 0, 1),
+(8, 3, 'auditor', 1, 1, 0, 1),
+(9, 3, 'member', 0, 0, 0, 1),
+(10, 1, 'organization_adviser', 1, 0, 1, 1),
+(11, 2, 'organization_adviser', 1, 0, 1, 1),
+(12, 3, 'organization_adviser', 1, 0, 1, 1);
 
 INSERT INTO institutes (institute_id, institute_name) VALUES
 (1, 'Institute of Computer Studies'),

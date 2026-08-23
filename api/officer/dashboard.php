@@ -74,7 +74,9 @@ try {
     $documentCounts = ['pending' => 0, 'approved' => 0, 'rejected' => 0];
     foreach ($documents as $document) {
         $status = strtolower((string)($document['status'] ?? ''));
-        if (array_key_exists($status, $documentCounts)) {
+        if (in_array($status, ['adviser_pending', 'adviser_approved', 'pending', 'ssc_approved', 'sent_to_osa'], true)) {
+            $documentCounts['pending']++;
+        } elseif (array_key_exists($status, $documentCounts)) {
             $documentCounts[$status]++;
         }
     }

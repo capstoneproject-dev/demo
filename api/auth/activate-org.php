@@ -44,7 +44,8 @@ try {
         (string)$selected['org_name'],
         (string)$selected['role_name'],
         (int)($selected['can_manage_org_dashboard'] ?? 0) === 1,
-        (string)($selected['position_title'] ?? $selected['role_name'])
+        (string)($selected['position_title'] ?? $selected['role_name']),
+        (int)($selected['can_review_org_documents'] ?? 0) === 1
     );
     $session = getPhpSession();
     jsonOk(['session' => $session]);
