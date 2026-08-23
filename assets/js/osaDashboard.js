@@ -99,7 +99,7 @@ function renderOsaAlertSection(title, items, emptyMessage, totalCount = null) {
             ${safeItems.length ? safeItems.map((item) => `
                 <button type="button" class="notif-item" data-osa-alert-key="${escapeDashboardHtml(item.key || '')}"
                     data-severity="${escapeDashboardHtml(item.severity || 'info')}">
-                    <span class="notif-item-icon"><i class="fa-solid fa-file-circle-check"></i></span>
+                    <span class="notif-item-icon"><i class="fa-solid ${item.category === 'account_request' ? 'fa-user-clock' : 'fa-file-circle-check'}"></i></span>
                     <span class="notif-item-copy">
                         <strong>${escapeDashboardHtml(item.title || 'Document update')}</strong>
                         <p>${escapeDashboardHtml(item.summary || '')}</p>
@@ -119,14 +119,14 @@ function renderOsaAlerts(data) {
         [...attentionItems, ...recentItems].map((item) => [String(item.key || ''), item])
     );
 
-    const attentionCount = attentionItems.length;
+    const attentionCount = Math.max(attentionItems.length, Number(data.attention_count) || 0);
     const countEl = document.getElementById('osa-notif-count');
     if (countEl) {
         countEl.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
         countEl.hidden = attentionCount === 0;
         countEl.setAttribute(
             'aria-label',
-            `${attentionCount} document${attentionCount === 1 ? '' : 's'} awaiting review`
+            `${attentionCount} item${attentionCount === 1 ? '' : 's'} awaiting review`
         );
     }
 
@@ -136,7 +136,7 @@ function renderOsaAlerts(data) {
             renderOsaAlertSection(
                 'Needs attention',
                 attentionItems,
-                'No document submissions require review.',
+                'No submissions or account requests require review.',
                 attentionCount
             ),
             renderOsaAlertSection(
@@ -246,6 +246,29 @@ function focusOsaAlertTarget(element) {
 }
 
 async function openOsaAlertTarget(item) {
+    if (item?.category === 'account_request') {
+        closeOsaAlerts();
+        navigate('account');
+        const iframe = document.querySelector('#account iframe');
+        const focusAccountRequest = () => {
+            try {
+                const iframeDocument = iframe?.contentDocument;
+                const tabId = item?.target?.status === 'approved'
+                    ? 'approved-tab'
+                    : item?.target?.status === 'rejected'
+                        ? 'rejected-tab'
+                        : 'pending-tab';
+                iframeDocument?.getElementById(tabId)?.click();
+                iframeDocument?.getElementById('requestTabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (_error) {
+                // The Account page remains the safe fallback if the iframe is still loading.
+            }
+        };
+        if (iframe?.contentDocument?.readyState === 'complete') focusAccountRequest();
+        else iframe?.addEventListener('load', focusAccountRequest, { once: true });
+        return;
+    }
+
     const submissionId = Number(item?.target?.entity_id || 0);
     closeOsaAlerts();
     if (!submissionId) return;

@@ -17,6 +17,10 @@ try {
            AND UPPER(TRIM(recipient)) = 'OSA'"
     )->fetchColumn();
 
+    $accountAttentionCount = (int)$pdo->query(
+        "SELECT COUNT(*) FROM pending_registrations WHERE status = 'pending'"
+    )->fetchColumn();
+
     $attentionStmt = $pdo->query(
         "SELECT ds.submission_id,
                 ds.title,
@@ -54,6 +58,24 @@ try {
            )
            AND ds.reviewed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
          ORDER BY ds.reviewed_at DESC, ds.submission_id DESC
+         LIMIT {$limit}"
+    );
+
+    $accountAttentionStmt = $pdo->query(
+        "SELECT reg_id, student_number, employee_number, student_name, requested_role,
+                requested_org, requested_position, requested_at
+         FROM pending_registrations
+         WHERE status = 'pending'
+         ORDER BY requested_at ASC, reg_id ASC
+         LIMIT {$limit}"
+    );
+
+    $accountRecentStmt = $pdo->query(
+        "SELECT reg_id, student_name, requested_role, requested_org, status, reviewed_at
+         FROM pending_registrations
+         WHERE status IN ('approved', 'rejected')
+           AND reviewed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+         ORDER BY reviewed_at DESC, reg_id DESC
          LIMIT {$limit}"
     );
 
@@ -103,8 +125,76 @@ try {
         ];
     }, $recentStmt->fetchAll(PDO::FETCH_ASSOC));
 
+    $accountTypeLabel = static function (string $role): string {
+        return match ($role) {
+            'organization_adviser' => 'Organization Adviser',
+            'org_officer' => 'Organization Officer',
+            default => 'Student',
+        };
+    };
+    $accountTarget = static fn(int $registrationId, string $status): array => [
+        'view' => 'account',
+        'action' => 'open_account_request',
+        'entity_id' => $registrationId,
+        'status' => $status,
+    ];
+
+    $accountAttentionItems = array_map(static function (array $row) use ($accountTypeLabel, $accountTarget): array {
+        $id = (int)$row['reg_id'];
+        $accountType = $accountTypeLabel((string)$row['requested_role']);
+        $name = trim((string)$row['student_name']) ?: 'Unknown applicant';
+        $organization = trim((string)($row['requested_org'] ?? ''));
+        $identifier = trim((string)($row['employee_number'] ?: $row['student_number'])) ?: 'No identifier';
+        $assignment = $organization !== '' ? " for {$organization}" : '';
+        return [
+            'key' => "account_request:{$id}:pending",
+            'category' => 'account_request',
+            'severity' => 'warning',
+            'title' => "New {$accountType} account request",
+            'summary' => "{$name} ({$identifier}) submitted a request{$assignment}.",
+            'occurred_at' => $row['requested_at'],
+            'status' => 'pending',
+            'requires_attention' => true,
+            'is_resolved' => false,
+            'organization' => $organization,
+            'target' => $accountTarget($id, 'pending'),
+        ];
+    }, $accountAttentionStmt->fetchAll(PDO::FETCH_ASSOC));
+
+    $accountRecentItems = array_map(static function (array $row) use ($accountTypeLabel, $accountTarget): array {
+        $id = (int)$row['reg_id'];
+        $status = strtolower((string)$row['status']);
+        $accountType = $accountTypeLabel((string)$row['requested_role']);
+        $name = trim((string)$row['student_name']) ?: 'Unknown applicant';
+        return [
+            'key' => "account_request:{$id}:{$status}",
+            'category' => 'account_request',
+            'severity' => $status === 'approved' ? 'success' : 'info',
+            'title' => "Account request {$status}",
+            'summary' => "{$name}'s {$accountType} request was {$status}.",
+            'occurred_at' => $row['reviewed_at'],
+            'status' => $status,
+            'requires_attention' => false,
+            'is_resolved' => true,
+            'organization' => trim((string)($row['requested_org'] ?? '')),
+            'target' => $accountTarget($id, $status),
+        ];
+    }, $accountRecentStmt->fetchAll(PDO::FETCH_ASSOC));
+
+    $attentionItems = array_merge($attentionItems, $accountAttentionItems);
+    usort($attentionItems, static fn(array $a, array $b): int =>
+        strcmp((string)$b['occurred_at'], (string)$a['occurred_at'])
+    );
+    $attentionItems = array_slice($attentionItems, 0, $limit);
+
+    $recentItems = array_merge($recentItems, $accountRecentItems);
+    usort($recentItems, static fn(array $a, array $b): int =>
+        strcmp((string)$b['occurred_at'], (string)$a['occurred_at'])
+    );
+    $recentItems = array_slice($recentItems, 0, $limit);
+
     jsonOk([
-        'attention_count' => $attentionCount,
+        'attention_count' => $attentionCount + $accountAttentionCount,
         'attention_items' => $attentionItems,
         'recent_items' => $recentItems,
         'generated_at' => (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format(DATE_ATOM),
