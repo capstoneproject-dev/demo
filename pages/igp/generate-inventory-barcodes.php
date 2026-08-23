@@ -189,7 +189,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </style>
 </head>
 
-<body>
+<body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
@@ -400,6 +400,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../../assets/js/igp-api.js"></script>
     <script src="../../assets/js/igp-barcodes-exact.js?v=20260820-grouped-stock-1"></script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-1"></script>
 </body>
 
 </html>

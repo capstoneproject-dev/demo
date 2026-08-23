@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../includes/notification_email_delivery.php';
 
 header('Content-Type: application/json');
 apiGuard();
+apiRequireOrgManageAccess();
 requirePost();
 
 try {

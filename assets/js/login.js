@@ -534,6 +534,7 @@ async function submitPendingRegistration(payload) {
       headers:     { 'Content-Type': 'application/json' },
       body:        JSON.stringify({
         studentId:    payload.studentId    || '',
+        employeeNumber: payload.employeeNumber || '',
         name:         payload.name         || '',
         email:        payload.email        || '',
         phone:        payload.phone        || '',
@@ -1268,6 +1269,8 @@ const orgPositionInput = document.getElementById('org-position-input');
 const orgStudentNumberInput = document.getElementById('org-student-number-input');
 const orgRegistrationDetails = document.getElementById('org-registration-details');
 const orgLookupMessage = document.getElementById('org-student-lookup-message');
+const orgStudentRegistrationFields = document.getElementById('org-student-registration-fields');
+const orgAdviserRegistrationFields = document.getElementById('org-adviser-registration-fields');
 const orgLockedFieldIds = [
   'org-name-input',
   'org-course-input',
@@ -1316,7 +1319,7 @@ const predefinedPositionTitles = new Set([
   '3rd Year Representative',
   '2nd Year Representative',
   '1st Year Representative',
-  'Faculty Adviser'
+  'Organization Adviser'
 ]);
 
 function resetCustomPositionEditor() {
@@ -1337,7 +1340,22 @@ function closePositionModal() {
 
 function selectPosition(positionTitle) {
   if (orgPositionInput) orgPositionInput.value = String(positionTitle || '').trim();
+  updateOrganizationRegistrationMode();
   closePositionModal();
+}
+
+function isOrganizationAdviserRegistration() {
+  return String(orgPositionInput?.value || '').trim().toLowerCase() === 'organization adviser';
+}
+
+function updateOrganizationRegistrationMode() {
+  const adviserMode = isOrganizationAdviserRegistration();
+  if (orgStudentRegistrationFields) orgStudentRegistrationFields.hidden = adviserMode;
+  if (orgAdviserRegistrationFields) orgAdviserRegistrationFields.hidden = !adviserMode;
+  if (adviserMode) {
+    verifiedOrgStudentNumber = '';
+    setOrgRegistrationVisibility(false);
+  }
 }
 
 function openCustomPositionEditor() {
@@ -1469,10 +1487,6 @@ function clearOrgRegistrationFields() {
   if (orgSectionInput) orgSectionInput.value = '';
   if (orgEmailInput) orgEmailInput.value = '';
   if (orgPhoneInput) orgPhoneInput.value = '';
-  if (orgInput) orgInput.value = '';
-  if (orgPositionInput) orgPositionInput.value = '';
-  if (customPositionInput) customPositionInput.value = '';
-  resetCustomPositionEditor();
   if (orgPasswordInput) orgPasswordInput.value = '';
 }
 
@@ -1716,6 +1730,10 @@ async function registerStudent() {
 }
 
 async function registerOrgOfficer() {
+  if (isOrganizationAdviserRegistration()) {
+    await registerOrganizationAdviser();
+    return;
+  }
   const studentNumber = (document.getElementById('org-student-number-input') || {}).value?.trim() || '';
   const fullName = (document.getElementById('org-name-input') || {}).value?.trim() || '';
   const course = (document.getElementById('org-course-input') || {}).value?.trim() || '';
@@ -1770,6 +1788,58 @@ async function registerOrgOfficer() {
     alert('Officer registration submitted. Approve it first in Accounts page.');
     toggleSlide();
   }, '', '', password);
+}
+
+async function registerOrganizationAdviser() {
+  const employeeNumber = (document.getElementById('org-adviser-employee-number-input') || {}).value?.trim() || '';
+  const fullName = (document.getElementById('org-adviser-name-input') || {}).value?.trim() || '';
+  const email = (document.getElementById('org-adviser-email-input') || {}).value?.trim() || '';
+  const phone = normalizePhoneInput((document.getElementById('org-adviser-phone-input') || {}).value?.trim() || '');
+  const password = (document.getElementById('org-adviser-password-input') || {}).value || '';
+  const confirmPassword = (document.getElementById('org-adviser-confirm-password-input') || {}).value || '';
+  const orgName = normalizeOrgName((document.getElementById('org-input') || {}).value?.trim() || '');
+
+  if (!employeeNumber || !fullName || !email || !phone || !password || !confirmPassword || !orgName) {
+    alert('Please complete all Organization Adviser registration fields.');
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert('Enter a valid email address.');
+    return;
+  }
+  if (!isValidPhoneInput(phone)) {
+    alert('Phone number must be +63 followed by a space and 10 digits.');
+    return;
+  }
+  if (password !== confirmPassword) {
+    alert('Passwords do not match.');
+    return;
+  }
+  if (password.length < 8) {
+    alert('Password must be at least 8 characters.');
+    return;
+  }
+  if (!hasPrivacyConsent('org-privacy-consent')) return;
+
+  startRegistrationOtpFlow('organization adviser', email, employeeNumber, 'organization_adviser_registration', async (verificationToken) => {
+    const submitted = await submitPendingRegistration({
+      employeeNumber,
+      name: fullName,
+      email,
+      phone,
+      password,
+      requestedRole: 'organization_adviser',
+      requestedOrg: orgName,
+      requestedPosition: 'Organization Adviser',
+      verificationToken
+    });
+    if (!submitted.ok) {
+      alert(submitted.message);
+      throw new Error(submitted.message);
+    }
+    alert('Organization adviser registration submitted. Please wait for OSA approval.');
+    toggleSlide();
+  });
 }
 
 async function registerOsa() {
@@ -2105,6 +2175,11 @@ function completeAuthenticatedLogin(data) {
     return;
   }
 
+  if (user.account_type === 'organization_adviser') {
+    activateOrganizationAdviserDashboard(memberships, baseSession);
+    return;
+  }
+
   if (!memberships || memberships.length === 0) {
     localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({
       ...baseSession,
@@ -2118,6 +2193,24 @@ function completeAuthenticatedLogin(data) {
 
   pendingOrgLogin = { user, memberships, baseSession };
   openDashboardChoiceModal();
+}
+
+async function activateOrganizationAdviserDashboard(memberships, baseSession) {
+  const selected = Array.isArray(memberships) ? memberships[0] : null;
+  if (!selected) {
+    alert('This organization adviser account has no active organization assignment. Contact the OSA.');
+    return;
+  }
+  const response = await fetch('../api/auth/activate-org.php', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ org_id: Number(selected.org_id) })
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error || 'Could not activate the adviser organization.');
+  localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ ...baseSession, ...data.session }));
+  window.location.href = 'officerDashboard.html';
 }
 
 async function handleLogin(testingBypassOtp = false) {
@@ -2180,6 +2273,11 @@ async function handleLogin(testingBypassOtp = false) {
       return;
     }
 
+    if (user.account_type === 'organization_adviser') {
+      await activateOrganizationAdviserDashboard(memberships, baseSession);
+      return;
+    }
+
     // Student with no officer memberships — student dashboard only
     if (!memberships || memberships.length === 0) {
       const session = {
@@ -2214,9 +2312,11 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPasswordVisibilityToggles();
   setupPhoneInput('student-phone-input');
   setupPhoneInput('org-phone-input');
+  setupPhoneInput('org-adviser-phone-input');
   setupPhoneInput('osa-phone-input');
   setupOrganizationRegistrationLookup();
   resetOrgRegistrationState();
+  updateOrganizationRegistrationMode();
   setupForgotPasswordFlow();
   setupRegistrationOtpFlow();
   setupOsaLoginOtpInputs();

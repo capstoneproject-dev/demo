@@ -10,6 +10,7 @@ try {
     $stmt = $pdo->prepare("
         SELECT reg_id AS id,
                student_number  AS studentId,
+               employee_number AS employeeNumber,
                student_name    AS studentName,
                email,
                program_code    AS programCode,

@@ -26,6 +26,7 @@ function handleInventoryImageUpload(array $file): string
 
 header('Content-Type: application/json');
 apiGuard();
+apiRequireOrgManageAccess();
 requirePost();
 
 try {

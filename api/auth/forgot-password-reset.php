@@ -14,13 +14,13 @@ header('Content-Type: application/json');
 requirePost();
 
 $body = getRequestBody();
-$studentNumber = trim((string)($body['student_number'] ?? ''));
+$accountIdentifier = trim((string)($body['student_number'] ?? $body['identifier'] ?? ''));
 $email = trim((string)($body['email'] ?? ''));
 $verificationToken = trim((string)($body['verification_token'] ?? ''));
 $newPassword = (string)($body['new_password'] ?? '');
 
-if ($studentNumber === '' || $email === '' || $verificationToken === '' || $newPassword === '') {
-    jsonError('Student number, email verification, and new password are required.', 422);
+if ($accountIdentifier === '' || $email === '' || $verificationToken === '' || $newPassword === '') {
+    jsonError('Student or employee number, email verification, and new password are required.', 422);
 }
 
 if (strlen($newPassword) < 8) {
@@ -35,13 +35,14 @@ try {
     $stmt = $pdo->prepare(
         "SELECT user_id
          FROM users
-         WHERE student_number = :student_number
+         WHERE (student_number = :student_number OR employee_number = :employee_number)
            AND email = :email
            AND is_active = 1
          LIMIT 1"
     );
     $stmt->execute([
-        ':student_number' => $studentNumber,
+        ':student_number' => $accountIdentifier,
+        ':employee_number' => $accountIdentifier,
         ':email' => $email,
     ]);
 
@@ -52,7 +53,7 @@ try {
     rateLimitEnsureAllowed('password_reset_account', 'user:' . (int)$user['user_id'], 5, 3600);
 
     $pdo->beginTransaction();
-    consumeOtpVerification($pdo, $verificationToken, 'password_reset', $email, $studentNumber);
+    consumeOtpVerification($pdo, $verificationToken, 'password_reset', $email, $accountIdentifier);
 
     $update = $pdo->prepare(
         "UPDATE users

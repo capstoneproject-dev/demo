@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../includes/documents.php';
 
 header('Content-Type: application/json');
 apiGuard();
+apiRequireOrgManageAccess();
 requirePost();
 
 try {

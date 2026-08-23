@@ -17,6 +17,20 @@ try {
         jsonError('Analytics snapshot is required.', 422);
     }
 
+    $membership = authRequireActiveOrgMembership(false);
+    if ((int)($membership['can_manage_org_dashboard'] ?? 0) !== 1) {
+        if ($forceRefresh) {
+            jsonError('Organization advisers cannot generate analytics insights.', 403, ['error_code' => 'ORG_READ_ONLY']);
+        }
+        $cached = analyticsAiReadCache(analyticsAiBuildCacheKey($snapshot, $filters, (int)$ctx['org_id']));
+        if (!$cached) {
+            jsonError('No previously generated insights are available for these filters.', 404, [
+                'error_code' => 'INSIGHTS_NOT_AVAILABLE',
+            ]);
+        }
+        jsonOk($cached);
+    }
+
     $result = analyticsAiGenerateInsights($snapshot, $filters, (int)$ctx['org_id'], $forceRefresh);
     jsonOk($result);
 } catch (AnalyticsAiAuthorizationException $e) {

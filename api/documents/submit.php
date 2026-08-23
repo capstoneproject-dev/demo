@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../includes/private_pdf_storage.php';
 
 header('Content-Type: application/json');
 apiGuard();
+apiRequireOrgManageAccess();
 requirePost();
 
 try {

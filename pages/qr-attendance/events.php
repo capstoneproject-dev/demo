@@ -19,7 +19,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260821-archive-reset-compact">
 </head>
 
-<body>
+<body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
@@ -1363,6 +1363,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             }
         });
     </script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-1"></script>
 </body>
 
 </html>

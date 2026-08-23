@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../includes/documents.php';
 require_once __DIR__ . '/../../includes/private_pdf_storage.php';
 
 apiGuard();
+if ((getPhpSession()['login_role'] ?? '') === 'org') apiRequireOrgManageAccess();
 
 $submissionId = (int)($_GET['submission_id'] ?? 0);
 if ($submissionId <= 0) {

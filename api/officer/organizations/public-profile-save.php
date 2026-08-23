@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../includes/upload_security.php';
 
 header('Content-Type: application/json');
 apiGuard();
+apiRequireOrgManageAccess();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonError('Method not allowed.', 405);

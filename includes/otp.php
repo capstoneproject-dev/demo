@@ -64,6 +64,7 @@ function isAllowedOtpPurpose(string $purpose): bool
     return in_array($purpose, [
         'student_registration',
         'org_registration',
+        'organization_adviser_registration',
         'osa_registration',
         'osa_login',
         'password_reset',
@@ -117,6 +118,22 @@ function otpRecipientIsEligible(
         return (bool)$stmt->fetchColumn();
     }
 
+    if ($purpose === 'organization_adviser_registration') {
+        $stmt = $pdo->prepare(
+            "SELECT NOT EXISTS (
+                        SELECT 1 FROM users
+                        WHERE LOWER(email) = :email OR employee_number = :identifier
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM pending_registrations
+                        WHERE status = 'pending'
+                          AND (LOWER(email) = :email OR employee_number = :identifier)
+                    )"
+        );
+        $stmt->execute([':email' => $email, ':identifier' => $identifier]);
+        return (bool)$stmt->fetchColumn();
+    }
+
     if ($purpose === 'osa_registration') {
         try {
             requireMatchingOsaInvitation($pdo, $invitationToken, $email, $identifier);
@@ -150,10 +167,15 @@ function otpRecipientIsEligible(
 
     $stmt = $pdo->prepare(
         "SELECT 1 FROM users
-         WHERE student_number = :identifier AND LOWER(email) = :email AND is_active = 1
+         WHERE (student_number = :student_identifier OR employee_number = :employee_identifier)
+           AND LOWER(email) = :email AND is_active = 1
          LIMIT 1"
     );
-    $stmt->execute([':identifier' => $identifier, ':email' => $email]);
+    $stmt->execute([
+        ':student_identifier' => $identifier,
+        ':employee_identifier' => $identifier,
+        ':email' => $email,
+    ]);
     return (bool)$stmt->fetchColumn();
 }
 

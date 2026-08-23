@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/private_pdf_storage.php';
 
 apiGuard();
+if ((getPhpSession()['login_role'] ?? '') === 'org') apiRequireOrgManageAccess();
 
 $printJobId = (int)($_GET['print_job_id'] ?? 0);
 if ($printJobId <= 0) {

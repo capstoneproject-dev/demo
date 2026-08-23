@@ -33,7 +33,7 @@ CREATE TABLE users (
     last_login_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_users_account_type CHECK (account_type IN ('student', 'osa_staff')),
+    CONSTRAINT chk_users_account_type CHECK (account_type IN ('student', 'osa_staff', 'organization_adviser')),
     CONSTRAINT chk_users_primary_osa CHECK (is_primary_osa = 0 OR (account_type = 'osa_staff' AND is_active = 1))
 ) ENGINE=InnoDB;
 
@@ -116,6 +116,7 @@ CREATE TABLE org_roles (
     org_id INT NOT NULL,
     role_name VARCHAR(50) NOT NULL,
     can_access_org_dashboard TINYINT(1) NOT NULL DEFAULT 0,
+    can_manage_org_dashboard TINYINT(1) NOT NULL DEFAULT 0,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -397,12 +398,13 @@ CREATE TABLE student_numbers (
 -- Student account registration requests submitted by students (or Android app)
 CREATE TABLE pending_registrations (
     reg_id INT AUTO_INCREMENT PRIMARY KEY,
-    student_number VARCHAR(20) NOT NULL,
+    student_number VARCHAR(20) NULL,
+    employee_number VARCHAR(20) NULL,
     student_name VARCHAR(200) NOT NULL,
     email VARCHAR(255) NOT NULL,
     phone VARCHAR(30) NULL,
     password_hash VARCHAR(255) NOT NULL,
-    program_code VARCHAR(30) NOT NULL,
+    program_code VARCHAR(30) NULL,
     year_section VARCHAR(50) NULL,
     requested_role VARCHAR(20) NOT NULL DEFAULT 'student',
     requested_org VARCHAR(255) NULL,
@@ -745,17 +747,20 @@ INSERT INTO users (
 (4, NULL, NULL, NULL, 'OSA-0001', 'osa.staff@school.edu', '$2y$10$i26zBzKhYYuBGIDM0dNLYeEPWUvIDvpxPFoEZccUqc5wtOMDuhizm', 'Olivia', 'Garcia', 'osa_staff', 1);
 
 INSERT INTO org_roles (
-    role_id, org_id, role_name, can_access_org_dashboard, is_active
+    role_id, org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, is_active
 ) VALUES
-(1, 1, 'officer', 1, 1),
-(2, 1, 'auditor', 1, 1),
-(3, 1, 'member', 0, 1),
-(4, 2, 'officer', 1, 1),
-(5, 2, 'auditor', 1, 1),
-(6, 2, 'member', 0, 1),
-(7, 3, 'officer', 1, 1),
-(8, 3, 'auditor', 1, 1),
-(9, 3, 'member', 0, 1);
+(1, 1, 'officer', 1, 1, 1),
+(2, 1, 'auditor', 1, 1, 1),
+(3, 1, 'member', 0, 0, 1),
+(4, 2, 'officer', 1, 1, 1),
+(5, 2, 'auditor', 1, 1, 1),
+(6, 2, 'member', 0, 0, 1),
+(7, 3, 'officer', 1, 1, 1),
+(8, 3, 'auditor', 1, 1, 1),
+(9, 3, 'member', 0, 0, 1),
+(10, 1, 'organization_adviser', 1, 0, 1),
+(11, 2, 'organization_adviser', 1, 0, 1),
+(12, 3, 'organization_adviser', 1, 0, 1);
 
 INSERT INTO institutes (institute_id, institute_name) VALUES
 (1, 'Institute of Computer Studies'),

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../../includes/services_tracker.php';
 
 header('Content-Type: application/json');
 apiGuard();
+apiRequireOrgManageAccess();
 requirePost();
 
 try {

@@ -84,7 +84,8 @@ CREATE TABLE dbo.users (
     last_login_at   DATETIME2(0) NULL,
     created_at      DATETIME2(0) NOT NULL CONSTRAINT df_users_created_at DEFAULT SYSDATETIME(),
     updated_at      DATETIME2(0) NOT NULL CONSTRAINT df_users_updated_at DEFAULT SYSDATETIME(),
-    CONSTRAINT pk_users PRIMARY KEY (user_id)
+    CONSTRAINT pk_users PRIMARY KEY (user_id),
+    CONSTRAINT chk_users_account_type CHECK (account_type IN ('student', 'osa_staff', 'organization_adviser'))
 );
 GO
 
@@ -113,6 +114,7 @@ CREATE TABLE dbo.org_roles (
     org_id                   INT          NOT NULL,
     role_name                VARCHAR(50)  NOT NULL,
     can_access_org_dashboard BIT          NOT NULL CONSTRAINT df_org_roles_can_access_org_dashboard DEFAULT 0,
+    can_manage_org_dashboard BIT          NOT NULL CONSTRAINT df_org_roles_can_manage_org_dashboard DEFAULT 0,
     is_active                BIT          NOT NULL CONSTRAINT df_org_roles_is_active                DEFAULT 1,
     created_at               DATETIME2(0) NOT NULL CONSTRAINT df_org_roles_created_at DEFAULT SYSDATETIME(),
     updated_at               DATETIME2(0) NOT NULL CONSTRAINT df_org_roles_updated_at DEFAULT SYSDATETIME(),
@@ -160,12 +162,13 @@ GO
 -- --------------------------------------------------------
 CREATE TABLE dbo.pending_registrations (
     reg_id              INT          IDENTITY(1,1) NOT NULL,
-    student_number      VARCHAR(20)  NOT NULL,
+    student_number      VARCHAR(20)  NULL,
+    employee_number     VARCHAR(20)  NULL,
     student_name        VARCHAR(200) NOT NULL,
     email               VARCHAR(255) NOT NULL,
     phone               VARCHAR(30)  NULL,
     password_hash       VARCHAR(255) NOT NULL,
-    program_code        VARCHAR(30)  NOT NULL,
+    program_code        VARCHAR(30)  NULL,
     year_section        VARCHAR(50)  NULL,
     requested_role      VARCHAR(20)  NOT NULL CONSTRAINT df_pending_registrations_requested_role DEFAULT 'student',
     requested_org       VARCHAR(255) NULL,

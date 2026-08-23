@@ -458,6 +458,21 @@ function onOfficerInstituteFilterChange() {
 }
 
 // --- Render: Account Requests ---
+function requestIdentifier(request) {
+    return request.employeeNumber || request.studentId || '—';
+}
+
+function requestAccountSummary(request) {
+    if (request.requestedRole === 'organization_adviser') {
+        return 'Organization Adviser · ' + (request.requestedOrg || 'No organization') +
+            ' · ' + (request.email || 'No email');
+    }
+    if (request.requestedRole === 'org_officer') {
+        return (request.requestedPosition || 'Officer') + ' · ' + (request.requestedOrg || 'No organization');
+    }
+    return request.programCode || request.course || 'Student';
+}
+
 function renderRequestTables() {
     var pending  = pendingRequests.filter(function(r) { return r.status === 'pending';  });
     var approved = pendingRequests.filter(function(r) { return r.status === 'approved'; });
@@ -474,9 +489,9 @@ function renderRequestTables() {
         : pending.map(function(r, i) {
             return '<tr>' +
                 '<td>' + (i+1) + '</td>' +
-                '<td>' + escHtml(r.studentId || '') + '</td>' +
+                '<td>' + escHtml(requestIdentifier(r)) + '</td>' +
                 '<td>' + escHtml(r.studentName || r.name || '') + '</td>' +
-                '<td>' + escHtml(r.programCode || r.course || '—') + '</td>' +
+                '<td>' + escHtml(requestAccountSummary(r)) + '</td>' +
                 '<td>' + formatDate(r.requestedAt || r.requestTime || r.timestamp) + '</td>' +
                 '<td>' +
                     '<button class="btn btn-sm btn-success py-0 px-1"  onclick="approveRequest(\'' + escHtml(r.id) + '\')">Approve</button> ' +
@@ -491,9 +506,9 @@ function renderRequestTables() {
         : approved.map(function(r, i) {
             return '<tr>' +
                 '<td>' + (i+1) + '</td>' +
-                '<td>' + escHtml(r.studentId || '') + '</td>' +
+                '<td>' + escHtml(requestIdentifier(r)) + '</td>' +
                 '<td>' + escHtml(r.studentName || r.name || '') + '</td>' +
-                '<td>' + escHtml(r.programCode || r.course || '—') + '</td>' +
+                '<td>' + escHtml(requestAccountSummary(r)) + '</td>' +
                 '<td>' + formatDate(r.requestedAt || r.requestTime || r.timestamp) + '</td>' +
                 '<td>' + formatDate(r.approvedAt) + '</td>' +
             '</tr>';
@@ -505,9 +520,9 @@ function renderRequestTables() {
         : rejected.map(function(r, i) {
             return '<tr>' +
                 '<td>' + (i+1) + '</td>' +
-                '<td>' + escHtml(r.studentId || '') + '</td>' +
+                '<td>' + escHtml(requestIdentifier(r)) + '</td>' +
                 '<td>' + escHtml(r.studentName || r.name || '') + '</td>' +
-                '<td>' + escHtml(r.programCode || r.course || '—') + '</td>' +
+                '<td>' + escHtml(requestAccountSummary(r)) + '</td>' +
                 '<td>' + formatDate(r.requestedAt || r.requestTime || r.timestamp) + '</td>' +
                 '<td>' + formatDate(r.rejectedAt) + '</td>' +
                 '<td><button class="btn btn-sm btn-warning py-0 px-1" onclick="reopenRequest(\'' + escHtml(r.id) + '\')">Reopen</button></td>' +

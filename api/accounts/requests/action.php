@@ -44,6 +44,89 @@ try {
             jsonError('Only pending requests can be approved.', 409);
         }
 
+        if ($req['requested_role'] === 'organization_adviser') {
+            $employeeNumber = trim((string)($req['employee_number'] ?? ''));
+            $email = trim((string)($req['email'] ?? ''));
+            if ($employeeNumber === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                jsonError('The organization adviser request has invalid identity details.', 422);
+            }
+
+            $duplicate = $pdo->prepare(
+                "SELECT user_id FROM users
+                 WHERE employee_number = :employee_number OR LOWER(email) = LOWER(:email)
+                 LIMIT 1"
+            );
+            $duplicate->execute([':employee_number' => $employeeNumber, ':email' => $email]);
+            if ($duplicate->fetch()) jsonError('That organization adviser account already exists.', 409);
+
+            $orgStmt = $pdo->prepare(
+                "SELECT org_id FROM organizations
+                 WHERE (org_code = :code OR org_name = :name) AND status <> 'suspended'
+                 LIMIT 1"
+            );
+            $orgStmt->execute([':code' => $req['requested_org'], ':name' => $req['requested_org']]);
+            $org = $orgStmt->fetch();
+            if (!$org) jsonError('The requested organization is not available.', 422);
+
+            $fullName = preg_replace('/\s+/u', ' ', trim((string)$req['student_name'])) ?: '';
+            $parts = $fullName === '' ? [] : explode(' ', $fullName);
+            $lastName = count($parts) > 1 ? array_pop($parts) : '-';
+            $firstName = $parts ? implode(' ', $parts) : ($fullName ?: 'Organization Adviser');
+
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare(
+                    "INSERT INTO users
+                        (student_number, employee_number, email, password_hash, first_name, last_name,
+                         phone, account_type, has_unpaid_debt, is_active)
+                     VALUES (NULL, :employee_number, :email, :password_hash, :first_name, :last_name,
+                             :phone, 'organization_adviser', 0, 1)"
+                )->execute([
+                    ':employee_number' => $employeeNumber,
+                    ':email' => $email,
+                    ':password_hash' => $req['password_hash'],
+                    ':first_name' => $firstName,
+                    ':last_name' => $lastName,
+                    ':phone' => $req['phone'] ?: null,
+                ]);
+                $userId = (int)$pdo->lastInsertId();
+                $orgId = (int)$org['org_id'];
+
+                $pdo->prepare(
+                    "INSERT INTO org_roles
+                        (org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, is_active)
+                     VALUES (:org_id, 'organization_adviser', 1, 0, 1)
+                     ON DUPLICATE KEY UPDATE
+                        can_access_org_dashboard = 1,
+                        can_manage_org_dashboard = 0,
+                        is_active = 1"
+                )->execute([':org_id' => $orgId]);
+                $roleStmt = $pdo->prepare(
+                    "SELECT role_id FROM org_roles
+                     WHERE org_id = :org_id AND role_name = 'organization_adviser' LIMIT 1"
+                );
+                $roleStmt->execute([':org_id' => $orgId]);
+                $roleId = (int)$roleStmt->fetchColumn();
+
+                $pdo->prepare(
+                    "INSERT INTO organization_members
+                        (user_id, org_id, role_id, position_title, joined_at, is_active)
+                     VALUES (:user_id, :org_id, :role_id, 'Organization Adviser', CURDATE(), 1)"
+                )->execute([':user_id' => $userId, ':org_id' => $orgId, ':role_id' => $roleId]);
+
+                $pdo->prepare(
+                    "UPDATE pending_registrations
+                     SET status = 'approved', reviewed_by_user_id = :actor, reviewed_at = NOW()
+                     WHERE reg_id = :id"
+                )->execute([':actor' => $actorId, ':id' => $requestId]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            jsonOk(['msg' => 'Organization adviser account approved with view-only organization access.']);
+        }
+
         // Verify student number is in whitelist
         $snStmt = $pdo->prepare("
             SELECT sn.sn_id, sn.student_name, sn.program_id, sn.institute_id, ap.program_code AS whitelist_program_code
@@ -181,7 +264,7 @@ try {
                 $role = $roleStmt->fetch();
 
                 if (!$role) {
-                    $pdo->prepare("INSERT INTO org_roles (org_id, role_name, can_access_org_dashboard) VALUES (:oid, 'officer', 1)")
+                    $pdo->prepare("INSERT INTO org_roles (org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard) VALUES (:oid, 'officer', 1, 1)")
                         ->execute([':oid' => $orgId]);
                     $roleId = (int)$pdo->lastInsertId();
                 } else {

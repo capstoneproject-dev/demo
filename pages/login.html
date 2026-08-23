@@ -53,10 +53,10 @@
         <!-- FORGOT PASSWORD PANEL -->
         <div id="panel-forgot">
           <h1>FORGOT PASSWORD</h1>
-          <p class="subtitle">Enter your student number and email to receive a 6-digit verification code.</p>
+          <p class="subtitle">Enter your student or employee number and email to receive a 6-digit verification code.</p>
 
           <form id="forgotPasswordForm" class="forgot-password-form">
-            <input type="text" id="forgotStudentNumber" placeholder="Student Number" autocomplete="off" />
+            <input type="text" id="forgotStudentNumber" placeholder="Student / Employee Number" autocomplete="off" />
             <input type="email" id="forgotEmail" placeholder="Email" autocomplete="off" />
             <div class="forgot-reset-fields">
               <div class="password-field"><input type="password" id="forgotNewPassword" placeholder="New Password" autocomplete="new-password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
@@ -140,31 +140,41 @@
 
         <!-- Organization Fields -->
         <form id="form-org" class="reg-fields">
-          <input type="text" id="org-student-number-input" placeholder="Student Number" />
-          <p id="org-student-lookup-message" class="org-lookup-message">
-            Enter a registered student number to continue organization account registration.
-          </p>
-          <div id="org-registration-details" class="org-registration-details" hidden>
-            <input type="text" id="org-name-input" placeholder="Name" readonly />
-            <input type="text" id="org-course-input" placeholder="Select Course" readonly />
-            <input type="text" id="org-section-input" placeholder="Section" readonly />
-            <input type="email" id="org-email-input" placeholder="Email" readonly />
-            <input type="tel" id="org-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " readonly />
-            <div class="org-registration-inline-picks org-full-width">
-              <input type="text" id="org-input" placeholder="Select Organization"
-                class="org-select-trigger" readonly
-                onclick="openOrgModal()" />
-              <input type="text" id="org-position-input" placeholder="Select Position"
-                class="org-select-trigger" readonly
-                onclick="openPositionModal()" />
-            </div>
-            <div class="password-field org-full-width"><input type="password" id="org-password-input" placeholder="Current Student Account Password" autocomplete="current-password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
-            <p class="org-password-helper org-full-width">Enter the password for this existing student account to verify ownership.</p>
-            <label class="privacy-consent org-full-width" for="org-privacy-consent">
-              <input type="checkbox" id="org-privacy-consent" />
-              <span>By creating an account, you acknowledge that the system will collect and process your personal data for registration, user authentication, student organization management, document submission, communication, monitoring, and other legitimate academic and administrative purposes. Your data will be processed in accordance with Republic Act No. 10173, or the Data Privacy Act of 2012.</span>
-            </label>
+          <div class="org-registration-inline-picks org-full-width">
+            <input type="text" id="org-input" placeholder="Select Organization"
+              class="org-select-trigger" readonly onclick="openOrgModal()" />
+            <input type="text" id="org-position-input" placeholder="Select Position"
+              class="org-select-trigger" readonly onclick="openPositionModal()" />
           </div>
+
+          <div id="org-student-registration-fields">
+            <input type="text" id="org-student-number-input" placeholder="Student Number" />
+            <p id="org-student-lookup-message" class="org-lookup-message">
+              Enter a registered student number to continue organization account registration.
+            </p>
+            <div id="org-registration-details" class="org-registration-details" hidden>
+              <input type="text" id="org-name-input" placeholder="Name" readonly />
+              <input type="text" id="org-course-input" placeholder="Select Course" readonly />
+              <input type="text" id="org-section-input" placeholder="Section" readonly />
+              <input type="email" id="org-email-input" placeholder="Email" readonly />
+              <input type="tel" id="org-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " readonly />
+              <div class="password-field org-full-width"><input type="password" id="org-password-input" placeholder="Current Student Account Password" autocomplete="current-password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
+              <p class="org-password-helper org-full-width">Enter the password for this existing student account to verify ownership.</p>
+            </div>
+          </div>
+
+          <div id="org-adviser-registration-fields" class="org-registration-details" hidden>
+            <input type="text" id="org-adviser-employee-number-input" placeholder="Employee Number" autocomplete="username" />
+            <input type="text" id="org-adviser-name-input" placeholder="Full Name" autocomplete="name" />
+            <input type="email" id="org-adviser-email-input" placeholder="Email" autocomplete="email" />
+            <input type="tel" id="org-adviser-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
+            <div class="password-field org-full-width"><input type="password" id="org-adviser-password-input" placeholder="Password" autocomplete="new-password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
+            <div class="password-field org-full-width"><input type="password" id="org-adviser-confirm-password-input" placeholder="Re-enter Password" autocomplete="new-password" /><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.75"/></svg></button></div>
+          </div>
+          <label class="privacy-consent org-full-width" for="org-privacy-consent">
+            <input type="checkbox" id="org-privacy-consent" />
+            <span>By creating an account, you acknowledge that the system will collect and process your personal data for registration, user authentication, student organization management, document submission, communication, monitoring, and other legitimate academic and administrative purposes. Your data will be processed in accordance with Republic Act No. 10173, or the Data Privacy Act of 2012.</span>
+          </label>
           <button type="button" id="orgRegisterBtn">REGISTER</button>
         </form>
 
@@ -272,7 +282,7 @@
           <div class="org-item" onclick="selectPosition('3rd Year Representative')">3rd Year Representative</div>
           <div class="org-item" onclick="selectPosition('2nd Year Representative')">2nd Year Representative</div>
           <div class="org-item" onclick="selectPosition('1st Year Representative')">1st Year Representative</div>
-          <div class="org-item" onclick="selectPosition('Faculty Adviser')">Faculty Adviser</div>
+          <div class="org-item" onclick="selectPosition('Organization Adviser')">Organization Adviser</div>
           <button type="button" class="org-item position-other-btn" onclick="openCustomPositionEditor()">Others</button>
         </div>
         <div class="custom-position-editor" id="custom-position-editor" hidden>
@@ -399,7 +409,7 @@
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20260819-org-password-verification-3"></script>
+  <script src="../assets/js/login.js?v=20260823-organization-adviser-1"></script>
 
 </body>
 

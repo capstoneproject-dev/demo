@@ -113,13 +113,82 @@ function startUserSession(array $payload, bool $establishAuthentication = false)
 }
 
 /** Updates only the active-org fields without rebuilding the full session. */
-function updateActiveOrg(int $orgId, string $orgName, string $roleName): void
+function updateActiveOrg(
+    int $orgId,
+    string $orgName,
+    string $roleName,
+    bool $canManageOrgDashboard = false,
+    ?string $positionTitle = null
+): void
 {
     $_SESSION['naap_session']['active_org_id']   = $orgId;
     $_SESSION['naap_session']['active_org_name'] = $orgName;
     $_SESSION['naap_session']['active_role_name']= $roleName;
+    $_SESSION['naap_session']['active_position_title'] = $positionTitle ?: $roleName;
+    $_SESSION['naap_session']['can_manage_org_dashboard'] = $canManageOrgDashboard;
+    $_SESSION['naap_session']['is_read_only'] = !$canManageOrgDashboard;
     $_SESSION['naap_session']['login_role']      = 'org';
     authRecordPresence();
+}
+
+/**
+ * Resolve the authenticated user's active organization membership from the
+ * database. Session/localStorage values choose an organization but never
+ * grant permissions.
+ */
+function authRequireActiveOrgMembership(bool $requireManage = false): array
+{
+    apiGuard();
+    $session = getPhpSession();
+    $userId = (int)($session['user_id'] ?? $_SESSION['user_id'] ?? 0);
+    $orgId = (int)($session['active_org_id'] ?? 0);
+    if (($session['login_role'] ?? '') !== 'org' || $userId <= 0 || $orgId <= 0) {
+        jsonError('Organization dashboard access is required.', 403, [
+            'error_code' => 'ORG_ACCESS_REQUIRED',
+        ]);
+    }
+
+    try {
+        $stmt = getPdo()->prepare(
+            "SELECT om.membership_id, om.user_id, om.org_id, om.position_title,
+                    o.org_name, r.role_id, r.role_name,
+                    r.can_access_org_dashboard, r.can_manage_org_dashboard
+             FROM organization_members om
+             JOIN organizations o ON o.org_id = om.org_id
+             JOIN org_roles r ON r.role_id = om.role_id AND r.org_id = om.org_id
+             JOIN users u ON u.user_id = om.user_id
+             WHERE om.user_id = :user_id
+               AND om.org_id = :org_id
+               AND om.is_active = 1
+               AND r.is_active = 1
+               AND r.can_access_org_dashboard = 1
+               AND o.status <> 'suspended'
+               AND u.is_active = 1
+             LIMIT 1"
+        );
+        $stmt->execute([':user_id' => $userId, ':org_id' => $orgId]);
+        $membership = $stmt->fetch();
+    } catch (PDOException $e) {
+        error_log('[auth/org-membership] ' . $e->getMessage());
+        jsonError('Authorization could not be verified.', 500);
+    }
+
+    if (!$membership) {
+        jsonError('You are not authorized to access this organization.', 403, [
+            'error_code' => 'ORG_ACCESS_REQUIRED',
+        ]);
+    }
+    if ($requireManage && (int)$membership['can_manage_org_dashboard'] !== 1) {
+        jsonError('Organization advisers have view-only organization access.', 403, [
+            'error_code' => 'ORG_READ_ONLY',
+        ]);
+    }
+    return $membership;
+}
+
+function apiRequireOrgManageAccess(): array
+{
+    return authRequireActiveOrgMembership(true);
 }
 
 function destroySession(): void
@@ -354,6 +423,43 @@ function apiGuard(): void
         }
 
         $_SESSION['naap_session']['is_primary_osa'] = (int)($current['is_primary_osa'] ?? 0) === 1;
+    }
+
+    if (($session['login_role'] ?? '') === 'org' && (int)($session['active_org_id'] ?? 0) > 0) {
+        $userId = (int)($session['user_id'] ?? $_SESSION['user_id'] ?? 0);
+        $orgId = (int)($session['active_org_id'] ?? 0);
+        try {
+            $stmt = getPdo()->prepare(
+                "SELECT r.role_name, om.position_title, r.can_manage_org_dashboard
+                 FROM organization_members om
+                 JOIN org_roles r ON r.role_id = om.role_id AND r.org_id = om.org_id
+                 JOIN organizations o ON o.org_id = om.org_id
+                 JOIN users u ON u.user_id = om.user_id
+                 WHERE om.user_id = :user_id AND om.org_id = :org_id
+                   AND om.is_active = 1 AND r.is_active = 1
+                   AND r.can_access_org_dashboard = 1
+                   AND o.status <> 'suspended' AND u.is_active = 1
+                 LIMIT 1"
+            );
+            $stmt->execute([':user_id' => $userId, ':org_id' => $orgId]);
+            $membership = $stmt->fetch();
+        } catch (PDOException $e) {
+            error_log('[auth/org-session-refresh] ' . $e->getMessage());
+            jsonError('Authorization could not be verified.', 500);
+        }
+
+        if (!$membership) {
+            destroySession();
+            jsonError('Your organization access is no longer active.', 403, [
+                'error_code' => 'ORG_ACCESS_REQUIRED',
+            ]);
+        }
+        $canManage = (int)$membership['can_manage_org_dashboard'] === 1;
+        $_SESSION['naap_session']['active_role_name'] = (string)$membership['role_name'];
+        $_SESSION['naap_session']['active_position_title'] =
+            (string)($membership['position_title'] ?: $membership['role_name']);
+        $_SESSION['naap_session']['can_manage_org_dashboard'] = $canManage;
+        $_SESSION['naap_session']['is_read_only'] = !$canManage;
     }
 }
 

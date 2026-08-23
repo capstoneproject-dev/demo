@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../../includes/igp.php';
 
 header('Content-Type: application/json');
 apiGuard();
+apiRequireOrgManageAccess();
 requirePost();
 
 $body = getRequestBody();
@@ -93,7 +94,7 @@ try {
     $rStmt->execute([':org' => $ctx['org_id'], ':role' => $roleName]);
     $role = $rStmt->fetch();
     if (!$role) {
-        $pdo->prepare("INSERT INTO org_roles (org_id, role_name, can_access_org_dashboard, is_active) VALUES (:org, :role, 1, 1)")
+        $pdo->prepare("INSERT INTO org_roles (org_id, role_name, can_access_org_dashboard, can_manage_org_dashboard, is_active) VALUES (:org, :role, 1, 1, 1)")
             ->execute([':org' => $ctx['org_id'], ':role' => $roleName]);
         $rStmt->execute([':org' => $ctx['org_id'], ':role' => $roleName]);
         $role = $rStmt->fetch();

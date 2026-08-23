@@ -39,7 +39,13 @@ try {
         jsonError('You do not have officer access for that organization.', 403);
     }
 
-    updateActiveOrg((int)$selected['org_id'], (string)$selected['org_name'], (string)$selected['role_name']);
+    updateActiveOrg(
+        (int)$selected['org_id'],
+        (string)$selected['org_name'],
+        (string)$selected['role_name'],
+        (int)($selected['can_manage_org_dashboard'] ?? 0) === 1,
+        (string)($selected['position_title'] ?? $selected['role_name'])
+    );
     $session = getPhpSession();
     jsonOk(['session' => $session]);
 } catch (PDOException $e) {

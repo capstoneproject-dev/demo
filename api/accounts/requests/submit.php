@@ -9,6 +9,7 @@ requirePost();
 
 $body          = getRequestBody();
 $studentNumber = trim($body['studentId'] ?? '');
+$employeeNumber = trim($body['employeeNumber'] ?? '');
 $studentName   = trim($body['name']      ?? '');
 $email         = trim($body['email']     ?? '');
 $phone         = trim($body['phone']     ?? '');
@@ -20,13 +21,11 @@ $reqOrg        = trim($body['requestedOrg']  ?? '');
 $reqPosition   = preg_replace('/\s+/u', ' ', trim((string)($body['requestedPosition'] ?? ''))) ?? '';
 $verificationToken = trim($body['verification_token'] ?? '');
 
-if (!$studentNumber || !$studentName || !$email || $password === '') {
-    jsonError('studentId, name, email, and password are required.', 422);
-}
+if (!$studentName || !$email || $password === '') jsonError('Name, email, and password are required.', 422);
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     jsonError('Invalid email address.', 422);
 }
-if (!in_array($reqRole, ['student', 'org_officer'], true)) {
+if (!in_array($reqRole, ['student', 'org_officer', 'organization_adviser'], true)) {
     jsonError('Invalid registration role.', 422);
 }
 $reqPositionLength = function_exists('mb_strlen') ? mb_strlen($reqPosition) : strlen($reqPosition);
@@ -36,12 +35,73 @@ if ($reqPositionLength > 120 || preg_match('/[\x00-\x1F\x7F]/u', $reqPosition)) 
 if ($reqRole === 'org_officer' && ($reqOrg === '' || $reqPosition === '')) {
     jsonError('Organization and position title are required for officer registration.', 422);
 }
+if ($reqRole === 'organization_adviser') {
+    if ($employeeNumber === '' || $reqOrg === '' || strcasecmp($reqPosition, 'Organization Adviser') !== 0) {
+        jsonError('Employee number, organization, and the Organization Adviser position are required.', 422);
+    }
+    if (strlen($password) < 8) jsonError('Password must be at least 8 characters.', 422);
+} elseif ($studentNumber === '') {
+    jsonError('Student number is required.', 422);
+}
 
 $registrationIpSubject = 'ip:' . rateLimitClientIp();
 rateLimitEnsureAllowed('registration_submit_ip', $registrationIpSubject, 20, 3600);
 
 try {
     $pdo = getPdo();
+
+    if ($reqRole === 'organization_adviser') {
+        rateLimitEnsureAllowed('registration_submit_adviser', 'employee:' . strtolower($employeeNumber), 3, 3600);
+
+        $orgStmt = $pdo->prepare(
+            "SELECT org_id, org_name FROM organizations
+             WHERE (org_code = :org_code OR org_name = :org_name)
+               AND status <> 'suspended' LIMIT 1"
+        );
+        $orgStmt->execute([':org_code' => $reqOrg, ':org_name' => $reqOrg]);
+        $requestedOrg = $orgStmt->fetch();
+        if (!$requestedOrg) jsonError('Select a valid active organization.', 422);
+        $reqOrg = (string)$requestedOrg['org_name'];
+
+        $duplicate = $pdo->prepare(
+            "SELECT 1 FROM users WHERE LOWER(email) = LOWER(:user_email) OR employee_number = :user_employee_number
+             UNION ALL
+             SELECT 1 FROM pending_registrations
+              WHERE status = 'pending'
+                AND (LOWER(email) = LOWER(:request_email) OR employee_number = :request_employee_number)
+             LIMIT 1"
+        );
+        $duplicate->execute([
+            ':user_email' => $email,
+            ':user_employee_number' => $employeeNumber,
+            ':request_email' => $email,
+            ':request_employee_number' => $employeeNumber,
+        ]);
+        if ($duplicate->fetchColumn()) {
+            jsonError('That email or employee number already has an account or pending request.', 409);
+        }
+
+        $pdo->beginTransaction();
+        consumeOtpVerification($pdo, $verificationToken, 'organization_adviser_registration', $email, $employeeNumber);
+        $ins = $pdo->prepare(
+            "INSERT INTO pending_registrations
+                (student_number, employee_number, student_name, email, password_hash,
+                 program_code, year_section, phone, requested_role, requested_org, requested_position, status)
+             VALUES (NULL, :employee_number, :name, :email, :password_hash,
+                     NULL, NULL, :phone, 'organization_adviser', :org, 'Organization Adviser', 'pending')"
+        );
+        $ins->execute([
+            ':employee_number' => $employeeNumber,
+            ':name' => $studentName,
+            ':email' => $email,
+            ':password_hash' => password_hash($password, PASSWORD_BCRYPT),
+            ':phone' => $phone ?: null,
+            ':org' => $reqOrg,
+        ]);
+        $regId = (int)$pdo->lastInsertId();
+        $pdo->commit();
+        jsonOk(['reg_id' => $regId, 'msg' => 'Organization adviser registration submitted. Please wait for OSA approval.']);
+    }
 
     // Verify student number exists in whitelist
     $snStmt = $pdo->prepare("SELECT sn_id, student_name FROM student_numbers WHERE student_number = :sn AND is_active = 1 LIMIT 1");
@@ -157,9 +217,9 @@ try {
 
     $ins = $pdo->prepare("
         INSERT INTO pending_registrations
-            (student_number, student_name, email, password_hash,
+            (student_number, employee_number, student_name, email, password_hash,
              program_code, year_section, phone, requested_role, requested_org, requested_position, status)
-        VALUES (:sn, :name, :email, :pw, :prog, :ys, :phone, :role, :org, :position, 'pending')
+        VALUES (:sn, NULL, :name, :email, :pw, :prog, :ys, :phone, :role, :org, :position, 'pending')
     ");
     $ins->execute([
         ':sn'   => $studentNumber,

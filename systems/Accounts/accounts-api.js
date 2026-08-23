@@ -135,13 +135,15 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
         async addPendingRequest(requestData) {
             const payload = {
                 studentId:    requestData.studentId,
+                employeeNumber: requestData.employeeNumber || '',
                 name:         requestData.name || requestData.studentName || '',
                 email:        requestData.email || '',
                 password:     requestData.password || '',
                 course:       requestData.course || requestData.programCode || '',
                 yearSection:  requestData.yearSection || requestData.section || '',
                 requestedRole: requestData.requestedRole || 'student',
-                requestedOrg:  requestData.requestedOrg || ''
+                requestedOrg:  requestData.requestedOrg || '',
+                requestedPosition: requestData.requestedPosition || ''
             };
             const data = await post('/requests/submit.php', payload);
             return data.reg_id || null;

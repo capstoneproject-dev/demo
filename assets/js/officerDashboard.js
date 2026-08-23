@@ -115,7 +115,7 @@ function getOfficerOrganizationShortName(session = {}) {
 
 function updateOfficerProfileView(session = readAuthSession()) {
     const fullName = session.display_name || 'Organization Officer';
-    const roleLabel = session.active_role_name || 'officer';
+    const roleLabel = session.active_position_title || session.active_role_name || 'officer';
     const orgLabel = session.active_org_name || 'Organization';
     const headerOrgLabel = getOfficerOrganizationShortName(session);
     const studentNumber = session.student_number || session.employee_number || 'N/A';

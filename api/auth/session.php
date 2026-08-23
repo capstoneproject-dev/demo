@@ -23,6 +23,10 @@ if (!isLoggedIn()) {
 authEnforceSessionLifetime();
 
 $session = getPhpSession();
+if (($session['login_role'] ?? '') === 'org') {
+    apiGuard();
+    $session = getPhpSession();
+}
 
 // Student enrollment details can change during the annual OSA roster import.
 // Refresh database-backed profile fields on every session check so browser

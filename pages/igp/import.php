@@ -17,7 +17,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
 </head>
-<body>
+<body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
     <div class="container">
         <a class="navbar-brand d-flex align-items-center" href="#"></a>
@@ -56,5 +56,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
 <script src="../../assets/js/igp-api.js"></script>
 <script src="../../assets/js/igp-import.js"></script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-1"></script>
 </body>
 </html>

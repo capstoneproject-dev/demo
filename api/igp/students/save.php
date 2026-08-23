@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../../includes/igp.php';
 
 header('Content-Type: application/json');
 apiGuard();
+apiRequireOrgManageAccess();
 requirePost();
 
 $body = getRequestBody();
