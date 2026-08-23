@@ -53,7 +53,18 @@ function isOrganizationAdviserDocumentReviewer() {
 }
 
 function canManageOrganizationDashboard() {
-    return readAuthSession().can_manage_org_dashboard === true;
+    const session = readAuthSession();
+    if (session.can_manage_org_dashboard === true || Number(session.can_manage_org_dashboard) === 1) {
+        return true;
+    }
+    if (session.can_manage_org_dashboard === false || Number(session.can_manage_org_dashboard) === 0) {
+        return false;
+    }
+    const activeOrgId = Number(session.active_org_id || 0);
+    const activeMembership = Array.isArray(session.officer_memberships)
+        ? session.officer_memberships.find((membership) => Number(membership.org_id || 0) === activeOrgId)
+        : null;
+    return Number(activeMembership?.can_manage_org_dashboard || 0) === 1;
 }
 
 function formatLocalDateKey(date) {
@@ -416,6 +427,8 @@ function syncActiveOrgToPhpSession() {
         .then((data) => {
             if (!data || !data.ok || !data.session) return;
             localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+            updateOfficerProfileView(data.session);
+            if (Array.isArray(docsData)) renderDocs(currentDocFilter);
             document.querySelectorAll('#tracker iframe').forEach((trackerFrame) => {
                 if (trackerFrame && trackerFrame.src) {
                     trackerFrame.src = trackerFrame.src;

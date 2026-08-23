@@ -1655,7 +1655,7 @@ if (goOfficerDashboardBtn) {
         return;
       }
 
-      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ ...session, ...data.session }));
       closeDashboardChoiceModal();
       window.location.href = 'officerDashboard.html';
     } catch (err) {
