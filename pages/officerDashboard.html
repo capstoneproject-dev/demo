@@ -54,7 +54,7 @@
                     <span class="nav-label">Events</span>
                 </a>
             </li>
-            <li class="nav-item">
+            <li id="servicesTrackerNavItem" class="nav-item" hidden>
                 <a href="#" class="nav-link" onclick="navigate('tracker', this)">
                     <i class="fa-solid fa-list-check nav-icon"></i>
                     <span class="nav-label">Services Tracker</span>
@@ -1543,10 +1543,14 @@
                             <i class="fa-solid fa-wallet me-2" style="color: #002147;"></i> Financial Performance
                         </div>
                     </div>
-                    <div class="chart-container-relative">
+                    <div id="analyticsFinancialUnavailable" hidden
+                        style="padding:32px 18px; text-align:center; color:var(--muted); font-weight:600;">
+                        Not applicable — Organization Rentals and Printing are disabled by OSA.
+                    </div>
+                    <div id="analyticsFinancialChartContent" class="chart-container-relative">
                         <canvas id="revenueChart"></canvas>
                     </div>
-                    <div class="analytics-stats-footer">
+                    <div id="analyticsFinancialStats" class="analytics-stats-footer">
                         <div class="stat-item">
                             <span class="stat-label">Total Revenue</span>
                             <span class="stat-value" style="color: #002147;">₱12,500</span>
@@ -1599,7 +1603,11 @@
                             <i class="fa-solid fa-box me-2" style="color: #d97706;"></i> Inventory Utilization
                         </div>
                     </div>
-                    <div style="display: flex; height: 100%; align-items: center; justify-content: center; padding: 20px 0;">
+                    <div id="analyticsInventoryUnavailable" hidden
+                        style="padding:32px 18px; text-align:center; color:var(--muted); font-weight:600;">
+                        Not applicable — Organization Rentals and Printing are disabled by OSA.
+                    </div>
+                    <div id="analyticsInventoryChartContent" style="display: flex; height: 100%; align-items: center; justify-content: center; padding: 20px 0;">
                         <div class="chart-wrapper" style="height: 200px; flex-shrink: 0;">
                             <canvas id="rentalsChart"></canvas>
                         </div>
@@ -2221,8 +2229,8 @@
     <script src="../assets/js/igp-api.js"></script>
     <script src="../assets/js/pdfViewer.js?v=20260823-adviser-review-1"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
-    <script src="../assets/js/officerAnalytics.js?v=20260823-pattern-insights-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260824-rentals-authorization-1"></script>
+    <script src="../assets/js/officerAnalytics.js?v=20260824-service-applicability-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260824-services-tracker-authorization-1"></script>
     <script src="../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

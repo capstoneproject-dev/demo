@@ -857,7 +857,7 @@ async function openOfficerActionCenterTarget(item) {
     closeNotifs();
 
     if (!target.view) return;
-    navigate(target.view);
+    if (navigate(target.view) === false) return;
 
     if (target.action === 'open_printing') {
         switchTrackerSubView('printing');
@@ -1277,8 +1277,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (window.location.hash === '#tracker-financial-summary') {
-        navigate('tracker');
-        switchTrackerSubView('financial-summary');
+        if (navigate('tracker')) {
+            switchTrackerSubView('financial-summary');
+        }
     }
 
     if (isOfficerAnnouncementPreviewMode()) {
@@ -1288,6 +1289,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- NAVIGATION LOGIC ---
 function navigate(viewId, element) {
+    if (viewId === 'tracker' && !isOfficerServicesTrackerEnabled()) {
+        if (officerServiceAccessLoaded) {
+            showToast('Services Tracker is disabled for this organization.', 'error');
+        }
+        return false;
+    }
     // 1. Sidebar active state
     if (element) {
         document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
@@ -1375,6 +1382,7 @@ function navigate(viewId, element) {
     } else {
         stopOfficerDashboardRealtime();
     }
+    return true;
 }
 
 let currentTrackerSubView = 'rentals';
@@ -1395,6 +1403,7 @@ let officerPrintingEnabled = false;
 let officerRentalsEnabled = false;
 let officerLockerEnabled = false;
 let officerServiceAccessPromise = null;
+let officerServiceAccessLoaded = false;
 let officerFinancialSummaryData = [];
 let officerFinancialSummaryFilters = { startDate: null, endDate: null };
 let officerFinancialCalendarCurrentDate = new Date();
@@ -1549,6 +1558,32 @@ function getOfficerTrackerFallbackView() {
     return 'financial-summary';
 }
 
+function isOfficerServicesTrackerEnabled() {
+    return officerRentalsEnabled || officerPrintingEnabled;
+}
+
+function syncOfficerServicesTrackerAccess() {
+    const enabled = isOfficerServicesTrackerEnabled();
+    const navItem = document.getElementById('servicesTrackerNavItem');
+    const navLink = navItem?.querySelector('.nav-link');
+    if (navItem) {
+        navItem.hidden = !enabled;
+        navItem.style.display = enabled ? '' : 'none';
+    }
+    if (navLink) {
+        navLink.setAttribute('aria-disabled', String(!enabled));
+        navLink.tabIndex = enabled ? 0 : -1;
+    }
+
+    const trackerView = document.getElementById('tracker');
+    if (!enabled && trackerView?.classList.contains('active')) {
+        navigate('dashboard');
+        if (officerServiceAccessLoaded) {
+            showToast('Services Tracker was disabled because Rentals and Printing are both unavailable.', 'error');
+        }
+    }
+}
+
 function setOfficerTrackerRentalsAccess(rentalsEnabled, activateFallback = true) {
     officerRentalsEnabled = !!rentalsEnabled;
     const rentalsBtn = document.getElementById('trackerRentalsBtn');
@@ -1573,6 +1608,7 @@ function setOfficerTrackerRentalsAccess(rentalsEnabled, activateFallback = true)
     }
 
     syncOfficerFinancialServiceFilterOptions();
+    syncOfficerServicesTrackerAccess();
     if (activateFallback && !officerRentalsEnabled && currentTrackerSubView === 'rentals') {
         switchTrackerSubView(getOfficerTrackerFallbackView());
     }
@@ -1593,11 +1629,18 @@ async function loadOfficerServiceAccess(force = false) {
             }
             setOfficerTrackerPrintingAccess(!!data.printing_enabled);
             setOfficerTrackerRentalsAccess(!!data.rentals_enabled);
+            officerServiceAccessLoaded = true;
+            syncOfficerServicesTrackerAccess();
+            if (typeof refreshAnalyticsCharts === 'function') refreshAnalyticsCharts();
             return data;
         })
         .catch((error) => {
             console.error('[loadOfficerServiceAccess]', error);
+            officerServiceAccessLoaded = true;
             setOfficerTrackerRentalsAccess(false);
+            setOfficerTrackerPrintingAccess(false);
+            syncOfficerServicesTrackerAccess();
+            if (typeof refreshAnalyticsCharts === 'function') refreshAnalyticsCharts();
             return null;
         })
         .finally(() => {
@@ -1611,6 +1654,7 @@ function setOfficerTrackerPrintingAccess(printingEnabled) {
     officerPrintingEnabled = !!printingEnabled;
     officerLockerEnabled = isOfficerLockerEnabled();
     syncOfficerFinancialServiceFilterOptions();
+    syncOfficerServicesTrackerAccess();
 
     const trackerLayout = document.getElementById('trackerLayout');
     const printingBtn = document.getElementById('trackerPrintingBtn');
@@ -7060,7 +7104,7 @@ function viewAllRentals() {
         return;
     }
     // 1. Switch to the Services Tracker tab
-    navigate('tracker');
+    if (!navigate('tracker')) return;
     switchTrackerSubView('rentals');
 
     // 2. Find the iframe
@@ -7646,6 +7690,8 @@ function addAnalyticsPdfSectionDescription(doc, title, description, startY) {
 }
 
 function buildAnalyticsCsvRows(meta, report, insights = null) {
+    const servicesApplicable = report?.availability?.servicesApplicable !== false;
+    const serviceNote = servicesApplicable ? 'Inventory utilization' : 'Not applicable — Rentals and Printing are disabled';
     const rows = [
         ['ORGANIZATION ANALYTICS REPORT'],
         ['Organization', meta.organization],
@@ -7655,12 +7701,12 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
         [],
         ['SUMMARY'],
         ['Metric', 'Value', 'Notes'],
-        ['Total Revenue', formatOfficerPeso(report.totals.revenue), String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '')],
+        ['Total Revenue', servicesApplicable ? formatOfficerPeso(report.totals.revenue) : 'Not applicable', servicesApplicable ? String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '') : serviceNote],
         ['Average Attendance', report.totals.participationAverage, report.summaries.participation],
         ['Total Event Participants', report.totals.participationTotal, `${report.events.length} event(s)`],
-        ['Active Rentals', report.counts.rentals.active, 'Inventory utilization'],
-        ['Pending Rentals', report.counts.rentals.pending, 'Inventory utilization'],
-        ['Overdue Rentals', report.counts.rentals.overdue, 'Inventory utilization'],
+        ['Active Rentals', servicesApplicable ? report.counts.rentals.active : 'Not applicable', serviceNote],
+        ['Pending Rentals', servicesApplicable ? report.counts.rentals.pending : 'Not applicable', serviceNote],
+        ['Overdue Rentals', servicesApplicable ? report.counts.rentals.overdue : 'Not applicable', serviceNote],
         ['Approved Documents', report.counts.docs.approved, 'Document workflow'],
         ['Pending Documents', report.counts.docs.pending, 'Document workflow'],
         ['Rejected Documents', report.counts.docs.rejected, 'Document workflow'],
@@ -7678,12 +7724,12 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
         ['Period', 'Revenue'],
     ];
 
-    if (report.charts.revenue.labels.length && !(report.charts.revenue.labels.length === 1 && report.charts.revenue.labels[0] === 'No revenue data')) {
+    if (servicesApplicable && report.charts.revenue.labels.length && !(report.charts.revenue.labels.length === 1 && report.charts.revenue.labels[0] === 'No revenue data')) {
         report.charts.revenue.labels.forEach((label, index) => {
             rows.push([label, formatOfficerPeso(report.charts.revenue.values[index] || 0)]);
         });
     } else {
-        rows.push(['No revenue data', formatOfficerPeso(0)]);
+        rows.push([servicesApplicable ? 'No revenue data' : 'Not applicable', servicesApplicable ? formatOfficerPeso(0) : 'Rentals and Printing are disabled']);
     }
 
     rows.push([]);
@@ -7707,7 +7753,7 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
     rows.push(['FINANCIAL TRANSACTIONS']);
     rows.push(['Description', insights?.exportSections?.financialTransactions || '-']);
     rows.push(['Date', 'Service', 'Item', 'Customer', 'Total', 'Payment']);
-    if (report.financial.length) {
+    if (servicesApplicable && report.financial.length) {
         report.financial.forEach((item) => {
             rows.push([
                 formatOfficerFinancialDate(getOfficerFinancialDateValue(item)),
@@ -7719,19 +7765,19 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
             ]);
         });
     } else {
-        rows.push(['No financial transactions', '', '', '', '', '']);
+        rows.push([servicesApplicable ? 'No financial transactions' : 'Not applicable — Rentals and Printing are disabled', '', '', '', '', '']);
     }
 
     rows.push([]);
     rows.push(['RENTAL RECORDS']);
     rows.push(['Description', insights?.exportSections?.rentalRecords || '-']);
     rows.push(['Item', 'Borrower', 'Due Date', 'Status']);
-    if (report.rentals.length) {
+    if (servicesApplicable && report.rentals.length) {
         report.rentals.forEach((item) => {
             rows.push([item.item || '-', item.renter || '-', item.due || '-', item.status || '-']);
         });
     } else {
-        rows.push(['No rental records', '', '', '']);
+        rows.push([servicesApplicable ? 'No rental records' : 'Not applicable — Rentals and Printing are disabled', '', '', '']);
     }
 
     rows.push([]);
@@ -7793,6 +7839,8 @@ async function exportPDF(options = {}) {
     const insights = typeof getOfficerAnalyticsInsightsData === 'function'
         ? await getOfficerAnalyticsInsightsData({ snapshot: report, render: false })
         : null;
+    const servicesApplicable = report?.availability?.servicesApplicable !== false;
+    const serviceNote = servicesApplicable ? 'Inventory utilization' : 'Not applicable — Rentals and Printing are disabled';
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -7811,12 +7859,12 @@ async function exportPDF(options = {}) {
         startY: 46,
         head: [['Metric', 'Value', 'Notes']],
         body: [
-            ['Total Revenue', formatOfficerPeso(report.totals.revenue), String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '')],
+            ['Total Revenue', servicesApplicable ? formatOfficerPeso(report.totals.revenue) : 'Not applicable', servicesApplicable ? String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '') : serviceNote],
             ['Average Attendance', String(report.totals.participationAverage), report.summaries.participation],
             ['Total Participants', String(report.totals.participationTotal), `${report.events.length} event(s)`],
-            ['Active Rentals', String(report.counts.rentals.active), 'Inventory utilization'],
-            ['Pending Rentals', String(report.counts.rentals.pending), 'Inventory utilization'],
-            ['Overdue Rentals', String(report.counts.rentals.overdue), 'Inventory utilization'],
+            ['Active Rentals', servicesApplicable ? String(report.counts.rentals.active) : 'Not applicable', serviceNote],
+            ['Pending Rentals', servicesApplicable ? String(report.counts.rentals.pending) : 'Not applicable', serviceNote],
+            ['Overdue Rentals', servicesApplicable ? String(report.counts.rentals.overdue) : 'Not applicable', serviceNote],
             ['Approved Docs', String(report.counts.docs.approved), 'Document workflow'],
             ['Pending Docs', String(report.counts.docs.pending), 'Document workflow'],
             ['Rejected Docs', String(report.counts.docs.rejected), 'Document workflow'],
@@ -7860,9 +7908,9 @@ async function exportPDF(options = {}) {
     doc.autoTable({
         startY: currentY + 4,
         head: [['Period', 'Revenue']],
-        body: (report.charts.revenue.labels.length && !(report.charts.revenue.labels.length === 1 && report.charts.revenue.labels[0] === 'No revenue data'))
+        body: (servicesApplicable && report.charts.revenue.labels.length && !(report.charts.revenue.labels.length === 1 && report.charts.revenue.labels[0] === 'No revenue data'))
             ? report.charts.revenue.labels.map((label, index) => [label, formatOfficerPeso(report.charts.revenue.values[index] || 0)])
-            : [['No revenue data', formatOfficerPeso(0)]],
+            : [[servicesApplicable ? 'No revenue data' : 'Not applicable', servicesApplicable ? formatOfficerPeso(0) : 'Rentals and Printing are disabled']],
         theme: 'striped',
         headStyles: { fillColor: [0, 33, 71] },
         styles: { fontSize: 9 },
@@ -7901,7 +7949,7 @@ async function exportPDF(options = {}) {
     doc.autoTable({
         startY: currentY + 4,
         head: [['Date', 'Service', 'Item', 'Customer', 'Total', 'Payment']],
-        body: report.financial.length
+        body: servicesApplicable && report.financial.length
             ? report.financial.map((item) => [
                 formatOfficerFinancialDate(getOfficerFinancialDateValue(item)),
                 getOfficerFinancialServiceLabel(item.service_type),
@@ -7910,7 +7958,7 @@ async function exportPDF(options = {}) {
                 formatOfficerPeso(item.total_cost || 0),
                 getOfficerFinancialPaymentLabel(item),
             ])
-            : [['No financial transactions', '', '', '', '', '']],
+            : [[servicesApplicable ? 'No financial transactions' : 'Not applicable — Rentals and Printing are disabled', '', '', '', '', '']],
         theme: 'striped',
         headStyles: { fillColor: [37, 99, 235] },
         styles: { fontSize: 8 },
@@ -7926,9 +7974,9 @@ async function exportPDF(options = {}) {
     doc.autoTable({
         startY: currentY + 4,
         head: [['Item', 'Borrower', 'Due Date', 'Status']],
-        body: report.rentals.length
+        body: servicesApplicable && report.rentals.length
             ? report.rentals.map((item) => [item.item || '-', item.renter || '-', item.due || '-', item.status || '-'])
-            : [['No rental records', '', '', '']],
+            : [[servicesApplicable ? 'No rental records' : 'Not applicable — Rentals and Printing are disabled', '', '', '']],
         theme: 'striped',
         headStyles: { fillColor: [217, 119, 6] },
         styles: { fontSize: 8 },

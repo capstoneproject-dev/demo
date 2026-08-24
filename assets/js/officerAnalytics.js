@@ -152,6 +152,12 @@ function getOfficerAnalyticsSourceData() {
     return { rentals, docs, financial, events };
 }
 
+function isOfficerServiceAnalyticsApplicable() {
+    return typeof isOfficerServicesTrackerEnabled === 'function'
+        ? isOfficerServicesTrackerEnabled()
+        : true;
+}
+
 async function loadOfficerAnalyticsEvents() {
     try {
         const [eventsRes, attendanceRes] = await Promise.all([
@@ -560,23 +566,24 @@ function buildOfficerEventParticipationPatterns(events) {
 function getOfficerAnalyticsSnapshot(overrides = {}) {
     const filters = getOfficerAnalyticsFilters(overrides);
     const source = getOfficerAnalyticsSourceData();
+    const servicesApplicable = isOfficerServiceAnalyticsApplicable();
 
-    const filteredFinancial = source.financial.filter((item) => {
+    const filteredFinancial = servicesApplicable ? source.financial.filter((item) => {
         const date = parseOfficerAnalyticsDate(
             item?.transaction_date || item?.transaction_datetime || item?.submitted_at
         );
         return isOfficerAnalyticsDateMatch(date, filters);
-    });
+    }) : [];
 
     const filteredDocs = source.docs.filter((item) => {
         const date = parseOfficerAnalyticsDate(item.submittedAt || item.date);
         return isOfficerAnalyticsDateMatch(date, filters);
     });
 
-    const filteredRentals = source.rentals.filter((item) => {
+    const filteredRentals = servicesApplicable ? source.rentals.filter((item) => {
         const date = parseOfficerAnalyticsDate(item.borrowedAt || item.dueAt || item.due);
         return isOfficerAnalyticsDateMatch(date, filters);
-    });
+    }) : [];
 
     const filteredEvents = source.events.filter((item) => {
         const date = parseOfficerAnalyticsDate(item.date);
@@ -601,7 +608,10 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         outstanding: outstandingTransactionCount,
     };
 
-    const revenueGrowthBreakdown = getOfficerAnalyticsRevenueGrowthBreakdown(source.financial, filters);
+    const revenueGrowthBreakdown = getOfficerAnalyticsRevenueGrowthBreakdown(
+        servicesApplicable ? source.financial : [],
+        filters
+    );
     const revenueTrend = formatOfficerAnalyticsRevenueTrend(revenueGrowthBreakdown);
 
     const participationTotal = filteredEvents.reduce((sum, event) => sum + Number(event.participants || 0), 0);
@@ -705,6 +715,11 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
 
     return {
         filters,
+        availability: {
+            servicesApplicable,
+            rentalsEnabled: typeof officerRentalsEnabled !== 'undefined' ? !!officerRentalsEnabled : true,
+            printingEnabled: typeof officerPrintingEnabled !== 'undefined' ? !!officerPrintingEnabled : true,
+        },
         source,
         financial: filteredFinancial,
         docs: filteredDocs,
@@ -729,7 +744,9 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         patterns,
         charts: {
             revenue: {
-                labels: revenueLabels.length ? revenueLabels : ['No revenue data'],
+                labels: servicesApplicable
+                    ? (revenueLabels.length ? revenueLabels : ['No revenue data'])
+                    : ['Not applicable'],
                 values: revenueValues.length ? revenueValues : [0],
             },
             participation: {
@@ -737,8 +754,10 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
                 values: participationSeries.length ? participationSeries.map((item) => item.value) : [0],
             },
             rentals: {
-                labels: ['Active', 'Pending', 'Overdue'],
-                values: [rentalCounts.active, rentalCounts.pending, rentalCounts.overdue],
+                labels: servicesApplicable ? ['Active', 'Pending', 'Overdue'] : ['Not applicable'],
+                values: servicesApplicable
+                    ? [rentalCounts.active, rentalCounts.pending, rentalCounts.overdue]
+                    : [0],
             },
             docs: {
                 labels: ['Approved', 'Pending', 'Rejected'],
@@ -749,6 +768,22 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
 }
 
 function updateOfficerAnalyticsCardText(snapshot) {
+    const servicesApplicable = snapshot?.availability?.servicesApplicable !== false;
+    const availabilityMappings = [
+        ['analyticsFinancialUnavailable', 'analyticsFinancialChartContent'],
+        ['analyticsInventoryUnavailable', 'analyticsInventoryChartContent'],
+    ];
+    availabilityMappings.forEach(([messageId, contentId]) => {
+        const message = document.getElementById(messageId);
+        const content = document.getElementById(contentId);
+        if (message) message.hidden = servicesApplicable;
+        if (content) content.style.display = servicesApplicable
+            ? (contentId === 'analyticsInventoryChartContent' ? 'flex' : '')
+            : 'none';
+    });
+    const financialStats = document.getElementById('analyticsFinancialStats');
+    if (financialStats) financialStats.style.display = servicesApplicable ? '' : 'none';
+
     // Update Financial Performance Card
     const financialFooter = document.querySelector('.card-financial .analytics-stats-footer');
     if (financialFooter) {
@@ -805,6 +840,9 @@ function updateOfficerAnalyticsCardText(snapshot) {
     const activeFilter = document.getElementById('analytics-active-filter');
     if (activeFilter) {
         let filterText = snapshot.summaries.filterSummary;
+        if (!servicesApplicable) {
+            filterText += ' Service analytics are not applicable because Organization Rentals and Printing are disabled.';
+        }
         // Add mock data indicator
         if (officerAnalyticsState.mockData) {
             filterText = '<span style="background: #059669; color: white; padding: 4px 8px; border-radius: 4px; font-weight: 600; margin-right: 8px;"><i class="fa-solid fa-flask"></i> MOCK DATA</span> ' + filterText;
@@ -895,6 +933,7 @@ function buildOfficerAnalyticsInsightsRequest(snapshot) {
     return {
         snapshot: {
             filters: snapshot?.filters || {},
+            availability: snapshot?.availability || {},
             totals: snapshot?.totals || {},
             counts: snapshot?.counts || {},
             summaries: snapshot?.summaries || {},
@@ -923,6 +962,7 @@ function buildOfficerAnalyticsInsightsRequest(snapshot) {
 function buildOfficerAnalyticsInsightsCacheKey(snapshot) {
     const payload = {
         filters: snapshot?.filters || {},
+        availability: snapshot?.availability || {},
         totals: snapshot?.totals || {},
         counts: snapshot?.counts || {},
         summaries: snapshot?.summaries || {},
@@ -931,6 +971,10 @@ function buildOfficerAnalyticsInsightsCacheKey(snapshot) {
         eventIds: Array.isArray(snapshot?.events) ? snapshot.events.map((event) => [event.id || event.event_id || event.title, event.participants || 0, event.date || '']) : [],
     };
     return JSON.stringify(payload);
+}
+
+function getOfficerServiceAnalyticsUnavailableMessage() {
+    return 'Not applicable — Organization Rentals and Printing are disabled by OSA.';
 }
 
 function setOfficerAnalyticsInsightsLoading() {
@@ -947,7 +991,10 @@ function setOfficerAnalyticsInsightsLoading() {
     ['analyticsInsightFinancial', 'analyticsInsightParticipation', 'analyticsInsightInventory', 'analyticsInsightDocuments'].forEach((id) => {
         const element = document.getElementById(id);
         if (element) {
-            element.textContent = 'Generating insights...';
+            const serviceInsight = id === 'analyticsInsightFinancial' || id === 'analyticsInsightInventory';
+            element.textContent = serviceInsight && !isOfficerServiceAnalyticsApplicable()
+                ? getOfficerServiceAnalyticsUnavailableMessage()
+                : 'Generating insights...';
         }
     });
 }
@@ -966,16 +1013,25 @@ function setOfficerAnalyticsInsightsIdle() {
     ['analyticsInsightFinancial', 'analyticsInsightParticipation', 'analyticsInsightInventory', 'analyticsInsightDocuments'].forEach((id) => {
         const element = document.getElementById(id);
         if (element) {
-            element.textContent = 'Click Generate Insights to generate an AI analysis.';
+            const serviceInsight = id === 'analyticsInsightFinancial' || id === 'analyticsInsightInventory';
+            element.textContent = serviceInsight && !isOfficerServiceAnalyticsApplicable()
+                ? getOfficerServiceAnalyticsUnavailableMessage()
+                : 'Click Generate Insights to generate an AI analysis.';
         }
     });
 }
 
 function renderOfficerAnalyticsInsights(insights) {
+    const serviceAnalyticsApplicable = isOfficerServiceAnalyticsApplicable();
+    const unavailableMessage = getOfficerServiceAnalyticsUnavailableMessage();
     const mappings = {
-        analyticsInsightFinancial: insights?.chartSummaries?.financial || 'No financial insight available.',
+        analyticsInsightFinancial: serviceAnalyticsApplicable
+            ? (insights?.chartSummaries?.financial || 'No financial insight available.')
+            : unavailableMessage,
         analyticsInsightParticipation: insights?.chartSummaries?.participation || 'No participation insight available.',
-        analyticsInsightInventory: insights?.chartSummaries?.inventory || 'No inventory insight available.',
+        analyticsInsightInventory: serviceAnalyticsApplicable
+            ? (insights?.chartSummaries?.inventory || 'No inventory insight available.')
+            : unavailableMessage,
         analyticsInsightDocuments: insights?.chartSummaries?.documents || 'No document insight available.',
     };
 
@@ -1016,6 +1072,7 @@ function formatOfficerAnalyticsInsightLines(value) {
 }
 
 function buildOfficerAnalyticsFallbackInsights(snapshot = {}) {
+    const serviceAnalyticsApplicable = snapshot?.availability?.servicesApplicable !== false;
     const revenue = Number(snapshot?.totals?.revenue || 0);
     const participationTotal = Number(snapshot?.totals?.participationTotal || 0);
     const participationAverage = Number(snapshot?.totals?.participationAverage || 0);
@@ -1048,7 +1105,7 @@ function buildOfficerAnalyticsFallbackInsights(snapshot = {}) {
     const inventory = `Rental statuses include ${Number(rentals.active || 0)} active, ${Number(rentals.pending || 0)} pending, and ${Number(rentals.overdue || 0)} overdue records. ${rentalFinding}`;
     const documents = `Document statuses include ${Number(docs.approved || 0)} approved, ${Number(docs.pending || 0)} pending, and ${Number(docs.rejected || 0)} rejected submissions. ${rejectionFinding}`;
 
-    return {
+    const result = {
         chartSummaries: {
             financial: formatOfficerAnalyticsInsightLines(`${financial} ${balanceFinding}`),
             participation: formatOfficerAnalyticsInsightLines(participation),
@@ -1066,6 +1123,18 @@ function buildOfficerAnalyticsFallbackInsights(snapshot = {}) {
         provider: 'rule-based',
         fallbackUsed: true,
     };
+    if (!serviceAnalyticsApplicable) {
+        const unavailable = formatOfficerAnalyticsInsightLines(getOfficerServiceAnalyticsUnavailableMessage());
+        result.chartSummaries.financial = unavailable;
+        result.chartSummaries.inventory = unavailable;
+        result.exportSections.revenueSeries = unavailable;
+        result.exportSections.financialTransactions = unavailable;
+        result.exportSections.rentalRecords = unavailable;
+        result.exportSummary = formatOfficerAnalyticsInsightLines(
+            `${getOfficerServiceAnalyticsUnavailableMessage()} Participation and document workflow analytics remain available.`
+        );
+    }
+    return result;
 }
 
 async function getOfficerAnalyticsInsightsData(options = {}) {

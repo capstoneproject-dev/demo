@@ -72,6 +72,7 @@ function analyticsAiBuildCacheKey(array $snapshot, array $filters, int $orgId): 
         'version' => 6,
         'orgId' => $orgId,
         'filters' => $filters,
+        'availability' => $snapshot['availability'] ?? [],
         'snapshotHash' => sha1(json_encode($snapshot)),
     ];
     return sha1(json_encode($payload));
@@ -205,6 +206,7 @@ function analyticsAiBuildPrompt(array $snapshot, array $filters): string
 {
     $compactSnapshot = [
         'filters' => $filters,
+        'availability' => $snapshot['availability'] ?? [],
         'totals' => $snapshot['totals'] ?? [],
         'counts' => $snapshot['counts'] ?? [],
         'summaries' => $snapshot['summaries'] ?? [],
@@ -293,7 +295,7 @@ function analyticsAiNormalizeStructuredInsights(array $payload, array $snapshot,
     $chartSummaries = $payload['chartSummaries'] ?? [];
     $exportSections = $payload['exportSections'] ?? [];
 
-    return [
+    $result = [
         'chartSummaries' => [
             'financial' => analyticsAiStructureInsightLines(analyticsAiCleanInsightText($chartSummaries['financial'] ?? $fallback['chartSummaries']['financial'])),
             'participation' => analyticsAiStructureInsightLines(analyticsAiCleanInsightText($chartSummaries['participation'] ?? $fallback['chartSummaries']['participation'])),
@@ -309,6 +311,28 @@ function analyticsAiNormalizeStructuredInsights(array $payload, array $snapshot,
         ],
         'exportSummary' => analyticsAiStructureInsightLines(analyticsAiCleanInsightText($payload['exportSummary'] ?? $fallback['exportSummary'])),
     ] + array_intersect_key($payload, array_flip(['provider', 'fallbackUsed']));
+    return analyticsAiApplyServiceAvailability($result, $snapshot);
+}
+
+function analyticsAiApplyServiceAvailability(array $result, array $snapshot): array
+{
+    $availability = is_array($snapshot['availability'] ?? null) ? $snapshot['availability'] : [];
+    if (!array_key_exists('servicesApplicable', $availability) || $availability['servicesApplicable'] !== false) {
+        return $result;
+    }
+
+    $unavailable = analyticsAiStructureInsightLines(
+        'Not applicable because Organization Rentals and Printing are disabled by OSA.'
+    );
+    $result['chartSummaries']['financial'] = $unavailable;
+    $result['chartSummaries']['inventory'] = $unavailable;
+    $result['exportSections']['revenueSeries'] = $unavailable;
+    $result['exportSections']['financialTransactions'] = $unavailable;
+    $result['exportSections']['rentalRecords'] = $unavailable;
+    $result['exportSummary'] = analyticsAiStructureInsightLines(
+        'Service analytics are not applicable because Organization Rentals and Printing are disabled by OSA. Participation and document workflow analytics remain available.'
+    );
+    return $result;
 }
 
 function analyticsAiBuildRuleBasedInsights(array $snapshot, array $filters): array
@@ -364,7 +388,7 @@ function analyticsAiBuildRuleBasedInsights(array $snapshot, array $filters): arr
         analyticsAiBuildDocumentOverviewSentence($docs),
     ]);
 
-    return [
+    $result = [
         'chartSummaries' => [
             'financial' => analyticsAiStructureInsightLines($financial),
             'participation' => analyticsAiStructureInsightLines($participation),
@@ -380,6 +404,7 @@ function analyticsAiBuildRuleBasedInsights(array $snapshot, array $filters): arr
         ],
         'exportSummary' => analyticsAiStructureInsightLines($exportSummary),
     ];
+    return analyticsAiApplyServiceAvailability($result, $snapshot);
 }
 
 function analyticsAiBuildSeriesFacts(array $chart, array $emptyLabels = []): array
@@ -417,7 +442,7 @@ function analyticsAiBuildSeriesFacts(array $chart, array $emptyLabels = []): arr
     $delta = $last['value'] - $first['value'];
     $changeThreshold = max(abs($first['value']), abs($last['value']), 1.0) * 0.05;
 
-    return [
+    $result = [
         'count' => count($points),
         'points' => $points,
         'total' => $total,
