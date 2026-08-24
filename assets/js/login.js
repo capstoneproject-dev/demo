@@ -531,9 +531,9 @@ async function submitPendingRegistration(payload) {
     const res = await fetch('../api/accounts/requests/submit.php', {
       method: 'POST',
       credentials: 'include',
-      headers:     { 'Content-Type': 'application/json' },
-      body:        JSON.stringify({
-        studentId:    payload.studentId    || '',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentId: payload.studentId || '',
         employeeNumber: payload.employeeNumber || '',
         name: payload.name || '',
         email: payload.email || '',
