@@ -329,7 +329,8 @@
             <div id="trackerLayout" class="tracker-layout">
                 <aside id="trackerSidebar" class="tracker-sidebar card">
                     <div class="tracker-sidebar-nav">
-                        <button class="sub-nav-btn active" onclick="switchTrackerSubView('rentals', this)">
+                        <button id="trackerRentalsBtn" class="sub-nav-btn active"
+                            onclick="switchTrackerSubView('rentals', this)" hidden>
                             <i class="fa-solid fa-boxes-stacked"></i>
                             <span class="tracker-btn-label">Rentals</span>
                         </button>
@@ -349,9 +350,9 @@
                 </aside>
 
                 <div class="tracker-content">
-                    <div id="tracker-rentals-view" class="tracker-sub-view active">
+                    <div id="tracker-rentals-view" class="tracker-sub-view active" style="display: none;">
                         <div class="card">
-                            <iframe src="../pages/igp/index.php" title="IGP Rental System">
+                            <iframe data-src="../pages/igp/index.php" title="IGP Rental System">
                             </iframe>
                         </div>
                     </div>
@@ -2221,7 +2222,7 @@
     <script src="../assets/js/pdfViewer.js?v=20260823-adviser-review-1"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260823-pattern-insights-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260823-ssc-review-initial-render-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260824-rentals-authorization-1"></script>
     <script src="../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

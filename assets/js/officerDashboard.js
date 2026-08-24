@@ -926,7 +926,10 @@ async function openOfficerActionCenterTarget(item) {
     }
 
     if (target.action === 'open_rental') {
-        switchTrackerSubView('rentals');
+        if (!switchTrackerSubView('rentals')) {
+            showToast('Rentals are disabled for this organization.', 'error');
+            return;
+        }
         const frame = document.querySelector('#tracker-rentals-view iframe');
         if (['returned', 'cancelled'].includes(String(item.status || '').toLowerCase()) && frame) {
             frame.src = `../pages/igp/rental-history.php?action_center_rental_id=${entityId}`;
@@ -1254,7 +1257,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setupOfficerProfileEditor();
     setupOfficerPasswordForm();
     setupOfficerProfilePhotoUploader();
+    setOfficerTrackerRentalsAccess(false, false);
     setOfficerTrackerPrintingAccess(false);
+    loadOfficerServiceAccess();
 
     // Check if user previously selected dark mode
     if (localStorage.getItem('theme') === 'dark') {
@@ -1352,8 +1357,11 @@ function navigate(viewId, element) {
 
     if (viewId !== 'tracker') {
         stopOfficerPrintingAutoRefresh();
-    } else if (currentTrackerSubView === 'printing' && officerPrintingEnabled) {
-        startOfficerPrintingAutoRefresh();
+    } else {
+        loadOfficerServiceAccess(true);
+        if (currentTrackerSubView === 'printing' && officerPrintingEnabled) {
+            startOfficerPrintingAutoRefresh();
+        }
     }
 
     if (viewId === 'documents') {
@@ -1384,7 +1392,9 @@ let officerPrintingCalendarCurrentDate = new Date();
 let officerPrintingCalendarSelectedStart = null;
 let officerPrintingCalendarSelectedEnd = null;
 let officerPrintingEnabled = false;
+let officerRentalsEnabled = false;
 let officerLockerEnabled = false;
+let officerServiceAccessPromise = null;
 let officerFinancialSummaryData = [];
 let officerFinancialSummaryFilters = { startDate: null, endDate: null };
 let officerFinancialCalendarCurrentDate = new Date();
@@ -1510,8 +1520,10 @@ function syncOfficerFinancialServiceFilterOptions() {
     const previousValue = select.value || '';
     const options = [
         { value: '', label: 'All Services' },
-        { value: 'rental', label: 'Rentals' },
     ];
+    if (officerRentalsEnabled) {
+        options.push({ value: 'rental', label: 'Rentals' });
+    }
     if (officerLockerEnabled) {
         options.push({ value: 'locker', label: 'Lockers' });
     }
@@ -1528,6 +1540,71 @@ function syncOfficerFinancialServiceFilterOptions() {
     if (select.value !== previousValue && officerFinancialSummaryData.length) {
         renderOfficerFinancialSummary();
     }
+}
+
+function getOfficerTrackerFallbackView() {
+    if (officerRentalsEnabled) return 'rentals';
+    if (officerPrintingEnabled) return 'printing';
+    if (officerLockerEnabled) return 'lockers';
+    return 'financial-summary';
+}
+
+function setOfficerTrackerRentalsAccess(rentalsEnabled, activateFallback = true) {
+    officerRentalsEnabled = !!rentalsEnabled;
+    const rentalsBtn = document.getElementById('trackerRentalsBtn');
+    const rentalsView = document.getElementById('tracker-rentals-view');
+    const rentalsFrame = rentalsView?.querySelector('iframe');
+
+    if (rentalsBtn) {
+        rentalsBtn.hidden = !officerRentalsEnabled;
+        rentalsBtn.style.display = officerRentalsEnabled ? '' : 'none';
+        rentalsBtn.disabled = !officerRentalsEnabled;
+        rentalsBtn.setAttribute('aria-disabled', String(!officerRentalsEnabled));
+    }
+    if (rentalsView) {
+        rentalsView.style.display = officerRentalsEnabled ? '' : 'none';
+    }
+    if (rentalsFrame) {
+        if (officerRentalsEnabled && !rentalsFrame.getAttribute('src')) {
+            rentalsFrame.setAttribute('src', rentalsFrame.dataset.src || '../pages/igp/index.php');
+        } else if (!officerRentalsEnabled && rentalsFrame.getAttribute('src')) {
+            rentalsFrame.removeAttribute('src');
+        }
+    }
+
+    syncOfficerFinancialServiceFilterOptions();
+    if (activateFallback && !officerRentalsEnabled && currentTrackerSubView === 'rentals') {
+        switchTrackerSubView(getOfficerTrackerFallbackView());
+    }
+}
+
+async function loadOfficerServiceAccess(force = false) {
+    if (officerServiceAccessPromise && !force) return officerServiceAccessPromise;
+
+    officerServiceAccessPromise = fetch('../api/services/officer/status.php', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store'
+    })
+        .then((response) => response.json().catch(() => ({})).then((data) => ({ response, data })))
+        .then(({ response, data }) => {
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load organization service access.');
+            }
+            setOfficerTrackerPrintingAccess(!!data.printing_enabled);
+            setOfficerTrackerRentalsAccess(!!data.rentals_enabled);
+            return data;
+        })
+        .catch((error) => {
+            console.error('[loadOfficerServiceAccess]', error);
+            setOfficerTrackerRentalsAccess(false);
+            return null;
+        })
+        .finally(() => {
+            officerServiceAccessPromise = null;
+        });
+
+    return officerServiceAccessPromise;
 }
 
 function setOfficerTrackerPrintingAccess(printingEnabled) {
@@ -1561,10 +1638,12 @@ function setOfficerTrackerPrintingAccess(printingEnabled) {
 
     if (!officerPrintingEnabled && currentTrackerSubView === 'printing') {
         stopOfficerPrintingAutoRefresh();
-        currentTrackerSubView = 'rentals';
+        currentTrackerSubView = getOfficerTrackerFallbackView();
+        switchTrackerSubView(currentTrackerSubView);
     }
     if (!officerLockerEnabled && currentTrackerSubView === 'lockers') {
-        currentTrackerSubView = 'rentals';
+        currentTrackerSubView = getOfficerTrackerFallbackView();
+        switchTrackerSubView(currentTrackerSubView);
     }
 }
 
@@ -1585,11 +1664,14 @@ function initTrackerSidebarBehavior() {
 
 function switchTrackerSubView(viewId, button = null) {
     const wasPrinting = currentTrackerSubView === 'printing';
+    if (viewId === 'rentals' && !officerRentalsEnabled) {
+        return false;
+    }
     if (viewId === 'printing' && !officerPrintingEnabled) {
-        return;
+        return false;
     }
     if (viewId === 'lockers' && !officerLockerEnabled) {
-        return;
+        return false;
     }
     currentTrackerSubView = viewId;
     document.querySelectorAll('#tracker .sub-nav-btn').forEach((btn) => {
@@ -1615,6 +1697,7 @@ function switchTrackerSubView(viewId, button = null) {
     } else if (viewId === 'lockers') {
         loadOfficerLockerBoard().catch((error) => console.error(error));
     }
+    return true;
 }
 
 function formatOfficerPeso(value) {
@@ -6972,6 +7055,10 @@ async function returnItem(index) {
 }
 
 function viewAllRentals() {
+    if (!officerRentalsEnabled) {
+        showToast('Rentals are disabled for this organization.', 'error');
+        return;
+    }
     // 1. Switch to the Services Tracker tab
     navigate('tracker');
     switchTrackerSubView('rentals');
