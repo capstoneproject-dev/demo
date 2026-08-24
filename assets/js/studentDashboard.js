@@ -2419,12 +2419,14 @@ function renderMyOrgHomeSection(viewModel) {
         </div>
     `).join("");
 
-    const activitiesMarkup = recentActivities.map(event => `
-        <article class="my-org-ref-activity-card">
-            <img src="${event.img}" alt="${event.title}">
-            <div class="my-org-ref-activity-caption">${event.title}</div>
-        </article>
-    `).join("");
+    const activitiesMarkup = recentActivities.length
+        ? recentActivities.map(event => `
+            <article class="my-org-ref-activity-card">
+                <img src="${event.img}" alt="${event.title}">
+                <div class="my-org-ref-activity-caption">${event.title}</div>
+            </article>
+        `).join("")
+        : `<p class="my-org-ref-empty-activities">No recent activities recorded for ${escapeHtml(organization.name)}.</p>`;
 
     const quickFactsMarkup = `
         <ul>
@@ -3188,7 +3190,7 @@ function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) 
     const relevantEvents = allEvents.filter(event => normalizeOrgName(event.org) === targetOrgName);
     const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
     const announcementEvents = (relevantEvents.length ? relevantEvents : allEvents).slice(0, 2);
-    const recentActivities = (relevantEvents.length ? relevantEvents : allEvents).slice(0, 3);
+    const recentActivities = relevantEvents.slice(0, 3);
     // fullName and motto come from ORG_DATA (data/orgData.js) — edit there, not here.
     const orgEntry = {
         ...((typeof ORG_DATA !== 'undefined' && ORG_DATA[targetOrgName]) || {}),
