@@ -528,22 +528,22 @@ function requestId() {
  */
 async function submitPendingRegistration(payload) {
   try {
-    const res  = await fetch('../api/accounts/requests/submit.php', {
-      method:      'POST',
+    const res = await fetch('../api/accounts/requests/submit.php', {
+      method: 'POST',
       credentials: 'include',
       headers:     { 'Content-Type': 'application/json' },
       body:        JSON.stringify({
         studentId:    payload.studentId    || '',
         employeeNumber: payload.employeeNumber || '',
-        name:         payload.name         || '',
-        email:        payload.email        || '',
-        phone:        payload.phone        || '',
-        password:     payload.password     || '',
-        course:       payload.course       || '',
-        yearSection:  payload.yearSection  || '',
-        section:      payload.section      || '',
+        name: payload.name || '',
+        email: payload.email || '',
+        phone: payload.phone || '',
+        password: payload.password || '',
+        course: payload.course || '',
+        yearSection: payload.yearSection || '',
+        section: payload.section || '',
         requestedRole: payload.requestedRole || 'student',
-        requestedOrg:  payload.requestedOrg  || '',
+        requestedOrg: payload.requestedOrg || '',
         requestedPosition: payload.requestedPosition || '',
         verification_token: payload.verificationToken || ''
       })
@@ -1266,6 +1266,74 @@ function switchTab(type) {
 const orgModal = document.getElementById('orgModal');
 const orgInput = document.getElementById('org-input');
 const orgPositionInput = document.getElementById('org-position-input');
+const ORGANIZATION_POSITIONS = {
+  'AERO-ATSO': [
+    'President', 'Vice President Internal', 'Vice President External', 'Secretary', 'Assistant Secretary',
+    'Treasurer', 'Auditor', 'Public Information Officer', 'Business Manager (Aero)', 'Business Manager (AT)',
+    'Peace Officer (Aero)', 'Peace Officer (AT)', '4th Year Representative (AT)',
+    '4th Year Representative (Aero)', '3rd Year Representative (AT)', '3rd Year Representative (Aero)',
+    '2nd Year Representative (AT)', '2nd Year Representative (Aero)', '1st Year Representative (AT)',
+    '1st Year Representative (Aero)'
+  ],
+  'SUPREME STUDENT COUNCIL': [
+    'President', 'Vice President Internal', 'Vice President External', 'Senator For Finance Committee',
+    'Senator For Secretariat Committee', 'Senator For Public Relations Committee',
+    'Senator For Student Rights and Welfare Committee'
+  ],
+  AETSO: [
+    'President', 'Vice President Internal', 'Vice President External', 'Secretary', 'Treasurer', 'Auditor',
+    'Public Information Officer', 'Business Manager (Male)', 'Business Manager (Female)',
+    'Peace Officer (Male)', 'Peace Officer (Female)', '4th Year Representative', '3rd Year Representative',
+    '2nd Year Representative', '1st Year Representative'
+  ],
+  AISERS: [
+    'President', 'Vice President Internal', 'Vice President External', 'Secretary', 'Assistant Secretary',
+    'Treasurer', 'Auditor', 'Public Information Officer', 'Business Manager', 'Peace Officer', 'Peace Officer',
+    '4th Year Representative', '3rd Year Representative', '2nd Year Representative', '1st Year Representative'
+  ],
+  AMTSO: [
+    'President', 'Vice President Internal', 'Vice President External', 'Secretary', 'Treasurer', 'Auditor',
+    'Public Information Officer', 'Peace Officer (Female)', 'Peace Officer (Male)', '4th Year Representative',
+    '2nd Year Representative', '1st Year Representative'
+  ],
+  ELITECH: [
+    'President', 'Vice President Internal', 'Vice President External', 'Secretary', 'Treasurer', 'Auditor',
+    'Public Information Officer', 'Business Manager', 'Peace Officer (Female)', 'Peace Officer (Male)',
+    '4th Year Representative', '3rd Year Representative', '2nd Year Representative', '1st Year Representative'
+  ],
+  ILASSO: [
+    'President', 'Vice President Internal', 'Vice President External', 'Secretary', 'Assistant Secretary',
+    'Treasurer', 'Assistant Treasurer', 'Auditor', 'Public Information Officer', 'Business Manager',
+    'Peace Officer', 'Peace Officer', '4th Year Representative', '3rd Year Representative',
+    '2nd Year Representative', '1st Year Representative'
+  ],
+  CYC: [
+    'President', 'Vice President Internal', 'Vice President External', 'Secretary', 'Assistant Secretary',
+    'Treasurer', 'Assistant Treasurer', 'Auditor', 'Business Manager', 'Public Information Officer',
+    'Peace Officer', 'Creative Head', 'Creative Committee/Officer', 'Creative Committee/Officer',
+    'Director for Membership & Publicity', 'Director for Ways and Means',
+    'Director for Events and Services', 'Director for Sports & Logistics',
+    'Director for Ecumenical and Spiritual Care', 'Director for Extension and Community Engagement'
+  ],
+  "SCHOLAR'S GUILD": [
+    'President', 'Vice President for Internal Affairs', 'Vice President for External Affairs',
+    'Vice President for Finance', 'Vice President for Audit and Logistics',
+    'Vice President for Documentation', 'Vice President for Public Relations',
+    'Vice President for Community Development', 'Vice President for Education and Research'
+  ],
+  AERONAUTICA: [
+    'Editor-in-Chief', 'Associate Editor', 'Managing Editor', 'Feature Editor', 'News Editor', 'Sports Editor',
+    'Opinion Editor', 'Chief Photojournalist', 'Graphics and Layout Editor', 'Literary Editor',
+    'Social Media Manager', 'Copy Reader', 'Staff Writer', 'Photojournalist'
+  ],
+  RCYC: [
+    'President', 'Vice President Internal', 'Vice President External', 'Secretary', 'Assistant Secretary',
+    'Treasurer', 'Assistant Treasurer', 'Auditor', 'Public Relations Officer', 'Membership and Recruitment',
+    'Communication and Advocacy', 'Resource Generation', 'Council Management and Development',
+    'Awards and Recognition', 'Learnings and Innovation', 'Blood Programs', 'Creatives',
+    'Publication (Creatives)', 'Documentation (Creatives)', 'External Relations', 'Crisis Management'
+  ]
+};
 const orgStudentNumberInput = document.getElementById('org-student-number-input');
 const orgRegistrationDetails = document.getElementById('org-registration-details');
 const orgLookupMessage = document.getElementById('org-student-lookup-message');
@@ -1290,7 +1358,18 @@ function closeOrgModal() {
 }
 
 function selectOrg(orgName) {
-  if (orgInput) orgInput.value = normalizeOrgName(orgName);
+  const normalizedOrgName = normalizeOrgName(orgName);
+  const organizationChanged = orgInput && orgInput.value !== normalizedOrgName;
+  if (orgInput) orgInput.value = normalizedOrgName;
+  if (organizationChanged && orgPositionInput) {
+    orgPositionInput.value = '';
+    updateOrganizationRegistrationMode();
+  }
+  if (orgPositionInput) {
+    orgPositionInput.placeholder = 'Select Position';
+    orgPositionInput.classList.remove('org-select-trigger-disabled');
+    orgPositionInput.setAttribute('aria-disabled', 'false');
+  }
   closeOrgModal();
 }
 
@@ -1306,21 +1385,38 @@ const customPositionEditor = document.getElementById('custom-position-editor');
 const customPositionInput = document.getElementById('custom-position-input');
 const customPositionFeedback = document.getElementById('custom-position-feedback');
 const predefinedPositionTitles = new Set([
-  'President',
-  'Vice President (Internal)',
-  'Vice President (External)',
-  'Secretary',
-  'Treasurer',
-  'Auditor',
-  'Business Manager',
-  'Public Information Officer',
-  'Peace Officer',
-  '4th Year Representative',
-  '3rd Year Representative',
-  '2nd Year Representative',
-  '1st Year Representative',
+  ...Object.values(ORGANIZATION_POSITIONS).flat(),
   'Organization Adviser'
 ]);
+
+function getSelectedOrganizationPositions() {
+  const organizationKey = normalizeOrgName(orgInput?.value || '').toUpperCase();
+  return ORGANIZATION_POSITIONS[organizationKey] || [];
+}
+
+function appendPositionOption(positionTitle) {
+  if (!positionList) return;
+  const option = document.createElement('button');
+  option.type = 'button';
+  option.className = 'org-item position-other-btn';
+  option.textContent = positionTitle;
+  option.addEventListener('click', () => selectPosition(positionTitle));
+  positionList.appendChild(option);
+}
+
+function renderOrganizationPositions() {
+  if (!positionList) return;
+  positionList.replaceChildren();
+  getSelectedOrganizationPositions().forEach(appendPositionOption);
+  appendPositionOption('Organization Adviser');
+
+  const otherButton = document.createElement('button');
+  otherButton.type = 'button';
+  otherButton.className = 'org-item position-other-btn';
+  otherButton.textContent = 'Others';
+  otherButton.addEventListener('click', openCustomPositionEditor);
+  positionList.appendChild(otherButton);
+}
 
 function resetCustomPositionEditor() {
   if (positionList) positionList.hidden = false;
@@ -1329,6 +1425,12 @@ function resetCustomPositionEditor() {
 }
 
 function openPositionModal() {
+  if (!String(orgInput?.value || '').trim()) {
+    alert('Select an organization before selecting a position.');
+    openOrgModal();
+    return;
+  }
+  renderOrganizationPositions();
   resetCustomPositionEditor();
   if (positionModal) positionModal.classList.add('open');
 }
