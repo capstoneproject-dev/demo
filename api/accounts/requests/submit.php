@@ -124,6 +124,14 @@ try {
     // registration adds a membership to that account and is scoped to the
     // selected organization, allowing one student to serve in multiple orgs.
     if ($reqRole !== 'org_officer') {
+        $emailStmt = $pdo->prepare(
+            "SELECT user_id FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1"
+        );
+        $emailStmt->execute([':email' => $email]);
+        if ($emailStmt->fetch()) {
+            jsonError('That email is already registered to another account. Please use a different email.', 409);
+        }
+
         $dupStmt = $pdo->prepare(
             "SELECT reg_id FROM pending_registrations
              WHERE student_number = :sn
@@ -134,6 +142,18 @@ try {
         $dupStmt->execute([':sn' => $studentNumber]);
         if ($dupStmt->fetch()) {
             jsonError('You already have a pending student registration request.', 409);
+        }
+
+        $pendingEmailStmt = $pdo->prepare(
+            "SELECT reg_id FROM pending_registrations
+             WHERE LOWER(email) = LOWER(:email)
+               AND requested_role IN ('student', 'organization_adviser')
+               AND status = 'pending'
+             LIMIT 1"
+        );
+        $pendingEmailStmt->execute([':email' => $email]);
+        if ($pendingEmailStmt->fetch()) {
+            jsonError('That email already has a pending registration request.', 409);
         }
 
         $usrStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn LIMIT 1");

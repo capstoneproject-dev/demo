@@ -174,13 +174,16 @@ try {
         $isOfficerMembershipRequest = $req['requested_role'] === 'org_officer';
         $dupStmt = $isOfficerMembershipRequest
             ? $pdo->prepare("SELECT user_id, is_active FROM users WHERE student_number = :sn LIMIT 1")
-            : $pdo->prepare("SELECT user_id, is_active FROM users WHERE student_number = :sn OR email = :email LIMIT 1");
+            : $pdo->prepare("SELECT user_id, is_active FROM users WHERE student_number = :sn OR LOWER(email) = LOWER(:email) LIMIT 1");
         $dupStmt->execute($isOfficerMembershipRequest
             ? [':sn' => $req['student_number']]
             : [':sn' => $req['student_number'], ':email' => $email]);
         $existingUser = $dupStmt->fetch();
         if ($isOfficerMembershipRequest && (!$existingUser || (int)$existingUser['is_active'] !== 1)) {
             jsonError('The original active student account is no longer available. This officer request cannot be approved.', 409);
+        }
+        if (!$isOfficerMembershipRequest && $existingUser) {
+            jsonError('This request cannot be approved because its student number or email is already registered to another account.', 409);
         }
         if (!$existingUser) {
             // Create user

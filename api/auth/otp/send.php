@@ -43,6 +43,43 @@ if ($purpose === 'org_registration') {
     }
 }
 
+// A student registration creates a new login account. Reject identifiers
+// already attached to an account before issuing an OTP so the applicant does
+// not complete verification for credentials that can never be activated.
+if ($purpose === 'student_registration') {
+    $pdo = getPdo();
+    $existingAccountStmt = $pdo->prepare(
+        "SELECT user_id
+         FROM users
+         WHERE student_number = :student_number
+            OR LOWER(email) = LOWER(:email)
+         LIMIT 1"
+    );
+    $existingAccountStmt->execute([
+        ':student_number' => $identifier,
+        ':email' => $email,
+    ]);
+    if ($existingAccountStmt->fetch()) {
+        jsonError('That student number or email is already registered. Please log in or use different account details.', 409);
+    }
+
+    $pendingAccountStmt = $pdo->prepare(
+        "SELECT reg_id
+         FROM pending_registrations
+         WHERE status = 'pending'
+           AND requested_role IN ('student', 'organization_adviser')
+           AND (student_number = :student_number OR LOWER(email) = LOWER(:email))
+         LIMIT 1"
+    );
+    $pendingAccountStmt->execute([
+        ':student_number' => $identifier,
+        ':email' => $email,
+    ]);
+    if ($pendingAccountStmt->fetch()) {
+        jsonError('That student number or email already has a pending registration request.', 409);
+    }
+}
+
 try {
     $challenge = createOtpChallenge($purpose, $email, $identifier, $invitationToken, $studentName);
     jsonOk([
