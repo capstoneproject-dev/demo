@@ -24,6 +24,12 @@ body {
   height: 100%;
   margin: 0;
   background-color: var(--bg-color);
+  background-image:
+    linear-gradient(rgba(244, 246, 248, 0.82), rgba(244, 246, 248, 0.82)),
+    url("../photos/LoginPage/philsca%20backgorund.png");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
