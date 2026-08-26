@@ -1418,6 +1418,68 @@ let analyticsExportFilters = { startDate: null, endDate: null };
 let analyticsExportCalendarCurrentDate = new Date();
 let analyticsExportCalendarSelectedStart = null;
 let analyticsExportCalendarSelectedEnd = null;
+let analyticsExportInProgress = false;
+
+function setAnalyticsExportLoadingMessage(message) {
+    const messageElement = document.getElementById('analyticsExportLoadingMessage');
+    if (messageElement) {
+        messageElement.textContent = message;
+    }
+}
+
+function showAnalyticsExportLoading(format) {
+    const overlay = document.getElementById('analyticsExportLoadingOverlay');
+    const title = document.getElementById('analyticsExportLoadingTitle');
+    if (title) {
+        title.textContent = `Generating ${String(format || 'report').toUpperCase()} export`;
+    }
+    setAnalyticsExportLoadingMessage('Preparing analytics data and descriptive insights...');
+    if (overlay) {
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
+    }
+}
+
+function hideAnalyticsExportLoading() {
+    const overlay = document.getElementById('analyticsExportLoadingOverlay');
+    if (overlay) {
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+}
+
+function waitForAnalyticsExportUiPaint() {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+}
+
+async function runAnalyticsExportWithLoading(format, exporter) {
+    if (analyticsExportInProgress) {
+        showToast('An analytics export is already being generated.', 'info');
+        return false;
+    }
+
+    analyticsExportInProgress = true;
+    showAnalyticsExportLoading(format);
+    await waitForAnalyticsExportUiPaint();
+
+    try {
+        await exporter();
+        setAnalyticsExportLoadingMessage('Download started successfully.');
+        showToast(`${format.toUpperCase()} analytics report generated.`, 'success');
+        return true;
+    } catch (error) {
+        console.error(`[analytics ${format} export]`, error);
+        showToast(`Unable to generate the ${format.toUpperCase()} analytics report. Please try again.`, 'error');
+        return false;
+    } finally {
+        window.setTimeout(() => {
+            hideAnalyticsExportLoading();
+            analyticsExportInProgress = false;
+        }, 350);
+    }
+}
 const OFFICER_FINANCIAL_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
 let officerLockerBoard = [];
@@ -7796,29 +7858,34 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
 }
 
 async function exportCSV(options = {}) {
-    const meta = getReportMetadata(options);
-    const report = typeof getOfficerAnalyticsReportData === 'function'
-        ? getOfficerAnalyticsReportData({ exportRange: meta.exportRange })
-        : null;
-    if (!report) {
-        alert('Analytics data is not ready yet.');
-        return;
-    }
+    return runAnalyticsExportWithLoading('CSV', async () => {
+        const meta = getReportMetadata(options);
+        const report = typeof getOfficerAnalyticsReportData === 'function'
+            ? getOfficerAnalyticsReportData({ exportRange: meta.exportRange })
+            : null;
+        if (!report) {
+            throw new Error('Analytics data is not ready yet.');
+        }
 
-    const insights = typeof getOfficerAnalyticsInsightsData === 'function'
-        ? await getOfficerAnalyticsInsightsData({ snapshot: report, render: false })
-        : null;
-    const csvRows = buildAnalyticsCsvRows(meta, report, insights);
-    const csvContent = csvRows.map((row) => row.map(escapeCsvValue).join(',')).join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${getAnalyticsExportFileStem(meta)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+        setAnalyticsExportLoadingMessage('Generating descriptive insights for the CSV report...');
+        const insights = typeof getOfficerAnalyticsInsightsData === 'function'
+            ? await getOfficerAnalyticsInsightsData({ snapshot: report, render: false })
+            : null;
+        setAnalyticsExportLoadingMessage('Building the CSV file and starting your download...');
+        await waitForAnalyticsExportUiPaint();
+
+        const csvRows = buildAnalyticsCsvRows(meta, report, insights);
+        const csvContent = csvRows.map((row) => row.map(escapeCsvValue).join(',')).join('\r\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${getAnalyticsExportFileStem(meta)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    });
 }
 
 async function exportPDF(options = {}) {
@@ -7827,18 +7894,21 @@ async function exportPDF(options = {}) {
         return;
     }
 
+    return runAnalyticsExportWithLoading('PDF', async () => {
     const meta = getReportMetadata(options);
     const report = typeof getOfficerAnalyticsReportData === 'function'
         ? getOfficerAnalyticsReportData({ exportRange: meta.exportRange })
         : null;
     if (!report) {
-        alert('Analytics data is not ready yet.');
-        return;
+        throw new Error('Analytics data is not ready yet.');
     }
 
+    setAnalyticsExportLoadingMessage('Generating descriptive insights for the PDF report...');
     const insights = typeof getOfficerAnalyticsInsightsData === 'function'
         ? await getOfficerAnalyticsInsightsData({ snapshot: report, render: false })
         : null;
+    setAnalyticsExportLoadingMessage('Formatting report sections, tables, and page layout...');
+    await waitForAnalyticsExportUiPaint();
     const servicesApplicable = report?.availability?.servicesApplicable !== false;
     const serviceNote = servicesApplicable ? 'Inventory utilization' : 'Not applicable — Rentals and Printing are disabled';
 
@@ -8000,7 +8070,10 @@ async function exportPDF(options = {}) {
         styles: { fontSize: 8 },
     });
 
+    setAnalyticsExportLoadingMessage('Finalizing the PDF and starting your download...');
+    await waitForAnalyticsExportUiPaint();
     doc.save(`${getAnalyticsExportFileStem(meta)}.pdf`);
+    });
 }
 
 // --- WORKFLOW ACTIONS: officer-only forwarding ---

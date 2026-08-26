@@ -457,6 +457,8 @@ function analyticsAiBuildSeriesFacts(array $chart, array $emptyLabels = []): arr
         'maxShare' => $total > 0 ? ($points[$maxIndex]['value'] / $total) * 100 : null,
         'range' => $points[$maxIndex]['value'] - $points[$minIndex]['value'],
     ];
+
+    return $result;
 }
 
 function analyticsAiNormalizeCounts(array $source, array $keys): array

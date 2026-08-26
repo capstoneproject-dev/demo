@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260823-adviser-review-1">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260826-analytics-export-loading-1">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css">
 </head>
@@ -1311,6 +1311,25 @@
             </div>
         </div>
 
+        <div
+            id="analyticsExportLoadingOverlay"
+            class="analytics-export-loading-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="analyticsExportLoadingTitle"
+            aria-describedby="analyticsExportLoadingMessage"
+            aria-hidden="true">
+            <div class="analytics-export-loading-card">
+                <div class="analytics-export-loading-spinner" aria-hidden="true"></div>
+                <h3 id="analyticsExportLoadingTitle">Generating export</h3>
+                <p id="analyticsExportLoadingMessage">Preparing analytics data and descriptive insights...</p>
+                <div class="analytics-export-loading-progress" aria-hidden="true">
+                    <span></span>
+                </div>
+                <small>Please keep this page open. Your download will begin automatically.</small>
+            </div>
+        </div>
+
         <!-- DOCUMENTS VIEW -->
         <div id="documents" class="section-view">
             <div class="sub-view-nav">
@@ -2230,7 +2249,7 @@
     <script src="../assets/js/pdfViewer.js?v=20260823-adviser-review-1"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260824-service-applicability-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260824-services-tracker-authorization-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260826-analytics-export-loading-1"></script>
     <script src="../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

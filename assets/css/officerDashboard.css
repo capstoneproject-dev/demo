@@ -3437,6 +3437,94 @@ body.dark .sub-nav-btn.active {
     transform: translateY(0);
 }
 
+.analytics-export-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(6, 18, 35, 0.68);
+    backdrop-filter: blur(3px);
+}
+
+.analytics-export-loading-overlay.show {
+    display: flex;
+}
+
+.analytics-export-loading-card {
+    width: min(420px, 100%);
+    padding: 30px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--panel);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    text-align: center;
+}
+
+.analytics-export-loading-card h3 {
+    margin: 18px 0 8px;
+    color: var(--text);
+    font-size: 1.2rem;
+}
+
+.analytics-export-loading-card p {
+    min-height: 24px;
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.analytics-export-loading-card small {
+    display: block;
+    margin-top: 14px;
+    color: var(--muted);
+}
+
+.analytics-export-loading-spinner {
+    width: 46px;
+    height: 46px;
+    margin: 0 auto;
+    border: 4px solid color-mix(in srgb, var(--primary) 20%, transparent);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: analytics-export-spin 0.8s linear infinite;
+}
+
+.analytics-export-loading-progress {
+    height: 5px;
+    margin-top: 20px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--panel-2);
+}
+
+.analytics-export-loading-progress span {
+    display: block;
+    width: 38%;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--primary);
+    animation: analytics-export-progress 1.25s ease-in-out infinite;
+}
+
+@keyframes analytics-export-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes analytics-export-progress {
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(285%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .analytics-export-loading-spinner,
+    .analytics-export-loading-progress span {
+        animation-duration: 2.5s;
+    }
+}
+
 .modal-header {
     padding: 20px 24px;
     border-bottom: 1px solid var(--border);
