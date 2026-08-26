@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/environment.php';
+
 /*
  * Keep secrets out of this file because it is committed to source control.
  * Configure ANALYTICS_AI_GEMINI_API_KEY in the web server or hosting
@@ -15,20 +17,23 @@ if (!defined('ANALYTICS_AI_GEMINI_ENABLED')) {
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_API_KEY')) {
-    define('ANALYTICS_AI_GEMINI_API_KEY', trim((string)(getenv('ANALYTICS_AI_GEMINI_API_KEY') ?: '')));
+    define('ANALYTICS_AI_GEMINI_API_KEY', trim((string)appRuntimeValue('ANALYTICS_AI_GEMINI_API_KEY', '')));
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_MODEL')) {
-    define('ANALYTICS_AI_GEMINI_MODEL', getenv('ANALYTICS_AI_GEMINI_MODEL') ?: 'gemini-2.5-flash');
+    define('ANALYTICS_AI_GEMINI_MODEL', appRuntimeValue('ANALYTICS_AI_GEMINI_MODEL', 'gemini-2.5-flash'));
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_MODELS')) {
     define(
         'ANALYTICS_AI_GEMINI_MODELS',
-        getenv('ANALYTICS_AI_GEMINI_MODELS') ?: 'gemini-2.5-flash,gemini-2.5-flash-lite'
+        appRuntimeValue('ANALYTICS_AI_GEMINI_MODELS', 'gemini-2.5-flash,gemini-2.5-flash-lite')
     );
 }
 
 if (!defined('ANALYTICS_AI_CACHE_DIR')) {
-    define('ANALYTICS_AI_CACHE_DIR', __DIR__ . '/../storage/cache/analytics_ai');
+    define(
+        'ANALYTICS_AI_CACHE_DIR',
+        appRuntimeValue('ANALYTICS_AI_CACHE_DIR', __DIR__ . '/../storage/cache/analytics_ai')
+    );
 }

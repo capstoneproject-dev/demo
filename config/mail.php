@@ -1,15 +1,14 @@
 <?php
 
+require_once __DIR__ . '/environment.php';
+
 /**
  * SMTP configuration. Set these values in Apache's environment and restart
  * Apache. Secrets must never be committed to this repository.
  */
 function getMailConfig(): array
 {
-    $read = static function (string $name, ?string $default = null): ?string {
-        $value = getenv($name);
-        return $value === false || $value === '' ? $default : $value;
-    };
+    $read = static fn (string $name, ?string $default = null): ?string => appRuntimeValue($name, $default);
 
     return [
         'host' => $read('SMTP_HOST', 'smtp.gmail.com'),

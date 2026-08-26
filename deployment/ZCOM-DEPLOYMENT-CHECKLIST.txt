@@ -1,0 +1,73 @@
+Z.COM DEPLOYMENT CHECKLIST
+==========================
+
+This package intentionally contains no real passwords, API keys, SQL dumps,
+Git history, tests, analytics caches, or existing user-uploaded files.
+
+1. DOMAIN, PHP, AND SSL
+-----------------------
+- In cPanel, confirm the domain points to public_html.
+- Select PHP 8.2 or newer.
+- Enable PDO MySQL, cURL, Fileinfo, GD, Mbstring, OpenSSL, Intl, and Phar.
+- Set upload_max_filesize to at least 20M and post_max_size to at least 24M.
+- Enable the free SSL certificate and use HTTPS before real users sign in.
+
+2. DATABASE
+-----------
+- Use cPanel MySQL Databases to create a database and a separate database user.
+- Assign that user to the database with all required privileges.
+- Import a reviewed current database export through phpMyAdmin.
+- Never place the SQL export inside public_html.
+- cPanel normally prefixes database and user names with the account name. Use
+  the complete names shown by cPanel in the private runtime configuration.
+
+3. PRIVATE CONFIGURATION
+------------------------
+- Rename capstone-runtime.php.example to capstone-runtime.php.
+- Replace every REPLACE/YOUR-DOMAIN/CPANEL_ACCOUNT placeholder.
+- Keep capstone-runtime.php in the account home directory BESIDE public_html.
+- Set its permission to 0600 when cPanel permits it, otherwise 0640.
+- Never move this file into public_html and never commit it to Git.
+
+4. APPLICATION FILES
+--------------------
+- Upload this ZIP to the hosting account home directory and extract it there.
+- The application files belong inside public_html.
+- Confirm public_html/.htaccess was extracted; cPanel may hide dotfiles until
+  "Show Hidden Files" is enabled in File Manager settings.
+- Ensure public_html/uploads and public_html/storage/cache/analytics_ai are
+  writable by PHP. Start with directory permission 0755; use 0775 only if the
+  hosting account requires group write access. Do not use 0777.
+- Ensure capstone-private and capstone-cache are writable by PHP and are still
+  outside public_html.
+
+5. EXISTING FILE DATA
+---------------------
+- This safe package excludes local runtime uploads and private documents.
+- If existing database records refer to files you need, migrate the matching
+  uploads and private-storage files separately over a secure connection.
+- Preserve their relative directory structure and never expose private PDFs
+  inside public_html.
+
+6. FIRST TESTS
+--------------
+- Open https://YOUR-DOMAIN.example and confirm HTTPS has no certificate warning.
+- Test student, officer, organization-adviser, SSC, and OSA sign-in flows.
+- Test OTP email delivery and invitation links.
+- Upload and view one image and one permitted document.
+- Generate analytics and confirm the provider badge says Gemini.
+- Export CSV and PDF reports.
+- Test QR attendance, rentals, printing, document review, and notifications.
+- Inspect cPanel Errors after each test; do not enable PHP error display publicly.
+
+7. BACKUPS AND CRON
+-------------------
+- Back up the database, public uploads, capstone-private, and runtime config.
+- Configure a cPanel Cron Job for cli/dispatch-notification-emails.php only if
+  scheduled notification delivery is required.
+- Run the Z.com/cPanel security scan after the site is working.
+
+DO NOT UPLOAD
+-------------
+- .git, .github, .vscode, tests, docs, TEMP, migrations, SQL dumps, local
+  session files, audit/thesis PDFs, composer.phar, .env files, or real secrets.

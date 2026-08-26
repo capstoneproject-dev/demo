@@ -4,6 +4,8 @@ composer-setup.php
 /.env
 /.env.*
 !/.env.example
+/build/
+/capstone-runtime.php
 /storage/cache/analytics_ai/
 /storage/private/**
 !/storage/private/**/

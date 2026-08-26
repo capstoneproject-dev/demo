@@ -1,0 +1,36 @@
+<?php
+
+/*
+ * Copy this file to the hosting account home directory as:
+ *
+ *     capstone-runtime.php
+ *
+ * It must be beside public_html, never inside it. Replace every placeholder
+ * before opening the application. Do not commit or share the completed file.
+ */
+return [
+    'DB_HOST' => 'localhost',
+    'DB_PORT' => '3306',
+    'DB_NAME' => 'CPANEL_ACCOUNT_capstone',
+    'DB_USER' => 'CPANEL_ACCOUNT_capstone_user',
+    'DB_PASS' => 'REPLACE_WITH_A_STRONG_DATABASE_PASSWORD',
+    'DB_CHARSET' => 'utf8mb4',
+
+    // Leave empty when the application is installed directly at the domain root.
+    'CAPSTONE_BASE_PATH' => '',
+    'CAPSTONE_PRIVATE_STORAGE_ROOT' => __DIR__ . '/capstone-private',
+    'ANALYTICS_AI_CACHE_DIR' => __DIR__ . '/capstone-cache/analytics-ai',
+    'APP_BASE_URL' => 'https://YOUR-DOMAIN.example',
+
+    'SMTP_HOST' => 'smtp.gmail.com',
+    'SMTP_PORT' => '587',
+    'SMTP_USERNAME' => 'REPLACE_WITH_SMTP_ACCOUNT',
+    'SMTP_PASSWORD' => 'REPLACE_WITH_SMTP_APP_PASSWORD',
+    'SMTP_ENCRYPTION' => 'tls',
+    'SMTP_FROM_EMAIL' => 'REPLACE_WITH_OFFICIAL_SENDER',
+    'SMTP_FROM_NAME' => 'NAAP Account Security',
+
+    'ANALYTICS_AI_GEMINI_API_KEY' => 'REPLACE_WITH_YOUR_NEW_GEMINI_API_KEY',
+    'ANALYTICS_AI_GEMINI_MODEL' => 'gemini-2.5-flash',
+    'ANALYTICS_AI_GEMINI_MODELS' => 'gemini-2.5-flash,gemini-2.5-flash-lite',
+];

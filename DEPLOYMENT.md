@@ -1,5 +1,22 @@
 # Deployment
 
+## Production secrets
+
+The application reads configuration from server environment variables first.
+On shared hosting it also looks for `capstone-runtime.php` in the hosting
+account home directory, beside (not inside) `public_html`. Start from
+`deployment/capstone-runtime.php.example`; never commit the completed file.
+
+Build the safe Z.com/cPanel upload package from PowerShell with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deployment/build-zcom-package.ps1
+```
+
+The resulting ZIP under `build/` excludes development files, SQL dumps,
+existing runtime uploads, caches, and secrets. Follow the checklist included
+inside the ZIP before opening the deployed site.
+
 ## Runtime requirements
 
 - PHP 8.1 or newer with PDO MySQL, Fileinfo, and GD image metadata support
