@@ -59,7 +59,9 @@
         const select = $('programFilter');
         if (!select) return;
 
-        const current = select.value || FILTER_ORG;
+        const current = select.dataset.filterInitialized === '1'
+            ? (select.value || FILTER_ORG)
+            : (select.dataset.defaultFilter || select.value || FILTER_ORG);
         const unique = [...new Set(students.map((student) => student.programCode.trim()))].sort((a, b) => a.localeCompare(b));
         const options = [
             { value: FILTER_ORG, label: 'Organization Programs' },
@@ -80,6 +82,7 @@
 
         const values = new Set(options.map((option) => option.value));
         select.value = values.has(current) ? current : FILTER_ORG;
+        select.dataset.filterInitialized = '1';
     }
 
     function renderDatabase() {

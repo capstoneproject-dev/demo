@@ -5,6 +5,13 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     header('Location: ../login.html');
     exit;
 }
+$activeOrgCode = strtoupper(trim((string)($session['active_org_code'] ?? '')));
+$activeOrgName = strtoupper(trim((string)($session['active_org_name'] ?? '')));
+$interestClubCodes = ['RCYC', 'CYC', 'SCHOLARS', 'AERONAUTICA'];
+$interestClubNames = ['RED CROSS YOUTH COUNCIL', 'COLLEGE YOUTH CLUB', "SCHOLAR'S GUILD", 'AERONAUTICA'];
+$isInterestClubStudentDatabase = in_array($activeOrgCode, $interestClubCodes, true)
+    || in_array($activeOrgName, $interestClubNames, true);
+$defaultProgramFilter = $isInterestClubStudentDatabase ? '__ALL__' : '__ORG__';
 $databaseContext = trim((string)($_GET['context'] ?? ''));
 $isExplicitQrAttendanceContext = $databaseContext === 'qr-attendance';
 $defaultReturnTo = $isExplicitQrAttendanceContext
@@ -133,9 +140,10 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
         <h1 class="mb-4">Student Barcode Database</h1>
         <div class="row g-2 mb-3">
             <div class="col-md-4">
-                <select id="programFilter" class="form-select">
-                    <option value="__ORG__">Organization Programs</option>
-                    <option value="__ALL__">All Programs</option>
+                <select id="programFilter" class="form-select"
+                    data-default-filter="<?= htmlspecialchars($defaultProgramFilter, ENT_QUOTES, 'UTF-8') ?>">
+                    <option value="__ORG__" <?= $defaultProgramFilter === '__ORG__' ? 'selected' : '' ?>>Organization Programs</option>
+                    <option value="__ALL__" <?= $defaultProgramFilter === '__ALL__' ? 'selected' : '' ?>>All Programs</option>
                 </select>
             </div>
             <div class="col-md-8">
@@ -156,7 +164,7 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
     <script src="../../systems/IGPRentalSystem/lib/encoder.js"></script>
     <script src="../../assets/js/igp-api.js?v=20260227e"></script>
     <script src="../../assets/js/barcode-download.js?v=20260821-compact-white-background"></script>
-    <script src="../../assets/js/igp-students-exact.js?v=20260821-readonly-compact"></script>
+    <script src="../../assets/js/igp-students-exact.js?v=20260826-interest-club-all-programs-1"></script>
     <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

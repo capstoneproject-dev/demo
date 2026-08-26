@@ -48,6 +48,32 @@ try {
     }
     $programId = (int)$prog['program_id'];
 
+    // Keep the enrollment roster snapshot present and synchronized. Some student
+    // accounts (especially manually created ones) do not yet have a matching
+    // student_numbers row, so a plain UPDATE would silently save nothing.
+    $actorId = (int)(getPhpSession()['user_id'] ?? 0);
+    $syncStudentNumber = $pdo->prepare("
+        INSERT INTO student_numbers
+            (student_number, student_name, program_id, institute_id, year_section, is_active, added_by_user_id)
+        VALUES
+            (:sn, :name, :pid, (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1), :ys, :active, :actor)
+        ON DUPLICATE KEY UPDATE
+            student_name = VALUES(student_name),
+            program_id = VALUES(program_id),
+            institute_id = VALUES(institute_id),
+            year_section = VALUES(year_section),
+            is_active = VALUES(is_active)
+    ");
+    $syncStudentNumberParams = [
+        ':sn' => $studentNumber,
+        ':name' => $studentName,
+        ':pid' => $programId,
+        ':pid2' => $programId,
+        ':ys' => $yearSection,
+        ':active' => $isActive,
+        ':actor' => $actorId > 0 ? $actorId : null,
+    ];
+
     if ($userId === 0 && $origStudentId === '') {
         // ----- INSERT -----
         // Check for duplicate student_number
@@ -80,20 +106,7 @@ try {
         ]);
         $userId = (int)$pdo->lastInsertId();
 
-        // Keep whitelist/repository row in sync for year_section/program/institute snapshots.
-        $syncSn = $pdo->prepare("
-            UPDATE student_numbers
-            SET program_id = :pid,
-                institute_id = (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1),
-                year_section = :ys
-            WHERE student_number = :sn
-        ");
-        $syncSn->execute([
-            ':pid' => $programId,
-            ':pid2' => $programId,
-            ':ys' => $yearSection,
-            ':sn' => $studentNumber,
-        ]);
+        $syncStudentNumber->execute($syncStudentNumberParams);
 
         jsonOk(['user_id' => $userId, 'msg' => 'Student account created.']);
     } else {
@@ -148,19 +161,7 @@ try {
             ':uid'    => $userId,
         ]);
 
-        $syncSn = $pdo->prepare("
-            UPDATE student_numbers
-            SET program_id = :pid,
-                institute_id = (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1),
-                year_section = :ys
-            WHERE student_number = :sn
-        ");
-        $syncSn->execute([
-            ':pid' => $programId,
-            ':pid2' => $programId,
-            ':ys' => $yearSection,
-            ':sn' => $studentNumber,
-        ]);
+        $syncStudentNumber->execute($syncStudentNumberParams);
 
         jsonOk(['user_id' => $userId, 'msg' => 'Student account updated.']);
     }
