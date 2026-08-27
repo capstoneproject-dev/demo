@@ -1,13 +1,14 @@
 <?php
 
 require_once __DIR__ . '/upload_security.php';
+require_once __DIR__ . '/../config/environment.php';
 
 const PRIVATE_PDF_PENDING_TTL_SECONDS = 1800;
 
 function privatePdfStorageRoot(): string
 {
-    $configured = getenv('CAPSTONE_PRIVATE_STORAGE_ROOT');
-    $root = $configured !== false && trim($configured) !== ''
+    $configured = appRuntimeValue('CAPSTONE_PRIVATE_STORAGE_ROOT');
+    $root = $configured !== null && trim($configured) !== ''
         ? trim($configured)
         : uploadProjectRoot() . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'private';
 
