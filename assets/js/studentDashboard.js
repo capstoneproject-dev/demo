@@ -2011,6 +2011,11 @@ function getStudentYearLevel(sectionText) {
 function updateStudentProfileView() {
     const refreshedProfile = buildCurrentStudentProfile();
     Object.assign(currentStudentProfile, refreshedProfile);
+    const previewOrganization = getOrganizationPreviewOrgFromUrl();
+    window.OrganizationFavicon?.apply({
+        code: readAuthSession().active_org_code || '',
+        name: previewOrganization || refreshedProfile.associatedOrg
+    });
     const rawProfilePhoto = String(refreshedProfile.profilePhoto || '');
     const profilePhotoUrl = rawProfilePhoto && !/^(data|blob):/i.test(rawProfilePhoto)
         ? `${rawProfilePhoto}${rawProfilePhoto.includes('?') ? '&' : '?'}v=${encodeURIComponent(rawProfilePhoto)}`
@@ -5043,6 +5048,11 @@ function moveDashboardSlide(direction) {
 // --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', async () => {
     const isOsaPreview = isOsaStudentPreviewModeFromUrl();
+    const initialSession = readAuthSession();
+    window.OrganizationFavicon?.apply({
+        code: initialSession.active_org_code || '',
+        name: getOrganizationPreviewOrgFromUrl() || currentStudentProfile.associatedOrg
+    });
     validatePhpSession();   // guard: redirect to login if no valid session
     if (!isOsaPreview) {
         syncStudentIdentity();

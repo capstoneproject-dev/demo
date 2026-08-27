@@ -139,6 +139,10 @@ function updateOfficerProfileView(session = readAuthSession()) {
     const roleLabel = session.active_position_title || session.active_role_name || 'officer';
     const orgLabel = session.active_org_name || 'Organization';
     const headerOrgLabel = getOfficerOrganizationShortName(session);
+    window.OrganizationFavicon?.apply({
+        code: session.active_org_code || '',
+        name: orgLabel
+    });
     const studentNumber = session.student_number || session.employee_number || 'N/A';
     const email = session.email || '';
     const phone = session.phone || 'N/A';
@@ -442,6 +446,7 @@ function initOfficerAuthContext() {
     if (isOfficerAnnouncementPreviewMode()) {
         const payload = getOfficerAnnouncementPreviewPayload();
         const orgLabel = payload?.org || 'Organization';
+        window.OrganizationFavicon?.apply({ name: orgLabel });
         const headerName = document.querySelector('.user-info span');
         const headerRole = document.querySelector('.user-info small');
         const profileLink = document.querySelector('.user-profile');

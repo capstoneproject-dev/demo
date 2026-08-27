@@ -33,6 +33,7 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
 <head>
     <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Student Database</title>
     <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
