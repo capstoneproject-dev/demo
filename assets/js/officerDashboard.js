@@ -1262,8 +1262,15 @@ document.addEventListener('DOMContentLoaded', () => {
     setupOfficerProfileEditor();
     setupOfficerPasswordForm();
     setupOfficerProfilePhotoUploader();
-    setOfficerTrackerRentalsAccess(false, false);
-    setOfficerTrackerPrintingAccess(false);
+    const cachedServiceAccess = readOfficerServiceAccessCache();
+    if (cachedServiceAccess) {
+        setOfficerTrackerPrintingAccess(cachedServiceAccess.printing_enabled);
+        setOfficerTrackerRentalsAccess(cachedServiceAccess.rentals_enabled, false);
+        officerServiceAccessLoaded = true;
+    } else {
+        setOfficerTrackerRentalsAccess(false, false);
+        setOfficerTrackerPrintingAccess(false);
+    }
     loadOfficerServiceAccess();
 
     // Check if user previously selected dark mode
@@ -1409,6 +1416,7 @@ let officerRentalsEnabled = false;
 let officerLockerEnabled = false;
 let officerServiceAccessPromise = null;
 let officerServiceAccessLoaded = false;
+const OFFICER_SERVICE_ACCESS_CACHE_PREFIX = 'naapOfficerServiceAccess:v1:';
 let officerFinancialSummaryData = [];
 let officerFinancialSummaryFilters = { startDate: null, endDate: null };
 let officerFinancialCalendarCurrentDate = new Date();
@@ -1629,6 +1637,46 @@ function isOfficerServicesTrackerEnabled() {
     return officerRentalsEnabled || officerPrintingEnabled;
 }
 
+function getOfficerServiceAccessCacheKey() {
+    const session = readAuthSession();
+    const orgId = Number(session.active_org_id || 0);
+    const orgIdentity = orgId > 0
+        ? String(orgId)
+        : String(session.active_org_code || session.active_org_name || '').trim().toUpperCase();
+    return orgIdentity ? `${OFFICER_SERVICE_ACCESS_CACHE_PREFIX}${orgIdentity}` : '';
+}
+
+function readOfficerServiceAccessCache() {
+    const key = getOfficerServiceAccessCacheKey();
+    if (!key) return null;
+    try {
+        const cached = JSON.parse(localStorage.getItem(key) || 'null');
+        if (!cached
+            || typeof cached.rentals_enabled !== 'boolean'
+            || typeof cached.printing_enabled !== 'boolean') {
+            return null;
+        }
+        return cached;
+    } catch (_error) {
+        return null;
+    }
+}
+
+function writeOfficerServiceAccessCache(rentalsEnabled, printingEnabled) {
+    const key = getOfficerServiceAccessCacheKey();
+    if (!key) return;
+    try {
+        localStorage.setItem(key, JSON.stringify({
+            rentals_enabled: !!rentalsEnabled,
+            printing_enabled: !!printingEnabled,
+            confirmed_at: new Date().toISOString(),
+        }));
+    } catch (_error) {
+        // Storage may be unavailable in restrictive browsing modes. The
+        // current in-memory access state still remains authoritative.
+    }
+}
+
 function syncOfficerServicesTrackerAccess() {
     const enabled = isOfficerServicesTrackerEnabled();
     const navItem = document.getElementById('servicesTrackerNavItem');
@@ -1696,6 +1744,7 @@ async function loadOfficerServiceAccess(force = false) {
             }
             setOfficerTrackerPrintingAccess(!!data.printing_enabled);
             setOfficerTrackerRentalsAccess(!!data.rentals_enabled);
+            writeOfficerServiceAccessCache(!!data.rentals_enabled, !!data.printing_enabled);
             officerServiceAccessLoaded = true;
             syncOfficerServicesTrackerAccess();
             if (typeof refreshAnalyticsCharts === 'function') refreshAnalyticsCharts();
@@ -1703,11 +1752,18 @@ async function loadOfficerServiceAccess(force = false) {
         })
         .catch((error) => {
             console.error('[loadOfficerServiceAccess]', error);
-            officerServiceAccessLoaded = true;
-            setOfficerTrackerRentalsAccess(false);
-            setOfficerTrackerPrintingAccess(false);
-            syncOfficerServicesTrackerAccess();
-            if (typeof refreshAnalyticsCharts === 'function') refreshAnalyticsCharts();
+            // A failed request means access is unknown, not disabled. Preserve
+            // the last server-confirmed state so going offline cannot hide the
+            // tracker or imitate an OSA service-disable action.
+            if (!officerServiceAccessLoaded) {
+                const cached = readOfficerServiceAccessCache();
+                if (cached) {
+                    setOfficerTrackerPrintingAccess(cached.printing_enabled);
+                    setOfficerTrackerRentalsAccess(cached.rentals_enabled, false);
+                    officerServiceAccessLoaded = true;
+                    syncOfficerServicesTrackerAccess();
+                }
+            }
             return null;
         })
         .finally(() => {
@@ -8239,6 +8295,10 @@ document.addEventListener('visibilitychange', () => {
     if (isOfficerDocumentsAutoRefreshActive()) {
         startOfficerDocumentsAutoRefresh({ refreshNow: !document.hidden });
     }
+});
+
+window.addEventListener('online', () => {
+    loadOfficerServiceAccess(true);
 });
 
 
