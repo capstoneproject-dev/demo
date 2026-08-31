@@ -2167,45 +2167,6 @@ async function requestLogin(identifier, password, verificationToken = '', testin
   return data;
 }
 
-function requestLocalDevelopmentLogin(identifier, password) {
-  const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
-  if (!localHosts.has(window.location.hostname.toLowerCase())) {
-    throw new Error('Offline development login is only available on localhost.');
-  }
-
-  const db = getAuthDb();
-  const user = findUserByIdentifier(db, identifier);
-  if (!user || Number(user.is_active) !== 1 || String(user.password_hash || '') !== String(password)) {
-    throw new Error('Login failed. The account is not cached on this device or the credentials are incorrect.');
-  }
-
-  const studentProfile = getStudentProfileByUserId(db, user.user_id);
-  const program = studentProfile ? getProgramById(db, studentProfile.program_id) : null;
-  const mappedOrg = program ? getMappedOrgForProgram(db, program.program_id) : null;
-
-  return {
-    ok: true,
-    offline_login: true,
-    user: {
-      ...user,
-      program_id: program?.program_id || null,
-      program_code: program?.program_code || null,
-      section: studentProfile?.section || null,
-      mapped_org_id: mappedOrg?.org_id || null,
-      mapped_org_name: mappedOrg?.org_name || null
-    },
-    memberships: getOfficerMemberships(db, user.user_id),
-    legacyProfile: studentProfile ? {
-      studentNumber: user.student_number || '',
-      fullName: `${user.first_name} ${user.last_name}`.trim(),
-      course: program?.program_code || '',
-      section: studentProfile.section || '',
-      email: user.email || '',
-      organization: mappedOrg?.org_name || ''
-    } : null
-  };
-}
-
 function beginOsaLoginOtp(identifier, password, data) {
   osaLoginOtpState.identifier = identifier;
   osaLoginOtpState.password = password;
@@ -2367,17 +2328,7 @@ async function handleLogin(testingBypassOtp = false) {
   if (loginBtn) loginBtn.disabled = true;
 
   try {
-    let data;
-    if (testingBypassOtp === true && !navigator.onLine) {
-      data = requestLocalDevelopmentLogin(identifier, password);
-    } else {
-      try {
-        data = await requestLogin(identifier, password, '', testingBypassOtp === true);
-      } catch (error) {
-        if (testingBypassOtp !== true || !(error instanceof TypeError)) throw error;
-        data = requestLocalDevelopmentLogin(identifier, password);
-      }
-    }
+    const data = await requestLogin(identifier, password, '', testingBypassOtp === true);
     if (data.otp_required) {
       beginOsaLoginOtp(identifier, password, data);
       return;

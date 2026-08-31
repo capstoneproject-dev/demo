@@ -2,10 +2,7 @@
 <html lang="en">
 
 <head>
-  <link rel="manifest" href="../manifest.webmanifest">
   <script src="../assets/js/app-dialog.js?v=20260822-presence-1"></script>
-  <script src="../assets/js/offline-store.js?v=20260829-7"></script>
-  <script src="../assets/js/offline-client.js?v=20260831-29"></script>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -469,7 +466,37 @@
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20260824-org-position-options-2"></script>
+  <script src="../assets/js/login.js?v=20260901-local-osa-otp-bypass-5"></script>
+  <script>
+    (() => {
+      const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+      const bypassButton = document.getElementById('localOsaOtpBypassBtn');
+      if (!bypassButton || !localHosts.has(window.location.hostname.toLowerCase())) return;
+
+      bypassButton.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        const identifier = document.getElementById('loginIdentifier')?.value.trim() || '';
+        const password = document.getElementById('loginPassword')?.value || '';
+        if (!identifier || !password) {
+          alert('Please enter your email / ID and password.');
+          return;
+        }
+
+        bypassButton.disabled = true;
+        try {
+          const data = await requestLogin(identifier, password, '', true);
+          completeAuthenticatedLogin(data);
+        } catch (error) {
+          console.error('[localOsaOtpBypass] error:', error);
+          alert(error.message || 'Could not connect to the local server. Make sure XAMPP is running.');
+        } finally {
+          bypassButton.disabled = false;
+        }
+      }, true);
+    })();
+  </script>
 
 </body>
 
