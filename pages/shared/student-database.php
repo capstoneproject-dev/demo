@@ -31,13 +31,16 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="../../manifest.webmanifest">
     <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
+    <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
+    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Student Database</title>
     <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
     <style>
         .barcode-img {
@@ -165,7 +168,7 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
     <script src="../../systems/IGPRentalSystem/lib/encoder.js"></script>
     <script src="../../assets/js/igp-api.js?v=20260227e"></script>
     <script src="../../assets/js/barcode-download.js?v=20260821-compact-white-background"></script>
-    <script src="../../assets/js/igp-students-exact.js?v=20260826-interest-club-all-programs-1"></script>
+    <script src="../../assets/js/igp-students-exact.js?v=20260829-offline-actions-1"></script>
     <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

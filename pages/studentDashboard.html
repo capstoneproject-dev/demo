@@ -2,17 +2,20 @@
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="../manifest.webmanifest">
     <script src="../assets/js/app-dialog.js?v=20260822-presence-1"></script>
+    <script src="../assets/js/offline-store.js?v=20260829-7"></script>
+    <script src="../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Organization Dashboard</title>
 
     <!-- FontAwesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/vendor/fontawesome/css/all.min.css">
 
     <!-- STYLESHEET REFERENCE -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260821-student-rentals-full-width">
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260830-print-limit-1">
     <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260325-4">
 </head>
 
@@ -1159,15 +1162,15 @@
         aria-live="polite" aria-label="Transaction notifications"></div>
 
     <!-- JAVASCRIPT REFERENCE -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="../assets/vendor/pdf.min.js"></script>
     <script>
         // Set the worker source (Required for PDF.js)
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '../assets/vendor/pdf.worker.min.js';
     </script>
     <!-- Org-specific data config — must load before studentDashboard.js -->
     <script src="../data/orgData.js?v=20260325-4"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260827-1"></script>
-    <script src="../assets/js/studentDashboard.js?v=20260827-organization-favicon-1"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260830-print-limit-3"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">

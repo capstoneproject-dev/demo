@@ -2,27 +2,30 @@
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="../manifest.webmanifest">
     <script src="../assets/js/app-dialog.js?v=20260822-presence-1"></script>
+    <script src="../assets/js/offline-store.js?v=20260829-7"></script>
+    <script src="../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Organization Management Dashboard</title>
 
     <!-- FontAwesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/vendor/fontawesome/css/all.min.css">
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../assets/vendor/chart.umd.min.js"></script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+    <script src="../assets/vendor/jspdf.umd.min.js"></script>
+    <script src="../assets/vendor/jspdf.plugin.autotable.min.js"></script>
 
     <!-- PDF.js for Document Viewing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
+    <script src="../assets/vendor/pdf.min.js"></script>
+    <link rel="stylesheet" href="../assets/vendor/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260826-analytics-export-loading-1">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260831-offline-docs-locker-3">
     <!-- PDF Viewer Styles -->
-    <link rel="stylesheet" href="../assets/css/pdfViewer.css">
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260831-offline-annotations-2">
 </head>
 
 <body>
@@ -720,46 +723,74 @@
                         </div>
                     </div>
 
-                    <div class="locker-detail-grid">
-                        <label class="locker-field">
-                            <span>Locker Code</span>
-                            <input id="lockerDetailCode" type="text" readonly>
-                        </label>
-                        <label class="locker-field">
-                            <span>Rental Period</span>
-                            <select id="lockerDetailPeriodType" onchange="syncLockerAssignmentPreview()">
-                                <option value="">Select rental period</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="semester">Per Semester</option>
-                                <option value="school_year">Whole School Year</option>
-                                <option value="custom">Custom Period</option>
-                            </select>
-                        </label>
-                        <label class="locker-field">
-                            <span>Start Date</span>
-                            <input id="lockerDetailStartDate" type="date" onchange="syncLockerAssignmentPreview()">
-                        </label>
-                        <label class="locker-field">
-                            <span>End Date</span>
-                            <input id="lockerDetailEndDate" type="date" onchange="syncLockerAssignmentPreview()">
-                        </label>
-                        <label class="locker-field">
-                            <span>Monthly Rate</span>
-                            <input id="lockerMonthlyRate" type="number" min="0" step="0.01">
-                        </label>
-                        <label class="locker-field">
-                            <span>Semester Rate</span>
-                            <input id="lockerSemesterRate" type="number" min="0" step="0.01">
-                        </label>
-                        <label class="locker-field">
-                            <span>School Year Rate</span>
-                            <input id="lockerSchoolYearRate" type="number" min="0" step="0.01">
-                        </label>
-                        <label class="locker-field locker-field-highlight">
-                            <span>Final Price</span>
-                            <input id="lockerDetailPrice" type="number" min="0" step="0.01">
-                        </label>
-                    </div>
+                    <section class="locker-detail-section">
+                        <div class="locker-detail-section-heading">
+                            <div>
+                                <strong>Rental arrangement</strong>
+                                <span>Choose the rental basis, dates, and duration.</span>
+                            </div>
+                        </div>
+                        <div class="locker-detail-grid locker-rental-grid">
+                            <label class="locker-field locker-code-field">
+                                <span>Locker Code</span>
+                                <input id="lockerDetailCode" type="text" readonly>
+                            </label>
+                            <label class="locker-field">
+                                <span>Rental Period</span>
+                                <select id="lockerDetailPeriodType" onchange="syncLockerAssignmentPreview('period')">
+                                    <option value="">Select rental period</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="semester">Per Semester</option>
+                                    <option value="school_year">Whole School Year</option>
+                                </select>
+                            </label>
+                            <label id="lockerDetailQuantityField" class="locker-field" style="display:none;">
+                                <span id="lockerDetailQuantityLabel">Number of Months</span>
+                                <input id="lockerDetailPeriodQuantity" type="number" min="1" max="24" step="1" value="1" oninput="syncLockerAssignmentPreview('quantity')">
+                            </label>
+                            <label class="locker-field">
+                                <span>Start Date</span>
+                                <input id="lockerDetailStartDate" type="date" onchange="syncLockerAssignmentPreview('start')">
+                            </label>
+                            <label class="locker-field">
+                                <span>End Date</span>
+                                <input id="lockerDetailEndDate" type="date" onchange="syncLockerAssignmentPreview('end')" aria-describedby="lockerPeriodHelp">
+                                <small id="lockerPeriodHelp" class="locker-field-help">Calculated from the selected rental period.</small>
+                            </label>
+                            <label class="locker-field locker-field-highlight locker-final-price-field">
+                                <span>Final Price</span>
+                                <input id="lockerDetailPrice" type="number" min="0" step="0.01" readonly>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="locker-detail-section locker-pricing-section">
+                        <div class="locker-detail-section-heading locker-pricing-heading">
+                            <div>
+                                <strong>Shared locker rates</strong>
+                                <span>These rates apply to every locker in this organization.</span>
+                            </div>
+                        </div>
+                        <div class="locker-detail-grid locker-rate-grid">
+                            <div class="locker-rate-save-group">
+                                <label class="locker-field">
+                                    <span>Monthly Rate</span>
+                                    <input id="lockerMonthlyRate" type="number" min="0" step="0.01" oninput="syncLockerAssignmentPreview('rate')">
+                                </label>
+                                <button id="lockerSavePricingBtn" class="btn btn-outline locker-save-rates-inline" type="button" onclick="saveLockerPricing()">
+                                    <i class="fa-solid fa-tags"></i> Save Shared Rates
+                                </button>
+                            </div>
+                            <label class="locker-field">
+                                <span>Semester Rate</span>
+                                <input id="lockerSemesterRate" type="number" min="0" step="0.01" oninput="syncLockerAssignmentPreview('rate')">
+                            </label>
+                            <label class="locker-field">
+                                <span>School Year Rate</span>
+                                <input id="lockerSchoolYearRate" type="number" min="0" step="0.01" oninput="syncLockerAssignmentPreview('rate')">
+                            </label>
+                        </div>
+                    </section>
 
                     <div class="locker-notice-stack">
                         <div id="lockerNoticeComposer" class="locker-notice-composer">
@@ -810,9 +841,6 @@
                 </div>
                 <div class="modal-footer locker-detail-footer">
                     <div class="locker-detail-secondary-actions">
-                        <button id="lockerSavePricingBtn" class="btn btn-outline" type="button" onclick="saveLockerPricing()">
-                            <i class="fa-solid fa-tags"></i> Save Shared Rates
-                        </button>
                         <button id="lockerManualAssignBtn" class="btn btn-outline" type="button" onclick="openLockerAssignStudentModal()" style="display:none;">
                             <i class="fa-solid fa-user-plus"></i> Assign Student
                         </button>
@@ -822,7 +850,7 @@
                         <button id="lockerClearNoticeBtn" class="btn btn-outline" type="button" onclick="clearLockerNotice()" style="display:none;">
                             <i class="fa-solid fa-eraser"></i> Clear Notice
                         </button>
-                        <button id="lockerMarkPaidBtn" class="btn btn-outline" type="button" onclick="markLockerAssignmentPaid()" style="display:none;">
+                        <button id="lockerMarkPaidBtn" class="btn btn-outline" type="button" onclick="openLockerPaymentScanModal()" style="display:none;">
                             <i class="fa-solid fa-money-bill-wave"></i> Mark as Paid
                         </button>
                         <button id="lockerReleaseBtn" class="btn btn-outline" type="button" onclick="openLockerReleaseConfirmModal()" style="display:none;">
@@ -839,6 +867,48 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div id="lockerPaymentScanModal" class="modal-overlay">
+            <div class="modal-content locker-payment-scan-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>Confirm Locker Payment</h3>
+                        <p class="locker-detail-subtitle">The rental transaction is complete. Scan the processing officer's barcode to record the payment.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeLockerPaymentScanModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <div class="locker-payment-summary">
+                        <strong id="lockerPaymentScanTitle">Locker -</strong>
+                        <span id="lockerPaymentScanMeta">No rental selected.</span>
+                    </div>
+                    <label class="locker-field locker-field-full">
+                        <span>Officer Barcode</span>
+                        <input id="lockerPaymentOfficerBarcode" type="text" autocomplete="off" placeholder="Scan officer barcode here" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); markLockerAssignmentPaid(); }">
+                    </label>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeLockerPaymentScanModal()">Cancel</button>
+                        <button id="lockerPaymentConfirmBtn" class="btn btn-primary" type="button" onclick="markLockerAssignmentPaid()">
+                            <i class="fa-solid fa-circle-check"></i> Confirm Payment
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lockerTransactionLoading" class="locker-transaction-loading" role="status" aria-live="assertive" aria-hidden="true">
+            <div class="locker-transaction-loading-card">
+                <div class="locker-transaction-spinner" aria-hidden="true">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <strong id="lockerTransactionLoadingTitle">Processing locker transaction</strong>
+                <span id="lockerTransactionLoadingMessage">Please wait while your changes are safely processed.</span>
             </div>
         </div>
 
@@ -1885,7 +1955,7 @@
                 <div class="card profile-card">
                     <div class="profile-header-center">
                         <div class="profile-avatar-wrapper">
-                            <img id="officerProfileAvatar" src="https://picsum.photos/seed/officer1/150/150" alt="Profile"
+                            <img id="officerProfileAvatar" src="../assets/favicon.png" alt="Profile"
                                 class="profile-avatar-lg">
                             <input id="officerProfilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
                             <button id="officerProfilePhotoBtn" class="btn-icon-only edit-avatar-btn" title="Change Photo" type="button">
@@ -2132,6 +2202,18 @@
                         title="Highlight Text">
                         <i class="fa-solid fa-highlighter"></i>
                     </button>
+                    <div id="pdf-highlight-color-picker" class="pdf-highlight-color-picker" data-readonly-allow aria-label="Highlight color">
+                        <button type="button" class="pdf-highlight-color active" data-color="#ffeb3b"
+                            style="--highlight-color: #ffeb3b;" title="Yellow highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#34d399"
+                            style="--highlight-color: #34d399;" title="Green highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#60a5fa"
+                            style="--highlight-color: #60a5fa;" title="Blue highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#f472b6"
+                            style="--highlight-color: #f472b6;" title="Pink highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#fb923c"
+                            style="--highlight-color: #fb923c;" title="Orange highlight"></button>
+                    </div>
                     <button id="pdf-comment-btn" class="btn btn-sm btn-outline" data-readonly-allow onclick="togglePdfCommentMode()"
                         title="Add Comment">
                         <i class="fa-solid fa-comment"></i>
@@ -2247,11 +2329,11 @@
     <!-- Org-specific data config — must load before officerDashboard.js -->
     <script src="../data/orgData.js"></script>
     <script src="../assets/js/igp-api.js"></script>
-    <script src="../assets/js/pdfViewer.js?v=20260823-adviser-review-1"></script>
+    <script src="../assets/js/pdfViewer.js?v=20260831-offline-annotations-2"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260824-service-applicability-1"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260827-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260828-offline-service-access-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260831-offline-documents-locker-8"></script>
     <script src="../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

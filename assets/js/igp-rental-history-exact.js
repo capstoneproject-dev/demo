@@ -4,6 +4,7 @@
     const $ = (id) => document.getElementById(id);
     const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'];
+    const RENTAL_COLUMN_PREFERENCE_KEY = 'naap:igp:rental-history:visible-columns:v2';
 
     let rentals = [];
     const rentalHistoryFilters = {
@@ -17,7 +18,110 @@
     let pendingPaymentRentals = [];
     let officers = [];
     let paymentOfficerScanTimer = null;
+    let pendingReturnRental = null;
+    let returnOfficerScanTimer = null;
     const PAYABLE_RENTAL_STATUSES = new Set(['returned', 'overdue', 'cancelled']);
+    let visibleRentalColumns = null;
+    let rentalOrderNumbers = new Map();
+
+    function rebuildRentalOrderNumbers() {
+        const chronological = rentals.slice().sort((left, right) => {
+            const leftTime = new Date(left.rent_time || 0).getTime();
+            const rightTime = new Date(right.rent_time || 0).getTime();
+            const safeLeftTime = Number.isNaN(leftTime) ? 0 : leftTime;
+            const safeRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
+            if (safeLeftTime !== safeRightTime) return safeLeftTime - safeRightTime;
+            return Number(left.rental_id || 0) - Number(right.rental_id || 0);
+        });
+        rentalOrderNumbers = new Map(
+            chronological.map((rental, index) => [String(rental.rental_id), index + 1])
+        );
+    }
+
+    function rentalOrderNumber(rental) {
+        return rentalOrderNumbers.get(String(rental.rental_id)) || '-';
+    }
+
+    function rentalColumnStorageKey() {
+        const accountKey = window.NAAPOfflineStore?.currentIdentity?.()?.accountKey || 'default';
+        return `${RENTAL_COLUMN_PREFERENCE_KEY}:${accountKey}`;
+    }
+
+    function rentalColumnHeaders() {
+        return [...document.querySelectorAll('.rental-history-card table thead th')];
+    }
+
+    function loadVisibleRentalColumns() {
+        const count = rentalColumnHeaders().length;
+        const all = Array.from({ length: count }, (_, index) => index);
+        try {
+            const saved = JSON.parse(localStorage.getItem(rentalColumnStorageKey()) || 'null');
+            if (Array.isArray(saved)) {
+                const valid = saved.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < count);
+                if (valid.length) return new Set(valid);
+            }
+        } catch (_error) {
+        }
+        return new Set(all);
+    }
+
+    function saveVisibleRentalColumns() {
+        try {
+            localStorage.setItem(rentalColumnStorageKey(), JSON.stringify([...visibleRentalColumns].sort((a, b) => a - b)));
+        } catch (_error) {
+        }
+    }
+
+    function applyRentalColumnVisibility() {
+        const headers = rentalColumnHeaders();
+        if (!visibleRentalColumns) visibleRentalColumns = loadVisibleRentalColumns();
+        headers.forEach((header, index) => {
+            header.style.display = visibleRentalColumns.has(index) ? '' : 'none';
+        });
+        document.querySelectorAll('#rentalHistoryRecords tr').forEach((row) => {
+            [...row.children].forEach((cell, index) => {
+                cell.style.display = visibleRentalColumns.has(index) ? '' : 'none';
+            });
+        });
+        document.querySelectorAll('#rentalColumnOptions input[data-column-index]').forEach((checkbox) => {
+            checkbox.checked = visibleRentalColumns.has(Number(checkbox.dataset.columnIndex));
+        });
+        const label = $('rentalColumnsButtonLabel');
+        if (label) label.textContent = `Columns (${visibleRentalColumns.size}/${headers.length})`;
+    }
+
+    function initializeRentalColumnFilter() {
+        const options = $('rentalColumnOptions');
+        const headers = rentalColumnHeaders();
+        if (!options || !headers.length) return;
+        visibleRentalColumns = loadVisibleRentalColumns();
+        options.innerHTML = headers.map((header, index) => `
+            <label class="rental-column-option">
+                <input class="form-check-input" type="checkbox" data-column-index="${index}">
+                <span>${header.textContent.trim()}</span>
+            </label>
+        `).join('');
+        options.addEventListener('change', (event) => {
+            const checkbox = event.target.closest('input[data-column-index]');
+            if (!checkbox) return;
+            const index = Number(checkbox.dataset.columnIndex);
+            if (checkbox.checked) visibleRentalColumns.add(index);
+            else visibleRentalColumns.delete(index);
+            if (!visibleRentalColumns.size) {
+                visibleRentalColumns.add(index);
+                checkbox.checked = true;
+                return;
+            }
+            saveVisibleRentalColumns();
+            applyRentalColumnVisibility();
+        });
+        $('showAllRentalColumns')?.addEventListener('click', () => {
+            visibleRentalColumns = new Set(headers.map((_header, index) => index));
+            saveVisibleRentalColumns();
+            applyRentalColumnVisibility();
+        });
+        applyRentalColumnVisibility();
+    }
 
     function playScanBeep() {
         const beep = $('beepSound');
@@ -129,6 +233,10 @@
         return paymentStatus === 'unpaid' && PAYABLE_RENTAL_STATUSES.has(rentalStatus);
     }
 
+    function isReturnableRental(rental) {
+        return String(rental?.status || '').toLowerCase() === 'active';
+    }
+
     function formatLocalDateKey(date) {
         if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
         return [
@@ -196,26 +304,32 @@
         rows.forEach((r) => {
             const tr = document.createElement('tr');
             tr.dataset.rentalId = String(r.rental_id || '');
+            if (r.pending_sync) {
+                tr.classList.add('naap-queued-rental');
+                tr.dataset.offlineStatus = r.offline_status === 'attention' ? 'attention' : 'queued';
+            }
             tr.innerHTML = `
-                <td>${r.rental_id}</td>
+                <td>${rentalOrderNumber(r)}</td>
                 <td>${r.items_label || '-'}</td>
                 <td>${r.renter_name || '-'}</td>
-                <td>-</td>
+                <td>${r.renter_section || '-'}</td>
                 <td>${formatDate(r.rent_time)}</td>
                 <td>${formatTime(r.rent_time)}</td>
                 <td>${formatTime(r.expected_return_time)}</td>
                 <td>${formatTime(r.actual_return_time)}</td>
                 <td>${overdueText(r)}</td>
-                <td>${r.status || '-'}</td>
+                <td>${r.status || '-'}${r.pending_sync ? ` <span class="badge text-bg-warning ms-1">${r.offline_status === 'attention' ? 'Needs attention' : 'Pending sync'}</span>` : ''}</td>
                 <td>${r.processor_name || '-'}</td>
                 <td>${r.actual_return_time ? (r.processor_name || '-') : '-'}</td>
                 <td>P${Number(r.total_cost || 0).toFixed(2)}</td>
                 <td>${r.payment_status || '-'}</td>
-                <td>${isPayableRental(r) ? `<button class="btn btn-success btn-sm js-paid" data-id="${r.rental_id}">Mark as Paid</button>` : '-'}</td>
-                <td>-</td>
+                <td>${isReturnableRental(r)
+                    ? `<button class="btn btn-warning btn-sm js-return" data-id="${r.rental_id}">Return</button>`
+                    : (isPayableRental(r) ? `<button class="btn btn-success btn-sm js-paid" data-id="${r.rental_id}">Mark as Paid</button>` : '-')}</td>
             `;
             tbody.appendChild(tr);
         });
+        applyRentalColumnVisibility();
 
         const totals = totalProfitAndUnpaid(rows);
         if ($('totalProfit')) $('totalProfit').textContent = `P${totals.paid.toFixed(2)}`;
@@ -510,9 +624,32 @@
         applyFilters();
     }
 
+    async function applyQueuedRentalState() {
+        const Store = window.NAAPOfflineStore;
+        const identity = Store?.currentIdentity?.();
+        if (!Store || !identity) return;
+        const queuedRows = await Store.listOutbox(identity.accountKey, true, false).catch(() => []);
+        for (const row of queuedRows) {
+            if (row.type !== 'rental.return' && row.type !== 'rental.mark_paid') continue;
+            const payload = row.value?.payload || {};
+            const rental = rentals.find((item) => Number(item.rental_id) === Number(payload.rental_id));
+            if (!rental) continue;
+            rental.pending_sync = true;
+            rental.offline_status = row.status === 'attention' ? 'attention' : 'queued';
+            if (row.type === 'rental.return') {
+                rental.status = 'returned';
+                rental.actual_return_time = row.createdAt || payload.captured_at || new Date().toISOString();
+            } else if (row.type === 'rental.mark_paid') {
+                rental.payment_status = 'paid';
+            }
+        }
+    }
+
     async function refresh() {
         const { items } = await window.igpApi.getRentals({});
         rentals = items || [];
+        await applyQueuedRentalState();
+        rebuildRentalOrderNumbers();
         applyFilters();
     }
 
@@ -558,6 +695,91 @@
         modalElement.addEventListener('shown.bs.modal', () => input?.focus(), { once: true });
     }
 
+    function verifyReturnOfficerBarcode() {
+        const input = $('returnOfficerBarcode');
+        const feedback = $('returnOfficerFeedback');
+        const button = $('returnRentalConfirmBtn');
+        if (!input) return null;
+        const officer = findOfficerByScan(input.value);
+        if (!officer) {
+            delete input.dataset.verifiedOfficer;
+            input.classList.remove('is-valid');
+            input.classList.add('is-invalid');
+            if (feedback) {
+                feedback.textContent = 'Unknown officer ID. Scan a valid officer barcode.';
+                feedback.className = 'text-danger mt-1';
+            }
+            if (button) button.disabled = true;
+            return null;
+        }
+        playScanBeep();
+        const identifier = String(officer.student_number || officer.employee_number || officer.officerId || '').trim();
+        input.dataset.verifiedOfficer = identifier;
+        input.value = String(officer.officer_name || identifier).trim();
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        if (feedback) {
+            feedback.textContent = `Officer verified: ${officer.officer_name || identifier}`;
+            feedback.className = 'text-success mt-1';
+        }
+        if (button) button.disabled = false;
+        return officer;
+    }
+
+    function openReturnRentalModal(rental) {
+        if (!rental || !window.bootstrap) return;
+        pendingReturnRental = rental;
+        const input = $('returnOfficerBarcode');
+        if (input) {
+            input.value = '';
+            input.classList.remove('is-valid', 'is-invalid');
+            delete input.dataset.verifiedOfficer;
+        }
+        if ($('returnRentalSummary')) $('returnRentalSummary').textContent = `Return rental #${rental.rental_id} (${rental.items_label || 'item'})?`;
+        if ($('returnOfficerFeedback')) {
+            $('returnOfficerFeedback').textContent = 'A valid active officer for this organization must verify the return.';
+            $('returnOfficerFeedback').className = 'form-text';
+        }
+        if ($('returnRentalError')) $('returnRentalError').style.display = 'none';
+        if ($('returnRentalConfirmBtn')) $('returnRentalConfirmBtn').disabled = true;
+        const modal = $('returnRentalModal');
+        window.bootstrap.Modal.getOrCreateInstance(modal).show();
+        modal.addEventListener('shown.bs.modal', () => input?.focus(), { once: true });
+    }
+
+    async function confirmRentalReturn() {
+        if (!pendingReturnRental || !$('returnOfficerBarcode')?.dataset.verifiedOfficer) return;
+        const button = $('returnRentalConfirmBtn');
+        const error = $('returnRentalError');
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Processing...';
+        }
+        try {
+            const result = await window.igpApi.returnRental(Number(pendingReturnRental.rental_id));
+            if (result.queued || !navigator.onLine) {
+                await applyQueuedRentalState();
+                if (!pendingReturnRental.pending_sync) {
+                    pendingReturnRental.status = 'returned';
+                    pendingReturnRental.actual_return_time = new Date().toISOString();
+                    pendingReturnRental.pending_sync = true;
+                    pendingReturnRental.offline_status = 'queued';
+                }
+                applyFilters();
+            }
+            window.bootstrap.Modal.getInstance($('returnRentalModal'))?.hide();
+            if (!result.queued) await refresh();
+        } catch (err) {
+            if (error) {
+                error.textContent = err.message || 'Could not return this rental.';
+                error.style.display = 'block';
+            }
+            if (button) button.disabled = false;
+        } finally {
+            if (button) button.textContent = 'Return Item';
+        }
+    }
+
     async function confirmPendingPayments() {
         const input = $('paymentConfirmInput');
         const error = $('paymentConfirmError');
@@ -572,11 +794,17 @@
 
         try {
             for (const rental of pendingPaymentRentals) {
-                await window.igpApi.markPaid(Number(rental.rental_id), officerIdentifier);
+                const result = await window.igpApi.markPaid(Number(rental.rental_id), officerIdentifier);
+                if (result.queued) {
+                    rental.payment_status = 'paid';
+                    rental.pending_sync = true;
+                }
             }
+            const hasQueuedPayments = pendingPaymentRentals.some((rental) => rental.pending_sync);
             window.bootstrap.Modal.getInstance($('paymentConfirmModal'))?.hide();
             pendingPaymentRentals = [];
-            await refresh();
+            if (hasQueuedPayments) applyFilters();
+            else await refresh();
         } catch (err) {
             if (error) {
                 error.textContent = err.message || 'Could not record the payment.';
@@ -591,9 +819,10 @@
     function exportExcel() {
         if (!window.XLSX) return;
         const rows = rentals.map((r) => ({
-            RentalID: r.rental_id,
+            OrderNumber: rentalOrderNumber(r),
             Items: r.items_label,
             Renter: r.renter_name,
+            Section: r.renter_section || '',
             RentDate: r.rent_time,
             ExpectedReturn: r.expected_return_time,
             ActualReturn: r.actual_return_time,
@@ -637,13 +866,18 @@
 
         $('showAllDatesBtn')?.addEventListener('click', clearAllRentalHistoryFilters);
         $('exportExcel')?.addEventListener('click', exportExcel);
-        $('clearHistory')?.addEventListener('click', () => alert('Clear history is disabled in DB mode.'));
         $('importExcel')?.addEventListener('change', () => alert('Import from Excel is disabled in DB mode.'));
         $('payAllBtn')?.addEventListener('click', () => {
             openPaymentConfirmModal(rentals.filter(isPayableRental));
         });
 
         $('rentalHistoryRecords')?.addEventListener('click', (e) => {
+            const returnButton = e.target.closest('.js-return');
+            if (returnButton) {
+                const rental = rentals.find((item) => Number(item.rental_id) === Number(returnButton.dataset.id));
+                if (rental) openReturnRentalModal(rental);
+                return;
+            }
             const btn = e.target.closest('.js-paid');
             if (!btn) return;
             const rental = rentals.find((item) => Number(item.rental_id) === Number(btn.dataset.id));
@@ -653,6 +887,34 @@
         $('paymentConfirmInput')?.addEventListener('input', (e) => {
             updatePaymentConfirmButton();
             if ($('paymentConfirmError')) $('paymentConfirmError').style.display = 'none';
+        });
+
+        $('returnOfficerBarcode')?.addEventListener('input', (event) => {
+            delete event.target.dataset.verifiedOfficer;
+            event.target.classList.remove('is-valid', 'is-invalid');
+            if ($('returnRentalConfirmBtn')) $('returnRentalConfirmBtn').disabled = true;
+            if (returnOfficerScanTimer) clearTimeout(returnOfficerScanTimer);
+            returnOfficerScanTimer = setTimeout(() => {
+                returnOfficerScanTimer = null;
+                verifyReturnOfficerBarcode();
+            }, 180);
+        });
+        $('returnOfficerBarcode')?.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            if (returnOfficerScanTimer) clearTimeout(returnOfficerScanTimer);
+            returnOfficerScanTimer = null;
+            verifyReturnOfficerBarcode();
+        });
+        $('returnRentalConfirmBtn')?.addEventListener('click', confirmRentalReturn);
+        $('returnRentalModal')?.addEventListener('hidden.bs.modal', () => {
+            pendingReturnRental = null;
+            if (returnOfficerScanTimer) clearTimeout(returnOfficerScanTimer);
+            returnOfficerScanTimer = null;
+        });
+
+        window.addEventListener('naap:offline-queue-changed', async () => {
+            await refresh().catch(() => {});
         });
 
         $('paymentConfirmInput')?.addEventListener('keydown', (e) => {
@@ -712,6 +974,7 @@
 
     async function initRentalHistoryPage() {
         bind();
+        initializeRentalColumnFilter();
         updateRentalHistoryFilterLabel();
         try {
             const [officerResult] = await Promise.all([

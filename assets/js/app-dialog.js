@@ -68,6 +68,8 @@
             .app-dialog-icon.success { background: #dcfce7; color: #15803d; }
             .app-dialog-icon.warning { background: #fef3c7; color: #b45309; }
             .app-dialog-icon.error { background: #fee2e2; color: #b91c1c; }
+            .app-dialog-panel[data-dialog-type="warning"] .app-dialog-body { grid-template-columns: minmax(0, 1fr); }
+            .app-dialog-panel[data-dialog-type="warning"] .app-dialog-icon { display: none; }
             .app-dialog-copy h2 {
                 margin: 1px 0 7px;
                 color: #0f172a;
@@ -217,6 +219,7 @@
         const ui = ensureElements();
         const options = activeRequest.options;
         const type = inferType(activeRequest.message, options.type);
+        ui.panel.dataset.dialogType = type;
         ui.icon.className = `app-dialog-icon ${type}`;
         ui.iconGlyph.textContent = iconFor(type);
         ui.title.textContent = options.title || defaultTitle(type, activeRequest.kind);
@@ -383,6 +386,9 @@
 
     function handleExpiredSession(data) {
         if (!['SESSION_EXPIRED', 'AUTHENTICATION_REQUIRED'].includes(data?.error_code)) return false;
+        if (window.NAAPOffline?.lockForExpiredSession) {
+            void window.NAAPOffline.lockForExpiredSession();
+        }
         try {
             localStorage.removeItem('naapAuthSession');
             localStorage.removeItem('naapStudentProfile');

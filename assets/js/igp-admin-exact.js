@@ -260,13 +260,18 @@
                     return;
                 }
 
+                let queued = false;
                 for (const officer of officers) {
-                    await window.igpApi.deleteOrgOfficer(officer.id);
+                    const result = await window.igpApi.deleteOrgOfficer(officer.id);
+                    queued = queued || Boolean(result.queued);
                 }
 
                 const modal = window.bootstrap && window.bootstrap.Modal.getInstance($('deleteConfirmModal'));
                 if (modal) modal.hide();
-                await refresh();
+                if (queued) {
+                    officers = [];
+                    renderDatabase();
+                } else await refresh();
             });
         }
 
@@ -290,11 +295,15 @@
                     return;
                 }
 
-                await window.igpApi.deleteOrgOfficer(officerToDelete.id);
+                const deletingOfficer = officerToDelete;
+                const result = await window.igpApi.deleteOrgOfficer(officerToDelete.id);
                 officerToDelete = null;
                 const modal = window.bootstrap && window.bootstrap.Modal.getInstance($('deleteOfficerModal'));
                 if (modal) modal.hide();
-                await refresh();
+                if (result.queued) {
+                    officers = officers.filter((officer) => officer !== deletingOfficer);
+                    renderDatabase();
+                } else await refresh();
             });
         }
 

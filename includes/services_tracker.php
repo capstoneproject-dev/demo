@@ -7,6 +7,7 @@ require_once __DIR__ . '/private_pdf_storage.php';
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/notification_email_delivery.php';
 
 class ServiceTrackerValidationException extends RuntimeException {}
 class ServiceTrackerAuthorizationException extends RuntimeException {}
@@ -1363,7 +1364,6 @@ function stGetLockerPeriodOptions(): array
         'monthly' => ['label' => 'Monthly', 'months' => 1, 'rate_column' => 'locker_monthly_rate'],
         'semester' => ['label' => 'Per Semester', 'months' => 5, 'rate_column' => 'locker_semester_rate'],
         'school_year' => ['label' => 'Whole School Year', 'months' => 10, 'rate_column' => 'locker_school_year_rate'],
-        'custom' => ['label' => 'Custom Period', 'months' => null, 'rate_column' => null],
     ];
 }
 
@@ -1833,6 +1833,7 @@ function stRequestLocker(PDO $pdo, int $userId, int $itemId): array
         throw $e;
     }
 
+    notificationEmailDispatchLockerEventBestEffort($pdo, $rentalId, 'pending');
     return stListStudentLockers($pdo, $userId);
 }
 
@@ -1850,24 +1851,25 @@ function stComputeLockerDatesAndPrice(array $item, array $data): array
     }
     $startDate = new DateTime($startDateRaw . ' 00:00:00');
 
-    if ($periodType === 'custom') {
-        $endDateRaw = trim((string)($data['end_date'] ?? ''));
-        if ($endDateRaw === '') {
-            throw new ServiceTrackerValidationException('An end date is required for a custom locker period.');
-        }
-        $endDate = new DateTime($endDateRaw . ' 23:59:59');
-        if ($endDate <= $startDate) {
+    $quantity = $periodType === 'school_year' ? 1 : (int)($data['period_quantity'] ?? 1);
+    if ($quantity < 1 || $quantity > 24) {
+        throw new ServiceTrackerValidationException('Locker period quantity must be between 1 and 24.');
+    }
+
+    $months = (int)$periods[$periodType]['months'] * $quantity;
+    $endDate = clone $startDate;
+    $endDate->modify('+' . $months . ' month');
+    $customEndDateRaw = trim((string)($data['end_date'] ?? ''));
+    if (in_array($periodType, ['semester', 'school_year'], true) && $customEndDateRaw !== '') {
+        $customEndDate = new DateTime($customEndDateRaw . ' 23:59:59');
+        if ($customEndDate <= $startDate) {
             throw new ServiceTrackerValidationException('Locker end date must be after the start date.');
         }
-        $price = (float)($data['price'] ?? 0);
-    } else {
-        $months = (int)$periods[$periodType]['months'];
-        $endDate = clone $startDate;
-        $endDate->modify('+' . $months . ' month');
-        $endDate->setTime(23, 59, 59);
-        $rateColumn = (string)$periods[$periodType]['rate_column'];
-        $price = isset($data['price']) && $data['price'] !== '' ? (float)$data['price'] : (float)($item[$rateColumn] ?? 0);
+        $endDate = $customEndDate;
     }
+    $endDate->setTime(23, 59, 59);
+    $rateColumn = (string)$periods[$periodType]['rate_column'];
+    $price = (float)($item[$rateColumn] ?? 0) * $quantity;
 
     if ($price < 0) {
         throw new ServiceTrackerValidationException('Locker price cannot be negative.');
@@ -1875,6 +1877,7 @@ function stComputeLockerDatesAndPrice(array $item, array $data): array
 
     return [
         'period_type' => $periodType,
+        'period_quantity' => $quantity,
         'start_at' => $startDate->format('Y-m-d H:i:s'),
         'end_at' => $endDate->format('Y-m-d H:i:s'),
         'price' => round($price, 2),
@@ -1985,6 +1988,7 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
     }
 
     stSyncLockerStatuses($pdo, $orgId);
+    notificationEmailDispatchLockerEventBestEffort($pdo, $rentalId, 'assigned');
     return stListLockerBoard($pdo, $orgId);
 }
 
@@ -2073,6 +2077,7 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
     }
 
     stSyncLockerStatuses($pdo, $orgId);
+    notificationEmailDispatchLockerEventBestEffort($pdo, $rentalId, 'approved');
     return stListLockerBoard($pdo, $orgId);
 }
 
@@ -2136,6 +2141,7 @@ function stReleaseLocker(PDO $pdo, int $orgId, int $officerUserId, int $rentalId
         throw $e;
     }
 
+    notificationEmailDispatchLockerEventBestEffort($pdo, $rentalId, 'released', $releaseNotice);
     return stListLockerBoard($pdo, $orgId);
 }
 
@@ -2192,6 +2198,7 @@ function stRejectLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $re
         throw $e;
     }
 
+    notificationEmailDispatchLockerEventBestEffort($pdo, $rentalId, 'rejected');
     return stListLockerBoard($pdo, $orgId);
 }
 
@@ -2258,6 +2265,12 @@ function stSendLockerNotice(PDO $pdo, int $orgId, int $officerUserId, int $renta
         ':rental_id' => $rentalId,
     ]);
 
+    notificationEmailDispatchLockerEventBestEffort(
+        $pdo,
+        $rentalId,
+        $normalizedType === 'upcoming' ? 'upcoming_notice' : 'overdue_notice',
+        $noticeMessage
+    );
     return stListLockerBoard($pdo, $orgId);
 }
 

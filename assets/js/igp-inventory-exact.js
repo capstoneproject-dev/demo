@@ -136,7 +136,7 @@
                                     <td>PHP ${fmtNumber(item.hourly_rate)}/hr${item.overtime_interval_minutes ? `<br><small class="text-muted">+ PHP ${fmtNumber(item.overtime_rate_per_block)} / ${item.overtime_interval_minutes} mins</small>` : ''}</td>
                                     <td>-</td>
                                     <td>-</td>
-                                    <td>${statusBadge(status)}</td>
+                                    <td>${statusBadge(status)}${item.pending_sync ? ' <span class="badge text-bg-warning ms-1">Pending sync</span>' : ''}</td>
                                     <td>-</td>
                                     <td>-</td>
                                     <td>
@@ -230,7 +230,7 @@
         const saveBtn = $('priceModalSaveBtn');
         if (saveBtn) saveBtn.disabled = true;
         try {
-            await Promise.all(targets.map((item) => window.igpApi.saveInventory({
+            const results = await Promise.all(targets.map((item) => window.igpApi.saveInventory({
                 item_id: item.item_id,
                 item_name: item.item_name,
                 barcode: item.barcode,
@@ -241,10 +241,23 @@
                 overtime_rate_per_block: overtimeVal,
             })));
 
+            if (results.some((result) => result.queued)) {
+                targets.forEach((item) => Object.assign(item, {
+                    hourly_rate: rateVal,
+                    overtime_interval_minutes: intervalVal,
+                    overtime_rate_per_block: overtimeVal,
+                    pending_sync: true,
+                }));
+            }
+
             const modalEl = $('priceEditModal');
             const modal = window.bootstrap && window.bootstrap.Modal.getInstance(modalEl);
             if (modal) modal.hide();
-            await refresh();
+            if (results.some((result) => result.queued)) {
+                const groups = groupedItems();
+                renderSummary(groups);
+                renderList(groups);
+            } else await refresh();
         } catch (e) {
             if (err) {
                 err.textContent = e.message;
@@ -271,13 +284,18 @@
             }
 
             try {
-                await window.igpApi.deleteInventory(deleteTargetId);
+                const result = await window.igpApi.deleteInventory(deleteTargetId);
                 const modalEl = $('deleteItemModal');
                 const modal = window.bootstrap && window.bootstrap.Modal.getInstance(modalEl);
                 if (modal) modal.hide();
                 input.value = '';
                 if (err) err.style.display = 'none';
-                await refresh();
+                if (result.queued) {
+                    inventory = inventory.filter((item) => Number(item.item_id) !== Number(deleteTargetId));
+                    const groups = groupedItems();
+                    renderSummary(groups);
+                    renderList(groups);
+                } else await refresh();
             } catch (e) {
                 if (err) {
                     err.textContent = e.message;

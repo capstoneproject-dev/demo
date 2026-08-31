@@ -10,14 +10,56 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="../../manifest.webmanifest">
     <script src="../../assets/js/app-dialog.js?v=20260821-white-panel"></script>
+    <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
+    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Events - QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260821-archive-reset-compact">
+    <style>
+        /* Keep queued events visibly distinct even with Bootstrap's collapsed table borders. */
+        #eventsList tr.queued-event-row > td {
+            background-color: #fff7ed !important;
+            border-top: 3px solid #f59e0b !important;
+            border-bottom: 3px solid #f59e0b !important;
+        }
+
+        #eventsList tr.queued-event-row > td:first-child {
+            border-left: 5px solid #f59e0b !important;
+            box-shadow: inset 3px 0 0 #fbbf24;
+        }
+
+        #eventsList tr.queued-event-row > td:last-child {
+            border-right: 3px solid #f59e0b !important;
+        }
+
+        #eventsList tr.queued-event-row[data-offline-status="attention"] > td {
+            background-color: #fef2f2 !important;
+            border-top-color: #dc2626 !important;
+            border-bottom-color: #dc2626 !important;
+        }
+
+        #eventsList tr.queued-event-row[data-offline-status="attention"] > td:first-child {
+            border-left-color: #dc2626 !important;
+            box-shadow: inset 3px 0 0 #ef4444;
+        }
+
+        #eventsList tr.queued-event-row[data-offline-status="attention"] > td:last-child {
+            border-right-color: #dc2626 !important;
+        }
+
+        #eventsList .event-sync-state {
+            padding: 3px 7px;
+            font-size: 9px;
+            white-space: nowrap;
+            opacity: .9;
+        }
+    </style>
 </head>
 
 <body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
@@ -265,7 +307,15 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         // Helper function to normalize event names for consistent matching
         function normalizeEventName(name) {
             if (!name) return '';
-            return String(name).trim();
+            return String(name).trim().replace(/\s+/g, ' ');
+        }
+
+        function eventNameAlreadyExists(name) {
+            const candidate = normalizeEventName(name).toLocaleLowerCase();
+            if (!candidate) return false;
+            return [...events, ...archivedEvents].some((event) =>
+                normalizeEventName(event.name || event.event_name).toLocaleLowerCase() === candidate
+            );
         }
 
         function mapApiEvent(row) {
@@ -325,7 +375,96 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             const archivedPayload = await qrApiRequest('/events/list.php?state=archived', { method: 'GET' });
             events = (activePayload.items || []).map(mapApiEvent);
             archivedEvents = (archivedPayload.items || []).map(mapApiEvent);
+            await mergeQueuedEvents();
+            await mergeQueuedEventAttendance();
             return [...events, ...archivedEvents];
+        }
+
+        async function mergeQueuedEvents() {
+            events = events.filter(item => !item.pendingSync);
+            archivedEvents = archivedEvents.filter(item => !item.pendingSync);
+            if (!window.NAAPOffline?.listQueuedOperations) return;
+            const [queuedCreates, queuedArchiveChanges] = await Promise.all([
+                window.NAAPOffline.listQueuedOperations('event.create'),
+                window.NAAPOffline.listQueuedOperations('event.archive')
+            ]);
+            const optimistic = queuedCreates.map(operation => {
+                const payload = operation.payload || {};
+                return {
+                    id: 0,
+                    name: payload.event_name || 'Untitled event',
+                    description: payload.description || '',
+                    status: 'active',
+                    createdAt: operation.createdAt,
+                    eventDateTime: payload.event_datetime || '',
+                    academicYear: activeAcademicTerm.academic_year,
+                    semester: activeAcademicTerm.semester,
+                    gradingPeriod: activeAcademicTerm.grading_period,
+                    firstDate: null,
+                    lastDate: null,
+                    attendanceCount: 0,
+                    preRegisteredCount: 0,
+                    records: [],
+                    pendingSync: true,
+                    offlineStatus: operation.status,
+                    offlineOperationId: operation.operationId,
+                    offlineError: operation.lastError || ''
+                };
+            });
+            events = [...optimistic, ...events];
+            queuedArchiveChanges.forEach(operation => {
+                const payload = operation.payload || {};
+                const id = Number(payload.event_id || 0);
+                const action = String(payload.action || 'archive').toLowerCase();
+                let item = [...events, ...archivedEvents].find(event => Number(event.id || 0) === id);
+                events = events.filter(event => Number(event.id || 0) !== id);
+                archivedEvents = archivedEvents.filter(event => Number(event.id || 0) !== id);
+                item = item || {
+                    ...(payload.event || {}),
+                    id,
+                    name: payload.event_name || payload.event?.name || 'Event',
+                    description: payload.event?.description || '',
+                    records: []
+                };
+                item = {
+                    ...item,
+                    status: action === 'archive' ? 'archived' : 'active',
+                    archivedAt: action === 'archive' ? operation.createdAt : null,
+                    pendingSync: true,
+                    offlineStatus: operation.status,
+                    offlineOperationId: operation.operationId,
+                    offlineError: operation.lastError || ''
+                };
+                (action === 'archive' ? archivedEvents : events).unshift(item);
+            });
+        }
+
+        async function mergeQueuedEventAttendance() {
+            attendanceRecords = attendanceRecords.filter(record => !record.pendingSync);
+            if (!window.NAAPOffline?.listQueuedOperations) return;
+            const queued = await window.NAAPOffline.listQueuedOperations('attendance.checkin');
+            queued.forEach(operation => {
+                const payload = operation.payload || {};
+                const captured = new Date(payload.captured_at || operation.createdAt);
+                const validCaptured = !Number.isNaN(captured.getTime());
+                const year = validCaptured ? captured.getFullYear() : '';
+                const month = validCaptured ? String(captured.getMonth() + 1).padStart(2, '0') : '';
+                const day = validCaptured ? String(captured.getDate()).padStart(2, '0') : '';
+                attendanceRecords.push({
+                    studentId: String(payload.student_number || payload.student_id || '').trim(),
+                    studentName: String(payload.student_name || '').trim(),
+                    section: String(payload.section || '').trim(),
+                    event: normalizeEventName(payload.event_name || ''),
+                    date: validCaptured ? `${year}-${month}-${day}` : '',
+                    timeIn: validCaptured ? captured.toLocaleTimeString() : '',
+                    timeOut: '',
+                    status: 'checked_in',
+                    isRegistered: false,
+                    pendingSync: true,
+                    offlineStatus: operation.status,
+                    offlineOperationId: operation.operationId,
+                });
+            });
         }
 
         async function loadActiveAcademicTerm() {
@@ -348,7 +487,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
         // Initialize data
         async function initializeLocalData() {
-            attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+            attendanceRecords = [];
             try {
                 await loadActiveAcademicTerm();
             } catch (error) {
@@ -357,8 +496,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             try {
                 await loadEventsFromApi();
             } catch (error) {
-                console.warn('Unable to load events from API, falling back to localStorage.', error);
-                const localEvents = JSON.parse(localStorage.getItem('events')) || [];
+                console.warn('Unable to load events from API.', error);
+                const localEvents = [];
                 const mappedLocalEvents = localEvents.map(event => ({
                     id: event.id || null,
                     name: event.name || event.eventName || '',
@@ -378,6 +517,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 }));
                 events = mappedLocalEvents.filter(event => !event.archivedAt && event.status !== 'archived');
                 archivedEvents = mappedLocalEvents.filter(event => event.archivedAt || event.status === 'archived');
+                await mergeQueuedEvents();
+                await mergeQueuedEventAttendance();
             }
         }
 
@@ -419,7 +560,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         // Initialize the page
         document.addEventListener('DOMContentLoaded', async function () {
             await initializeLocalData();
-            attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
 
             // Update offline status indicator
             updateOfflineStatus();
@@ -449,6 +589,19 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         function eventSortTimestamp(value) {
             const timestamp = new Date(value || 0).getTime();
             return Number.isNaN(timestamp) ? 0 : timestamp;
+        }
+
+        function formatEventRecordDate(value) {
+            const raw = String(value || '').trim();
+            if (!raw) return 'N/A';
+            const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            const parsed = dateOnly
+                ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+                : new Date(raw);
+            if (Number.isNaN(parsed.getTime())) return raw;
+            return new Intl.DateTimeFormat('en-PH', {
+                year: 'numeric', month: 'short', day: 'numeric'
+            }).format(parsed);
         }
 
         function parseArchiveEventDate(value) {
@@ -633,11 +786,13 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             if (!confirmed) return;
 
             try {
-                await qrApiRequest('/events/archive.php', {
+                const currentEvent = [...events, ...archivedEvents].find(event => Number(event.id || 0) === Number(eventId));
+                const result = await qrApiRequest('/events/archive.php', {
                     method: 'POST',
-                    body: JSON.stringify({ event_id: Number(eventId), action })
+                    body: JSON.stringify({ event_id: Number(eventId), event_name: eventName, event: currentEvent || null, action })
                 });
-                await loadEventsFromApi();
+                if (result.queued) await mergeQueuedEvents();
+                else await loadEventsFromApi();
                 updateEventsList();
             } catch (error) {
                 alert(`Unable to ${action} event: ${error.message}`);
@@ -711,7 +866,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 if (!target) return;
 
                 target.records.push(record);
-                if (!target.hasApiCounts) {
+                if (!target.hasApiCounts || record.pendingSync) {
                     isPreRegisteredRecord(record) ? target.preRegisteredCount++ : target.attendanceCount++;
                 }
                 if (record.date && (!target.firstDate || eventSortTimestamp(record.date) < eventSortTimestamp(target.firstDate))) {
@@ -726,12 +881,19 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             renderArchiveEventFilters(unfilteredEvents);
 
             let sortedEvents = unfilteredEvents.sort((a, b) => {
+                // The overview is an activity list: newly created events stay
+                // at the top even when an older event has newer attendance.
+                const createdDifference = eventSortTimestamp(b.createdAt || b.created_at)
+                    - eventSortTimestamp(a.createdAt || a.created_at);
+                if (createdDifference !== 0) return createdDifference;
+                const idDifference = Number(b.id || 0) - Number(a.id || 0);
+                if (idDifference !== 0) return idDifference;
                 const startDifference = eventSortTimestamp(b.firstDate || b.archiveStartDate || b.eventDateTime)
                     - eventSortTimestamp(a.firstDate || a.archiveStartDate || a.eventDateTime);
                 if (startDifference !== 0) return startDifference;
                 const endDifference = eventSortTimestamp(b.lastDate || b.archiveEndDate || b.eventDateTime)
                     - eventSortTimestamp(a.lastDate || a.archiveEndDate || a.eventDateTime);
-                return endDifference !== 0 ? endDifference : Number(b.id || 0) - Number(a.id || 0);
+                return endDifference;
             });
 
             if (currentEventsView === 'archived') {
@@ -766,6 +928,11 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
             sortedEvents.forEach(event => {
                 const row = document.createElement('tr');
+                if (event.pendingSync) {
+                    row.classList.add('naap-optimistic-record', 'queued-event-row');
+                    row.dataset.offlineStatus = event.offlineStatus === 'attention' ? 'attention' : 'queued';
+                    row.dataset.offlineOperationId = event.offlineOperationId || '';
+                }
                 const safeName = escapeEventHtml(event.name || 'Unknown Event');
                 const hasDatabaseId = Number(event.id || 0) > 0;
                 const stateAction = currentEventsView === 'archived'
@@ -774,13 +941,16 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 const startAction = currentEventsView === 'active'
                     ? `<button class="btn btn-sm btn-primary start-event">Start Attendance</button>`
                     : '';
+                const syncState = event.pendingSync
+                    ? `<span class="naap-optimistic-badge event-sync-state" data-offline-status="${event.offlineStatus === 'attention' ? 'attention' : 'queued'}" title="This event is saved on this device and has not reached the server yet.">${event.offlineStatus === 'attention' ? 'Needs attention' : 'Pending sync'}</span>`
+                    : '';
                 row.innerHTML = `
                     <td>${safeName}</td>
                     <td>${event.attendanceCount}</td>
                     <td>${event.preRegisteredCount}</td>
-                    <td>${escapeEventHtml(event.firstDate || 'N/A')}</td>
-                    <td>${escapeEventHtml(event.lastDate || 'N/A')}</td>
-                    <td class="text-end"><div class="d-inline-flex gap-2">${stateAction}<button class="btn btn-sm btn-info view-event">View Details</button>${startAction}</div></td>
+                    <td>${escapeEventHtml(formatEventRecordDate(event.firstDate))}</td>
+                    <td>${escapeEventHtml(formatEventRecordDate(event.lastDate))}</td>
+                    <td class="text-end"><div class="d-inline-flex gap-2 align-items-center">${syncState}${stateAction}<button class="btn btn-sm btn-info view-event">View Details</button>${startAction}</div></td>
                 `;
                 row.querySelector('.view-event').addEventListener('click', () => showEventDetails(event.name, event.id, currentEventsView === 'archived'));
                 row.querySelector('.archive-event')?.addEventListener('click', () => setEventArchiveState(event.id, event.name, 'archive'));
@@ -789,6 +959,12 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 eventsList.appendChild(row);
             });
         }
+
+        window.addEventListener('naap:offline-queue-changed', async () => {
+            await mergeQueuedEvents().catch(() => {});
+            await mergeQueuedEventAttendance().catch(() => {});
+            updateEventsList();
+        });
 
         // Function to start attendance for an event
         async function startEventAttendance(eventName) {
@@ -1262,6 +1438,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         if (createEventForm) {
             createEventForm.addEventListener('submit', async function (e) {
                 e.preventDefault();
+                if (createEventForm.dataset.submitting === '1') return;
 
                 const rawEventName = (newEventNameInput?.value || '').trim();
                 if (!rawEventName) {
@@ -1270,8 +1447,16 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 }
 
                 const normalizedEventName = normalizeEventName(rawEventName);
+                if (eventNameAlreadyExists(normalizedEventName)) {
+                    alert('An event with this name already exists. Use a different event name.');
+                    newEventNameInput?.focus();
+                    return;
+                }
+                const submitButton = createEventForm.querySelector('[type="submit"]');
+                createEventForm.dataset.submitting = '1';
+                if (submitButton) submitButton.disabled = true;
                 try {
-                    await qrApiRequest('/events/save.php', {
+                    const saveResult = await qrApiRequest('/events/save.php', {
                         method: 'POST',
                         body: JSON.stringify({
                             event_name: normalizedEventName,
@@ -1281,11 +1466,15 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             is_published: 1
                         })
                     });
-                    await loadEventsFromApi();
+                    if (saveResult.queued) await mergeQueuedEvents();
+                    else await loadEventsFromApi();
                     updateEventsList();
                     if (createEventModal) createEventModal.hide();
                 } catch (error) {
                     alert('Error creating event: ' + error.message);
+                } finally {
+                    delete createEventForm.dataset.submitting;
+                    if (submitButton) submitButton.disabled = false;
                 }
             });
         }
@@ -1343,10 +1532,17 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             ? `${eventDateTime} ${startTime}`
                             : `${eventDateTime} 00:00`;
                     }
-                    await qrApiRequest('/events/save.php', {
+                    const incomingEventName = normalizeEventName(event.data.eventName || '');
+                    if (!incomingEventName) {
+                        throw new Error('Event name is required.');
+                    }
+                    if (eventNameAlreadyExists(incomingEventName)) {
+                        throw new Error('An event with this name already exists. Use a different event name.');
+                    }
+                    const saveResult = await qrApiRequest('/events/save.php', {
                         method: 'POST',
                         body: JSON.stringify({
-                            event_name: normalizeEventName(event.data.eventName || ''),
+                            event_name: incomingEventName,
                             description: String(event.data.description || ''),
                             event_datetime: eventDateTime,
                             location: event.data.location || 'TBA',
@@ -1356,10 +1552,17 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             is_published: 1
                         })
                     });
-                    await loadEventsFromApi();
+                    if (saveResult.queued) await mergeQueuedEvents();
+                    else await loadEventsFromApi();
                     if (typeof updateEventsList === 'function') updateEventsList();
                 } catch (error) {
                     console.error('Failed to sync event to API:', error);
+                    if (window.appAlert) {
+                        await window.appAlert(error.message || 'The event could not be created.', {
+                            title: 'Unable to create event',
+                            type: 'warning'
+                        });
+                    }
                 }
             }
         });

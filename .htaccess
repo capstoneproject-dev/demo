@@ -1,6 +1,26 @@
 # Prevent directory browsing without changing normal application routing.
 Options -Indexes
 
+# Service Workers require a secure context. Keep localhost usable for XAMPP,
+# while forcing the deployed host onto TLS.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP_HOST} !^(?:localhost|127\.0\.0\.1)(?::\d+)?$ [NC]
+    RewriteCond %{HTTPS} !=on
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L,NE]
+</IfModule>
+
+<IfModule mod_headers.c>
+    <Files "sw.js">
+        Header always set Cache-Control "no-cache, no-store, must-revalidate"
+    </Files>
+    Header always set Strict-Transport-Security "max-age=31536000" "expr=%{HTTPS} == 'on'"
+</IfModule>
+
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
 # Block development manifests, environment templates, session artifacts, and
 # project documentation from direct HTTP access. These files remain readable
 # by PHP, Composer, and command-line deployment tools on the server.
@@ -17,7 +37,6 @@ Options -Indexes
 # packages must never be browsed directly. Internal require/include calls are
 # filesystem operations and are not affected by these URL rules.
 <IfModule mod_rewrite.c>
-    RewriteEngine On
     RewriteRule ^(?:\.git|vendor|tests|cli|includes|config|docs)(?:/|$) - [F,L,NC]
 </IfModule>
 

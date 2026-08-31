@@ -1763,6 +1763,7 @@ function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId, string $officerI
     if ($userId > 0) {
         igpRefreshUserDebtFlag($pdo, $userId);
     }
+    notificationEmailDispatchLockerEventBestEffort($pdo, $rentalId, 'paid');
 }
 
 function igpNormalizeFinancialServiceType(string $serviceType): string

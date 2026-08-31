@@ -2,24 +2,27 @@
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="../manifest.webmanifest">
     <script src="../assets/js/app-dialog.js?v=20260822-presence-1"></script>
+    <script src="../assets/js/offline-store.js?v=20260829-7"></script>
+    <script src="../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OSA Management System</title>
 
     <!-- FontAwesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/vendor/fontawesome/css/all.min.css">
 
     <!-- CSS Reference -->
-    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260823-adviser-review-1">
+    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260830-offline-docs-1">
 
     <!-- PDF.js Library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
+    <script src="../assets/vendor/pdf.min.js"></script>
+    <link rel="stylesheet" href="../assets/vendor/pdf_viewer.min.css">
 
     <!-- PDF Viewer Styles -->
-    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=pdf-highlight-sidebar-color-1">
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260831-offline-annotations-2">
 </head>
 
 <body>
@@ -694,7 +697,7 @@
                 <div class="card profile-card">
                     <div class="profile-header-center">
                         <div class="profile-avatar-wrapper">
-                            <img id="osaProfileAvatar" src="https://picsum.photos/seed/osaadmin/150/150" alt="Profile"
+                            <img id="osaProfileAvatar" src="../assets/favicon.png" alt="Profile"
                                 class="profile-avatar-lg">
                             <input id="osaProfilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
                             <button id="osaProfilePhotoBtn" class="btn-icon-only edit-avatar-btn" title="Change Photo" type="button">
@@ -1186,8 +1189,8 @@
 
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
-    <script src="../assets/js/osaDashboard.js?v=20260823-adviser-review-1"></script>
-    <script src="../assets/js/pdfViewer.js?v=pdf-highlight-sidebar-color-1"></script>
+    <script src="../assets/js/osaDashboard.js?v=20260830-offline-docs-3"></script>
+    <script src="../assets/js/pdfViewer.js?v=20260831-offline-annotations-2"></script>
 </body>
 
 </html>

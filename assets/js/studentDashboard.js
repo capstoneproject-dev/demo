@@ -803,7 +803,7 @@ function mapDatabaseEvent(item) {
     const eventGallery = parseEventPhotoGallery(item.event_photo);
     const syncedAnnouncementGallery = parseEventPhotoGallery(item.synced_announcement_photo);
     const gallery = syncedAnnouncementGallery.length ? syncedAnnouncementGallery : eventGallery;
-    const image = gallery[0] || orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/event_${item.event_id}/800/450`;
+    const image = gallery[0] || orgVisual?.banner || orgVisual?.image || '../assets/favicon.png';
 
     return {
         id: Number(item.event_id),
@@ -833,7 +833,7 @@ function mapOsaEventPreviewPayload(payload) {
     const orgVisual = getOrganizationVisual(orgName);
     const dateValue = payload.event_datetime || payload.date || '';
     const gallery = parseEventPhotoGallery(payload.event_photo || payload.media || '');
-    const image = gallery[0] || orgVisual?.banner || orgVisual?.image || `https://picsum.photos/seed/osa_event_${payload.event_id || payload.id || payload.title || 'preview'}/800/450`;
+    const image = gallery[0] || orgVisual?.banner || orgVisual?.image || '../assets/favicon.png';
 
     return {
         id: payload.event_id || payload.id || null,
@@ -1050,6 +1050,7 @@ function renderStudentAnnouncementFeed() {
                         <button type="button"
                             class="btn btn-primary btn-sm ${registered ? 'registered' : ''}"
                             data-registration-title="${escapeHtml(item.title)}"
+                            data-registration-event-id="${Number(item.id || 0)}"
                             onclick="registerForStudentAnnouncementEvent(${Number(item.id)})"
                             ${registered ? 'disabled' : ''}>
                             ${participationStatus === 'attended'
@@ -2527,7 +2528,7 @@ function renderMyOrgEventsSection(viewModel) {
                     <p>${event.description || 'No event description available yet.'}</p>
                     <div class="my-org-event-footer">
                         <span class="my-org-stat-chip" style="color: #000;"><i class="fa-solid fa-users"></i> ${event.participants || 0} participants</span>
-                        <button type="button" class="my-org-ref-pill-btn ${isRegistered ? 'registered' : ''}" data-registration-title="${escapeHtml(event.title)}" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}', '${escapeHtml(event.id ?? '').replace(/'/g, "\\'")}')" ${isRegistered ? 'disabled style="background: #16a34a; border-color: #16a34a; color: #fff; cursor: not-allowed;"' : ''}>${participationStatus === 'attended' ? 'Attended <i class="fa-solid fa-check"></i>' : isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}</button>
+                        <button type="button" class="my-org-ref-pill-btn ${isRegistered ? 'registered' : ''}" data-registration-title="${escapeHtml(event.title)}" data-registration-event-id="${Number(event.id || 0)}" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}', '${escapeHtml(event.id ?? '').replace(/'/g, "\\'")}')" ${isRegistered ? 'disabled style="background: #16a34a; border-color: #16a34a; color: #fff; cursor: not-allowed;"' : ''}>${participationStatus === 'attended' ? 'Attended <i class="fa-solid fa-check"></i>' : isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}</button>
                     </div>
                 </div>
             </article>
@@ -3413,7 +3414,7 @@ function renderOrganizationsAboutTab(contentDiv) {
             card.addEventListener('click', () => openOrganizationPreview(normalizeOrgName(org.name)));
 
             const img = document.createElement('img');
-            img.src = getOrganizationLogoImage(org) || `https://picsum.photos/seed/${org.imgSeed}/400/225`;
+            img.src = getOrganizationLogoImage(org) || '../assets/favicon.png';
             img.className = 'org-card-image';
             img.alt = org.name;
 
@@ -3756,7 +3757,7 @@ function switchOrgTab(tabName, btn) {
 
                 // Image
                 const img = document.createElement('img');
-                img.src = getOrganizationLogoImage(org) || `https://picsum.photos/seed/${org.imgSeed}/400/225`;
+                img.src = getOrganizationLogoImage(org) || '../assets/favicon.png';
                 img.className = 'org-card-image';
                 img.alt = org.name;
 
@@ -3905,7 +3906,7 @@ function switchOrgTab(tabName, btn) {
                 card.innerHTML = `
                 <div class="recruit-header" style="background: ${org.banner ? `url('${versionOrgBannerUrl(org.banner)}') center/cover no-repeat` : org.color}"></div>
                 <div class="recruit-body">
-                    <img src="${getOrganizationLogoImage(org) || `https://picsum.photos/seed/${org.imgSeed}/100/100`}" class="recruit-logo">
+                    <img src="${getOrganizationLogoImage(org) || '../assets/favicon.png'}" class="recruit-logo">
                     <div class="recruit-info-group">
                         <h4>${org.name}</h4>
                         <span class="recruit-badge">Open for Officers</span>
@@ -4071,6 +4072,7 @@ function switchOrgTab(tabName, btn) {
                             
                             <button class="btn-register-card ${isRegistered ? 'registered' : ''}" 
                                     data-registration-title="${escapeHtml(ev.title)}"
+                                    data-registration-event-id="${Number(ev.id || 0)}"
                                     onclick="event.stopPropagation(); openRegistrationModal('${ev.title}', '${ev.id ?? ''}')" 
                                     ${isRegistered ? 'disabled style="cursor: not-allowed;"' : ''}>
                                 ${participationStatus === 'attended' ? 'Attended <i class="fa-solid fa-check"></i>' : isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Join'}
@@ -4804,14 +4806,15 @@ function toggleThemeMobile() {
 // Logout Handler
 async function handleLogout(e) {
     e.preventDefault();
-    if (await appConfirm('Are you sure you want to log out?', {
-        title: 'Log out',
-        confirmText: 'Log out'
-    })) {
+    const preparation = window.NAAPOffline
+        ? await window.NAAPOffline.prepareLogout()
+        : { proceed: await appConfirm('Are you sure you want to log out?', { title: 'Log out', confirmText: 'Log out' }) };
+    if (preparation.proceed) {
         try {
             const response = await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
+            if (window.NAAPOffline) await window.NAAPOffline.completeLogout(preparation);
             localStorage.removeItem(AUTH_SESSION_KEY);
             window.location.href = '../pages/login.html';
         } catch (error) {
@@ -5226,12 +5229,14 @@ async function handleRegistrationSubmit(e) {
             throw new Error(data.error || 'Registration failed. Please try again.');
         }
 
-        addRegisteredEvent(eventTitle);
-        alert(data.already_registered ? 'You are already registered for this event.' : 'Registration Submitted Successfully!');
+        if (!data.queued) addRegisteredEvent(eventTitle);
+        alert(data.queued
+            ? 'Registration saved on this device and queued for sync.'
+            : (data.already_registered ? 'You are already registered for this event.' : 'Registration Submitted Successfully!'));
         closeRegistrationModal();
 
         // Update the button for this event
-        updateEventButton(eventTitle);
+        updateEventButton(eventTitle, Boolean(data.queued));
     } catch (error) {
         console.error('[handleRegistrationSubmit]', error);
         alert(error.message || 'Registration failed. Please try again.');
@@ -5243,22 +5248,94 @@ async function handleRegistrationSubmit(e) {
     }
 }
 
-function updateEventButton(eventTitle) {
+function updateEventButton(eventTitle, queuedOffline = false, offlineStatus = 'pending') {
     // Find all buttons with this event title and update them
     const buttons = document.querySelectorAll('[data-registration-title]');
     buttons.forEach(btn => {
         const btnEventTitle = btn.dataset.registrationTitle;
         if (btnEventTitle === eventTitle) {
+            const queuedState = offlineStatus === 'attention' ? 'attention' : 'queued';
+            if (queuedOffline && btn.dataset.offlineQueuedStatus === queuedState) return;
+            if (queuedOffline && !btn.dataset.offlineOriginalHtml) {
+                btn.dataset.offlineOriginalHtml = btn.innerHTML;
+                btn.dataset.offlineOriginalClass = btn.className;
+                btn.dataset.offlineOriginalStyle = btn.getAttribute('style') || '';
+                btn.dataset.offlineOriginalDisabled = btn.disabled ? '1' : '0';
+            }
             btn.classList.add('registered');
-            btn.innerHTML = 'Joined <i class="fa-solid fa-check"></i>';
+            btn.classList.toggle('naap-optimistic-record', queuedOffline);
+            btn.dataset.offlineStatus = queuedState;
+            if (queuedOffline) btn.dataset.offlineQueuedStatus = queuedState;
+            else delete btn.dataset.offlineQueuedStatus;
+            btn.innerHTML = queuedOffline
+                ? (offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline')
+                : 'Joined <i class="fa-solid fa-check"></i>';
             btn.disabled = true;
             btn.style.cursor = 'not-allowed';
-            btn.style.background = '#16a34a';
-            btn.style.borderColor = '#16a34a';
-            btn.style.color = '#fff';
+            btn.style.background = queuedOffline ? '#ffedd5' : '#16a34a';
+            btn.style.borderColor = queuedOffline ? '#f59e0b' : '#16a34a';
+            btn.style.color = queuedOffline ? '#9a3412' : '#fff';
         }
     });
 }
+
+const queuedStudentEventRegistrations = new Map();
+
+function applyQueuedStudentEventRegistrationButtons() {
+    queuedStudentEventRegistrations.forEach((status, eventId) => {
+        document.querySelectorAll(`[data-registration-event-id="${eventId}"]`).forEach(button => {
+            const title = button.dataset.registrationTitle || '';
+            if (title) updateEventButton(title, true, status);
+        });
+    });
+}
+
+async function refreshQueuedStudentEventRegistrations() {
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations('student.event.register');
+    queuedStudentEventRegistrations.clear();
+    queued.forEach(operation => {
+        const eventId = Number(operation.payload?.event_id || 0);
+        if (eventId > 0) queuedStudentEventRegistrations.set(eventId, operation.status);
+    });
+    document.querySelectorAll('[data-offline-queued-status][data-registration-event-id]').forEach(button => {
+        if (queuedStudentEventRegistrations.has(Number(button.dataset.registrationEventId || 0))) return;
+        button.innerHTML = button.dataset.offlineOriginalHtml || 'Register';
+        button.className = button.dataset.offlineOriginalClass || '';
+        button.disabled = button.dataset.offlineOriginalDisabled === '1';
+        if (button.dataset.offlineOriginalStyle) button.setAttribute('style', button.dataset.offlineOriginalStyle);
+        else button.removeAttribute('style');
+        delete button.dataset.offlineOriginalHtml;
+        delete button.dataset.offlineOriginalClass;
+        delete button.dataset.offlineOriginalStyle;
+        delete button.dataset.offlineOriginalDisabled;
+        delete button.dataset.offlineQueuedStatus;
+        delete button.dataset.offlineStatus;
+    });
+    applyQueuedStudentEventRegistrationButtons();
+}
+
+window.addEventListener('naap:offline-queue-changed', async () => {
+    await Promise.all([
+        mergeQueuedStudentRentals(),
+        mergeQueuedStudentPrintJobs(),
+        refreshQueuedStudentEventRegistrations()
+    ]).catch(() => {});
+    renderCurrentRentals();
+    renderStudentPrintingJobs();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.setTimeout(() => refreshQueuedStudentEventRegistrations().catch(() => {}), 250);
+    let registrationRenderTimer = null;
+    new MutationObserver(() => {
+        if (!queuedStudentEventRegistrations.size || registrationRenderTimer) return;
+        registrationRenderTimer = window.setTimeout(() => {
+            registrationRenderTimer = null;
+            applyQueuedStudentEventRegistrationButtons();
+        }, 50);
+    }).observe(document.body, { childList: true, subtree: true });
+});
 
 function updateEventRegistrationModalFields() {
     const form = document.getElementById('registrationForm');
@@ -6438,7 +6515,9 @@ function renderStudentPrintJobCards(jobs, options = {}) {
     return jobs.map((job) => {
         const status = String(job.status || '').toLowerCase();
         const providerWasAutoAssigned = Number(job.provider_auto_assigned || 0) === 1;
-        const queueText = status === 'queued' && Number(job.queue_position || 0) > 0
+        const queueText = job.pendingSync
+            ? (job.offlineStatus === 'attention' ? 'Review before syncing' : 'Saved on this device')
+            : status === 'queued' && Number(job.queue_position || 0) > 0
             ? `Queue #${job.queue_position}`
             : (status === 'processing' ? 'In progress' : (status === 'ready_to_claim' ? 'Ready now' : 'Completed'));
         const submittedAt = formatDateTime(job.submitted_at);
@@ -6449,7 +6528,7 @@ function renderStudentPrintJobCards(jobs, options = {}) {
             ? 'waived'
             : (String(job.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'paid' : 'unpaid');
         return `
-            <div class="printing-job-card" data-print-job-id="${Number(job.print_job_id)}">
+            <div class="printing-job-card ${job.pendingSync ? 'naap-optimistic-record' : ''}" data-print-job-id="${Number(job.print_job_id)}" ${job.pendingSync ? `data-offline-status="${job.offlineStatus === 'attention' ? 'attention' : 'queued'}" data-offline-operation-id="${escapeStudentHtml(job.offlineOperationId || '')}"` : ''}>
                 <div class="printing-job-header">
                     <div>
                         <h4>${escapeStudentHtml(job.file_name || 'Untitled PDF')}</h4>
@@ -6458,7 +6537,9 @@ function renderStudentPrintJobCards(jobs, options = {}) {
                             : `${escapeStudentHtml(job.org_name || 'Unknown Organization')}${job.org_code ? ` (${escapeStudentHtml(job.org_code)})` : ''}`
                         }</p>
                     </div>
-                    <span class="printing-job-status status-${status}">${getPrintingJobStatusLabel(status)}</span>
+                    ${job.pendingSync
+                        ? `<span class="naap-optimistic-badge" data-offline-status="${job.offlineStatus === 'attention' ? 'attention' : 'queued'}">${job.offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline'}</span>`
+                        : `<span class="printing-job-status status-${status}">${getPrintingJobStatusLabel(status)}</span>`}
                 </div>
                 <div class="printing-job-meta">
                     <span><i class="fa-solid fa-list-ol"></i> ${queueText}</span>
@@ -6542,6 +6623,33 @@ function renderStudentPrintingJobs() {
     }
 }
 
+async function mergeQueuedStudentPrintJobs() {
+    studentPrintingJobs = studentPrintingJobs.filter(item => !item.pendingSync);
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations('student.printing.submit');
+    const optimistic = queued.map(operation => {
+        const payload = operation.payload || {};
+        const file = operation.files?.[0];
+        return {
+            print_job_id: 0,
+            file_name: file?.name || 'Queued printing file',
+            file_url: '',
+            org_name: payload.provider_name || 'Selected printing provider',
+            org_code: '',
+            notes: Array.isArray(payload.notes) ? payload.notes.join(', ') : (payload.notes || ''),
+            status: 'queued_offline',
+            submitted_at: operation.createdAt,
+            payment_status: 'unpaid',
+            queue_position: 0,
+            pendingSync: true,
+            offlineStatus: operation.status,
+            offlineOperationId: operation.operationId,
+            offlineError: operation.lastError || ''
+        };
+    });
+    studentPrintingJobs = [...optimistic, ...studentPrintingJobs];
+}
+
 async function loadStudentPrintJobs(force = false) {
     if (isOsaStudentPreviewModeFromUrl()) {
         studentPrintingJobs = [];
@@ -6562,6 +6670,7 @@ async function loadStudentPrintJobs(force = false) {
             const bDate = new Date(b.submitted_at || b.updated_at || 0).getTime();
             return bDate - aDate;
         });
+        await mergeQueuedStudentPrintJobs();
         renderStudentPrintingJobs();
         buildFilterOptions();
         renderRentalHistory();
@@ -6572,6 +6681,7 @@ async function loadStudentPrintJobs(force = false) {
             console.error('[loadStudentPrintJobs]', error);
         }
         studentPrintingJobs = [];
+        await mergeQueuedStudentPrintJobs();
         renderStudentPrintingJobs();
         buildFilterOptions();
         renderRentalHistory();
@@ -6625,8 +6735,14 @@ async function cancelStudentPrintJob(printJobId) {
         }
 
         showToast('Print job cancelled.');
-        await loadStudentPrintJobs(true);
-        await loadStudentTransactionNotifications();
+        if (data.queued) {
+            await mergeQueuedStudentPrintJobs();
+            renderStudentPrintingJobs();
+            showToast('Printing request saved on this device and queued for sync.', 'info');
+        } else {
+            await loadStudentPrintJobs(true);
+            await loadStudentTransactionNotifications();
+        }
     } catch (error) {
         alert(error.message || 'Could not cancel the print job.');
     } finally {
@@ -6665,6 +6781,7 @@ async function submitStudentPrintJob() {
 
     const payload = new FormData();
     payload.append('org_id', orgId);
+    payload.append('provider_name', providerSelect?.selectedOptions?.[0]?.textContent?.trim() || 'Selected printing provider');
     payload.append('notes', notes);
     payload.append('file', file);
 
@@ -6933,6 +7050,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const oversizedFile = fileList.find(file => Number(file.size || 0) > 20 * 1024 * 1024);
+        if (oversizedFile) {
+            alert(`The file "${oversizedFile.name || 'Selected file'}" is larger than 20 MB. Please choose a smaller file.`);
+            resetUploadUI();
+            return;
+        }
+
         const newEntries = fileList.map((file) => ({ file, note: '' }));
         selectedPrintFiles = append ? [...selectedPrintFiles, ...newEntries] : newEntries;
         showFileSelected(selectedPrintFiles);
@@ -7050,6 +7174,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnUploadSubmit.addEventListener('click', async (e) => {
         e.stopPropagation(); // Stop bubbling to uploadZone click
         if (selectedPrintFiles.length) {
+            const oversizedFile = selectedPrintFiles.find(entry => Number(entry.file?.size || 0) > 20 * 1024 * 1024);
+            if (oversizedFile) {
+                alert(`The file "${oversizedFile.file?.name || 'Selected file'}" is larger than 20 MB. Remove it before submitting.`);
+                return;
+            }
             const provider = document.getElementById('uploadPrintProvider');
             const orgId = String(provider?.value || '').trim();
 
@@ -7700,12 +7829,21 @@ async function confirmRental() {
                 organization: currentSelectedOrg,
                 item_name: currentSelectedService,
                 hours: rentalData.hours,
-                scheduled_start: scheduledStart
+                scheduled_start: scheduledStart,
+                estimated_total: rentalData.amount
             })
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.ok) {
             throw new Error(data.error || 'Could not create rental.');
+        }
+
+        if (data.queued) {
+            await mergeQueuedStudentRentals();
+            renderCurrentRentals();
+            showToast(`Rental request saved on this device for ${currentSelectedService}.`, 'info');
+            closeServiceModal();
+            return;
         }
 
         await loadStudentServiceCatalog(true);
@@ -8275,12 +8413,45 @@ async function loadCurrentRentals() {
             const bDate = new Date(b.rent_time || b.created_at || 0).getTime();
             return bDate - aDate;
         });
+        await mergeQueuedStudentRentals();
         renderCurrentRentals();
     } catch (err) {
         console.error('[loadCurrentRentals]', err);
         currentRentalsData = [];
+        await mergeQueuedStudentRentals();
         renderCurrentRentals();
     }
+}
+
+async function mergeQueuedStudentRentals() {
+    currentRentalsData = currentRentalsData.filter(item => !item.pendingSync);
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations('student.rental.create');
+    const optimistic = queued.map(operation => {
+        const payload = operation.payload || {};
+        const start = String(payload.scheduled_start || operation.createdAt);
+        const startDate = new Date(start.replace(' ', 'T'));
+        const expected = Number.isNaN(startDate.getTime())
+            ? start
+            : new Date(startDate.getTime() + (Number(payload.hours || 0) * 3600000)).toISOString();
+        return {
+            rental_id: 0,
+            items_label: payload.item_name || 'Rental request',
+            org_name: payload.organization || 'Selected organization',
+            rent_time: start,
+            expected_return_time: expected,
+            total_cost: Number(payload.estimated_total || 0),
+            payment_status: 'unpaid',
+            status: 'queued_offline',
+            service_kind: 'rental',
+            created_at: operation.createdAt,
+            pendingSync: true,
+            offlineStatus: operation.status,
+            offlineOperationId: operation.operationId,
+            offlineError: operation.lastError || ''
+        };
+    });
+    currentRentalsData = [...optimistic, ...currentRentalsData];
 }
 
 function renderCurrentRentals() {
@@ -8384,14 +8555,20 @@ function createRentalCard(rental) {
     }
 
     const card = document.createElement('div');
-    card.className = 'rental-card';
+    card.className = `rental-card${rental.pendingSync ? ' naap-optimistic-record' : ''}`;
+    if (rental.pendingSync) {
+        card.dataset.offlineStatus = rental.offlineStatus === 'attention' ? 'attention' : 'queued';
+        card.dataset.offlineOperationId = rental.offlineOperationId || '';
+    }
     card.setAttribute('data-rental-id', rental.rental_id);
 
     const isNoShow = isStudentRentalNoShow(rental);
-    const statusClass = isNoShow
+    const statusClass = rental.pendingSync ? 'status-reserved' : isNoShow
         ? 'status-no-show'
         : (rental.status === 'active' ? 'status-active' : 'status-reserved');
-    const statusText = isNoShow
+    const statusText = rental.pendingSync
+        ? (rental.offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline')
+        : isNoShow
         ? 'No Show'
         : (rental.status === 'active' ? 'Active' : 'Reserved');
 
@@ -8420,7 +8597,7 @@ function createRentalCard(rental) {
     }
 
     const itemsLabel = String(rental.items_label || 'No items').replace(/\s*\(\d+x\)/g, '').trim();
-    const cancelButtonHtml = canStudentCancelReservation(rental) ? `
+    const cancelButtonHtml = !rental.pendingSync && canStudentCancelReservation(rental) ? `
         <button type="button" class="rental-cancel-reservation-btn" data-cancel-rental-id="${rental.rental_id}">
             <i class="fa-solid fa-xmark"></i>
             Cancel Reservation
@@ -8432,6 +8609,8 @@ function createRentalCard(rental) {
             <div class="rental-card-status ${statusClass}">${statusText}</div>
             <div class="rental-card-org">${rental.org_name || 'Unknown Org'}</div>
         </div>
+
+        ${rental.pendingSync ? `<span class="naap-optimistic-badge" data-offline-status="${rental.offlineStatus === 'attention' ? 'attention' : 'queued'}">${rental.offlineStatus === 'attention' ? 'Needs attention' : 'Saved on this device'}</span>` : ''}
 
         <div class="rental-card-items rental-card-items-with-payment">
             <div class="rental-card-items-content">

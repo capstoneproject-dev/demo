@@ -1205,14 +1205,15 @@ function startOfficerDashboardRealtime({ refreshNow = false } = {}) {
 // --- LOGOUT HANDLER ---
 async function handleLogout(e) {
     e.preventDefault();
-    if (await appConfirm('Are you sure you want to log out?', {
-        title: 'Log out',
-        confirmText: 'Log out'
-    })) {
+    const preparation = window.NAAPOffline
+        ? await window.NAAPOffline.prepareLogout()
+        : { proceed: await appConfirm('Are you sure you want to log out?', { title: 'Log out', confirmText: 'Log out' }) };
+    if (preparation.proceed) {
         try {
             const response = await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
+            if (window.NAAPOffline) await window.NAAPOffline.completeLogout(preparation);
             localStorage.removeItem(AUTH_SESSION_KEY);
             window.location.href = '../pages/login.html';
         } catch (error) {
@@ -1499,6 +1500,37 @@ let officerLockerBoard = [];
 let selectedLockerTile = null;
 let lockerAssignableStudents = [];
 let selectedLockerAssignStudent = null;
+let lockerTransactionBusy = false;
+let lockerTransactionStartedAt = 0;
+let officerLockerAutoRefreshTimer = null;
+let officerLockerAutoRefreshInFlight = false;
+const OFFICER_LOCKER_POLL_FAST_MS = 5000;
+const OFFICER_LOCKER_POLL_SLOW_MS = 30000;
+
+function beginLockerTransaction(title, message) {
+    if (lockerTransactionBusy) return false;
+    lockerTransactionBusy = true;
+    lockerTransactionStartedAt = performance.now();
+    const overlay = document.getElementById('lockerTransactionLoading');
+    const titleNode = document.getElementById('lockerTransactionLoadingTitle');
+    const messageNode = document.getElementById('lockerTransactionLoadingMessage');
+    if (titleNode) titleNode.textContent = title || 'Processing locker transaction';
+    if (messageNode) messageNode.textContent = message || 'Please wait while your changes are safely processed.';
+    overlay?.classList.add('is-active');
+    overlay?.setAttribute('aria-hidden', 'false');
+    return true;
+}
+
+async function finishLockerTransaction() {
+    const elapsed = performance.now() - lockerTransactionStartedAt;
+    if (elapsed < 350) {
+        await new Promise(resolve => window.setTimeout(resolve, 350 - elapsed));
+    }
+    const overlay = document.getElementById('lockerTransactionLoading');
+    overlay?.classList.remove('is-active');
+    overlay?.setAttribute('aria-hidden', 'true');
+    lockerTransactionBusy = false;
+}
 
 let officerPrintingAutoRefreshTimer = null;
 let officerPrintingAutoRefreshInFlight = false;
@@ -1831,6 +1863,7 @@ function initTrackerSidebarBehavior() {
 
 function switchTrackerSubView(viewId, button = null) {
     const wasPrinting = currentTrackerSubView === 'printing';
+    const wasLockers = currentTrackerSubView === 'lockers';
     if (viewId === 'rentals' && !officerRentalsEnabled) {
         return false;
     }
@@ -1855,6 +1888,9 @@ function switchTrackerSubView(viewId, button = null) {
     if (wasPrinting && viewId !== 'printing') {
         stopOfficerPrintingAutoRefresh();
     }
+    if (wasLockers && viewId !== 'lockers') {
+        stopOfficerLockerAutoRefresh();
+    }
     if (viewId === 'printing') {
         showOfficerPrintingQueueView();
         startOfficerPrintingAutoRefresh();
@@ -1862,7 +1898,7 @@ function switchTrackerSubView(viewId, button = null) {
     } else if (viewId === 'financial-summary') {
         loadOfficerFinancialSummary().catch((error) => console.error(error));
     } else if (viewId === 'lockers') {
-        loadOfficerLockerBoard().catch((error) => console.error(error));
+        startOfficerLockerAutoRefresh({ refreshNow: true });
     }
     return true;
 }
@@ -3546,6 +3582,10 @@ document.addEventListener('click', (e) => {
     if (lockerReleaseConfirmModal && e.target === lockerReleaseConfirmModal) {
         closeLockerReleaseConfirmModal();
     }
+    const lockerPaymentScanModal = document.getElementById('lockerPaymentScanModal');
+    if (lockerPaymentScanModal && e.target === lockerPaymentScanModal) {
+        closeLockerPaymentScanModal();
+    }
     const addLockerModal = document.getElementById('addLockerModal');
     if (addLockerModal && e.target === addLockerModal) {
         closeAddLockerModal();
@@ -3593,6 +3633,11 @@ document.addEventListener('keydown', (e) => {
         const lockerReleaseConfirmModal = document.getElementById('lockerReleaseConfirmModal');
         if (lockerReleaseConfirmModal && lockerReleaseConfirmModal.classList.contains('show')) {
             closeLockerReleaseConfirmModal();
+            return;
+        }
+        const lockerPaymentScanModal = document.getElementById('lockerPaymentScanModal');
+        if (lockerPaymentScanModal && lockerPaymentScanModal.classList.contains('show')) {
+            closeLockerPaymentScanModal();
             return;
         }
         const lockerModal = document.getElementById('lockerDetailModal');
@@ -4271,12 +4316,14 @@ function renderOfficerLockerBoard() {
                     ${lockers.map((locker) => `
                         <button
                             type="button"
-                            class="locker-tile state-${getLockerStateClass(locker.state)}"
+                            class="locker-tile state-${getLockerStateClass(locker.state)}${locker.pendingSync ? ' naap-optimistic-record' : ''}"
+                            ${locker.pendingSync ? `data-offline-status="${locker.offlineStatus === 'attention' ? 'attention' : 'queued'}" title="${locker.offlineStatus === 'attention' ? 'Needs attention before syncing' : 'Queued offline'}"` : ''}
                             onclick="openLockerDetail('${escapeHtml(String(locker.locker_code || ''))}')">
                             <span class="locker-tile-door-line"></span>
                             <span class="locker-tile-door-line locker-tile-door-line-bottom"></span>
                             <span class="locker-tile-code">${escapeHtml(locker.locker_code || '')}</span>
                             <span class="locker-tile-state">${escapeHtml(getLockerStateLabel(locker.state))}</span>
+                            ${locker.pendingSync ? `<span class="naap-optimistic-badge" data-offline-status="${locker.offlineStatus === 'attention' ? 'attention' : 'queued'}">${locker.offlineStatus === 'attention' ? 'Needs attention' : 'Pending sync'}</span>` : ''}
                             <span class="locker-tile-handle"></span>
                         </button>
                     `).join('')}
@@ -4304,16 +4351,137 @@ async function loadOfficerLockerBoard(force = false) {
             throw new Error(data.error || 'Could not load locker services.');
         }
         officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        await applyQueuedLockerOperations();
         renderOfficerLockerBoard();
         return officerLockerBoard;
     } catch (error) {
         if (force) {
             console.error('[loadOfficerLockerBoard]', error);
         }
-        officerLockerBoard = [];
-        renderOfficerLockerBoard();
+        if (!officerLockerBoard.length) renderOfficerLockerBoard();
         throw error;
     }
+}
+
+function isOfficerLockerAutoRefreshActive() {
+    return officerLockerEnabled
+        && currentTrackerSubView === 'lockers'
+        && document.getElementById('tracker')?.classList.contains('active') === true;
+}
+
+function stopOfficerLockerAutoRefresh() {
+    if (officerLockerAutoRefreshTimer) {
+        window.clearTimeout(officerLockerAutoRefreshTimer);
+        officerLockerAutoRefreshTimer = null;
+    }
+}
+
+function scheduleOfficerLockerAutoRefresh() {
+    stopOfficerLockerAutoRefresh();
+    if (!isOfficerLockerAutoRefreshActive()) return;
+    const delay = document.hidden ? OFFICER_LOCKER_POLL_SLOW_MS : OFFICER_LOCKER_POLL_FAST_MS;
+    officerLockerAutoRefreshTimer = window.setTimeout(() => {
+        officerLockerAutoRefreshTimer = null;
+        pollOfficerLockerBoard().catch(() => {});
+    }, delay);
+}
+
+async function pollOfficerLockerBoard() {
+    if (!isOfficerLockerAutoRefreshActive()) return;
+    if (document.getElementById('lockerDetailModal')?.classList.contains('show')) {
+        scheduleOfficerLockerAutoRefresh();
+        return;
+    }
+    if (officerLockerAutoRefreshInFlight) return scheduleOfficerLockerAutoRefresh();
+    officerLockerAutoRefreshInFlight = true;
+    try {
+        await loadOfficerLockerBoard(false);
+    } finally {
+        officerLockerAutoRefreshInFlight = false;
+        scheduleOfficerLockerAutoRefresh();
+    }
+}
+
+function startOfficerLockerAutoRefresh({ refreshNow = false } = {}) {
+    stopOfficerLockerAutoRefresh();
+    if (!isOfficerLockerAutoRefreshActive()) return;
+    if (refreshNow) {
+        pollOfficerLockerBoard().catch(() => {});
+        return;
+    }
+    scheduleOfficerLockerAutoRefresh();
+}
+
+async function applyQueuedLockerOperations() {
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const types = ['locker.approve', 'locker.reject', 'locker.release', 'locker.manual_assign',
+        'locker.pricing', 'locker.notice', 'locker.clear_notice', 'rental.mark_paid'];
+    const queued = await window.NAAPOffline.listQueuedOperations(types);
+    queued.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))).forEach(operation => {
+        const payload = operation.payload || {};
+        let locker = officerLockerBoard.find(item => Number(item.item_id || 0) === Number(payload.item_id || 0));
+        if (!locker && Number(payload.rental_id || 0) > 0) {
+            locker = officerLockerBoard.find(item => Number(item.current_request?.rental_id || 0) === Number(payload.rental_id));
+        }
+        if (!locker) return;
+        locker.pendingSync = true;
+        locker.offlineStatus = operation.status;
+        locker.offlineOperationId = operation.operationId;
+        if (operation.type === 'locker.pricing') {
+            locker.locker_monthly_rate = payload.locker_monthly_rate;
+            locker.locker_semester_rate = payload.locker_semester_rate;
+            locker.locker_school_year_rate = payload.locker_school_year_rate;
+        } else if (operation.type === 'locker.reject' || operation.type === 'locker.release') {
+            locker.state = 'available';
+            locker.current_request = null;
+        } else if (operation.type === 'locker.approve') {
+            locker.state = 'occupied';
+            locker.current_request = {
+                ...(locker.current_request || {}),
+                locker_period_type: payload.period_type,
+                locker_period_quantity: Number(payload.period_quantity || 1),
+                rent_time: payload.start_date,
+                expected_return_time: payload.end_date,
+                total_cost: payload.price,
+                pending_sync: true
+            };
+        } else if (operation.type === 'locker.manual_assign') {
+            locker.state = 'occupied';
+            locker.current_request = {
+                rental_id: 0,
+                student_name: payload.student_name || 'Selected student',
+                student_number: payload.student_number || '',
+                section: payload.section || '',
+                locker_period_type: payload.period_type,
+                locker_period_quantity: Number(payload.period_quantity || 1),
+                rent_time: payload.start_date,
+                expected_return_time: payload.end_date,
+                total_cost: payload.price,
+                payment_status: 'unpaid',
+                pending_sync: true
+            };
+        } else if (operation.type === 'locker.notice' && locker.current_request) {
+            const prefix = payload.notice_type === 'upcoming' ? 'upcoming' : 'overdue';
+            locker.current_request[`${prefix}_notice_sent_at`] = operation.createdAt;
+            locker.current_request[`${prefix}_notice_message`] = payload.message || '';
+        } else if (operation.type === 'locker.clear_notice' && locker.current_request) {
+            ['upcoming', 'overdue'].forEach(prefix => {
+                locker.current_request[`${prefix}_notice_sent_at`] = null;
+                locker.current_request[`${prefix}_notice_message`] = null;
+            });
+        } else if (operation.type === 'rental.mark_paid' && locker.current_request) {
+            locker.current_request.payment_status = 'paid';
+        }
+    });
+}
+
+function lockerPeriodQuantityFromDates(periodType, startValue, endValue) {
+    if (periodType === 'school_year') return 1;
+    const start = new Date(`${String(startValue || '').slice(0, 10)}T00:00:00`);
+    const end = new Date(`${String(endValue || '').slice(0, 10)}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return 1;
+    const calendarMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth());
+    return periodType === 'semester' ? Math.max(1, Math.round(calendarMonths / 5)) : calendarMonths;
 }
 
 function openLockerDetail(lockerCode) {
@@ -4353,9 +4521,18 @@ function openLockerDetail(lockerCode) {
     setValue('lockerMonthlyRate', Number(locker.locker_monthly_rate || 0).toFixed(2));
     setValue('lockerSemesterRate', Number(locker.locker_semester_rate || 0).toFixed(2));
     setValue('lockerSchoolYearRate', Number(locker.locker_school_year_rate || 0).toFixed(2));
-    setValue('lockerDetailPeriodType', currentRequest?.locker_period_type || '');
-    setValue('lockerDetailStartDate', currentRequest?.rent_time ? String(currentRequest.rent_time).slice(0, 10) : '');
-    setValue('lockerDetailEndDate', currentRequest?.expected_return_time ? String(currentRequest.expected_return_time).slice(0, 10) : '');
+    const storedPeriodType = String(currentRequest?.locker_period_type || '');
+    const periodType = ['monthly', 'semester', 'school_year'].includes(storedPeriodType)
+        ? storedPeriodType
+        : (storedPeriodType === 'custom' ? 'monthly' : '');
+    const startDateValue = currentRequest?.rent_time ? String(currentRequest.rent_time).slice(0, 10) : '';
+    const endDateValue = currentRequest?.expected_return_time ? String(currentRequest.expected_return_time).slice(0, 10) : '';
+    const periodQuantity = Number(currentRequest?.locker_period_quantity || 0)
+        || lockerPeriodQuantityFromDates(periodType, startDateValue, endDateValue);
+    setValue('lockerDetailPeriodType', periodType);
+    setValue('lockerDetailPeriodQuantity', Math.max(1, periodQuantity));
+    setValue('lockerDetailStartDate', startDateValue);
+    setValue('lockerDetailEndDate', endDateValue);
     setValue('lockerDetailPrice', currentRequest ? Number(currentRequest.total_cost || 0).toFixed(2) : '');
     setValue('lockerNoticeComposerMessage', '');
 
@@ -4368,6 +4545,9 @@ function openLockerDetail(lockerCode) {
     const releaseBtn = document.getElementById('lockerReleaseBtn');
     const hasActiveNotice = !!(currentRequest?.upcoming_notice_sent_at || currentRequest?.overdue_notice_sent_at || currentRequest?.upcoming_notice_message || currentRequest?.overdue_notice_message);
     const hasLockerRental = !!currentRequest?.rental_id;
+    const rentalTransactionComplete = hasLockerRental
+        && !locker.pendingSync
+        && ['occupied', 'overdue'].includes(String(locker.state || '').toLowerCase());
     const isPaidLockerRental = hasLockerRental && String(currentRequest?.payment_status || 'unpaid').toLowerCase() === 'paid';
     if (approveBtn) approveBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
     if (manualAssignBtn) manualAssignBtn.style.display = locker.state === 'available' ? 'inline-flex' : 'none';
@@ -4375,7 +4555,7 @@ function openLockerDetail(lockerCode) {
     if (rejectBtn) rejectBtn.style.display = locker.state === 'pending' ? 'inline-flex' : 'none';
     if (clearNoticeBtn) clearNoticeBtn.style.display = hasActiveNotice ? 'inline-flex' : 'none';
     if (markPaidBtn) {
-        markPaidBtn.style.display = hasLockerRental ? 'inline-flex' : 'none';
+        markPaidBtn.style.display = rentalTransactionComplete ? 'inline-flex' : 'none';
         markPaidBtn.classList.toggle('btn-success', isPaidLockerRental);
         markPaidBtn.classList.toggle('btn-outline', !isPaidLockerRental);
         markPaidBtn.disabled = isPaidLockerRental;
@@ -4648,6 +4828,7 @@ function closeLockerReleaseConfirmModal() {
 
 async function submitManualLockerAssignment() {
     if (!selectedLockerTile?.item_id || !selectedLockerAssignStudent?.user_id) return;
+    if (!beginLockerTransaction('Assigning locker', 'Saving the student assignment and rental details...')) return;
 
     const lockerCode = String(selectedLockerTile.locker_code || '');
     try {
@@ -4658,7 +4839,12 @@ async function submitManualLockerAssignment() {
             body: JSON.stringify({
                 item_id: selectedLockerTile.item_id,
                 student_user_id: selectedLockerAssignStudent.user_id,
+                locker_code: lockerCode,
+                student_name: selectedLockerAssignStudent.studentName || '',
+                student_number: selectedLockerAssignStudent.studentId || '',
+                section: selectedLockerAssignStudent.section || '',
                 period_type: document.getElementById('lockerDetailPeriodType')?.value || '',
+                period_quantity: document.getElementById('lockerDetailPeriodQuantity')?.value || 1,
                 start_date: document.getElementById('lockerDetailStartDate')?.value || '',
                 end_date: document.getElementById('lockerDetailEndDate')?.value || '',
                 price: document.getElementById('lockerDetailPrice')?.value || ''
@@ -4668,13 +4854,16 @@ async function submitManualLockerAssignment() {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not assign the locker.');
         }
-        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        if (data.queued) await applyQueuedLockerOperations();
+        else officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
         closeLockerAssignStudentModal();
         openLockerDetail(lockerCode);
         loadOfficerActionCenter(false);
     } catch (error) {
         alert(error.message || 'Could not assign the locker.');
+    } finally {
+        await finishLockerTransaction();
     }
 }
 
@@ -4700,6 +4889,7 @@ function closeAddLockerModal() {
 }
 
 async function submitAddLocker() {
+    if (!beginLockerTransaction('Adding locker', 'Creating the locker and applying its starting rates...')) return;
     try {
         const response = await fetch('../api/lockers/officer/add.php', {
             method: 'POST',
@@ -4721,21 +4911,45 @@ async function submitAddLocker() {
         closeAddLockerModal();
     } catch (error) {
         alert(error.message || 'Could not add the locker.');
+    } finally {
+        await finishLockerTransaction();
     }
 }
 
-function syncLockerAssignmentPreview() {
+function syncLockerAssignmentPreview(changedField = '') {
     if (!selectedLockerTile) return;
 
     const periodType = document.getElementById('lockerDetailPeriodType')?.value || '';
     const startInput = document.getElementById('lockerDetailStartDate');
     const endInput = document.getElementById('lockerDetailEndDate');
     const priceInput = document.getElementById('lockerDetailPrice');
-    if (!startInput || !endInput || !priceInput) return;
+    const quantityField = document.getElementById('lockerDetailQuantityField');
+    const quantityLabel = document.getElementById('lockerDetailQuantityLabel');
+    const quantityInput = document.getElementById('lockerDetailPeriodQuantity');
+    const periodHelp = document.getElementById('lockerPeriodHelp');
+    if (!startInput || !endInput || !priceInput || !quantityInput) return;
 
     if (!periodType) {
+        if (quantityField) quantityField.style.display = 'none';
+        endInput.value = '';
         priceInput.value = '';
         return;
+    }
+
+    const usesQuantity = periodType === 'monthly' || periodType === 'semester';
+    if (quantityField) quantityField.style.display = usesQuantity ? '' : 'none';
+    if (quantityLabel) quantityLabel.textContent = periodType === 'semester' ? 'Number of Semesters' : 'Number of Months';
+    quantityInput.max = periodType === 'semester' ? '8' : '24';
+    let quantity = periodType === 'school_year' ? 1 : Math.trunc(Number(quantityInput.value || 1));
+    const maximum = periodType === 'semester' ? 8 : 24;
+    quantity = Math.min(maximum, Math.max(1, Number.isFinite(quantity) ? quantity : 1));
+    quantityInput.value = String(quantity);
+    const allowsCustomEndDate = periodType === 'semester' || periodType === 'school_year';
+    endInput.readOnly = !allowsCustomEndDate;
+    if (periodHelp) {
+        periodHelp.textContent = allowsCustomEndDate
+            ? 'A suggested end date is provided. You may adjust it if the academic schedule differs.'
+            : 'Calculated automatically from the selected number of months.';
     }
 
     let startValue = String(startInput.value || '').trim();
@@ -4746,46 +4960,38 @@ function syncLockerAssignmentPreview() {
         startValue = todayValue;
     }
 
-    if (!startValue) {
-        if (periodType !== 'custom') {
-            endInput.value = '';
-        }
-        if (periodType === 'monthly') {
-            priceInput.value = Number(selectedLockerTile.locker_monthly_rate || 0).toFixed(2);
-        } else if (periodType === 'semester') {
-            priceInput.value = Number(selectedLockerTile.locker_semester_rate || 0).toFixed(2);
-        } else if (periodType === 'school_year') {
-            priceInput.value = Number(selectedLockerTile.locker_school_year_rate || 0).toFixed(2);
-        } else {
-            priceInput.value = '';
-        }
+    const startDate = new Date(`${startValue}T00:00:00`);
+    if (Number.isNaN(startDate.getTime())) return;
+    const periodMonths = { monthly: 1, semester: 5, school_year: 10 };
+    const rateByPeriod = {
+        monthly: Number(document.getElementById('lockerMonthlyRate')?.value || selectedLockerTile.locker_monthly_rate || 0),
+        semester: Number(document.getElementById('lockerSemesterRate')?.value || selectedLockerTile.locker_semester_rate || 0),
+        school_year: Number(document.getElementById('lockerSchoolYearRate')?.value || selectedLockerTile.locker_school_year_rate || 0)
+    };
+    const formatLocalDate = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+    const shouldResetEndDate = !allowsCustomEndDate
+        || ['period', 'start', 'quantity'].includes(changedField)
+        || !endInput.value;
+    if (shouldResetEndDate) {
+        const endDate = new Date(startDate.getTime());
+        endDate.setMonth(endDate.getMonth() + periodMonths[periodType] * quantity);
+        endInput.value = formatLocalDate(endDate);
+    }
+    const chosenEndDate = new Date(`${String(endInput.value || '').trim()}T00:00:00`);
+    const invalidEndDate = Number.isNaN(chosenEndDate.getTime()) || chosenEndDate <= startDate;
+    endInput.setCustomValidity(invalidEndDate ? 'End date must be after the start date.' : '');
+    priceInput.setCustomValidity(invalidEndDate ? 'Choose a valid end date.' : '');
+    if (invalidEndDate) {
+        priceInput.value = '';
         return;
     }
-
-    if (periodType !== 'custom') {
-        const startDate = new Date(`${startValue}T00:00:00`);
-        if (Number.isNaN(startDate.getTime())) return;
-        if (periodType === 'monthly') {
-            startDate.setMonth(startDate.getMonth() + 1);
-        } else if (periodType === 'semester') {
-            startDate.setMonth(startDate.getMonth() + 5);
-        } else if (periodType === 'school_year') {
-            startDate.setMonth(startDate.getMonth() + 10);
-        }
-        endInput.value = startDate.toISOString().slice(0, 10);
-    }
-
-    if (periodType === 'monthly') {
-        priceInput.value = Number(selectedLockerTile.locker_monthly_rate || 0).toFixed(2);
-    } else if (periodType === 'semester') {
-        priceInput.value = Number(selectedLockerTile.locker_semester_rate || 0).toFixed(2);
-    } else if (periodType === 'school_year') {
-        priceInput.value = Number(selectedLockerTile.locker_school_year_rate || 0).toFixed(2);
-    }
+    priceInput.value = (rateByPeriod[periodType] * quantity).toFixed(2);
 }
 
 async function saveLockerPricing() {
     if (!selectedLockerTile) return;
+    if (!beginLockerTransaction('Saving shared rates', 'Updating the monthly, semester, and school-year rates...')) return;
     try {
         const response = await fetch('../api/lockers/officer/pricing.php', {
             method: 'POST',
@@ -4793,6 +4999,7 @@ async function saveLockerPricing() {
             credentials: 'same-origin',
             body: JSON.stringify({
                 item_id: selectedLockerTile.item_id,
+                locker_code: selectedLockerTile.locker_code || '',
                 locker_monthly_rate: document.getElementById('lockerMonthlyRate')?.value || 0,
                 locker_semester_rate: document.getElementById('lockerSemesterRate')?.value || 0,
                 locker_school_year_rate: document.getElementById('lockerSchoolYearRate')?.value || 0
@@ -4802,16 +5009,20 @@ async function saveLockerPricing() {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not save locker rates.');
         }
-        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : officerLockerBoard;
+        if (data.queued) await applyQueuedLockerOperations();
+        else officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : officerLockerBoard;
         renderOfficerLockerBoard();
         openLockerDetail(selectedLockerTile.locker_code);
     } catch (error) {
         alert(error.message || 'Could not save locker rates.');
+    } finally {
+        await finishLockerTransaction();
     }
 }
 
 async function approveLockerAssignment() {
     if (!selectedLockerTile?.current_request?.rental_id) return;
+    if (!beginLockerTransaction('Approving locker request', 'Confirming the assignment, rental period, and student notification...')) return;
     try {
         const response = await fetch('../api/lockers/officer/approve.php', {
             method: 'POST',
@@ -4820,6 +5031,7 @@ async function approveLockerAssignment() {
             body: JSON.stringify({
                 rental_id: selectedLockerTile.current_request.rental_id,
                 period_type: document.getElementById('lockerDetailPeriodType')?.value || '',
+                period_quantity: document.getElementById('lockerDetailPeriodQuantity')?.value || 1,
                 start_date: document.getElementById('lockerDetailStartDate')?.value || '',
                 end_date: document.getElementById('lockerDetailEndDate')?.value || '',
                 price: document.getElementById('lockerDetailPrice')?.value || ''
@@ -4829,17 +5041,21 @@ async function approveLockerAssignment() {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not approve locker assignment.');
         }
-        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        if (data.queued) await applyQueuedLockerOperations();
+        else officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
         closeLockerDetailModal();
         loadOfficerActionCenter(false);
     } catch (error) {
         alert(error.message || 'Could not approve locker assignment.');
+    } finally {
+        await finishLockerTransaction();
     }
 }
 
 async function releaseLockerAssignment() {
     if (!selectedLockerTile?.current_request?.rental_id) return;
+    if (!beginLockerTransaction('Releasing locker', 'Completing the rental and preparing the student notification...')) return;
     try {
         const response = await fetch('../api/lockers/officer/release.php', {
             method: 'POST',
@@ -4853,19 +5069,23 @@ async function releaseLockerAssignment() {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not release locker assignment.');
         }
-        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        if (data.queued) await applyQueuedLockerOperations();
+        else officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
         closeLockerReleaseConfirmModal();
         closeLockerDetailModal();
         loadOfficerActionCenter(false);
     } catch (error) {
         alert(error.message || 'Could not release locker assignment.');
+    } finally {
+        await finishLockerTransaction();
     }
 }
 
 async function clearLockerNotice() {
     if (!selectedLockerTile?.current_request?.rental_id) return;
     const lockerCode = String(selectedLockerTile.locker_code || '');
+    if (!beginLockerTransaction('Clearing locker notice', 'Removing the current notice from the locker record...')) return;
     try {
         const response = await fetch('../api/lockers/officer/clear-notice.php', {
             method: 'POST',
@@ -4879,40 +5099,79 @@ async function clearLockerNotice() {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not clear the notice.');
         }
-        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        if (data.queued) await applyQueuedLockerOperations();
+        else officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
         openLockerDetail(lockerCode);
     } catch (error) {
         alert(error.message || 'Could not clear the notice.');
+    } finally {
+        await finishLockerTransaction();
     }
+}
+
+function openLockerPaymentScanModal() {
+    const request = selectedLockerTile?.current_request;
+    if (!request?.rental_id || String(request.payment_status || 'unpaid').toLowerCase() === 'paid') return;
+    const modal = document.getElementById('lockerPaymentScanModal');
+    const input = document.getElementById('lockerPaymentOfficerBarcode');
+    const title = document.getElementById('lockerPaymentScanTitle');
+    const meta = document.getElementById('lockerPaymentScanMeta');
+    if (title) title.textContent = `Locker ${selectedLockerTile.locker_code || '-'}`;
+    if (meta) meta.textContent = `${request.student_name || 'Unnamed Student'} · ${request.student_number || '-'} · ₱${Number(request.total_cost || 0).toFixed(2)}`;
+    if (input) input.value = '';
+    modal?.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    window.setTimeout(() => input?.focus(), 80);
+}
+
+function closeLockerPaymentScanModal() {
+    const modal = document.getElementById('lockerPaymentScanModal');
+    modal?.classList.remove('show');
+    const input = document.getElementById('lockerPaymentOfficerBarcode');
+    if (input) input.value = '';
+    const lockerModal = document.getElementById('lockerDetailModal');
+    if (!lockerModal?.classList.contains('show')) document.body.style.overflow = '';
 }
 
 async function markLockerAssignmentPaid() {
     if (!selectedLockerTile?.current_request?.rental_id) return;
     const lockerCode = String(selectedLockerTile.locker_code || '');
+    const officerIdentifier = String(document.getElementById('lockerPaymentOfficerBarcode')?.value || '').trim();
+    if (!officerIdentifier) {
+        showToast('Scan a valid officer barcode before marking the payment as paid.', 'error');
+        document.getElementById('lockerPaymentOfficerBarcode')?.focus();
+        return;
+    }
+    if (!beginLockerTransaction('Recording locker payment', 'Validating the officer barcode and saving the payment...')) return;
     try {
         const response = await fetch('../api/igp/rentals/mark-paid.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
             body: JSON.stringify({
-                rental_id: selectedLockerTile.current_request.rental_id
+                rental_id: selectedLockerTile.current_request.rental_id,
+                officer_identifier: officerIdentifier
             })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not mark the locker rental as paid.');
         }
+        closeLockerPaymentScanModal();
         await loadOfficerLockerBoard(true);
         openLockerDetail(lockerCode);
         showToast('Locker rental marked as paid.', 'success');
     } catch (error) {
         showToast(error.message || 'Could not mark the locker rental as paid.', 'error');
+    } finally {
+        await finishLockerTransaction();
     }
 }
 
 async function rejectLockerRequest() {
     if (!selectedLockerTile?.current_request?.rental_id) return;
+    if (!beginLockerTransaction('Rejecting locker request', 'Updating the request and preparing the student notification...')) return;
     try {
         const response = await fetch('../api/lockers/officer/reject.php', {
             method: 'POST',
@@ -4926,11 +5185,14 @@ async function rejectLockerRequest() {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || 'Could not reject locker request.');
         }
-        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        if (data.queued) await applyQueuedLockerOperations();
+        else officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
         closeLockerDetailModal();
     } catch (error) {
         alert(error.message || 'Could not reject locker request.');
+    } finally {
+        await finishLockerTransaction();
     }
 }
 
@@ -4938,6 +5200,10 @@ async function sendLockerNotice(noticeType) {
     if (!selectedLockerTile?.current_request?.rental_id) return;
     const normalizedType = String(noticeType || '').toLowerCase() === 'upcoming' ? 'upcoming' : 'overdue';
     const messageFieldId = 'lockerNoticeComposerMessage';
+    if (!beginLockerTransaction(
+        normalizedType === 'upcoming' ? 'Sending ending-soon notice' : 'Sending pull-out notice',
+        'Saving the notice and preparing its email delivery...'
+    )) return;
     try {
         const response = await fetch('../api/lockers/officer/notice.php', {
             method: 'POST',
@@ -4945,6 +5211,7 @@ async function sendLockerNotice(noticeType) {
             credentials: 'same-origin',
             body: JSON.stringify({
                 rental_id: selectedLockerTile.current_request.rental_id,
+                locker_code: selectedLockerTile.locker_code || '',
                 notice_type: normalizedType,
                 message: document.getElementById(messageFieldId)?.value || ''
             })
@@ -4953,11 +5220,14 @@ async function sendLockerNotice(noticeType) {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || `Could not send the ${normalizedType === 'upcoming' ? 'upcoming' : 'pull-out'} notice.`);
         }
-        officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
+        if (data.queued) await applyQueuedLockerOperations();
+        else officerLockerBoard = Array.isArray(data.lockers) ? data.lockers : [];
         renderOfficerLockerBoard();
         openLockerDetail(selectedLockerTile.locker_code);
     } catch (error) {
         alert(error.message || `Could not send the ${normalizedType === 'upcoming' ? 'upcoming' : 'pull-out'} notice.`);
+    } finally {
+        await finishLockerTransaction();
     }
 }
 
@@ -5674,8 +5944,18 @@ function renderDocs(filter = 'All', btnElement = null) {
     const termPeriod = document.getElementById('docs-filter-period')?.value || officerActiveAcademicTerm.grading_period;
 
     // 1. Filter by Status (Existing Logic)
-    let filteredData = getOfficerScopedDocs().filter(doc => {
+    const uniqueDocuments = new Map();
+    getOfficerScopedDocs().forEach(doc => {
+        const databaseId = Number(doc.submission_id || doc.id || 0);
+        const key = databaseId > 0
+            ? `submission:${databaseId}`
+            : `offline:${doc.offlineOperationId || `${doc.title}|${doc.submittedAt}`}`;
+        const existing = uniqueDocuments.get(key);
+        if (!existing || doc.pendingSync) uniqueDocuments.set(key, doc);
+    });
+    let filteredData = [...uniqueDocuments.values()].filter(doc => {
         if (filter === 'All') return true;
+        if (doc.pendingSync) return filter === 'Pending';
         if (filter === 'Pending') return doc.status.includes('Sent')
             || doc.status.includes('Pending')
             || doc.status === 'Adviser Approved'
@@ -5753,24 +6033,34 @@ function renderDocs(filter = 'All', btnElement = null) {
                 : doc.rawStatus === 'adviser_pending'
                     ? `<span style="color:var(--muted)">-</span><span class="sub-status pending"><i class="fa-regular fa-clock"></i> Pending</span>`
                     : emptyReview;
+        sscHtml = doc.sscDecision === 'approved'
+            ? approvedReview(sscReviewerName, doc.sscReviewedAt)
+            : doc.sscDecision === 'rejected'
+                ? rejectedReview(sscReviewerName, doc.sscReviewedAt)
+                : emptyReview;
+        osaHtml = doc.osaDecision === 'approved'
+            ? approvedReview(osaReviewerName, doc.osaReviewedAt)
+            : doc.osaDecision === 'rejected'
+                ? rejectedReview(osaReviewerName, doc.osaReviewedAt)
+                : emptyReview;
         const stageNoteButtons = [];
         if (doc.adviserReviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.adviserReviewerNotes)}')" title="View Adviser Comment" aria-label="View Adviser Comment">
+            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.adviserReviewerNotes).replace(/'/g, '%27')}')" title="View Adviser Comment" aria-label="View Adviser Comment">
                 <i class="fa-regular fa-message"></i><span class="doc-action-label">Adviser Comment</span>
             </button>`);
         }
         if (doc.sscReviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.sscReviewerNotes)}')" title="View SSC Comment" aria-label="View SSC Comment">
+            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.sscReviewerNotes).replace(/'/g, '%27')}')" title="View SSC Comment" aria-label="View SSC Comment">
                 <i class="fa-regular fa-message"></i><span class="doc-action-label">SSC Comment</span>
             </button>`);
         }
         if (doc.osaReviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.osaReviewerNotes)}')" title="View OSA Comment" aria-label="View OSA Comment">
+            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.osaReviewerNotes).replace(/'/g, '%27')}')" title="View OSA Comment" aria-label="View OSA Comment">
                 <i class="fa-regular fa-message"></i><span class="doc-action-label">OSA Comment</span>
             </button>`);
         }
         if (stageNoteButtons.length === 0 && doc.reviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.reviewerNotes)}')" title="View Reviewer Comment" aria-label="View Reviewer Comment">
+            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.reviewerNotes).replace(/'/g, '%27')}')" title="View Reviewer Comment" aria-label="View Reviewer Comment">
                 <i class="fa-regular fa-message"></i><span class="doc-action-label">Comment</span>
             </button>`);
         }
@@ -5793,7 +6083,42 @@ function renderDocs(filter = 'All', btnElement = null) {
             </button>`;
         const versionBadge = `<span class="status-badge" style="font-size:0.65rem; padding:2px 6px; margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>`;
 
-        if (doc.status === 'Approved') {
+        if (doc.pendingSync) {
+            const queuedAction = doc.offlineAction || 'submit';
+            const queuedLabel = queuedAction === 'review'
+                ? `${doc.offlineDecision === 'rejected' ? 'Rejection' : 'Approval'} queued`
+                : queuedAction === 'cancel'
+                    ? 'Cancellation queued'
+                    : queuedAction === 'forward_ssc'
+                        ? 'Send to SSC queued'
+                        : queuedAction === 'forward_osa'
+                            ? 'Send to OSA queued'
+                            : 'Not sent yet';
+            if (queuedAction === 'submit') {
+                adviserHtml = '<span class="naap-optimistic-note">Not sent yet</span>';
+                sscHtml = emptyReview;
+                osaHtml = emptyReview;
+            }
+            actionButtons = queuedAction === 'submit' || !doc.viewerId ? '' : viewButton;
+            if (queuedAction === 'review' && doc.offlineDecision === 'approved' && canManageDashboard && isOwnedByActiveOrg) {
+                if (doc.status === 'Adviser Approved') {
+                    const forwardLabel = isActiveOfficerSscOrganization() ? 'Send to OSA' : 'Send to SSC';
+                    const forwardAction = isActiveOfficerSscOrganization() ? 'submitToOSA' : 'submitToSSC';
+                    actionButtons += `<button class="btn btn-primary btn-sm document-workflow-action" onclick="event.stopPropagation(); ${forwardAction}(${Number(doc.submission_id || doc.id || 0)})" title="${forwardLabel}" aria-label="${forwardLabel}">
+                        <span class="doc-action-label">${forwardLabel}</span><i class="fa-solid fa-paper-plane"></i>
+                    </button>`;
+                } else if (doc.status === 'SSC Approved') {
+                    actionButtons += `<button class="btn btn-primary btn-sm document-workflow-action" onclick="event.stopPropagation(); submitToOSA(${Number(doc.submission_id || doc.id || 0)})" title="Send to OSA" aria-label="Send to OSA">
+                        <span class="doc-action-label">Send to OSA</span><i class="fa-solid fa-paper-plane"></i>
+                    </button>`;
+                }
+            } else if ((queuedAction === 'forward_ssc' || queuedAction === 'forward_osa') && canCancel) {
+                actionButtons += cancelButton;
+            }
+            const queuedState = doc.offlineStatus === 'attention' ? 'attention' : 'queued';
+            statusBadge = `<span class="naap-optimistic-badge" data-offline-status="${queuedState}">${queuedState === 'attention' ? 'Needs attention' : queuedLabel}</span>`;
+        }
+        else if (doc.status === 'Approved') {
             sscHtml = doc.sscDecision === 'approved' ? approvedReview(sscReviewerName, doc.sscReviewedAt) : emptyReview;
             osaHtml = doc.osaDecision === 'approved' ? approvedReview(osaReviewerName, doc.osaReviewedAt) : (wasSentToSsc ? emptyReview : approvedReview(osaReviewerName, doc.osaReviewedAt));
             actionButtons = `${viewButton}${revisionButton}`;
@@ -5876,17 +6201,18 @@ function renderDocs(filter = 'All', btnElement = null) {
         }
 
         return `
-        <div class="list-item" data-submission-id="${Number(doc.submission_id || doc.id || 0)}" onclick="openPdfViewer('${doc.viewerId}')">
-            <div class="col-name" style="display: flex; gap: 15px; align-items: center;">
+        <div class="list-item ${doc.pendingSync ? 'naap-optimistic-record' : ''}" ${doc.pendingSync ? `data-offline-status="${doc.offlineStatus === 'attention' ? 'attention' : 'queued'}" data-offline-operation-id="${escapeHtml(doc.offlineOperationId || '')}"` : `data-submission-id="${Number(doc.submission_id || doc.id || 0)}" onclick="openPdfViewer('${doc.viewerId}')"`}>
+            <div class="col-name document-title-cell">
                 <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
                     <i class="fa-solid fa-file-pdf"></i>
                 </div>
-                <div style="overflow: hidden;">
-                    <div style="display:flex; align-items:center;">
-                        <h4 style="font-size:0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</h4>
+                <div class="document-title-copy">
+                    <div class="document-title-row">
+                        <h4>${doc.title}</h4>
                         ${statusBadge}
                         ${versionBadge}
                     </div>
+                    ${doc.pendingSync ? `<small class="document-queued-summary">Saved locally · ${doc.offlineAction === 'cancel' ? 'Cancellation' : doc.offlineAction === 'review' ? (doc.offlineDecision === 'rejected' ? 'Rejection' : 'Approval') : doc.offlineAction === 'forward_ssc' ? 'Send to SSC' : doc.offlineAction === 'forward_osa' ? 'Send to OSA' : 'Submission'} waiting to sync</small>` : ''}
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
             </div>
@@ -6003,13 +6329,17 @@ const announcementFeedState = {
     hasMore: false,
     loading: false,
     editingId: null,
-    counts: { active: 0, archived: 0 }
+    counts: { active: 0, archived: 0 },
+    queuedCount: 0
 };
 
 function renderAnnouncements() {
     const feed = document.getElementById('announcement-feed');
     if (!feed) return;
-    const scopedAnnouncements = getOfficerScopedAnnouncements();
+    const scopedAnnouncements = getOfficerScopedAnnouncements().filter(announcement => {
+        const isArchived = Boolean(announcement.archived_at);
+        return announcementFeedState.status === 'archived' ? isArchived : !isArchived;
+    });
     if (!scopedAnnouncements.length) {
         const label = announcementFeedState.status === 'archived' ? 'archived announcements' : 'active announcements';
         feed.innerHTML = `
@@ -6031,8 +6361,11 @@ function renderAnnouncements() {
         const orgInitials = orgName.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
         const orgIcon = resolveOfficerAnnouncementOrgIcon(ann);
         const id = Number(ann.id || ann.announcement_id || 0);
+        const isQueuedOffline = Boolean(ann.pending_sync);
+        const offlineStatus = ann.offline_status === 'attention' ? 'attention' : 'queued';
+        const canRestoreAnnouncement = navigator.onLine && id > 0 && Boolean(ann.archived_at);
         return `
-        <article class="announcement-feed-card ${ann.archived_at ? 'archived' : ''}">
+        <article class="announcement-feed-card ${ann.archived_at ? 'archived' : ''} ${isQueuedOffline ? 'naap-optimistic-record' : ''}" ${isQueuedOffline ? `data-offline-status="${offlineStatus}" data-offline-operation-id="${escapeHtml(ann.offline_operation_id || '')}"` : ''}>
             <header class="announcement-feed-card-header">
                 <div class="announcement-org-avatar">
                     ${orgIcon
@@ -6046,11 +6379,12 @@ function renderAnnouncements() {
                     <span>${escapeHtml(formatAnnouncementDate(ann.date))}${wasUpdated ? ' · Edited' : ''}</span>
                 </div>
                 <div class="announcement-feed-card-actions">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="viewManagedAnnouncement(${id})"><i class="fa-regular fa-eye"></i> View</button>
+                    ${isQueuedOffline ? `<span class="naap-optimistic-badge" data-offline-status="${offlineStatus}">${offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline'}</span>
+                    ${canRestoreAnnouncement ? `<button type="button" class="btn btn-primary btn-sm" onclick="restoreAnnouncement(${id})"><i class="fa-solid fa-rotate-left"></i> Restore</button>` : ''}` : `<button type="button" class="btn btn-outline btn-sm" onclick="viewManagedAnnouncement(${id})"><i class="fa-regular fa-eye"></i> View</button>
                     <button type="button" class="btn btn-outline btn-sm" onclick="openAnnouncementComposer(${id})"><i class="fa-regular fa-pen-to-square"></i> Edit</button>
                     ${ann.archived_at
-                        ? `<button type="button" class="btn btn-primary btn-sm" onclick="restoreAnnouncement(${id})"><i class="fa-solid fa-rotate-left"></i> Restore</button>`
-                        : `<button type="button" class="btn btn-outline btn-sm announcement-archive-btn" onclick="archiveAnnouncement(${id})"><i class="fa-solid fa-box-archive"></i> Archive</button>`}
+                        ? (canRestoreAnnouncement ? `<button type="button" class="btn btn-primary btn-sm" onclick="restoreAnnouncement(${id})"><i class="fa-solid fa-rotate-left"></i> Restore</button>` : '')
+                        : `<button type="button" class="btn btn-outline btn-sm announcement-archive-btn" onclick="archiveAnnouncement(${id})"><i class="fa-solid fa-box-archive"></i> Archive</button>`}`}
                 </div>
             </header>
             <div class="announcement-feed-badges">
@@ -6064,7 +6398,7 @@ function renderAnnouncements() {
             <h3>${escapeHtml(ann.title || 'Untitled Announcement')}</h3>
             <p class="announcement-feed-content">${escapeHtml(ann.content || '')}</p>
             ${photos.length ? `
-                <button type="button" class="announcement-feed-photo" onclick="openAnnouncementPhotoCarousel(${id})" aria-label="View announcement photos">
+                <button type="button" class="announcement-feed-photo" ${isQueuedOffline ? 'disabled' : `onclick="openAnnouncementPhotoCarousel(${id})"`} aria-label="View announcement photos">
                     <img src="${escapeHtml(photos[0])}" alt="${escapeHtml(ann.title || 'Announcement photo')}">
                     ${photos.length > 1 ? `<span><i class="fa-regular fa-images"></i> ${photos.length} photos</span>` : ''}
                 </button>` : ''}
@@ -6170,7 +6504,7 @@ function parseAnnouncementPhotoGallery(rawPhotoValue) {
 function resolveAnnouncementPhotoPath(photoPath) {
     const rawPath = String(photoPath || '').trim();
     if (!rawPath) return '';
-    return /^(https?:)?\/\//i.test(rawPath) || rawPath.startsWith('/')
+    return /^(?:(?:https?:)?\/\/|data:|blob:)/i.test(rawPath) || rawPath.startsWith('/')
         ? rawPath
         : `../${rawPath.replace(/^\/+/, '')}`;
 }
@@ -6749,6 +7083,94 @@ function mapOfficerAnnouncement(item) {
     };
 }
 
+async function mergeQueuedOfficerAnnouncements() {
+    announcementsData = announcementsData.filter(item => !item.pending_sync);
+    announcementFeedState.queuedCount = 0;
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const [queuedCreates, queuedStateChanges] = await Promise.all([
+        window.NAAPOffline.listQueuedOperations('announcement.create'),
+        window.NAAPOffline.listQueuedOperations(['announcement.archive', 'announcement.restore'])
+    ]);
+    const optimistic = queuedCreates.map(operation => {
+        const payload = operation.payload || {};
+        return {
+            id: 0,
+            announcement_id: 0,
+            title: payload.title || 'Untitled Announcement',
+            content: payload.content || '',
+            audience_type: payload.audience_type || 'all_students',
+            target_programs: [],
+            announcement_photo: JSON.stringify(Array.isArray(payload.announcement_photos) ? payload.announcement_photos : []),
+            event_datetime: payload.sync_event ? payload.event_datetime : null,
+            event_location: payload.sync_event ? (payload.event_location || 'TBA') : null,
+            published_at: operation.createdAt,
+            created_at: operation.createdAt,
+            date: operation.createdAt,
+            org: getActiveOfficerOrgName(),
+            org_id: Number(readAuthSession().active_org_id || 0),
+            pending_sync: true,
+            offline_status: operation.status,
+            offline_operation_id: operation.operationId,
+            offline_error: operation.lastError || ''
+        };
+    }).filter(item => {
+        const query = announcementFeedState.query.toLowerCase();
+        if (query && !`${item.title} ${item.content}`.toLowerCase().includes(query)) return false;
+        if (announcementFeedState.audience && item.audience_type !== announcementFeedState.audience) return false;
+        if (announcementFeedState.type === 'event' && !item.event_datetime) return false;
+        if (announcementFeedState.type === 'announcement' && item.event_datetime) return false;
+        return true;
+    });
+    const stateChanges = new Map(queuedStateChanges.map(operation => [
+        Number(operation.payload?.announcement_id || 0),
+        operation
+    ]));
+    announcementsData = announcementsData.map(item => {
+        const operation = stateChanges.get(Number(item.id || item.announcement_id || 0));
+        if (!operation) return item;
+        return {
+            ...item,
+            archived_at: operation.type === 'announcement.archive' ? operation.createdAt : null,
+            pending_sync: true,
+            offline_status: operation.status,
+            offline_operation_id: operation.operationId,
+            offline_error: operation.lastError || ''
+        };
+    }).filter(item => {
+        const operation = stateChanges.get(Number(item.id || item.announcement_id || 0));
+        if (!operation) return true;
+        return announcementFeedState.status === (operation.type === 'announcement.archive' ? 'archived' : 'active');
+    });
+    const optimisticStateChanges = queuedStateChanges
+        .filter(operation => announcementFeedState.status === (operation.type === 'announcement.archive' ? 'archived' : 'active'))
+        .filter(operation => !announcementsData.some(item => Number(item.id || item.announcement_id || 0) === Number(operation.payload?.announcement_id || 0)))
+        .map(operation => ({
+            ...(operation.payload?.announcement || {}),
+            id: Number(operation.payload?.announcement_id || 0),
+            announcement_id: Number(operation.payload?.announcement_id || 0),
+            title: operation.payload?.title || operation.payload?.announcement?.title || 'Announcement',
+            content: operation.payload?.announcement?.content || '',
+            archived_at: operation.type === 'announcement.archive' ? operation.createdAt : null,
+            date: operation.payload?.announcement?.date || operation.createdAt,
+            pending_sync: true,
+            offline_status: operation.status,
+            offline_operation_id: operation.operationId,
+            offline_error: operation.lastError || ''
+        }));
+    announcementFeedState.queuedCount = queuedCreates.length + queuedStateChanges.length;
+    announcementsData = [...optimistic, ...optimisticStateChanges, ...announcementsData];
+    const uniqueAnnouncements = new Map();
+    announcementsData.forEach(item => {
+        const announcementId = Number(item.id || item.announcement_id || 0);
+        const key = announcementId > 0
+            ? `announcement:${announcementId}`
+            : `offline:${item.offline_operation_id || `${item.title || ''}|${item.created_at || item.date || ''}`}`;
+        const existing = uniqueAnnouncements.get(key);
+        if (!existing || item.pending_sync) uniqueAnnouncements.set(key, item);
+    });
+    announcementsData = [...uniqueAnnouncements.values()];
+}
+
 async function fetchAnnouncementsFromApi({ append = false } = {}) {
     if (announcementFeedState.loading) return;
     announcementFeedState.loading = true;
@@ -6774,6 +7196,7 @@ async function fetchAnnouncementsFromApi({ append = false } = {}) {
         if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to load announcements');
         const incoming = (data.items || []).map(mapOfficerAnnouncement);
         announcementsData = append ? announcementsData.concat(incoming) : incoming;
+        await mergeQueuedOfficerAnnouncements();
         announcementFeedState.cursor = data.next_cursor || '';
         announcementFeedState.hasMore = Boolean(data.has_more);
         announcementFeedState.counts = data.counts || { active: 0, archived: 0 };
@@ -6824,7 +7247,7 @@ function updateAnnouncementFeedControls() {
     archivedTab?.classList.toggle('active', announcementFeedState.status === 'archived');
     const activeCount = document.getElementById('announcement-active-count');
     const archivedCount = document.getElementById('announcement-archived-count');
-    if (activeCount) activeCount.textContent = String(announcementFeedState.counts.active || 0);
+    if (activeCount) activeCount.textContent = String((announcementFeedState.counts.active || 0) + (announcementFeedState.queuedCount || 0));
     if (archivedCount) archivedCount.textContent = String(announcementFeedState.counts.archived || 0);
 }
 
@@ -6965,6 +7388,28 @@ async function handleDocSubmit(e) {
         return;
     }
 
+    if (!navigator.onLine && window.NAAPOffline?.queueDocumentSubmission) {
+        try {
+            await window.NAAPOffline.queueDocumentSubmission(file, {
+                title,
+                document_type: type,
+                custom_document_type: type === 'Others' ? customDocumentType : null,
+                recipient,
+                description,
+                revision_of_submission_id: revisionOfSubmissionId || null
+            });
+            await mergeQueuedOfficerDocuments();
+            renderDocs(currentDocFilter);
+            renderRecentDocs();
+            e.target.reset();
+            closeSubmitModal();
+            alert('Document saved securely on this device and waiting to sync.');
+        } catch (error) {
+            alert(error.message || 'Could not save the document for offline synchronization.');
+        }
+        return;
+    }
+
     try {
         const uploadForm = new FormData();
         uploadForm.append('file', file);
@@ -7004,6 +7449,28 @@ async function handleDocSubmit(e) {
             : `Document successfully sent to ${recipient}.`);
     } catch (error) {
         console.error(error);
+        if ((!navigator.onLine || error instanceof TypeError) && window.NAAPOffline?.queueDocumentSubmission) {
+            try {
+                await window.NAAPOffline.queueDocumentSubmission(file, {
+                    title,
+                    document_type: type,
+                    custom_document_type: type === 'Others' ? customDocumentType : null,
+                    recipient,
+                    description,
+                    revision_of_submission_id: revisionOfSubmissionId || null
+                });
+                await mergeQueuedOfficerDocuments();
+                renderDocs(currentDocFilter);
+                renderRecentDocs();
+                e.target.reset();
+                closeSubmitModal();
+                alert('The connection was lost. Your document is saved securely on this device and waiting to sync.');
+                return;
+            } catch (queueError) {
+                alert(queueError.message || 'Could not save the document for offline synchronization.');
+                return;
+            }
+        }
         alert(error.message || 'Failed to submit document.');
     }
 }
@@ -7061,7 +7528,10 @@ async function postAnnouncement(e) {
             content,
             audience_type: audience,
             target_program_ids: targetProgramIds,
-            announcement_photos: announcementPhotoDataUrls
+            announcement_photos: announcementPhotoDataUrls,
+            sync_event: syncEvent,
+            event_datetime: syncEvent ? `${eventDate} ${eventTimeStart}` : null,
+            event_location: syncEvent ? (eventLocation || 'TBA') : null
         };
         if (editingId) {
             payload.announcement_id = editingId;
@@ -7114,11 +7584,18 @@ async function postAnnouncement(e) {
             } else {
                 showToast('Announcement published, but the Events tab is unavailable.', 'error');
             }
-        } else {
+        } else if (!data.queued) {
             showToast(editingId ? 'Announcement updated.' : 'Announcement published.', 'success');
         }
         closeAnnouncementComposer();
-        resetAnnouncementFeed();
+        if (data.queued) {
+            await mergeQueuedOfficerAnnouncements();
+            updateAnnouncementFeedControls();
+            renderAnnouncements();
+            showToast('Announcement saved on this device and queued for sync.', 'info');
+        } else {
+            resetAnnouncementFeed();
+        }
     } catch (error) {
         console.error(error);
         alert(error.message || `Failed to ${editingId ? 'update' : 'post'} announcement. Please try again.`);
@@ -7133,6 +7610,19 @@ document.addEventListener('click', (event) => {
     if (!itemButton) return;
     const item = officerActionCenterItems.get(String(itemButton.dataset.notificationKey || ''));
     if (item) openOfficerActionCenterTarget(item);
+});
+
+window.addEventListener('naap:offline-queue-changed', async () => {
+    await Promise.all([
+        mergeQueuedOfficerAnnouncements(),
+        mergeQueuedOfficerDocuments(),
+        applyQueuedLockerOperations()
+    ]).catch(() => {});
+    updateAnnouncementFeedControls();
+    renderAnnouncements();
+    renderDocs(currentDocFilter);
+    renderRecentDocs();
+    renderOfficerLockerBoard();
 });
 
 document.addEventListener('keydown', (event) => {
@@ -7189,18 +7679,37 @@ async function restoreAnnouncement(announcementId) {
 
 async function setAnnouncementArchivedState(announcementId, archived) {
     try {
+        const announcement = getOfficerScopedAnnouncements().find(item => Number(item.id || item.announcement_id) === Number(announcementId));
         const response = await fetch(`../api/announcements/${archived ? 'archive' : 'restore'}.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({ announcement_id: announcementId })
+            body: JSON.stringify({
+                announcement_id: announcementId,
+                title: announcement?.title || '',
+                announcement: announcement || null
+            })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) {
             throw new Error(data.error || `Could not ${archived ? 'archive' : 'restore'} announcement.`);
         }
-        showToast(`Announcement ${archived ? 'archived' : 'restored'}.`, 'success');
-        resetAnnouncementFeed();
+        showToast(data.queued
+            ? `Announcement ${archived ? 'archive' : 'restore'} queued.`
+            : `Announcement ${archived ? 'archived' : 'restored'}.`, data.queued ? 'info' : 'success');
+        if (data.queued) {
+            if (!archived) {
+                announcementFeedState.status = 'active';
+                announcementsData = announcementsData.filter(item => Number(item.id || item.announcement_id || 0) !== Number(announcementId));
+                await fetchAnnouncementsFromApi();
+            } else {
+                await mergeQueuedOfficerAnnouncements();
+                updateAnnouncementFeedControls();
+                renderAnnouncements();
+            }
+        } else {
+            resetAnnouncementFeed();
+        }
     } catch (error) {
         console.error('[setAnnouncementArchivedState]', error);
         showToast(error.message || 'Could not update announcement.', 'error');
@@ -8295,11 +8804,17 @@ document.addEventListener('visibilitychange', () => {
     if (isOfficerDocumentsAutoRefreshActive()) {
         startOfficerDocumentsAutoRefresh({ refreshNow: !document.hidden });
     }
+    if (isOfficerLockerAutoRefreshActive()) {
+        startOfficerLockerAutoRefresh({ refreshNow: !document.hidden });
+    }
 });
 
 window.addEventListener('online', () => {
     loadOfficerServiceAccess(true);
+    renderAnnouncements();
 });
+
+window.addEventListener('offline', renderAnnouncements);
 
 
 // --- DOCUMENT REPOSITORY LOGIC ---
@@ -8389,6 +8904,128 @@ function resolvePdfUrl(fileUrl) {
     return `../${raw}`;
 }
 
+async function mergeQueuedOfficerDocuments() {
+    docsData = docsData
+        .filter(item => !(item.pendingSync && (!Number(item.submission_id || item.id || 0) || item.offlineAction === 'submit')))
+        .map(item => ({
+            ...item,
+            pendingSync: false,
+            offlineStatus: '',
+            offlineOperationId: '',
+            offlineError: '',
+            offlineAction: '',
+            offlineDecision: ''
+        }));
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations('document.submit');
+    const session = readAuthSession();
+    const optimistic = queued.map(operation => {
+        const payload = operation.payload || {};
+        const file = operation.files?.[0];
+        return {
+            title: payload.title || file?.name || 'Queued document',
+            typeCategory: normalizeDocumentTypeCategory(payload.document_type),
+            customDocumentType: payload.custom_document_type || '',
+            type: getDocumentTypeDisplay(payload.document_type, payload.custom_document_type),
+            date: fmtDateShort(operation.createdAt),
+            submittedAt: operation.createdAt,
+            status: 'Queued offline',
+            rawStatus: 'queued_offline',
+            org: getActiveOfficerOrgName(),
+            orgId: Number(session.active_org_id || 0),
+            id: 0,
+            submission_id: 0,
+            semester: officerActiveAcademicTerm.semester,
+            academicYear: officerActiveAcademicTerm.academic_year,
+            gradingPeriod: officerActiveAcademicTerm.grading_period,
+            fileUrl: '',
+            viewerId: '',
+            submittedByUserId: Number(session.user_id || 0),
+            submittedByName: [session.first_name, session.last_name].filter(Boolean).join(' ') || 'You',
+            recipient: payload.recipient || 'OSA',
+            description: payload.description || '',
+            versionNumber: 1,
+            hasNewerVersion: false,
+            pendingSync: true,
+            offlineAction: 'submit',
+            offlineStatus: operation.status,
+            offlineOperationId: operation.operationId,
+            offlineError: operation.lastError || ''
+        };
+    });
+    const queuedChanges = await window.NAAPOffline.listQueuedOperations([
+        'document.review', 'document.cancel', 'document.forward_ssc', 'document.forward_osa'
+    ]);
+    queuedChanges.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))).forEach(operation => {
+        const submissionId = Number(operation.payload?.submission_id || 0);
+        const doc = docsData.find(item => Number(item.submission_id || item.id || 0) === submissionId);
+        if (!doc) return;
+        doc.pendingSync = true;
+        doc.offlineStatus = operation.status;
+        doc.offlineOperationId = operation.operationId;
+        doc.offlineError = operation.lastError || '';
+        doc.offlineAction = operation.type === 'document.cancel'
+            ? 'cancel'
+            : operation.type === 'document.forward_ssc'
+                ? 'forward_ssc'
+                : operation.type === 'document.forward_osa'
+                    ? 'forward_osa'
+                    : 'review';
+        doc.offlineDecision = operation.payload?.decision || '';
+        if (operation.type === 'document.cancel') {
+            doc.status = 'Cancelled';
+            doc.rawStatus = 'cancelled';
+            doc.cancelledAt = operation.createdAt;
+        } else if (operation.type === 'document.forward_ssc') {
+            doc.status = 'Pending';
+            doc.rawStatus = 'pending';
+            doc.recipient = 'SSC';
+            doc.forwardedAt = operation.createdAt;
+        } else if (operation.type === 'document.forward_osa') {
+            doc.status = 'Sent to OSA';
+            doc.rawStatus = 'sent_to_osa';
+            doc.recipient = 'OSA';
+            doc.forwardedAt = operation.createdAt;
+        } else if (String(operation.payload?.decision || '').toLowerCase() === 'rejected') {
+            doc.status = 'Rejected';
+            doc.rawStatus = 'rejected';
+        } else {
+            doc.status = 'Approval queued';
+            doc.rawStatus = 'approval_queued';
+        }
+        if (operation.type === 'document.review') {
+            const decision = String(operation.payload?.decision || '').toLowerCase();
+            const notes = String(operation.payload?.notes || '');
+            const reviewerName = [readAuthSession().first_name, readAuthSession().last_name].filter(Boolean).join(' ') || 'You';
+            if (isOrganizationAdviserDocumentReviewer() && officerOrgMatch(doc.orgId || doc.org)) {
+                doc.adviserDecision = decision;
+                doc.adviserReviewerName = reviewerName;
+                doc.adviserReviewerNotes = notes;
+                doc.adviserReviewedAt = operation.createdAt;
+                doc.status = decision === 'approved' ? 'Adviser Approved' : 'Rejected';
+                doc.rawStatus = decision === 'approved' ? 'adviser_approved' : 'rejected';
+            } else {
+                doc.sscDecision = decision;
+                doc.sscReviewerName = reviewerName;
+                doc.sscReviewerNotes = notes;
+                doc.sscReviewedAt = operation.createdAt;
+                doc.status = decision === 'approved' ? 'SSC Approved' : 'Rejected';
+                doc.rawStatus = decision === 'approved' ? 'ssc_approved' : 'rejected';
+            }
+        }
+    });
+    const deduped = new Map();
+    [...optimistic, ...docsData].forEach(doc => {
+        const databaseId = Number(doc.submission_id || doc.id || 0);
+        const key = databaseId > 0
+            ? `submission:${databaseId}`
+            : `offline:${doc.offlineOperationId || `${doc.title}|${doc.submittedAt}`}`;
+        const existing = deduped.get(key);
+        if (!existing || doc.pendingSync) deduped.set(key, doc);
+    });
+    docsData = [...deduped.values()];
+}
+
 async function loadDocsFromApi({ silent = false, skipUnchanged = false } = {}) {
     try {
         const res = await fetch(`${DOCUMENTS_API_BASE}/list.php`, { credentials: 'same-origin' });
@@ -8453,6 +9090,7 @@ async function loadDocsFromApi({ silent = false, skipUnchanged = false } = {}) {
             versionNumber: Number(item.version_number || 1),
             hasNewerVersion: Boolean(item.has_newer_version),
         }));
+        await mergeQueuedOfficerDocuments();
         docsData.forEach(doc => {
             if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
                 PDFViewer.registerRemote(doc.viewerId, doc.title, doc.fileUrl, { submissionId: doc.submission_id });

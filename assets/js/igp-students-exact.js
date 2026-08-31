@@ -306,12 +306,17 @@
         if ($('confirmDeleteAll')) {
             $('confirmDeleteAll').addEventListener('click', async () => {
                 if ($('deleteConfirmInput').value !== 'Delete') return;
+                let queued = false;
                 for (const student of students.filter((s) => s.isOrgProgram)) {
-                    await window.igpApi.deleteStudent({ userId: student.userId, studentId: student.studentId });
+                    const result = await window.igpApi.deleteStudent({ userId: student.userId, studentId: student.studentId });
+                    queued = queued || Boolean(result.queued);
                 }
                 const modal = window.bootstrap && window.bootstrap.Modal.getInstance($('clearAllModal'));
                 if (modal) modal.hide();
-                await refresh();
+                if (queued) {
+                    students = students.filter((student) => !student.isOrgProgram);
+                    renderDatabase();
+                } else await refresh();
             });
         }
 
@@ -330,14 +335,18 @@
         if ($('confirmDeleteStudent')) {
             $('confirmDeleteStudent').addEventListener('click', async () => {
                 if (!studentToDelete || $('deleteStudentConfirmInput').value !== 'Delete') return;
-                await window.igpApi.deleteStudent({
+                const deletingStudent = studentToDelete;
+                const result = await window.igpApi.deleteStudent({
                     userId: studentToDelete.userId,
                     studentId: studentToDelete.studentId,
                 });
                 studentToDelete = null;
                 const modal = window.bootstrap && window.bootstrap.Modal.getInstance($('deleteStudentModal'));
                 if (modal) modal.hide();
-                await refresh();
+                if (result.queued) {
+                    students = students.filter((student) => student !== deletingStudent);
+                    renderDatabase();
+                } else await refresh();
             });
         }
 

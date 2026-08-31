@@ -4,8 +4,12 @@
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.webmanifest">
     <title>Capstone Project - Demo</title>
     <script>
+        if ('serviceWorker' in navigator && window.isSecureContext) {
+            navigator.serviceWorker.register('sw.js?v=20260831-32', { scope: './' }).catch(() => {});
+        }
         /**
          * Main Entry Point - index.html
          * Routes users to appropriate pages based on authentication

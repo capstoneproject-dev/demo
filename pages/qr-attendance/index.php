@@ -10,14 +10,36 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="../../manifest.webmanifest">
     <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
+    <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
+    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260819-toast-close-1">
+    <style>
+        #currentEventDisplay.naap-optimistic-record {
+            border: 3px solid #f59e0b !important;
+            border-left-width: 6px !important;
+            background-color: #fff7ed !important;
+            color: #7c2d12 !important;
+        }
+
+        #currentEventDisplay.naap-optimistic-record[data-offline-status="attention"] {
+            border-color: #dc2626 !important;
+            background-color: #fef2f2 !important;
+            color: #991b1b !important;
+        }
+
+        #currentEventDisplay .naap-current-event-queued-badge {
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+    </style>
 </head>
 
 <body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
@@ -199,7 +221,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/QR-Attendance/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
     <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
-    <script src="../../systems/QR-Attendance/lib/script.js?v=20260819-scan-symbols-1"></script>
+    <script src="../../systems/QR-Attendance/lib/script.js?v=20260829-offline-optimistic-3"></script>
     <script>
         // Utility to check if any of the filter/search/section controls are focused
         function updateBarcodeInputState() {

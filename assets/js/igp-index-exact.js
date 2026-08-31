@@ -879,7 +879,13 @@
         try {
             const res = await window.igpApi.returnRental(Number(pendingReturn.rental.rental_id));
             if (modal) modal.hide();
-            await refresh();
+            if (res.queued) {
+                activeRentals = activeRentals.filter((rental) => Number(rental.rental_id) !== Number(pendingReturn.rental.rental_id));
+                renderCurrent();
+                populateManualItems();
+            } else {
+                await refresh();
+            }
             notifyParentActionCenterRefresh();
             setScanResult(`Return recorded for ${pendingReturn.item.item_name} [${pendingReturn.item.barcode}]. Officer: ${officer.officer_name || officer.student_number}`, 'success');
             resetScanContext();
@@ -897,10 +903,10 @@
     async function markReturnPaidFromModal() {
         if (!pendingPaymentRentalId) return;
         try {
-            await window.igpApi.markPaid(pendingPaymentRentalId, pendingPaymentOfficerIdentifier);
+            const result = await window.igpApi.markPaid(pendingPaymentRentalId, pendingPaymentOfficerIdentifier);
             const modal = getModalInstance('returnPaymentModal');
             if (modal) modal.hide();
-            await refresh();
+            if (!result.queued) await refresh();
             notifyParentActionCenterRefresh();
             setScanResult('Payment marked as paid.', 'success');
             pendingPaymentRentalId = 0;

@@ -3002,6 +3002,44 @@ body.dark #organizations label.btn-primary:hover {
     cursor: pointer;
 }
 
+#docs-list .osa-document-title-cell {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    min-width: 0;
+}
+
+#docs-list .osa-document-title-copy {
+    min-width: 0;
+    overflow: hidden;
+}
+
+#docs-list .osa-document-title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+#docs-list .osa-document-title-row h4 {
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95rem;
+}
+
+#docs-list .naap-optimistic-record {
+    align-items: start;
+}
+
+#docs-list .osa-document-comment-btn {
+    gap: 5px;
+    white-space: nowrap;
+}
+
 #docs-list .list-item:hover {
     background-color: var(--panel-2);
 }

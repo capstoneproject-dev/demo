@@ -115,6 +115,43 @@ function qrEnsureEventArchiveColumns(PDO $pdo): void
     $ensuredConnections[$connectionId] = true;
 }
 
+function qrEnsureOfflineAttendanceColumns(PDO $pdo): void
+{
+    static $ensuredConnections = [];
+    $connectionId = spl_object_id($pdo);
+    if (!empty($ensuredConnections[$connectionId])) return;
+    $columns = [
+        'check_in_received_at' => "ALTER TABLE attendance_records ADD COLUMN check_in_received_at DATETIME NULL AFTER time_in",
+        'check_out_received_at' => "ALTER TABLE attendance_records ADD COLUMN check_out_received_at DATETIME NULL AFTER time_out",
+    ];
+    foreach ($columns as $column => $sql) {
+        if (!qrAttendanceColumnExists($pdo, 'attendance_records', $column)) $pdo->exec($sql);
+    }
+    $ensuredConnections[$connectionId] = true;
+}
+
+/** @return array{captured:DateTimeImmutable,received:DateTimeImmutable,is_offline:bool} */
+function qrAttendanceCaptureTimes(PDO $pdo, array $data): array
+{
+    qrEnsureOfflineAttendanceColumns($pdo);
+    $tz = new DateTimeZone('Asia/Manila');
+    $received = new DateTimeImmutable('now', $tz);
+    $raw = trim((string)($data['captured_at'] ?? ''));
+    if ($raw === '') return ['captured' => $received, 'received' => $received, 'is_offline' => false];
+    try {
+        $captured = (new DateTimeImmutable($raw))->setTimezone($tz);
+    } catch (Throwable $_) {
+        throw new QrAttendanceValidationException('Invalid offline attendance timestamp.');
+    }
+    if ($captured < $received->modify('-7 days')) {
+        throw new QrAttendanceValidationException('Offline attendance timestamps more than seven days old are not accepted.');
+    }
+    if ($captured > $received->modify('+5 minutes')) {
+        throw new QrAttendanceValidationException('Offline attendance timestamps more than five minutes in the future are not accepted.');
+    }
+    return ['captured' => $captured, 'received' => $received, 'is_offline' => true];
+}
+
 function qrRequireOfficerOrgContext(): array
 {
     $session = getPhpSession();
@@ -340,7 +377,7 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
 {
     qrEnsureEventArchiveColumns($pdo);
     $eventId = isset($data['event_id']) ? (int)$data['event_id'] : 0;
-    $eventName = trim((string)($data['event_name'] ?? $data['name'] ?? ''));
+    $eventName = preg_replace('/\s+/u', ' ', trim((string)($data['event_name'] ?? $data['name'] ?? ''))) ?? '';
     $description = trim((string)($data['description'] ?? ''));
     $locationProvided = array_key_exists('location', $data);
     $location = $locationProvided && $data['location'] === null
@@ -364,6 +401,28 @@ function qrSaveEvent(PDO $pdo, int $orgId, int $userId, array $data): int
     }
     if ($userId <= 0) {
         throw new QrAttendanceValidationException('Invalid processor user.');
+    }
+
+    // Event names are organization-wide identifiers for attendance. Prevent
+    // active, archived, online, and offline-synchronized records from
+    // resolving to different events solely because of case or extra spacing.
+    $duplicateCheck = $pdo->prepare(
+        "SELECT event_id, event_name
+         FROM events
+         WHERE org_id = :org
+           AND event_id <> :current_id"
+    );
+    $duplicateCheck->execute([
+        ':org' => $orgId,
+        ':current_id' => $eventId,
+    ]);
+    $canonicalName = function_exists('mb_strtolower') ? mb_strtolower($eventName, 'UTF-8') : strtolower($eventName);
+    foreach ($duplicateCheck->fetchAll() as $candidate) {
+        $candidateName = preg_replace('/\s+/u', ' ', trim((string)($candidate['event_name'] ?? ''))) ?? '';
+        $candidateName = function_exists('mb_strtolower') ? mb_strtolower($candidateName, 'UTF-8') : strtolower($candidateName);
+        if ($candidateName === $canonicalName) {
+            throw new QrAttendanceValidationException('An event with this name already exists. Use a different event name.');
+        }
     }
 
     if ($photoValues) {
@@ -680,8 +739,8 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
         throw new QrAttendanceValidationException('student_number is required.');
     }
 
-    $tz = new DateTimeZone('Asia/Manila');
-    $now = new DateTimeImmutable('now', $tz);
+    $times = qrAttendanceCaptureTimes($pdo, $data);
+    $now = $times['captured'];
 
     $check = $pdo->prepare(
         "SELECT record_id, time_in, time_out
@@ -700,12 +759,14 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
         if (empty($existing['time_in'])) {
             $claimRegistration = $pdo->prepare(
                 "UPDATE attendance_records
-                 SET time_in = :time_in
+                 SET time_in = :time_in,
+                     check_in_received_at = :received_at
                  WHERE record_id = :record_id
                    AND time_in IS NULL"
             );
             $claimRegistration->execute([
                 ':time_in' => $now->format('Y-m-d H:i:s'),
+                ':received_at' => $times['received']->format('Y-m-d H:i:s'),
                 ':record_id' => (int)$existing['record_id'],
             ]);
             if ($claimRegistration->rowCount() === 1) {
@@ -754,9 +815,9 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
 
     $ins = $pdo->prepare(
         "INSERT INTO attendance_records
-            (event_id, user_id, student_number, student_name, section, time_in)
+            (event_id, user_id, student_number, student_name, section, time_in, check_in_received_at)
          VALUES
-            (:event_id, :user_id, :student_number, :student_name, :section, :time_in)"
+            (:event_id, :user_id, :student_number, :student_name, :section, :time_in, :received_at)"
     );
     try {
         $ins->execute([
@@ -766,6 +827,7 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
             ':student_name' => $studentName,
             ':section' => $section !== '' ? $section : null,
             ':time_in' => $now->format('Y-m-d H:i:s'),
+            ':received_at' => $times['received']->format('Y-m-d H:i:s'),
         ]);
     } catch (PDOException $e) {
         if ((int)($e->errorInfo[1] ?? 0) === 1062) {
@@ -791,8 +853,8 @@ function qrCheckOut(PDO $pdo, int $orgId, int $userId, array $data): array
     qrEnsureEventArchiveColumns($pdo);
     $recordId = isset($data['record_id']) ? (int)$data['record_id'] : 0;
 
-    $tz = new DateTimeZone('Asia/Manila');
-    $now = new DateTimeImmutable('now', $tz);
+    $times = qrAttendanceCaptureTimes($pdo, $data);
+    $now = $times['captured'];
     $today = $now->format('Y-m-d');
 
     if ($recordId > 0) {
@@ -846,13 +908,15 @@ function qrCheckOut(PDO $pdo, int $orgId, int $userId, array $data): array
     $upd = $pdo->prepare(
         "UPDATE attendance_records ar
          JOIN events e ON e.event_id = ar.event_id
-         SET ar.time_out = :time_out
+         SET ar.time_out = :time_out,
+             ar.check_out_received_at = :received_at
          WHERE ar.record_id = :record_id
            AND e.org_id = :org
            AND e.archived_at IS NULL"
     );
     $upd->execute([
         ':time_out' => $now->format('Y-m-d H:i:s'),
+        ':received_at' => $times['received']->format('Y-m-d H:i:s'),
         ':record_id' => (int)$row['record_id'],
         ':org' => $orgId,
     ]);

@@ -785,6 +785,26 @@ function resolvePdfUrl(fileUrl) {
     return `../${raw}`;
 }
 
+async function mergeQueuedOsaDocumentChanges() {
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations('document.review');
+    const reviewerName = String(readAuthSession().display_name || 'You');
+    queued.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))).forEach(operation => {
+        const doc = docsData.find(item => Number(item.submission_id || item.id || 0) === Number(operation.payload?.submission_id || 0));
+        if (!doc) return;
+        const decision = String(operation.payload?.decision || '').toLowerCase();
+        doc.pendingSync = true;
+        doc.offlineStatus = operation.status;
+        doc.offlineOperationId = operation.operationId;
+        doc.offlineDecision = decision;
+        doc.status = decision === 'rejected' ? 'rejected' : 'approval_queued';
+        doc.osaDecision = decision || null;
+        doc.osaReviewerName = reviewerName;
+        doc.osaReviewerNotes = operation.payload?.notes || '';
+        doc.osaReviewedAt = operation.createdAt;
+    });
+}
+
 async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
     try {
         const params = new URLSearchParams({ status: 'all' });
@@ -841,6 +861,7 @@ async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
             versionNumber: Number(item.version_number || 1),
             hasNewerVersion: Boolean(item.has_newer_version)
         }));
+        await mergeQueuedOsaDocumentChanges();
         docsData.forEach(doc => {
             if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
                 PDFViewer.registerRemote(doc.viewerId, doc.title, doc.fileUrl, { submissionId: doc.submission_id });
@@ -1004,6 +1025,12 @@ function reviewDocument(submissionId, decision) {
     openRejectCommentModal(submissionId);
 }
 
+window.addEventListener('naap:offline-queue-changed', async () => {
+    await mergeQueuedOsaDocumentChanges().catch(() => {});
+    renderDocs(currentDocFilter);
+    renderRecentDocs();
+});
+
 // --- INTEGRATED THEME LOGIC ---
 
 // Helper function to switch the theme
@@ -1038,14 +1065,15 @@ function switchThemeLogic() {
 // Logout handler
 async function handleLogout(e) {
     e.preventDefault();
-    if (await appConfirm('Are you sure you want to log out?', {
-        title: 'Log out',
-        confirmText: 'Log out'
-    })) {
+    const preparation = window.NAAPOffline
+        ? await window.NAAPOffline.prepareLogout()
+        : { proceed: await appConfirm('Are you sure you want to log out?', { title: 'Log out', confirmText: 'Log out' }) };
+    if (preparation.proceed) {
         try {
             const response = await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
+            if (window.NAAPOffline) await window.NAAPOffline.completeLogout(preparation);
             localStorage.removeItem(AUTH_SESSION_KEY);
             window.location.href = '../pages/login.html';
         } catch (error) {
@@ -3151,6 +3179,15 @@ function renderOsaDocumentStageReview(decision, reviewerName, pending = false, r
         : '<span style="color:var(--muted)">-</span>';
 }
 
+function openOsaReviewerComment(stage, encodedComment) {
+    const comment = decodeURIComponent(String(encodedComment || ''));
+    if (!comment) return;
+    window.appAlert(comment, {
+        title: `${stage || 'Reviewer'} comment`,
+        type: 'info'
+    });
+}
+
 function renderRecentDocs() {
     const list = document.getElementById('recent-docs-list');
     if (!list) return;
@@ -3232,7 +3269,7 @@ function renderDocs(filter = 'All', btnElement = null) {
 
         // 1. Status Filter
         const matchesStatus = (filter === 'All') ||
-            (filter === 'Pending' && ['pending', 'sent_to_osa'].includes(statusText)) ||
+            (filter === 'Pending' && (doc.pendingSync || ['pending', 'sent_to_osa'].includes(statusText))) ||
             (filter === 'Approved' && statusText === 'approved') ||
             (filter === 'Rejected' && statusText === 'rejected');
 
@@ -3274,7 +3311,10 @@ function renderDocs(filter = 'All', btnElement = null) {
             </button>`;
 
         const statusText = String(doc.status || '').toLowerCase();
-        if (statusText === 'approved') {
+        if (doc.pendingSync) {
+            const queuedState = doc.offlineStatus === 'attention' ? 'attention' : 'queued';
+            statusBadge = `<span class="naap-optimistic-badge" data-offline-status="${queuedState}">${queuedState === 'attention' ? 'Needs attention' : `${doc.offlineDecision === 'rejected' ? 'Rejection' : 'Approval'} queued`}</span>`;
+        } else if (statusText === 'approved') {
             statusBadge = '<span class="status-badge status-completed" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Approved</span>';
         } else if (statusText === 'rejected') {
             statusBadge = '<span class="status-badge status-rejected" style="font-size:0.65rem; padding:2px 6px; margin-left:8px;">Rejected</span>';
@@ -3316,16 +3356,24 @@ function renderDocs(filter = 'All', btnElement = null) {
             doc.osaReviewerNotes,
             doc.osaReviewedAt
         );
+        const commentButtons = [
+            ['Adviser', doc.adviserReviewerNotes],
+            ['SSC', doc.sscReviewerNotes],
+            ['OSA', doc.osaReviewerNotes]
+        ].filter(([, comment]) => String(comment || '').trim()).map(([stage, comment]) => `
+            <button class="btn btn-sm btn-outline osa-document-comment-btn" data-readonly-allow onclick="event.stopPropagation(); openOsaReviewerComment('${stage}', '${encodeURIComponent(comment).replace(/'/g, '%27')}')" title="View ${stage} comment" aria-label="View ${stage} comment">
+                <i class="fa-regular fa-message"></i><span>${stage}</span>
+            </button>`).join('');
 
         return `
-        <div class="list-item" onclick="openPdfViewer('${doc.viewerId || ('doc_' + index)}')">
-            <div class="col-name" style="display: flex; gap: 15px; align-items: center;">
+        <div class="list-item${doc.pendingSync ? ' naap-optimistic-record' : ''}" ${doc.pendingSync ? `data-offline-status="${doc.offlineStatus === 'attention' ? 'attention' : 'queued'}"` : `onclick="openPdfViewer('${doc.viewerId || ('doc_' + index)}')"`}>
+            <div class="col-name osa-document-title-cell">
                 <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
                     <i class="fa-solid fa-file-pdf"></i>
                 </div>
-                <div style="overflow: hidden;">
-                    <div style="display:flex; align-items:center;">
-                        <h4 style="font-size:0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.title}</h4>
+                <div class="osa-document-title-copy">
+                    <div class="osa-document-title-row">
+                        <h4>${doc.title}</h4>
                         ${statusBadge}
                         <span class="status-badge" style="font-size:0.65rem; padding:2px 6px; margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>
                     </div>
@@ -3339,6 +3387,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             <div class="col-status">
                 <div class="req-action-group">
                     ${actionButtons}
+                    ${commentButtons}
                 </div>
             </div>
         </div>`;

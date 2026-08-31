@@ -22,7 +22,7 @@
     function resolveImagePath(path) {
         const raw = String(path || '').trim();
         if (!raw) return '';
-        if (/^(https?:)?\/\//i.test(raw)) return raw;
+        if (/^(?:(?:https?:)?\/\/|blob:|data:)/i.test(raw)) return raw;
         return `../../${raw.replace(/^\/+/, '')}`;
     }
 
@@ -313,14 +313,14 @@
                       <div class="d-flex gap-3 align-items-start">
                         ${it.image_path ? `<img src="${resolveImagePath(it.image_path)}" alt="${esc(it.item_name)}" class="inventory-thumb">` : ''}
                         <div>
-                            <strong>${esc(it.item_name)}</strong><br>
+                            <strong>${esc(it.item_name)}</strong>${it.pending_sync ? ' <span class="badge text-bg-warning">Pending sync</span>' : ''}<br>
                             <small>ID: ${it.item_id} | Barcode: ${esc(it.barcode)}</small><br>
                             <small>Rate: ₱${fmtRate(it.hourly_rate)}/hr</small>
                         </div>
                       </div>
                       <div>
-                        <button class="btn btn-sm btn-outline-primary js-edit" data-id="${it.item_id}">Edit</button>
-                        <button class="btn btn-sm btn-outline-danger js-delete" data-id="${it.item_id}" data-bs-toggle="modal" data-bs-target="#deleteItemModal">Delete</button>
+                        <button class="btn btn-sm btn-outline-primary js-edit" data-id="${it.item_id}" ${Number(it.item_id) < 0 ? 'disabled title="Sync this new item before editing it again"' : ''}>Edit</button>
+                        <button class="btn btn-sm btn-outline-danger js-delete" data-id="${it.item_id}" data-bs-toggle="modal" data-bs-target="#deleteItemModal" ${Number(it.item_id) < 0 ? 'disabled title="Sync this new item before deleting it"' : ''}>Delete</button>
                       </div>
                     </div>
                     <div class="barcode-container mt-2"><svg id="bc_${it.item_id}"></svg></div>
@@ -449,11 +449,20 @@
             throw new Error('No valid inventory rows were found in the Excel file.');
         }
 
+        let queued = false;
         for (const payload of payloads) {
-            await window.igpApi.saveInventory(payload);
+            const result = await window.igpApi.saveInventory(payload);
+            if (result.queued) {
+                queued = true;
+                const existing = inventory.find((item) => Number(item.item_id) === Number(payload.item_id)
+                    || String(item.barcode) === String(payload.barcode));
+                const optimistic = { ...payload, item_id: existing?.item_id || -Date.now() - inventory.length, pending_sync: true };
+                if (existing) Object.assign(existing, optimistic);
+                else inventory.unshift(optimistic);
+            }
         }
 
-        return payloads.length;
+        return { count: payloads.length, queued };
     }
 
     function svgToPngData(svg) {
@@ -592,9 +601,36 @@
         if (selectedImage) {
             payload.append('image', selectedImage);
         }
-        await window.igpApi.saveInventoryForm(payload);
+        const result = await window.igpApi.saveInventoryForm(payload);
+        if (result.queued) {
+            const optimistic = {
+                item_id: existing ? existing.item_id : -Date.now(),
+                item_name,
+                barcode,
+                category_name: item_type,
+                hourly_rate: Number.isFinite(pricePerHour) ? pricePerHour : 0,
+                status: existing ? existing.status : 'available',
+                overtime_interval_minutes: nullableNumber(overtimeInterval),
+                overtime_rate_per_block: nullableNumber(overtimeRate),
+                image_path: selectedImage ? URL.createObjectURL(selectedImage) : (existing?.image_path || matchingInventoryItem?.image_path || ''),
+                pending_sync: true,
+            };
+            if (existing) Object.assign(existing, optimistic);
+            else inventory.unshift(optimistic);
+            if (applyPricingToGroup) {
+                inventory.filter((item) => String(item.item_name).toLowerCase() === item_name.toLowerCase()
+                    && String(item.category_name).toLowerCase() === item_type.toLowerCase())
+                    .forEach((item) => Object.assign(item, {
+                        hourly_rate: optimistic.hourly_rate,
+                        overtime_interval_minutes: optimistic.overtime_interval_minutes,
+                        overtime_rate_per_block: optimistic.overtime_rate_per_block,
+                        pending_sync: true,
+                    }));
+            }
+        }
         resetItemForm();
-        await refresh();
+        if (result.queued) render();
+        else await refresh();
     }
 
     function bind() {
@@ -726,13 +762,16 @@
                     return;
                 }
                 try {
-                    await window.igpApi.deleteInventory(deletingId);
+                    const result = await window.igpApi.deleteInventory(deletingId);
                     const modalEl = $('deleteItemModal');
                     const inst = window.bootstrap && window.bootstrap.Modal.getInstance(modalEl);
                     if (inst) inst.hide();
                     if ($('deleteItemConfirmInput')) $('deleteItemConfirmInput').value = '';
                     if ($('deleteItemConfirmError')) $('deleteItemConfirmError').style.display = 'none';
-                    await refresh();
+                    if (result.queued) {
+                        inventory = inventory.filter((item) => Number(item.item_id) !== Number(deletingId));
+                        render();
+                    } else await refresh();
                 } catch (err) {
                     alert(err.message);
                 }
@@ -756,9 +795,12 @@
             const file = e.target.files && e.target.files[0];
             if (!file) return;
             try {
-                const count = await importInventoryWorkbook(file);
-                await refresh();
-                alert(`Successfully imported ${count} item(s) to the database.`);
+                const result = await importInventoryWorkbook(file);
+                if (result.queued) render();
+                else await refresh();
+                alert(result.queued
+                    ? `${result.count} inventory change(s) were queued for synchronization.`
+                    : `Successfully imported ${result.count} item(s) to the database.`);
             } catch (err) {
                 alert(err.message || 'Unable to import the Excel file.');
             } finally {

@@ -441,16 +441,152 @@ function notificationEmailQueuePrintingJob(PDO $pdo, int $printJobId): ?int
     return (int)$queued['delivery_id'];
 }
 
-function notificationEmailDispatchPrintingJobsImmediately(
+function notificationEmailQueueLockerEvent(
     PDO $pdo,
-    array $printJobIds,
+    int $rentalId,
+    string $eventType,
+    string $messageOverride = ''
+): ?int {
+    if ($rentalId <= 0) return null;
+    $stmt = $pdo->prepare(
+        "SELECT r.rental_id,
+                r.org_id,
+                r.renter_user_id AS user_id,
+                r.rent_time,
+                r.expected_return_time,
+                r.actual_return_time,
+                r.total_cost,
+                r.payment_status,
+                r.paid_at,
+                r.status,
+                r.locker_period_type,
+                r.created_at,
+                r.updated_at,
+                r.locker_notice_sent_at,
+                r.locker_notice_message,
+                r.locker_upcoming_notice_sent_at,
+                r.locker_upcoming_notice_message,
+                COALESCE(o.org_code, o.org_name, 'Organization') AS organization,
+                CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+                u.email,
+                COALESCE(GROUP_CONCAT(i.item_name ORDER BY i.item_name SEPARATOR ', '), 'Locker') AS items_label
+         FROM rentals r
+         JOIN organizations o ON o.org_id = r.org_id
+         JOIN users u ON u.user_id = r.renter_user_id
+         LEFT JOIN rental_items ri ON ri.rental_id = r.rental_id
+         LEFT JOIN inventory_items i ON i.item_id = ri.item_id
+         WHERE r.rental_id = :rental_id
+           AND r.service_kind = 'locker'
+           AND u.account_type = 'student'
+           AND u.is_active = 1
+           AND u.email IS NOT NULL
+           AND u.email <> ''
+         GROUP BY r.rental_id
+         LIMIT 1"
+    );
+    $stmt->execute([':rental_id' => $rentalId]);
+    $row = $stmt->fetch();
+    if (!$row || empty(notificationEmailGetPreferences($pdo, (int)$row['user_id'])['locker_enabled'])) {
+        return null;
+    }
+
+    $event = strtolower(trim($eventType));
+    $locker = trim((string)$row['items_label']) ?: 'Your locker';
+    $organization = (string)$row['organization'];
+    $orgId = (int)$row['org_id'];
+    $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Manila'));
+    $dueAt = studentNotificationDate($row['expected_return_time'] ?? null);
+    $paymentStatus = strtolower(trim((string)($row['payment_status'] ?? 'unpaid'))) === 'paid' ? 'paid' : 'unpaid';
+    $amount = '₱' . number_format((float)($row['total_cost'] ?? 0), 2);
+    $customMessage = trim($messageOverride);
+    $noticeFingerprint = substr(hash('sha256', implode('|', [
+        $event,
+        $customMessage,
+        (string)($row['locker_upcoming_notice_sent_at'] ?? ''),
+        (string)($row['locker_notice_sent_at'] ?? ''),
+    ])), 0, 16);
+
+    $notification = match ($event) {
+        'pending' => studentNotificationItem(
+            "locker:{$rentalId}:pending", 'locker', $rentalId, 'pending', 'info',
+            'Locker request received',
+            "Your request for {$locker} was received and is waiting for SSC officer approval.",
+            $organization, $now, $dueAt, true, $orgId
+        ),
+        'approved', 'assigned' => studentNotificationItem(
+            "locker:{$rentalId}:active_{$paymentStatus}", 'locker', $rentalId, 'active',
+            $paymentStatus === 'paid' ? 'info' : 'warning',
+            'Locker rental confirmed',
+            studentNotificationAppendPayment(
+                "{$locker} has been assigned to you until " . studentNotificationFormatDate($dueAt) . ". The rental amount is {$amount}.",
+                $paymentStatus
+            ),
+            $organization, $now, $dueAt, true, $orgId
+        ),
+        'rejected' => studentNotificationItem(
+            "locker:{$rentalId}:rejected", 'locker', $rentalId, 'rejected', 'warning',
+            'Locker request not approved',
+            $customMessage !== '' ? $customMessage : "Your request for {$locker} was not approved. Contact SSC if you need more information.",
+            $organization, $now, $dueAt, false, $orgId
+        ),
+        'upcoming_notice' => studentNotificationItem(
+            "locker:{$rentalId}:notice_upcoming_{$noticeFingerprint}", 'locker', $rentalId, 'upcoming', 'warning',
+            'Locker rental ending soon',
+            $customMessage !== '' ? $customMessage : (trim((string)($row['locker_upcoming_notice_message'] ?? '')) ?: "{$locker} is approaching its rental end date."),
+            $organization, $now, $dueAt, true, $orgId
+        ),
+        'overdue_notice' => studentNotificationItem(
+            "locker:{$rentalId}:notice_overdue_{$noticeFingerprint}", 'locker', $rentalId, 'overdue', 'danger',
+            'Locker rental requires attention',
+            $customMessage !== '' ? $customMessage : (trim((string)($row['locker_notice_message'] ?? '')) ?: "{$locker} is overdue. Coordinate with SSC immediately."),
+            $organization, $now, $dueAt, true, $orgId
+        ),
+        'released' => studentNotificationItem(
+            "locker:{$rentalId}:released_{$paymentStatus}", 'locker', $rentalId, 'released',
+            $paymentStatus === 'paid' ? 'success' : 'warning',
+            'Locker rental released',
+            studentNotificationAppendPayment(
+                $customMessage !== '' ? $customMessage : "{$locker} has been released. If belongings remain inside, contact the SSC office.",
+                $paymentStatus
+            ),
+            $organization, $now, $dueAt, false, $orgId
+        ),
+        'paid' => studentNotificationItem(
+            "locker:{$rentalId}:active_paid", 'locker', $rentalId, 'active', 'info',
+            'Locker payment recorded',
+            "Your payment of {$amount} for {$locker} has been recorded.",
+            $organization, $now, $dueAt, true, $orgId
+        ),
+        default => null,
+    };
+    if (!$notification || !notificationEmailIsEligible($notification)) return null;
+
+    notificationEmailInsertCandidate($pdo, $row, $notification);
+    $delivery = $pdo->prepare(
+        "SELECT delivery_id, delivery_status
+         FROM notification_email_deliveries
+         WHERE user_id = :user_id
+           AND notification_id = :notification_id
+         LIMIT 1"
+    );
+    $delivery->execute([
+        ':user_id' => (int)$row['user_id'],
+        ':notification_id' => (string)$notification['id'],
+    ]);
+    $queued = $delivery->fetch();
+    if (!$queued || !in_array($queued['delivery_status'], ['pending', 'retrying'], true)) return null;
+    return (int)$queued['delivery_id'];
+}
+
+function notificationEmailDispatchDeliveryIdsImmediately(
+    PDO $pdo,
+    array $deliveryIds,
     ?callable $sender = null
 ): array {
-    $deliveryIds = [];
-    foreach (array_values(array_unique(array_map('intval', $printJobIds))) as $printJobId) {
-        $deliveryId = notificationEmailQueuePrintingJob($pdo, $printJobId);
-        if ($deliveryId) $deliveryIds[] = $deliveryId;
-    }
+    $deliveryIds = array_values(array_filter(
+        array_unique(array_map('intval', $deliveryIds)),
+        static fn(int $id): bool => $id > 0
+    ));
     if (!$deliveryIds) return ['queued' => 0, 'processed' => 0, 'sent' => 0];
 
     $lockStmt = $pdo->prepare('SELECT GET_LOCK(:lock_name, 0)');
@@ -467,6 +603,33 @@ function notificationEmailDispatchPrintingJobsImmediately(
         $release = $pdo->prepare('SELECT RELEASE_LOCK(:lock_name)');
         $release->execute([':lock_name' => NOTIFICATION_EMAIL_LOCK_NAME]);
     }
+}
+
+function notificationEmailDispatchLockerEventBestEffort(
+    PDO $pdo,
+    int $rentalId,
+    string $eventType,
+    string $messageOverride = ''
+): void {
+    try {
+        $deliveryId = notificationEmailQueueLockerEvent($pdo, $rentalId, $eventType, $messageOverride);
+        if ($deliveryId) notificationEmailDispatchDeliveryIdsImmediately($pdo, [$deliveryId]);
+    } catch (Throwable $e) {
+        error_log('[locker-email-immediate] ' . $e->getMessage());
+    }
+}
+
+function notificationEmailDispatchPrintingJobsImmediately(
+    PDO $pdo,
+    array $printJobIds,
+    ?callable $sender = null
+): array {
+    $deliveryIds = [];
+    foreach (array_values(array_unique(array_map('intval', $printJobIds))) as $printJobId) {
+        $deliveryId = notificationEmailQueuePrintingJob($pdo, $printJobId);
+        if ($deliveryId) $deliveryIds[] = $deliveryId;
+    }
+    return notificationEmailDispatchDeliveryIdsImmediately($pdo, $deliveryIds, $sender);
 }
 
 function notificationEmailDispatchPrintingJobsBestEffort(PDO $pdo, array $printJobIds): void

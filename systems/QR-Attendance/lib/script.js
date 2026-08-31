@@ -61,8 +61,56 @@ async function loadAttendanceFromApi() {
     const payload = await qrAttendanceApiRequest('/attendance/list.php', { method: 'GET' });
     const normalized = normalizeAttendanceFromApi(payload.items || []);
     attendanceRecords = normalized;
-    localStorage.setItem('attendanceRecords', JSON.stringify(normalized));
+    await mergeQueuedAttendanceRecords();
     return normalized;
+}
+
+async function mergeQueuedAttendanceRecords() {
+    attendanceRecords = attendanceRecords.filter(record => !record.pendingSync);
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations(['attendance.checkin', 'attendance.checkout']);
+    queued.forEach(operation => {
+        const payload = operation.payload || {};
+        const captured = new Date(payload.captured_at || operation.createdAt);
+        const date = Number.isNaN(captured.getTime()) ? '' : captured.toLocaleDateString();
+        const time = Number.isNaN(captured.getTime()) ? '' : captured.toLocaleTimeString();
+        const studentId = String(payload.student_number || payload.student_id || '').trim();
+        const event = String(payload.event_name || getCurrentEvent() || '').trim();
+        const existing = attendanceRecords.find(record =>
+            (Number(payload.record_id || 0) > 0 && Number(record.recordId || 0) === Number(payload.record_id))
+            || (studentId && record.studentId === studentId && (!event || record.event === event))
+        );
+        if (operation.type === 'attendance.checkout' && existing) {
+            existing.timeOut = time;
+            existing.lastUpdateMs = captured.getTime() || Date.now();
+            existing.pendingSync = true;
+            existing.offlineStatus = operation.status;
+            existing.offlineOperationId = operation.operationId;
+            existing.offlineAction = 'Check-out queued';
+            return;
+        }
+        if (operation.type !== 'attendance.checkin') return;
+        const record = existing || {
+            recordId: 0,
+            eventId: Number(payload.event_id || 0),
+            studentId,
+            studentName: String(payload.student_name || '').trim(),
+            section: String(payload.section || '').trim(),
+            event,
+            date,
+            timeIn: time,
+            timeOut: '',
+            status: 'present',
+            isRegistered: false,
+            checkInMs: captured.getTime() || Date.now(),
+            createdAt: operation.createdAt
+        };
+        record.pendingSync = true;
+        record.offlineStatus = operation.status;
+        record.offlineOperationId = operation.operationId;
+        record.offlineAction = 'Check-in queued';
+        if (!existing) attendanceRecords.push(record);
+    });
 }
 
 async function loadStudentsFromApi() {
@@ -92,8 +140,6 @@ async function loadStudentsFromApi() {
                 .filter((row) => row.studentId !== '');
 
             if (normalized.length > 0) {
-                // Keep the legacy cache updated for compatibility.
-                localStorage.setItem('barcodeStudents', JSON.stringify(normalized));
                 return normalized;
             }
         } catch (error) {
@@ -125,18 +171,49 @@ async function initializeLocalData() {
     try {
         await loadAttendanceFromApi();
     } catch (_error) {
-        attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+        attendanceRecords = [];
+        await mergeQueuedAttendanceRecords();
     }
     const apiStudents = await loadStudentsFromApi();
     if (Array.isArray(apiStudents)) {
         students = apiStudents;
     } else {
-        students = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
+        students = [];
     }
     if (Array.isArray(students)) {
         console.info('[QR] students loaded:', students.length);
     }
 }
+
+async function updateQueuedCurrentEventDisplay() {
+    const display = document.getElementById('currentEventDisplay');
+    if (!display) return;
+    display.classList.remove('naap-optimistic-record');
+    display.removeAttribute('data-offline-status');
+    display.querySelector('.naap-current-event-queued-badge')?.remove();
+    const currentEvent = getCurrentEvent();
+    if (!currentEvent || !window.NAAPOffline?.listQueuedOperations) return;
+    const queuedEvents = await window.NAAPOffline.listQueuedOperations('event.create');
+    const normalizedCurrent = currentEvent.trim().toLocaleLowerCase();
+    const queuedEvent = queuedEvents.find((operation) =>
+        String(operation.payload?.event_name || '').trim().toLocaleLowerCase() === normalizedCurrent
+    );
+    if (!queuedEvent) return;
+    const offlineStatus = queuedEvent.status === 'attention' ? 'attention' : 'queued';
+    display.classList.add('naap-optimistic-record');
+    display.dataset.offlineStatus = offlineStatus;
+    const badge = document.createElement('span');
+    badge.className = 'naap-optimistic-badge naap-current-event-queued-badge';
+    badge.dataset.offlineStatus = offlineStatus;
+    badge.textContent = offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline';
+    display.appendChild(badge);
+}
+
+window.addEventListener('naap:offline-queue-changed', async () => {
+    await mergeQueuedAttendanceRecords().catch(() => {});
+    await updateQueuedCurrentEventDisplay().catch(() => {});
+    updateAttendanceTable();
+});
 
 function findStudentByScanValue(scannedValue) {
     const normalizedScan = String(scannedValue || '').trim().toLowerCase();
@@ -191,7 +268,6 @@ window.addEventListener('offlineStatusChanged', function (event) {
 // Initialize current event display
 document.addEventListener('DOMContentLoaded', async function () {
     await initializeLocalData();
-    attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
 
     localStorage.removeItem('currentEvent');
     const currentEvent = getCurrentEvent();
@@ -200,6 +276,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     } else {
         document.getElementById('eventNameDisplay').textContent = 'No Event Selected';
     }
+    await updateQueuedCurrentEventDisplay().catch(() => {});
 
     // Update offline status indicator
     updateOfflineStatus();
@@ -657,13 +734,20 @@ function updateAttendanceTable() {
     sortedRecords.forEach((record, idx) => {
         const key = `${record.studentId}-${record.section}-${record.event}-${record.date}`;
         const row = document.createElement('tr');
+        if (record.pendingSync) {
+            row.classList.add('naap-optimistic-record');
+            row.dataset.offlineStatus = record.offlineStatus === 'attention' ? 'attention' : 'queued';
+            row.dataset.offlineOperationId = record.offlineOperationId || '';
+        }
         if (record.isRegistered) {
             row.classList.add('table-primary');
         } else if (recentTimedOutKey && key === recentTimedOutKey) {
             row.style.backgroundColor = '#fff3cd'; // Bootstrap warning highlight
         }
         const disableCheckout = !!record.timeOut || record.isRegistered;
-        const actionMarkup = record.isRegistered
+        const actionMarkup = record.pendingSync
+            ? `<span class="naap-optimistic-badge" data-offline-status="${record.offlineStatus === 'attention' ? 'attention' : 'queued'}">${record.offlineStatus === 'attention' ? 'Needs attention' : (record.offlineAction || 'Queued offline')}</span>`
+            : record.isRegistered
             ? '<span class="badge bg-primary">Registered</span>'
             : `<button type="button" class="btn btn-danger btn-sm py-0 px-2 text-nowrap attendance-checkout-btn"
                     data-student-id="${record.studentId}"
@@ -812,27 +896,47 @@ async function markAttendance(student) {
 
     // First scan: check-in, second scan: check-out
     try {
-        const checkinResult = await qrAttendanceApiRequest('/attendance/checkin.php', {
-            method: 'POST',
-            body: JSON.stringify({
-                event_name: currentEvent,
-                student_number: student.studentId || '',
-                student_name: student.studentName || '',
-                section: student.section || ''
-            })
-        });
-
-        if (checkinResult.already_checked_in && !checkinResult.already_checked_out) {
+        const pendingCheckIn = attendanceRecords.find(record =>
+            record.pendingSync
+            && !record.timeOut
+            && record.studentId === student.studentId
+            && record.section === student.section
+            && record.event === currentEvent
+        );
+        if (!navigator.onLine && pendingCheckIn) {
             await qrAttendanceApiRequest('/attendance/checkout.php', {
                 method: 'POST',
                 body: JSON.stringify({
-                    record_id: Number(checkinResult.record_id || 0),
                     event_name: currentEvent,
-                    student_number: student.studentId || ''
+                    student_number: student.studentId || '',
+                    date: new Date().toISOString().slice(0, 10)
                 })
             });
+            await mergeQueuedAttendanceRecords();
+        } else {
+            const checkinResult = await qrAttendanceApiRequest('/attendance/checkin.php', {
+                method: 'POST',
+                body: JSON.stringify({
+                    event_name: currentEvent,
+                    student_number: student.studentId || '',
+                    student_name: student.studentName || '',
+                    section: student.section || ''
+                })
+            });
+
+            if (checkinResult.already_checked_in && !checkinResult.already_checked_out) {
+                await qrAttendanceApiRequest('/attendance/checkout.php', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        record_id: Number(checkinResult.record_id || 0),
+                        event_name: currentEvent,
+                        student_number: student.studentId || ''
+                    })
+                });
+            }
+            if (checkinResult.queued) await mergeQueuedAttendanceRecords();
+            else await loadAttendanceFromApi();
         }
-        await loadAttendanceFromApi();
     } catch (_error) {
         // Fallback behavior (cache-only) if API unavailable
         const today = new Date().toLocaleDateString();
@@ -858,7 +962,6 @@ async function markAttendance(student) {
                 updatedAt: new Date()
             };
             attendanceRecords.push(record);
-            localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
         } else if (!existing.timeOut && nowMs - (existing.checkInMs || 0) >= 5000) {
             await updateStudentTimeOut(student.studentId, student.section, currentEvent, today, 'auto');
         }

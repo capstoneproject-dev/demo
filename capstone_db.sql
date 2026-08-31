@@ -120,7 +120,9 @@ CREATE TABLE `attendance_records` (
   `student_name` varchar(200) DEFAULT NULL,
   `section` varchar(30) DEFAULT NULL,
   `time_in` datetime DEFAULT NULL,
+  `check_in_received_at` datetime DEFAULT NULL,
   `time_out` datetime DEFAULT NULL,
+  `check_out_received_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ;
@@ -142,6 +144,30 @@ CREATE TRIGGER `trg_attendance_records_updated_at` BEFORE UPDATE ON `attendance_
 END
 $$
 DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `offline_operations`
+--
+
+CREATE TABLE `offline_operations` (
+  `offline_operation_pk` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `operation_id` char(36) NOT NULL,
+  `operation_type` varchar(80) NOT NULL,
+  `payload_hash` char(64) NOT NULL,
+  `status` enum('processing','completed','rejected') NOT NULL DEFAULT 'processing',
+  `http_status` smallint unsigned DEFAULT NULL,
+  `result_json` longtext DEFAULT NULL,
+  `client_created_at` datetime NOT NULL,
+  `received_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `completed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`offline_operation_pk`),
+  UNIQUE KEY `uq_offline_user_operation` (`user_id`,`operation_id`),
+  KEY `idx_offline_status_received` (`status`,`received_at`),
+  KEY `idx_offline_user_created` (`user_id`,`client_created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 

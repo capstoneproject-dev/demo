@@ -10,13 +10,16 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="../../manifest.webmanifest">
     <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
+    <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
+    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generate Barcode - QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css">
 </head>
 

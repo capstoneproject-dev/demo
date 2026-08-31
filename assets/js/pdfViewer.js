@@ -6,7 +6,7 @@
 
 // Initialize PDF.js worker
 if (typeof pdfjsLib !== 'undefined') {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '../assets/vendor/pdf.worker.min.js';
 }
 
 // ============================================
@@ -1315,9 +1315,52 @@ const PDFViewer = {
                 this.annotations = [];
             }
         }
+        await this.mergeQueuedAnnotations();
         await this.waitForMinimumAnnotationLoadingTime();
         this.renderAllAnnotations();
         this.renderAnnotationsSidebar();
+    },
+
+    async mergeQueuedAnnotations() {
+        if (!this.currentSubmissionId || !window.NAAPOffline?.listQueuedOperations) return;
+        const queued = await window.NAAPOffline.listQueuedOperations([
+            'document.annotation.create', 'document.annotation.delete'
+        ]).catch(() => []);
+        const deletedIds = new Set(
+            queued
+                .filter(operation => operation.type === 'document.annotation.delete')
+                .map(operation => Number(operation.payload?.annotation_id || 0))
+                .filter(Boolean)
+        );
+        this.annotations = this.annotations.filter(annotation => !deletedIds.has(Number(annotation.dbId || 0)));
+
+        let session = {};
+        try { session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}'); } catch (_error) {}
+        const queuedCreates = queued
+            .filter(operation => operation.type === 'document.annotation.create')
+            .filter(operation => Number(operation.payload?.submission_id || 0) === Number(this.currentSubmissionId));
+        const existingOperationIds = new Set(this.annotations.map(annotation => annotation.offlineOperationId).filter(Boolean));
+        queuedCreates.forEach(operation => {
+            if (existingOperationIds.has(operation.operationId)) return;
+            const payload = operation.payload || {};
+            const rects = Array.isArray(payload.rects) ? payload.rects : [];
+            this.annotations.push({
+                id: `offline_${operation.operationId}`,
+                dbId: null,
+                submissionId: Number(payload.submission_id || 0),
+                page: Number(payload.page || 0),
+                text: String(payload.text || ''),
+                rects,
+                color: this.normalizeHighlightColor(rects?.[0]?.color),
+                comment: String(payload.comment || ''),
+                createdAt: operation.createdAt,
+                createdByUserId: Number(session.user_id || 0),
+                createdByName: session.display_name || [session.first_name, session.last_name].filter(Boolean).join(' ') || 'You',
+                pendingSync: true,
+                offlineStatus: operation.status,
+                offlineOperationId: operation.operationId,
+            });
+        });
     },
 
     showAnnotationsLoading() {
@@ -1365,16 +1408,24 @@ const PDFViewer = {
             const item = data.item || {};
             let rects = [];
             try { rects = JSON.parse(item.rects_json || '[]'); } catch (_e) {}
+            const isQueued = Boolean(data.queued || item.pending_sync);
+            let session = {};
+            try { session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}'); } catch (_error) {}
             annotation = {
-                id: `ann_${item.annotation_id}`,
-                dbId: item.annotation_id,
+                id: isQueued ? `offline_${data.operation_id || item.offline_operation_id}` : `ann_${item.annotation_id}`,
+                dbId: isQueued ? null : item.annotation_id,
                 submissionId: item.submission_id,
                 page: item.page_number,
                 text: item.selected_text || '',
                 rects: Array.isArray(rects) ? rects : [],
                 color: this.normalizeHighlightColor(rects?.[0]?.color || color),
                 comment: item.comment_text || '',
-                createdAt: item.created_at
+                createdAt: item.created_at,
+                createdByUserId: Number(session.user_id || 0),
+                createdByName: session.display_name || [session.first_name, session.last_name].filter(Boolean).join(' ') || 'You',
+                pendingSync: isQueued,
+                offlineStatus: isQueued ? 'pending' : '',
+                offlineOperationId: isQueued ? (data.operation_id || item.offline_operation_id) : '',
             };
             this.annotations.push(annotation);
         } else {
@@ -1405,7 +1456,12 @@ const PDFViewer = {
         const annotation = this.annotations.find(a => a.id === annotationId);
         if (!annotation) return;
 
-        if (this.currentSubmissionId && annotation.dbId) {
+        if (annotation.pendingSync && annotation.offlineOperationId) {
+            if (!window.NAAPOffline?.discardQueuedOperation) {
+                throw new Error('This queued annotation cannot be removed until offline storage is ready.');
+            }
+            await window.NAAPOffline.discardQueuedOperation(annotation.offlineOperationId);
+        } else if (this.currentSubmissionId && annotation.dbId) {
             const res = await fetch('../api/documents/annotations/delete.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1545,7 +1601,7 @@ const PDFViewer = {
         });
 
         list.innerHTML = annotations.map(ann => `
-            <div class="pdf-annotation-item ${ann.comment ? 'comment-type' : 'highlight-type'}" 
+            <div class="pdf-annotation-item ${ann.comment ? 'comment-type' : 'highlight-type'}${ann.pendingSync ? ' pending-sync' : ''}"
                  data-annotation-id="${ann.id}"
                  style="${ann.comment ? '' : `--pdf-annotation-color: ${this.getAnnotationHighlightColor(ann)};`}"
                  onclick="PDFViewer.scrollToAnnotation('${ann.id}')">
@@ -1553,6 +1609,7 @@ const PDFViewer = {
                     <div class="pdf-annotation-item-meta">
                         <i class="fa-solid ${ann.comment ? 'fa-comment' : 'fa-highlighter'}"></i>
                         <span>Page ${ann.page}</span>
+                        ${ann.pendingSync ? '<span class="pdf-annotation-queued-badge">Queued offline</span>' : ''}
                     </div>
                     ${this.canShowAnnotationDelete(ann) ? `<button class="pdf-annotation-delete" data-readonly-allow
                             onclick="event.stopPropagation(); PDFViewer.deleteAnnotation('${ann.id}').catch(function(e){console.error(e);})"

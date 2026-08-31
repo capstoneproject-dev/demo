@@ -10,14 +10,148 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <html lang="en">
 
 <head>
+    <link rel="manifest" href="../../manifest.webmanifest">
     <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
+    <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
+    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rental History</title>
     <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css?v=20260819-paid-button-2">
+    <style>
+        #rentalHistoryRecords tr.naap-queued-rental > td {
+            background: #fff8e6;
+            border-top: 2px solid #f59e0b;
+            border-bottom: 2px solid #f59e0b;
+        }
+
+        #rentalHistoryRecords tr.naap-queued-rental > td:first-child {
+            border-left: 4px solid #f59e0b;
+        }
+
+        #rentalHistoryRecords tr.naap-queued-rental > td:last-child {
+            border-right: 2px solid #f59e0b;
+        }
+
+        #rentalHistoryRecords tr.naap-queued-rental[data-offline-status="attention"] > td {
+            background: #fff1f1;
+            border-color: #dc3545;
+        }
+
+        .rental-history-page {
+            width: 100%;
+            max-width: none;
+            padding-inline: clamp(.75rem, 2vw, 2rem);
+        }
+
+        .rental-history-card {
+            width: 100%;
+            max-width: none;
+            container-type: inline-size;
+        }
+
+        .rental-history-card .card-body {
+            padding: clamp(.75rem, 1.25vw, 1.25rem);
+        }
+
+        .rental-history-card .table {
+            width: 100%;
+            margin-bottom: 0;
+            font-size: clamp(.72rem, .72vw, .88rem);
+        }
+
+        .rental-history-card .table > :not(caption) > * > * {
+            padding: .45rem .35rem;
+            vertical-align: middle;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        .rental-history-card .table th {
+            line-height: 1.2;
+            font-size: clamp(.62rem, .68vw, .82rem);
+            white-space: normal;
+            overflow-wrap: normal;
+            word-break: normal;
+            hyphens: none;
+            text-wrap: balance;
+        }
+
+        .rental-history-card .table td:nth-child(2),
+        .rental-history-card .table td:nth-child(3) {
+            min-width: 7rem;
+        }
+
+        .rental-history-card .table .btn {
+            padding: .3rem .45rem;
+            font-size: inherit;
+            white-space: nowrap;
+        }
+
+        .rental-column-menu {
+            width: min(22rem, calc(100vw - 2rem));
+            max-height: min(70vh, 32rem);
+            overflow-y: auto;
+            padding: .75rem;
+        }
+
+        .rental-column-options {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .35rem .75rem;
+        }
+
+        .rental-column-option {
+            display: flex;
+            align-items: flex-start;
+            gap: .45rem;
+            min-width: 0;
+            font-size: .82rem;
+            line-height: 1.25;
+            cursor: pointer;
+        }
+
+        .rental-column-option input {
+            flex: 0 0 auto;
+            margin-top: .12rem;
+        }
+
+        .rental-history-card .card-body > .mb-3 > h5 {
+            margin-bottom: 0;
+        }
+
+        @container (max-width: 1400px) {
+            .rental-history-card .table th {
+                font-size: .68rem;
+                padding-inline: .25rem;
+            }
+        }
+
+        @container (max-width: 1150px) {
+            .rental-history-card .table th {
+                font-size: .6rem;
+                padding-inline: .18rem;
+                letter-spacing: -.01em;
+            }
+        }
+
+        @media (max-width: 991.98px) {
+            .rental-history-card .table {
+                min-width: 1120px;
+            }
+
+            .rental-history-card .table th {
+                font-size: .65rem;
+            }
+
+            .rental-column-options {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 
 <body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
@@ -85,7 +219,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             </div>
         </div>
     </nav>
-    <div class="container main-content">
+    <div class="container-fluid main-content rental-history-page">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="mb-0">Rental History</h1>
             <div>
@@ -96,7 +230,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 <input type="file" id="importExcel" accept=".xlsx" class="form-control form-control-sm" hidden />
             </div>
         </div>
-        <div class="card">
+        <div class="card rental-history-card">
             <div class="card-header">
                 <div class="d-flex align-items-center flex-wrap gap-2">
                     <div class="d-flex align-items-center">
@@ -110,16 +244,30 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 </div>
             </div>
             <div class="card-body">
-                <div class="mb-3">
+                <div class="mb-3 d-flex align-items-center flex-wrap gap-2">
                     <h5>Total Profit: <span id="totalProfit">₱0</span></h5>
                     <button id="payAllBtn" class="btn btn-warning btn-sm ms-3" style="display:none;">Mark All as
                         Paid</button>
+                    <div class="dropdown ms-auto">
+                        <button id="rentalColumnsButton" class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                            type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <i class="fa-solid fa-filter me-1" aria-hidden="true"></i>
+                            <span id="rentalColumnsButtonLabel">Columns</span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end rental-column-menu" aria-labelledby="rentalColumnsButton">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong class="small">Visible columns</strong>
+                                <button id="showAllRentalColumns" class="btn btn-link btn-sm p-0" type="button">Show all</button>
+                            </div>
+                            <div id="rentalColumnOptions" class="rental-column-options"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Item ID</th>
+                                <th>Order No.</th>
                                 <th>Name</th>
                                 <th>Rented By</th>
                                 <th>Section</th>
@@ -134,7 +282,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                                 <th>Price</th>
                                 <th>Payment Status</th>
                                 <th>Action</th>
-                                <th>Delete</th> <!-- New column for delete button -->
                             </tr>
                         </thead>
                         <tbody id="rentalHistoryRecords">
@@ -143,6 +290,33 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 </div>
                 <div class="text-end mt-2">
                     <small>Total Unpaid: <span id="totalUnpaid">₱0</span></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Return Confirmation Modal -->
+    <div class="modal fade" id="returnRentalModal" tabindex="-1" aria-labelledby="returnRentalModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="returnRentalModalLabel">Confirm Return</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="returnRentalSummary" class="mb-3"></p>
+                    <label for="returnOfficerBarcode" class="form-label">Scan Officer Barcode</label>
+                    <input type="text" class="form-control" id="returnOfficerBarcode"
+                        placeholder="Scan officer barcode here..." autocomplete="off">
+                    <div id="returnOfficerFeedback" class="form-text">
+                        A valid active officer for this organization must verify the return.
+                    </div>
+                    <div id="returnRentalError" class="text-danger mt-2" role="alert" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="returnRentalConfirmBtn" disabled>Return Item</button>
                 </div>
             </div>
         </div>
@@ -175,29 +349,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-success" id="paymentConfirmBtn" disabled>Mark as Paid</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Delete</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Type <strong>Delete</strong> to confirm clearing all rental history. This cannot be undone.</p>
-                    <input type="text" class="form-control" id="deleteConfirmInput"
-                        placeholder="Type 'Delete' to confirm">
-                    <div id="deleteConfirmError" class="text-danger mt-2" style="display:none;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="deleteConfirmBtn">Delete</button>
                 </div>
             </div>
         </div>
@@ -272,28 +423,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         </div>
     </div>
 
-    <!-- Individual Delete Confirmation Modal -->
-    <div class="modal fade" id="deleteRecordModal" tabindex="-1" aria-labelledby="deleteRecordModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteRecordModalLabel">Confirm Delete Record</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Type <strong>Delete</strong> to confirm deleting this rental record. This cannot be undone.</p>
-                    <input type="text" class="form-control" id="deleteRecordConfirmInput"
-                        placeholder="Type 'Delete' to confirm">
-                    <div id="deleteRecordConfirmError" class="text-danger mt-2" style="display:none;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="deleteRecordConfirmBtn">Delete</button>
-                </div>
-            </div>
-        </div>
-    </div>
     <!-- Officer Verification Modal (copied from welcome.html for security) -->
     <div class="modal fade" id="officerVerifyModal" tabindex="-1" aria-labelledby="officerVerifyModalLabel"
         aria-hidden="true">
@@ -329,7 +458,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <audio id="beepSound" src="../../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
     <script src="../../assets/js/igp-api.js?v=20260819-payment-officer-1"></script>
-    <script src="../../assets/js/igp-rental-history-exact.js?v=20260819-payment-order-1"></script>
+    <script src="../../assets/js/igp-rental-history-exact.js?v=20260830-order-number-2"></script>
     <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

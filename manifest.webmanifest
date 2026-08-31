@@ -1,0 +1,12 @@
+{
+  "name": "NAAP Organization Management System",
+  "short_name": "NAAP",
+  "start_url": "pages/login.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071a33",
+  "theme_color": "#071a33",
+  "icons": [
+    { "src": "assets/photos/LoginPage/philsca%20%20logo.png", "sizes": "any", "type": "image/png", "purpose": "any" }
+  ]
+}
