@@ -1026,7 +1026,10 @@ function reviewDocument(submissionId, decision) {
 }
 
 window.addEventListener('naap:offline-queue-changed', async () => {
-    await mergeQueuedOsaDocumentChanges().catch(() => {});
+    await Promise.all([
+        mergeQueuedOsaDocumentChanges(),
+        loadRequestsFromApi(),
+    ]).catch(() => {});
     renderDocs(currentDocFilter);
     renderRecentDocs();
 });
@@ -1873,6 +1876,33 @@ function buildRequestSenderLabel(item) {
     return fullName || 'Unknown Sender';
 }
 
+async function mergeQueuedOsaRequestChanges() {
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+
+    const queued = await window.NAAPOffline.listQueuedOperations('document.review');
+    queued
+        .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+        .forEach((operation) => {
+            const request = requests.find((item) => (
+                Number(item.submissionId || item.id || 0)
+                === Number(operation.payload?.submission_id || 0)
+            ));
+            if (!request) return;
+
+            const decision = String(operation.payload?.decision || '').toLowerCase();
+            if (!['approved', 'rejected'].includes(decision)) return;
+
+            request.pendingSync = true;
+            request.offlineStatus = operation.status;
+            request.offlineOperationId = operation.operationId;
+            request.offlineDecision = decision;
+            request.status = decision === 'rejected' ? 'Rejected' : 'Approved';
+            request.rawStatus = decision;
+            request.reviewerNotes = operation.payload?.notes || '';
+            request.reviewedAt = operation.createdAt;
+        });
+}
+
 async function loadRequestsFromApi() {
     try {
         const response = await fetch(`${DOCUMENTS_API_BASE}/requests-overview.php`, {
@@ -1930,6 +1960,7 @@ async function loadRequestsFromApi() {
             };
         });
 
+        await mergeQueuedOsaRequestChanges();
         loadOsaActivityFeed();
         renderRequests();
     } catch (error) {
@@ -3094,10 +3125,15 @@ function renderRequests() {
             `;
         } else {
             // For completed items, show status badge + view button
+            const queuedState = req.offlineStatus === 'attention' ? 'attention' : 'queued';
+            const queuedBadge = req.pendingSync
+                ? `<span class="naap-optimistic-badge" data-offline-status="${queuedState}">${queuedState === 'attention' ? 'Needs attention' : `${req.offlineDecision === 'rejected' ? 'Rejection' : 'Approval'} queued`}</span>`
+                : '';
             actionButtons = `
                 <div class="req-action-group">
                     ${viewBtn}
                     <span class="status-badge status-${req.status.toLowerCase()}">${req.status}</span>
+                    ${queuedBadge}
                 </div>
             `;
         }
@@ -3110,6 +3146,10 @@ function renderRequests() {
 
         const tr = document.createElement('tr');
         tr.setAttribute('data-submission-id', req.submissionId || req.id);
+        if (req.pendingSync) {
+            tr.classList.add('naap-optimistic-record');
+            tr.dataset.offlineStatus = req.offlineStatus === 'attention' ? 'attention' : 'queued';
+        }
         tr.innerHTML = `
             <td><span class="status-badge status-submitted">${req.type}</span></td>
             <td style="font-weight: 600;">${req.org}</td>
