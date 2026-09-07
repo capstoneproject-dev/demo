@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="../assets/vendor/fontawesome/css/all.min.css">
 
     <!-- STYLESHEET REFERENCE -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260830-print-limit-1">
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260901-responsive-3">
     <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260325-4">
 </head>
 
@@ -255,16 +255,6 @@
         <!-- ANNOUNCEMENTS VIEW -->
         <div id="announcements" class="section-view">
             <div class="student-announcement-feed-page">
-                <div class="student-announcement-feed-header">
-                    <div>
-                        <h2>Announcement Feed</h2>
-                        <p>Updates, notices, and events selected for you.</p>
-                    </div>
-                    <button type="button" class="btn btn-outline" onclick="openStudentAnnouncementCalendar()">
-                        <i class="fa-regular fa-calendar-days"></i> Calendar View
-                    </button>
-                </div>
-
                 <div class="student-announcement-feed-toolbar">
                     <div class="student-announcement-search">
                         <i class="fa-solid fa-magnifying-glass"></i>
@@ -280,6 +270,16 @@
                         <option value="announcement">Announcements</option>
                         <option value="event">Events</option>
                     </select>
+                </div>
+
+                <div class="student-announcement-feed-header">
+                    <div>
+                        <h2>Announcement Feed</h2>
+                        <p>Updates, notices, and events selected for you.</p>
+                    </div>
+                    <button type="button" class="btn btn-outline" onclick="openStudentAnnouncementCalendar()">
+                        <i class="fa-regular fa-calendar-days"></i> Calendar View
+                    </button>
                 </div>
 
                 <div id="student-announcement-feed" class="student-announcement-feed" aria-live="polite">
@@ -586,7 +586,7 @@
                 <h2 class="section-title">Recent Activities</h2>
                 <div class="card">
                     <div class="table-container">
-                        <table>
+                        <table class="rental-history-table">
                             <thead>
                                 <tr>
                                     <th>Date</th>
@@ -1170,7 +1170,7 @@
     <!-- Org-specific data config — must load before studentDashboard.js -->
     <script src="../data/orgData.js?v=20260325-4"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260827-1"></script>
-    <script src="../assets/js/studentDashboard.js?v=20260830-print-limit-3"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260901-rental-cards-1"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">

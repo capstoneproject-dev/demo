@@ -15,14 +15,15 @@
     <link rel="stylesheet" href="../assets/vendor/fontawesome/css/all.min.css">
 
     <!-- CSS Reference -->
-    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260830-offline-docs-1">
+    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260902-osa-logo-1">
+    <link rel="stylesheet" href="../assets/css/responsive-tables.css?v=20260901-2">
 
     <!-- PDF.js Library -->
     <script src="../assets/vendor/pdf.min.js"></script>
     <link rel="stylesheet" href="../assets/vendor/pdf_viewer.min.css">
 
     <!-- PDF Viewer Styles -->
-    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260831-offline-annotations-2">
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260901-mobile-2">
 </head>
 
 <body>
@@ -33,7 +34,9 @@
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="logo-area">
-            <i class="fa-solid fa-building-columns logo-icon"></i>
+            <img class="logo-image"
+                src="../assets/photos/osaDashboard/522666389_1254104313169093_8587373420515693512_n.jpg"
+                alt="OSA logo">
             <span class="logo-text">OSA Dashboard</span>
         </div>
 
@@ -162,12 +165,27 @@
                     <div class="user-profile-box">
                         <img id="osaHeaderAvatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E" alt="OSA staff" class="avatar">
                         <div class="user-info">
-                            <span>Dir. Maria Santos</span>
-                            <small>OSA Head</small>
+                            <span>OSA Staff</span>
+                            <small>Loading account...</small>
                         </div>
                     </div>
                 </a>
             </div>
+            <script>
+                (() => {
+                    try {
+                        const session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}');
+                        if (!session.user_id || (session.login_role !== 'osa' && session.account_type !== 'osa_staff')) return;
+                        const name = document.querySelector('.user-info span');
+                        const role = document.querySelector('.user-info small');
+                        const avatar = document.getElementById('osaHeaderAvatar');
+                        if (name) name.textContent = session.display_name || 'OSA Staff';
+                        if (role) role.textContent = String(session.active_role_name || 'osa_staff').replace(/_/g, ' ').toUpperCase();
+                        if (avatar && session.profile_photo) avatar.src = session.profile_photo;
+                    } catch (_error) {
+                    }
+                })();
+            </script>
         </header>
 
         <!-- DASHBOARD VIEW -->
@@ -272,7 +290,7 @@
                         </div>
                     </div>
                     <div class="table-container">
-                        <table>
+                        <table class="mobile-card-table activity-table">
                             <thead>
                                 <tr>
                                     <th>Organization</th>
@@ -704,29 +722,12 @@
                                 <i class="fa-solid fa-camera"></i>
                             </button>
                         </div>
-                        <h3 class="profile-name">Dir. Maria Santos</h3>
-                        <span class="profile-role">OSA Head Director</span>
+                        <h3 class="profile-name">OSA Staff</h3>
+                        <span class="profile-role">Loading account...</span>
                         <span class="status-badge status-completed" style="margin-top: 12px;">Active Status</span>
                     </div>
 
                     <hr style="border:0; border-top:1px solid var(--border); width:100%; margin: 24px 0;">
-
-                    <div class="profile-stats-row">
-                        <div class="p-stat">
-                            <strong>5</strong>
-                            <span>Years Active</span>
-                        </div>
-                        <div class="profile-divider-vert"></div>
-                        <div class="p-stat">
-                            <strong>124</strong>
-                            <span>Actions Taken</span>
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 24px; width: 100%;">
-                        <label style="margin-bottom: 8px;">Bio / Note</label>
-                        <textarea rows="3" placeholder="Add a note..." readonly>Dedicated to student welfare and organizational excellence.</textarea>
-                    </div>
                 </div>
 
                 <div class="profile-details-stack">
@@ -782,15 +783,15 @@
                         <div class="profile-form-grid">
                             <div class="form-group">
                                 <label>Full Name</label>
-                                <input id="osaProfileFullNameInput" type="text" value="Maria Santos" readonly data-editable="true">
+                                <input id="osaProfileFullNameInput" type="text" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Employee ID</label>
-                                <input id="osaProfileEmployeeNumberInput" type="text" value="OSA-2019-001" readonly>
+                                <input id="osaProfileEmployeeNumberInput" type="text" readonly>
                             </div>
                             <div class="form-group">
                                 <label>Email Address</label>
-                                <input id="osaProfileEmailInput" type="email" value="maria.santos@philsca.edu.ph" readonly data-editable="true">
+                                <input id="osaProfileEmailInput" type="email" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Department</label>
@@ -798,11 +799,11 @@
                             </div>
                             <div class="form-group">
                                 <label>Phone Number</label>
-                                <input id="osaProfilePhoneInput" type="text" value="+63 912 345 6789" readonly data-editable="true">
+                                <input id="osaProfilePhoneInput" type="text" readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Date Joined</label>
-                                <input id="osaProfileDateJoinedInput" type="text" value="August 15, 2019" readonly>
+                                <input id="osaProfileDateJoinedInput" type="text" readonly>
                             </div>
                         </div>
                     </div>
@@ -1189,8 +1190,9 @@
 
     <!-- JS References -->
     <script src="../data/orgData.js"></script>
-    <script src="../assets/js/osaDashboard.js?v=20260901-offline-requests-1"></script>
-    <script src="../assets/js/pdfViewer.js?v=20260831-offline-annotations-2"></script>
+    <script src="../assets/js/responsive-tables.js?v=20260901-2"></script>
+    <script src="../assets/js/osaDashboard.app.js?v=20260901-doc-cards-1"></script>
+    <script src="../assets/js/pdfViewer.js?v=20260901-mobile-fit-1"></script>
 </body>
 
 </html>

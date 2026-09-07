@@ -3,18 +3,18 @@
 const APP_BASE = self.location.pathname.replace(/\/sw\.js$/, '');
 const appPath = (path) => `${APP_BASE}${path}`;
 
-const STATIC_CACHE = 'naap-static-v33';
-const RUNTIME_CACHE = 'naap-runtime-v33';
+const STATIC_CACHE = 'naap-static-v39';
+const RUNTIME_CACHE = 'naap-runtime-v39';
 const ASSET_REVALIDATE_MS = 5 * 60 * 1000;
 const assetLastChecked = new Map();
 const OFFLINE_PAGE = appPath('/offline.html');
 const PRECACHE = [
     '/', '/index.html', '/offline.html', '/manifest.webmanifest',
     '/pages/login.html', '/pages/studentDashboard.html', '/pages/officerDashboard.html', '/pages/osaDashboard.html',
-    '/assets/js/app-dialog.js', '/assets/js/offline-store.js', '/assets/js/offline-client.js',
-    '/assets/js/login.js', '/assets/js/studentDashboard.js', '/assets/js/officerDashboard.js', '/assets/js/osaDashboard.js',
+    '/assets/js/app-dialog.js', '/assets/js/offline-store.js', '/assets/js/offline-client.js', '/assets/js/responsive-tables.js',
+    '/assets/js/login.js', '/assets/js/studentDashboard.js', '/assets/js/officerDashboard.js', '/assets/js/osaDashboard.app.js',
     '/assets/css/login.css', '/assets/css/studentDashboard.css', '/assets/css/officerDashboard.css', '/assets/css/osaDashboard.css',
-    '/assets/css/pdfViewer.css', '/assets/css/organizationColorThemes.css',
+    '/assets/css/pdfViewer.css', '/assets/css/organizationColorThemes.css', '/assets/css/responsive-tables.css',
     '/assets/vendor/chart.umd.min.js', '/assets/vendor/jspdf.umd.min.js', '/assets/vendor/jspdf.plugin.autotable.min.js',
     '/assets/vendor/pdf.min.js', '/assets/vendor/pdf.worker.min.js', '/assets/vendor/pdf_viewer.min.css',
     '/assets/vendor/fontawesome/css/all.min.css', '/assets/vendor/fontawesome/webfonts/fa-solid-900.woff2',
@@ -64,9 +64,9 @@ async function fetchAndCacheAsset(request) {
 }
 
 async function findCachedAsset(request) {
-    // The static cache was rebuilt when this worker installed, so query-string
-    // cache busters can safely reuse that fresh precached response.
-    const staticResponse = await (await caches.open(STATIC_CACHE)).match(request, { ignoreSearch: true });
+    // Match the full request URL so a changed query string cannot be replaced
+    // by an older precached asset during the next application load.
+    const staticResponse = await (await caches.open(STATIC_CACHE)).match(request);
     if (staticResponse) return { response: staticResponse, runtime: false };
     const runtimeResponse = await (await caches.open(RUNTIME_CACHE)).match(request);
     return runtimeResponse ? { response: runtimeResponse, runtime: true } : null;

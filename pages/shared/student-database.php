@@ -41,7 +41,7 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
     <title>Barcode Student Database</title>
     <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
+    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css?v=20260901-responsive-1">
     <style>
         .barcode-img {
             margin: 0 10px 10px 0;

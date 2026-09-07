@@ -20,7 +20,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>Generate Barcode - QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260901-responsive-1">
 </head>
 
 <body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">

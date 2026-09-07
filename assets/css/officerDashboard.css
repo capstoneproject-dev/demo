@@ -909,6 +909,288 @@ table {
     }
 }
 
+/* --- REPOSITORY-WIDE RESPONSIVE SAFETY LAYER --- */
+.main-content,
+.main-content > *,
+.section-view,
+.card,
+.card-header,
+.header-title,
+.header-controls,
+.user-profile,
+.user-profile-box,
+.table-container,
+.split-view-grid,
+.content-row,
+.tracker-layout,
+.tracker-content,
+.docs-layout,
+.repo-main,
+.analytics-toolbar,
+.analytics-grid {
+    min-width: 0;
+}
+
+.main-content iframe,
+.main-content img,
+.main-content video,
+.main-content canvas {
+    max-width: 100%;
+}
+
+.main-content iframe {
+    display: block;
+    width: 100%;
+}
+
+.table-container,
+.audit-table-wrap,
+.financial-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.card-header,
+.header-controls,
+.modal-header,
+.modal-footer,
+.toolbar,
+.analytics-toolbar,
+.repo-filter-bar,
+.date-filters-bar {
+    flex-wrap: wrap;
+}
+
+.card-title,
+.header-title,
+.modal-header h2,
+.modal-header h3,
+.modal-body,
+.user-info,
+td,
+th {
+    overflow-wrap: anywhere;
+}
+
+.modal-overlay {
+    box-sizing: border-box;
+    max-width: 100vw;
+    max-height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.modal-overlay .modal-content:not(.announcement-photo-modal) {
+    width: min(100%, 980px);
+    max-width: 100%;
+    max-height: calc(100dvh - 40px);
+}
+
+.modal-overlay .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+    .analytics-toolbar > *,
+    .financial-filter-toolbar > *,
+    .repo-filter-bar > *,
+    .date-filters-bar > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .analytics-toolbar select,
+    .analytics-toolbar input,
+    .financial-filter-toolbar select,
+    .financial-filter-toolbar input {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        box-sizing: border-box;
+        max-width: 100%;
+        padding: 18px 16px;
+        padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    }
+
+    .main-content > header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .main-content > header > :first-child,
+    .main-content > header .header-title {
+        min-width: 0;
+        flex: 1 1 150px;
+    }
+
+    .main-content > header .header-title h1 {
+        font-size: clamp(1.35rem, 7vw, 1.8rem);
+        line-height: 1.2;
+    }
+
+    .main-content > header .header-controls {
+        flex: 0 1 auto;
+        justify-content: flex-end;
+        gap: 8px;
+        max-width: 100%;
+    }
+
+    .sidebar {
+        box-sizing: border-box;
+        height: calc(70px + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .sidebar .nav-menu {
+        justify-content: flex-start;
+        min-width: 0;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sidebar .nav-menu::-webkit-scrollbar {
+        display: none;
+    }
+
+    .sidebar .nav-item {
+        flex: 1 0 56px;
+        min-width: 56px;
+    }
+
+    .sidebar .nav-link {
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .card-header {
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .stats-grid,
+    .analytics-grid,
+    .repo-folders-grid,
+    .profile-form-grid,
+    .announcement-form-grid,
+    .locker-column-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    }
+
+    .requests-filter-bar,
+    .req-filter-controls,
+    .repo-filter-bar,
+    .repo-search-area,
+    .date-filters-bar,
+    .financial-filter-toolbar,
+    .locker-detail-footer,
+    .locker-detail-secondary-actions,
+    .locker-detail-primary-actions {
+        min-width: 0;
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .req-filter-controls > *,
+    .repo-filter-bar > *,
+    .repo-search-area > *,
+    .date-filters-bar > *,
+    .financial-filter-toolbar > * {
+        min-width: 0 !important;
+        max-width: 100%;
+    }
+
+    .modal-overlay {
+        align-items: center;
+        padding: 12px;
+    }
+
+    .modal-overlay .modal-content:not(.announcement-photo-modal) {
+        max-height: calc(100dvh - 24px) !important;
+        border-radius: 14px;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer,
+    .modal-content.announcement-detail-modal .modal-header,
+    .modal-content.announcement-detail-modal .modal-body {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .modal-footer {
+        align-items: stretch;
+    }
+
+    .modal-footer .btn,
+    .modal-footer button {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
+
+    .main-content.tracker-fullscreen > header {
+        top: 12px;
+        right: 12px;
+        max-width: calc(100vw - 24px);
+    }
+}
+
+@media (max-width: 520px) {
+    .main-content {
+        padding-inline: 12px;
+    }
+
+    .main-content > header .user-info {
+        display: none;
+    }
+
+    .main-content > header .user-profile-box {
+        padding-inline: 0;
+    }
+
+    .stats-grid,
+    .analytics-grid,
+    .repo-folders-grid,
+    .profile-form-grid,
+    .announcement-form-grid,
+    .locker-column-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card {
+        border-radius: 14px;
+    }
+
+    .card-header,
+    .card-body {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .modal-footer,
+    .locker-detail-secondary-actions,
+    .locker-detail-primary-actions {
+        flex-direction: column;
+    }
+
+    .modal-footer .btn,
+    .modal-footer button,
+    .locker-detail-secondary-actions .btn,
+    .locker-detail-primary-actions .btn {
+        width: 100%;
+        flex-basis: auto;
+    }
+}
+
 th,
 td {
     text-align: left;
@@ -1981,8 +2263,7 @@ body.dark .sub-nav-btn.active {
 }
 
 .announcement-feed-toolbar {
-    position: sticky;
-    top: 0;
+    position: static;
     z-index: 5;
     padding: 14px;
     margin-bottom: 16px;
@@ -5150,6 +5431,18 @@ body.dark .btn-outline:hover {
     transition: grid-template-columns 0.3s ease, gap 0.3s ease, padding 0.3s ease;
 }
 
+.tracker-sidebar-toggle {
+    display: none;
+}
+
+.tracker-sidebar-backdrop {
+    display: none;
+}
+
+.tracker-sidebar-mobile-header {
+    display: none;
+}
+
 .tracker-layout:has(.tracker-sidebar:hover),
 .tracker-layout:has(.tracker-sidebar:focus-within) {
     grid-template-columns: 236px minmax(0, 1fr);
@@ -6082,5 +6375,471 @@ body.dark .btn-outline:hover {
 
     .locker-save-rates-inline {
         width: 100%;
+    }
+}
+
+/* Keep the shared shell safeguards last so feature-specific rules cannot reintroduce overflow. */
+@media (max-width: 768px) {
+    .main-content {
+        min-width: 0;
+        max-width: 100%;
+        padding-inline: 16px;
+    }
+
+    .main-content > header,
+    .header-controls,
+    .card-header,
+    .modal-header,
+    .modal-footer,
+    .analytics-toolbar,
+    .repo-filter-bar,
+    .financial-filter-toolbar {
+        min-width: 0;
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .table-container,
+    .audit-table-wrap,
+    .financial-table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+}
+
+@media (max-width: 520px) {
+    .main-content { padding-inline: 12px; }
+    .locker-column-grid { grid-template-columns: 1fr; }
+}
+
+/* Final phone layout for the Services Tracker, Printing Queue, and Financial Summary. */
+@media (max-width: 640px) {
+    #tracker .tracker-layout {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+    }
+
+    #tracker .tracker-sidebar {
+        position: static;
+        width: 100%;
+        max-width: 100%;
+        margin: 0 0 10px;
+        padding: 8px;
+        overflow: hidden;
+        border-radius: 14px;
+    }
+
+    #tracker .tracker-sidebar-nav {
+        display: flex;
+        width: 100%;
+        max-width: 100%;
+        flex-wrap: nowrap;
+        gap: 6px;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #tracker .tracker-sidebar-nav .sub-nav-btn {
+        flex: 0 0 auto;
+        width: auto !important;
+        min-width: max-content;
+        padding: 9px 11px;
+    }
+
+    #tracker .tracker-sidebar .tracker-btn-label {
+        max-width: none;
+        margin-left: 7px;
+        opacity: 1;
+    }
+
+    #tracker .tracker-content,
+    #tracker .tracker-sub-view,
+    #tracker-rentals-view .card,
+    #tracker-rentals-view iframe,
+    #tracker-printing-view .card,
+    #tracker-financial-summary-view .card {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .main-content.tracker-fullscreen #tracker.section-view.active {
+        height: auto;
+        min-height: 100dvh;
+    }
+
+    .main-content.tracker-fullscreen #tracker .tracker-sidebar {
+        height: auto;
+        min-height: 0;
+    }
+
+    .main-content.tracker-fullscreen #tracker-printing-view .card,
+    .main-content.tracker-fullscreen #tracker-financial-summary-view .card {
+        height: auto;
+        min-height: 0;
+    }
+
+    #tracker-rentals-view iframe {
+        min-height: calc(100dvh - 180px);
+    }
+
+    .financial-summary-panel,
+    #tracker-printing-view .printing-queue-panel {
+        min-height: 0;
+        padding: 14px;
+    }
+
+    .financial-summary-header,
+    #tracker-printing-view .printing-queue-panel > .card-header,
+    .printing-subpanel .card-header {
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .financial-summary-header-actions,
+    .printing-queue-header-actions {
+        width: 100%;
+        max-width: 100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .financial-summary-header-actions > *,
+    .printing-queue-header-actions > * {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
+    .financial-summary-filter-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .financial-summary-stats-grid {
+        display: flex;
+        max-width: 100%;
+        flex-wrap: nowrap;
+        gap: 10px;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scroll-snap-type: inline proximity;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .financial-summary-stats-grid > .financial-stat-card {
+        flex: 0 0 min(76vw, 230px);
+        min-width: 0;
+        scroll-snap-align: start;
+    }
+
+    .printing-history-filter-row {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .printing-history-search,
+    .printing-history-filter-btn {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .printing-subpanel {
+        padding: 10px;
+    }
+
+    .table-container:has(> table.tracker-mobile-card-table) {
+        max-height: none !important;
+        overflow-x: visible !important;
+        overflow-y: visible !important;
+        border: 0;
+    }
+
+    table.tracker-mobile-card-table,
+    table.tracker-mobile-card-table tbody {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    table.tracker-mobile-card-table thead {
+        display: none;
+    }
+
+    table.tracker-mobile-card-table tbody tr {
+        display: block;
+        margin: 10px 0;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel);
+    }
+
+    table.tracker-mobile-card-table tbody td {
+        display: grid;
+        grid-template-columns: minmax(84px, 31%) minmax(0, 1fr);
+        align-items: start;
+        gap: 10px;
+        width: 100%;
+        max-width: none !important;
+        padding: 10px 12px !important;
+        border: 0;
+        border-bottom: 1px solid var(--border);
+        white-space: normal !important;
+        overflow: visible !important;
+        overflow-wrap: break-word;
+    }
+
+    table.tracker-mobile-card-table tbody td::before {
+        color: var(--muted);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.35;
+        text-transform: uppercase;
+    }
+
+    table.tracker-mobile-card-table tbody td:last-child {
+        border-bottom: 0;
+    }
+
+    table.tracker-mobile-card-table tbody td > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    table.tracker-mobile-card-table .printing-job-action-stack,
+    table.tracker-mobile-card-table .printing-priority-controls {
+        width: 100%;
+    }
+
+    table.tracker-mobile-card-table tbody td[colspan] {
+        display: block;
+        text-align: center !important;
+    }
+
+    table.tracker-mobile-card-table tbody td[colspan]::before {
+        content: none;
+    }
+
+    .financial-transactions-table td:nth-child(1)::before { content: "Date"; }
+    .financial-transactions-table td:nth-child(2)::before { content: "Service"; }
+    .financial-transactions-table td:nth-child(3)::before { content: "Item / Job"; }
+    .financial-transactions-table td:nth-child(4)::before { content: "Customer"; }
+    .financial-transactions-table td:nth-child(5)::before { content: "Processed By"; }
+    .financial-transactions-table td:nth-child(6)::before { content: "Base Cost"; }
+    .financial-transactions-table td:nth-child(7)::before { content: "Overtime"; }
+    .financial-transactions-table td:nth-child(8)::before { content: "Total Cost"; }
+    .financial-transactions-table td:nth-child(9)::before { content: "Status"; }
+    .financial-transactions-table td:nth-child(10)::before { content: "Payment"; }
+
+    .financial-breakdown-table td:nth-child(1)::before { content: "Date"; }
+    .financial-breakdown-table td:nth-child(2)::before { content: "Revenue"; }
+    .financial-breakdown-table td:nth-child(3)::before { content: "Unpaid"; }
+    .financial-breakdown-table td:nth-child(4)::before { content: "Transactions"; }
+    .financial-breakdown-table td:nth-child(5)::before { content: "Paid"; }
+    .financial-breakdown-table td:nth-child(6)::before { content: "Unpaid Count"; }
+
+    .printing-pending-table td:nth-child(1)::before { content: "Document"; }
+    .printing-pending-table td:nth-child(2)::before { content: "Student"; }
+    .printing-pending-table td:nth-child(3)::before { content: "Submitted"; }
+    .printing-pending-table td:nth-child(4)::before { content: "Actions"; }
+
+    .printing-queue-table td:nth-child(1)::before { content: "Queue"; }
+    .printing-queue-table td:nth-child(2)::before { content: "Document"; }
+    .printing-queue-table td:nth-child(3)::before { content: "Student"; }
+    .printing-queue-table td:nth-child(4)::before { content: "Submitted"; }
+    .printing-queue-table td:nth-child(5)::before { content: "Status"; }
+    .printing-queue-table td:nth-child(6)::before { content: "Priority"; }
+    .printing-queue-table td:nth-child(7)::before { content: "Actions"; }
+
+    .printing-history-table td:nth-child(1)::before { content: "Queue"; }
+    .printing-history-table td:nth-child(2)::before { content: "Document"; }
+    .printing-history-table td:nth-child(3)::before { content: "Student"; }
+    .printing-history-table td:nth-child(4)::before { content: "Submitted"; }
+    .printing-history-table td:nth-child(5)::before { content: "Completed"; }
+    .printing-history-table td:nth-child(6)::before { content: "Status"; }
+    .printing-history-table td:nth-child(7)::before { content: "Price"; }
+    .printing-history-table td:nth-child(8)::before { content: "Payment"; }
+    .printing-history-table td:nth-child(9)::before { content: "Actions"; }
+}
+
+/* Collapse the Services Tracker navigation into a hamburger menu on phones and small tablets. */
+@media (max-width: 768px) {
+    #tracker .tracker-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+        align-content: start;
+    }
+
+    #tracker .tracker-sidebar-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        width: 100%;
+        min-height: 44px;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel);
+        color: var(--primary);
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 700;
+        line-height: 1.2;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+    }
+
+    #tracker .tracker-sidebar-toggle i {
+        width: 18px;
+        flex: 0 0 18px;
+        text-align: center;
+    }
+
+    #tracker .tracker-sidebar-toggle:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, 0.24);
+        outline-offset: 2px;
+    }
+
+    #tracker .tracker-sidebar {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        inset: 0 auto calc(70px + env(safe-area-inset-bottom)) 0;
+        width: min(82vw, 290px);
+        max-width: calc(100vw - 48px);
+        height: auto;
+        min-height: 0;
+        margin: 0;
+        padding: 18px 12px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border-radius: 0 18px 18px 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateX(-105%);
+        transition: transform 0.28s ease, visibility 0s linear 0.28s;
+        z-index: 1210;
+    }
+
+    #tracker .tracker-sidebar.is-mobile-open {
+        display: flex;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateX(0);
+        transition-delay: 0s;
+        box-shadow: 16px 0 38px rgba(15, 23, 42, 0.22);
+    }
+
+    #tracker .tracker-sidebar-mobile-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        margin-bottom: 10px;
+        padding: 2px 4px 10px 8px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+    }
+
+    #tracker .tracker-sidebar-mobile-header button {
+        display: inline-grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        flex: 0 0 36px;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: var(--panel-2);
+        color: var(--text);
+        cursor: pointer;
+    }
+
+    #tracker .tracker-sidebar-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0 0 calc(70px + env(safe-area-inset-bottom));
+        width: auto;
+        height: auto;
+        padding: 0;
+        border: 0;
+        background: rgba(15, 23, 42, 0.38);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 0.28s ease, visibility 0s linear 0.28s;
+        z-index: 1200;
+    }
+
+    #tracker .tracker-sidebar-backdrop.is-visible {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition-delay: 0s;
+    }
+
+    #tracker .tracker-sidebar-nav {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        width: 100%;
+        max-width: 100%;
+        gap: 6px;
+        overflow: visible;
+    }
+
+    #tracker .tracker-sidebar-nav .sub-nav-btn {
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-width: 0;
+        padding: 11px 12px;
+        text-align: left;
+    }
+
+    #tracker .tracker-sidebar .tracker-btn-label {
+        max-width: none;
+        margin-left: 8px;
+        opacity: 1;
+        overflow: visible;
+        white-space: normal;
+    }
+
+    #tracker .tracker-layout.rentals-only .tracker-sidebar-toggle {
+        display: none;
+    }
+
+    .main-content.tracker-fullscreen #tracker .tracker-sidebar {
+        height: auto;
+        min-height: 0;
+    }
+
+    #tracker .tracker-content,
+    #tracker-printing-view,
+    #tracker-printing-view .printing-queue-panel {
+        align-self: start;
+    }
+
+    body.tracker-menu-open {
+        overflow: hidden;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #tracker .tracker-sidebar,
+    #tracker .tracker-sidebar-backdrop {
+        transition-duration: 0.01ms;
     }
 }

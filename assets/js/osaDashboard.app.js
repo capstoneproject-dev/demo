@@ -650,12 +650,12 @@ async function loadOsaAuditLogs(page = 1) {
         if (body) {
             body.innerHTML = logs.length ? logs.map((log) => `
                 <tr>
-                    <td>${escapeDashboardHtml(formatOsaAuditDate(log.created_at))}</td>
-                    <td>${escapeDashboardHtml(log.actor_name || 'System / unauthenticated')}</td>
-                    <td><span class="audit-action-label">${escapeDashboardHtml(formatOsaAuditAction(log.action))}</span></td>
-                    <td>${escapeDashboardHtml(osaAuditTargetLabel(log))}</td>
-                    <td><span class="audit-result ${escapeDashboardHtml(log.result || 'pending')}">${escapeDashboardHtml(log.result || 'unknown')}</span></td>
-                    <td class="text-right"><button class="btn btn-outline btn-sm" type="button" data-osa-audit-detail="${Number(log.audit_id)}"><i class="fa-solid fa-eye"></i> View</button></td>
+                    <td data-label="Date &amp; Time">${escapeDashboardHtml(formatOsaAuditDate(log.created_at))}</td>
+                    <td data-label="Actor">${escapeDashboardHtml(log.actor_name || 'System / unauthenticated')}</td>
+                    <td data-label="Action"><span class="audit-action-label">${escapeDashboardHtml(formatOsaAuditAction(log.action))}</span></td>
+                    <td data-label="Target">${escapeDashboardHtml(osaAuditTargetLabel(log))}</td>
+                    <td data-label="Result"><span class="audit-result ${escapeDashboardHtml(log.result || 'pending')}">${escapeDashboardHtml(log.result || 'unknown')}</span></td>
+                    <td data-label="Details" class="text-right"><button class="btn btn-outline btn-sm" type="button" data-osa-audit-detail="${Number(log.audit_id)}"><i class="fa-solid fa-eye"></i> View</button></td>
                 </tr>`).join('') : '<tr><td colspan="6" class="audit-empty">No audit entries match these filters.</td></tr>';
         }
 
@@ -2091,15 +2091,15 @@ function renderDashboardPreview() {
 
     tbody.innerHTML = previewItems.map((item, index) => `
         <tr>
-            <td style="font-weight:600;">${escapeDashboardHtml(item.organization)}</td>
-            <td>
+            <td data-label="Organization" style="font-weight:600;">${escapeDashboardHtml(item.organization)}</td>
+            <td data-label="Activity">
                 <span class="status-badge status-submitted">${escapeDashboardHtml(item.type)}</span>
                 <div style="font-weight:600; margin-top:6px;">${escapeDashboardHtml(item.title)}</div>
             </td>
-            <td>${escapeDashboardHtml(item.details)}</td>
-            <td>${escapeDashboardHtml(formatDashboardActivityDate(item.date))}</td>
-            <td><span class="status-badge status-${getActivityStatusClass(item.status)}">${escapeDashboardHtml(item.status)}</span></td>
-            <td class="text-right">
+            <td data-label="Details">${escapeDashboardHtml(item.details)}</td>
+            <td data-label="Date">${escapeDashboardHtml(formatDashboardActivityDate(item.date))}</td>
+            <td data-label="Status"><span class="status-badge status-${getActivityStatusClass(item.status)}">${escapeDashboardHtml(item.status)}</span></td>
+            <td data-label="Action" class="text-right">
                 <button class="btn btn-sm btn-outline icon-only-btn" type="button" onclick="openActivityView(${startIndex + index})" title="View activity">
                     <i class="fa-solid fa-eye"></i>
                 </button>
@@ -3407,7 +3407,7 @@ function renderDocs(filter = 'All', btnElement = null) {
 
         return `
         <div class="list-item${doc.pendingSync ? ' naap-optimistic-record' : ''}" ${doc.pendingSync ? `data-offline-status="${doc.offlineStatus === 'attention' ? 'attention' : 'queued'}"` : `onclick="openPdfViewer('${doc.viewerId || ('doc_' + index)}')"`}>
-            <div class="col-name osa-document-title-cell">
+            <div class="col-name osa-document-title-cell" data-label="Document">
                 <div style="background: var(--panel-2); min-width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
                     <i class="fa-solid fa-file-pdf"></i>
                 </div>
@@ -3420,11 +3420,11 @@ function renderDocs(filter = 'All', btnElement = null) {
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
             </div>
-            <div class="col-sent mobile-hide">${escapeDashboardHtml(sender)}</div>
-            <div class="col-adviser mobile-hide">${adviserReviewHtml}</div>
-            <div class="col-ssc mobile-hide">${sscReviewHtml}</div>
-            <div class="col-osa mobile-hide">${osaReviewHtml}</div>
-            <div class="col-status">
+            <div class="col-sent mobile-hide" data-label="Sent By">${escapeDashboardHtml(sender)}</div>
+            <div class="col-adviser mobile-hide" data-label="Adviser Review">${adviserReviewHtml}</div>
+            <div class="col-ssc mobile-hide" data-label="SSC Review">${sscReviewHtml}</div>
+            <div class="col-osa mobile-hide" data-label="OSA Approval">${osaReviewHtml}</div>
+            <div class="col-status" data-label="Actions">
                 <div class="req-action-group">
                     ${actionButtons}
                     ${commentButtons}

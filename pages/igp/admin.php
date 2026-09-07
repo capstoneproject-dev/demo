@@ -20,7 +20,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>Barcode Officer Database</title>
     <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
+    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css?v=20260901-responsive-2">
+    <link rel="stylesheet" href="../../assets/css/responsive-tables.css?v=20260901-2">
     <style>
         .barcode-img {
             margin: 0 10px 10px 0;
@@ -130,6 +131,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../assets/js/barcode-download.js?v=20260821-compact-white-background"></script>
     <script src="../../assets/js/igp-admin-exact.js?v=20260829-offline-actions-1"></script>
     <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
+    <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
 </body>
 
 </html>

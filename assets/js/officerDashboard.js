@@ -1376,6 +1376,7 @@ function navigate(viewId, element) {
     }
 
     if (viewId !== 'tracker') {
+        setTrackerSidebarOpen(false);
         stopOfficerPrintingAutoRefresh();
     } else {
         loadOfficerServiceAccess(true);
@@ -1859,6 +1860,50 @@ function initTrackerSidebarBehavior() {
             activeElement.blur();
         }
     });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            setTrackerSidebarOpen(false);
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        if (!window.matchMedia('(max-width: 768px)').matches) {
+            setTrackerSidebarOpen(false);
+        }
+    });
+
+    setTrackerSidebarOpen(false);
+}
+
+function setTrackerSidebarOpen(isOpen) {
+    const trackerSidebar = document.getElementById('trackerSidebar');
+    const toggle = document.getElementById('trackerSidebarToggle');
+    const backdrop = document.getElementById('trackerSidebarBackdrop');
+    if (!trackerSidebar || !toggle) return;
+
+    const shouldOpen = Boolean(isOpen);
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    if (!shouldOpen && trackerSidebar.contains(document.activeElement)) {
+        toggle.focus({ preventScroll: true });
+    }
+    trackerSidebar.inert = isMobile && !shouldOpen;
+    trackerSidebar.classList.toggle('is-mobile-open', shouldOpen);
+    toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    backdrop?.classList.toggle('is-visible', shouldOpen && isMobile);
+    document.body.classList.toggle('tracker-menu-open', shouldOpen && isMobile);
+
+    const icon = toggle.querySelector('i');
+    if (icon) {
+        icon.classList.toggle('fa-bars', !shouldOpen);
+        icon.classList.toggle('fa-xmark', shouldOpen);
+    }
+}
+
+function toggleTrackerSidebar() {
+    const trackerSidebar = document.getElementById('trackerSidebar');
+    if (!trackerSidebar) return;
+    setTrackerSidebarOpen(!trackerSidebar.classList.contains('is-mobile-open'));
 }
 
 function switchTrackerSubView(viewId, button = null) {
@@ -1899,6 +1944,9 @@ function switchTrackerSubView(viewId, button = null) {
         loadOfficerFinancialSummary().catch((error) => console.error(error));
     } else if (viewId === 'lockers') {
         startOfficerLockerAutoRefresh({ refreshNow: true });
+    }
+    if (window.matchMedia('(max-width: 768px)').matches) {
+        setTrackerSidebarOpen(false);
     }
     return true;
 }

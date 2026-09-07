@@ -20,7 +20,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260819-toast-close-1">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260902-responsive-2">
+    <link rel="stylesheet" href="../../assets/css/responsive-tables.css?v=20260901-2">
     <style>
         #currentEventDisplay.naap-optimistic-record {
             border: 3px solid #f59e0b !important;
@@ -42,7 +43,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </style>
 </head>
 
-<body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
+<body class="qr-attendance-page" data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="../homepage/index.html">
@@ -221,6 +222,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/QR-Attendance/lib/bootstrap.bundle.min.js"></script>
     <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
     <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
+    <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
     <script src="../../systems/QR-Attendance/lib/script.js?v=20260829-offline-optimistic-3"></script>
     <script>
         // Utility to check if any of the filter/search/section controls are focused

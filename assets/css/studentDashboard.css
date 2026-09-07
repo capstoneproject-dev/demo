@@ -8003,6 +8003,258 @@ body.dark .rental-cancel-reservation-btn:hover:not(:disabled) {
     }
 }
 
+/* --- REPOSITORY-WIDE RESPONSIVE SAFETY LAYER --- */
+.main-content,
+.main-content > *,
+.section-view,
+.card,
+.card-header,
+.header-title,
+.header-controls,
+.user-profile,
+.user-profile-box,
+.table-container,
+.split-view-grid,
+.content-row,
+.dashboard-main-column,
+.dashboard-sidebar-column {
+    min-width: 0;
+}
+
+.main-content iframe,
+.main-content img,
+.main-content video,
+.main-content canvas {
+    max-width: 100%;
+}
+
+.main-content iframe {
+    display: block;
+    width: 100%;
+}
+
+.table-container {
+    width: 100%;
+    max-width: 100%;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.card-header,
+.header-controls,
+.modal-header,
+.modal-footer {
+    flex-wrap: wrap;
+}
+
+.card-title,
+.header-title,
+.modal-header h2,
+.modal-header h3,
+.modal-body,
+.user-info,
+td,
+th {
+    overflow-wrap: anywhere;
+}
+
+.modal-overlay {
+    box-sizing: border-box;
+    max-width: 100vw;
+    max-height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.modal-overlay .modal-content:not(.student-announcement-photo-modal) {
+    width: min(100%, 700px);
+    max-width: 100%;
+    max-height: calc(100dvh - 40px);
+}
+
+.modal-overlay .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        box-sizing: border-box;
+        max-width: 100%;
+        padding: 18px 16px;
+        padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    }
+
+    .main-content > header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .main-content > header .header-title {
+        flex: 1 1 150px;
+    }
+
+    .main-content > header .header-title h1 {
+        font-size: clamp(1.35rem, 7vw, 1.8rem);
+        line-height: 1.2;
+    }
+
+    .main-content > header .header-controls {
+        flex: 0 1 auto;
+        justify-content: flex-end;
+        gap: 8px;
+        max-width: 100%;
+    }
+
+    .sidebar {
+        box-sizing: border-box;
+        height: calc(70px + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .sidebar .nav-menu {
+        justify-content: flex-start;
+        min-width: 0;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sidebar .nav-menu::-webkit-scrollbar {
+        display: none;
+    }
+
+    .sidebar .nav-item {
+        flex: 1 0 56px;
+        min-width: 56px;
+    }
+
+    .sidebar .nav-link {
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .card,
+    .card-body {
+        max-width: 100%;
+    }
+
+    .card-header {
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .stats-grid,
+    .membership-stats-row,
+    .services-grid,
+    .organizations-grid,
+    .events-grid,
+    .rental-grid,
+    .profile-form-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    }
+
+    .events-filter-bar,
+    .repo-filter-bar,
+    .repo-search-area,
+    .date-filters-bar,
+    .student-locker-header-actions,
+    .profile-locker-main {
+        min-width: 0;
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .events-filter-bar > *,
+    .repo-search-area > *,
+    .date-filters-bar > *,
+    .student-locker-header-actions > * {
+        max-width: 100%;
+    }
+
+    .filter-select-group {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .modal-overlay {
+        align-items: center;
+        padding: 12px;
+    }
+
+    .modal-overlay .modal-content:not(.student-announcement-photo-modal) {
+        max-height: calc(100dvh - 24px) !important;
+        border-radius: 14px;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer,
+    .modal-content.announcement-detail-modal .modal-header,
+    .modal-content.announcement-detail-modal .modal-body {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .modal-footer {
+        align-items: stretch;
+    }
+
+    .modal-footer .btn,
+    .modal-footer button {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 520px) {
+    .main-content {
+        padding-inline: 12px;
+    }
+
+    .main-content > header .user-info {
+        display: none;
+    }
+
+    .main-content > header .user-profile-box {
+        padding-inline: 0;
+    }
+
+    .stats-grid,
+    .membership-stats-row,
+    .services-grid,
+    .organizations-grid,
+    .events-grid,
+    .rental-grid,
+    .profile-form-grid,
+    .my-org-kpi-grid,
+    .student-locker-column-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card {
+        border-radius: 14px;
+    }
+
+    .card-header,
+    .card-body {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .modal-footer {
+        flex-direction: column;
+    }
+
+    .modal-footer .btn,
+    .modal-footer button {
+        width: 100%;
+        flex-basis: auto;
+    }
+}
+
 .rental-card-items h4 {
     font-size: 0.9rem;
     margin-bottom: 8px;
@@ -10198,5 +10450,253 @@ body.dark .profile-email-preferences-card {
     .student-announcement-photo-arrow {
         width: 38px;
         height: 38px;
+    }
+}
+
+/* Keep the shared shell safeguards last so feature-specific rules cannot reintroduce overflow. */
+@media (max-width: 768px) {
+    .main-content {
+        min-width: 0;
+        max-width: 100%;
+        padding-inline: 16px;
+    }
+
+    .main-content > header,
+    .header-controls,
+    .card-header,
+    .modal-header,
+    .modal-footer {
+        min-width: 0;
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .table-container {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+}
+
+@media (max-width: 520px) {
+    .main-content { padding-inline: 12px; }
+}
+
+/* Final phone overrides for the student header, services, history, and profile. */
+@media (max-width: 640px) {
+    .main-content > header {
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .main-content > header .header-title {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .main-content > header .header-title h1 {
+        max-width: 100%;
+        font-size: clamp(1rem, 5vw, 1.35rem);
+        line-height: 1.15;
+        white-space: nowrap;
+    }
+
+    .main-content > header .header-controls {
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        gap: 5px;
+    }
+
+    .main-content > header .user-info {
+        display: none;
+    }
+
+    .main-content > header .user-profile-box {
+        padding-inline: 4px;
+    }
+
+    .printing-hero {
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .printing-hero .hero-content {
+        gap: 12px;
+    }
+
+    .printing-hero .hero-info {
+        flex: 0 0 auto;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 12px;
+        width: 100%;
+        text-align: left;
+    }
+
+    .printing-hero .hero-icon-wrapper {
+        width: 46px;
+        height: 46px;
+        font-size: 1.25rem;
+    }
+
+    .printing-hero .hero-text h2 {
+        margin-bottom: 4px;
+        font-size: clamp(1.2rem, 6vw, 1.5rem);
+    }
+
+    .printing-hero .hero-text p {
+        margin-bottom: 10px;
+        font-size: 0.9rem;
+    }
+
+    .printing-hero .supported-services-list {
+        gap: 6px 12px;
+    }
+
+    .printing-hero .supported-services-list li {
+        font-size: 0.8rem;
+    }
+
+    .printing-hero .upload-zone {
+        min-height: 190px;
+        padding: 18px 12px;
+    }
+
+    #rentalFiltersSection {
+        margin-bottom: 12px !important;
+    }
+
+    #rentalFiltersSection .rental-filters-bar {
+        gap: 8px;
+        padding: 10px;
+    }
+
+    #rentalFiltersSection .rental-search-group {
+        flex-basis: auto;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #rentalHistorySection {
+        margin-top: 16px !important;
+    }
+
+    #rentalHistorySection .table-container {
+        overflow-x: visible;
+    }
+
+    #rentalHistorySection .rental-history-table,
+    #rentalHistorySection .rental-history-table tbody {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #rentalHistorySection .rental-history-table thead {
+        display: none;
+    }
+
+    #rentalHistorySection .rental-history-table tbody tr {
+        display: block;
+        margin: 10px 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    #rentalHistorySection .rental-history-table tbody td {
+        display: grid;
+        grid-template-columns: minmax(82px, 31%) minmax(0, 1fr);
+        align-items: start;
+        gap: 10px;
+        width: 100%;
+        max-width: none !important;
+        padding: 10px 12px;
+        border: 0;
+        border-bottom: 1px solid var(--border);
+        white-space: normal !important;
+        overflow: visible !important;
+        overflow-wrap: break-word;
+    }
+
+    #rentalHistorySection .rental-history-table tbody td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.35;
+        text-transform: uppercase;
+    }
+
+    #rentalHistorySection .rental-history-table tbody td:last-child {
+        border-bottom: 0;
+    }
+
+    #profile .split-view-grid.profile-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #profile .profile-details-stack {
+        gap: 16px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #profile .profile-form-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    #profile .profile-card,
+    #profile .profile-details-stack > .card {
+        min-width: 0;
+        padding: 16px;
+    }
+
+    #profile .profile-avatar-lg {
+        width: 96px;
+        height: 96px;
+    }
+
+    #profile .profile-role,
+    #profile .profile-name,
+    #profile .profile-email-preference-row > span:first-child {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    #profile .card-header {
+        align-items: flex-start;
+        margin-bottom: 14px;
+    }
+
+    #profile .card-header > div:last-child {
+        display: flex !important;
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        gap: 6px !important;
+    }
+
+    #profile .form-group div[style*="grid-template-columns"] {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    #profile input,
+    #profile textarea,
+    #profile form,
+    #profile .form-group {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    #profile #studentPasswordSubmitBtn {
+        width: 100%;
     }
 }

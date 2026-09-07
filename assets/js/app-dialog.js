@@ -40,7 +40,9 @@
             .app-dialog-overlay.show { opacity: 1; visibility: visible; }
             .app-dialog-panel {
                 width: min(100%, 460px);
-                overflow: hidden;
+                max-height: calc(100dvh - 40px);
+                overflow: auto;
+                overscroll-behavior: contain;
                 border: 1px solid rgba(148, 163, 184, .28);
                 border-radius: 18px;
                 background: #fff;
@@ -132,10 +134,19 @@
                 .app-dialog-button.secondary { color: #334155; }
             }
             @media (max-width: 520px) {
+                .app-dialog-overlay { padding: 12px; }
+                .app-dialog-panel { max-height: calc(100dvh - 24px); }
                 .app-dialog-body { grid-template-columns: 40px minmax(0, 1fr); padding: 20px 18px 14px; }
                 .app-dialog-icon { width: 40px; height: 40px; border-radius: 12px; }
                 .app-dialog-actions { padding: 12px 18px 18px; }
                 .app-dialog-button { flex: 1; min-width: 0; }
+            }
+            @media (max-width: 360px) {
+                .app-dialog-body,
+                .app-dialog-panel[data-dialog-type="warning"] .app-dialog-body { grid-template-columns: minmax(0, 1fr); }
+                .app-dialog-icon { display: none; }
+                .app-dialog-actions { align-items: stretch; flex-direction: column; }
+                .app-dialog-button { width: 100%; }
             }
         `;
         document.head.appendChild(style);

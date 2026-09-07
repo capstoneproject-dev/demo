@@ -323,6 +323,13 @@ const PDFViewer = {
         this.pdfDoc = await loadingTask.promise;
         this.totalPages = this.pdfDoc.numPages;
 
+        if (window.matchMedia('(max-width: 768px)').matches && this.totalPages > 0) {
+            const firstPage = await this.pdfDoc.getPage(1);
+            const unscaledViewport = firstPage.getViewport({ scale: 1 });
+            const availableWidth = Math.max(240, (this.elements.viewerContainer?.clientWidth || window.innerWidth) - 20);
+            this.scale = Math.max(0.4, Math.min(1, availableWidth / unscaledViewport.width));
+        }
+
         this.updatePageInfo();
         await this.renderAllPages();
         await this.loadAnnotations();

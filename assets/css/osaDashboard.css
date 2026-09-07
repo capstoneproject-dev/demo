@@ -100,6 +100,15 @@ body {
     color: var(--accent);
 }
 
+.logo-image {
+    display: block;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    object-fit: cover;
+    border-radius: 7px;
+}
+
 .logo-text {
     opacity: 0;
     transition: opacity 0.2s;
@@ -4385,5 +4394,469 @@ body.dark .compliance-item {
     .audit-detail-grid { grid-template-columns: 1fr; }
     .audit-filter-actions { width: 100%; }
     .audit-pagination { align-items: flex-start; flex-direction: column; gap: 12px; }
+}
+
+/* --- REPOSITORY-WIDE RESPONSIVE SAFETY LAYER --- */
+.main-content,
+.main-content > *,
+.section-view,
+.card,
+.card-header,
+.header-title,
+.header-controls,
+.user-profile,
+.user-profile-box,
+.table-container,
+.split-view-grid,
+.content-row,
+.docs-layout,
+.repo-main,
+.audit-log-card {
+    min-width: 0;
+}
+
+.main-content iframe,
+.main-content img,
+.main-content video,
+.main-content canvas {
+    max-width: 100%;
+}
+
+.main-content iframe {
+    display: block;
+    width: 100%;
+}
+
+.table-container,
+.audit-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.card-header,
+.header-controls,
+.modal-header,
+.modal-footer,
+.repo-filter-bar,
+.date-filters-bar,
+.audit-log-heading {
+    flex-wrap: wrap;
+}
+
+.card-title,
+.header-title,
+.modal-header h2,
+.modal-header h3,
+.modal-body,
+.user-info,
+td,
+th {
+    overflow-wrap: anywhere;
+}
+
+.modal-overlay,
+.date-picker-modal {
+    box-sizing: border-box;
+    max-width: 100vw;
+    max-height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.modal-overlay .modal-content,
+.date-picker-modal > * {
+    max-width: 100%;
+    max-height: calc(100dvh - 40px);
+}
+
+.modal-overlay .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+@media (max-width: 1050px) {
+    .requests-filter-bar,
+    .req-filter-controls,
+    .repo-filter-bar,
+    .date-filters-bar {
+        flex-wrap: wrap;
+    }
+
+    .req-filter-controls > *,
+    .repo-filter-bar > *,
+    .date-filters-bar > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        box-sizing: border-box;
+        max-width: 100%;
+        padding: 18px 16px;
+        padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    }
+
+    .main-content > header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .main-content > header > :first-child,
+    .main-content > header .header-title {
+        min-width: 0;
+        flex: 1 1 150px;
+    }
+
+    .main-content > header .header-title h1 {
+        font-size: clamp(1.35rem, 7vw, 1.8rem);
+        line-height: 1.2;
+    }
+
+    .main-content > header .header-controls {
+        flex: 0 1 auto;
+        justify-content: flex-end;
+        gap: 8px;
+        max-width: 100%;
+    }
+
+    .sidebar {
+        box-sizing: border-box;
+        height: calc(70px + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .sidebar .nav-menu {
+        justify-content: flex-start;
+        min-width: 0;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sidebar .nav-menu::-webkit-scrollbar {
+        display: none;
+    }
+
+    .sidebar .nav-item {
+        flex: 1 0 56px;
+        min-width: 56px;
+    }
+
+    .sidebar .nav-link {
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .card-header,
+    .audit-log-heading {
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .stats-grid,
+    .repo-folders-grid,
+    .profile-form-grid,
+    .audit-detail-grid,
+    .officers-grid,
+    .compliance-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    }
+
+    .requests-filter-bar,
+    .req-filter-controls,
+    .repo-filter-bar,
+    .repo-search-area,
+    .date-filters-bar,
+    .audit-filter-actions,
+    .audit-pagination {
+        min-width: 0;
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .req-filter-controls > *,
+    .repo-filter-bar > *,
+    .repo-search-area > *,
+    .date-filters-bar > * {
+        min-width: 0 !important;
+        max-width: 100%;
+    }
+
+    .modal-overlay,
+    .date-picker-modal {
+        align-items: center;
+        padding: 12px;
+    }
+
+    .modal-overlay .modal-content,
+    .date-picker-modal > * {
+        max-height: calc(100dvh - 24px) !important;
+        border-radius: 14px;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .modal-footer {
+        align-items: stretch;
+    }
+
+    .modal-footer .btn,
+    .modal-footer button,
+    .audit-filter-actions .btn {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 520px) {
+    .main-content {
+        padding-inline: 12px;
+    }
+
+    .main-content > header .user-info {
+        display: none;
+    }
+
+    .main-content > header .user-profile-box {
+        padding-inline: 0;
+    }
+
+    .stats-grid,
+    .repo-folders-grid,
+    .profile-form-grid,
+    .audit-detail-grid,
+    .officers-grid,
+    .compliance-grid,
+    .audit-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card {
+        border-radius: 14px;
+    }
+
+    .card-header,
+    .card-body,
+    .audit-log-heading,
+    .audit-filter-grid,
+    .audit-pagination {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .modal-footer {
+        flex-direction: column;
+    }
+
+    .modal-footer .btn,
+    .modal-footer button {
+        width: 100%;
+        flex-basis: auto;
+    }
+}
+
+/* Phone tables use labelled record cards instead of squeezing six columns. */
+@media (max-width: 640px) {
+    .mobile-card-table thead,
+    .audit-table thead {
+        display: none;
+    }
+
+    .mobile-card-table,
+    .mobile-card-table tbody,
+    .audit-table,
+    .audit-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .mobile-card-table tr,
+    .audit-table tr {
+        display: block;
+        margin: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel);
+    }
+
+    .mobile-card-table td,
+    .audit-table td {
+        display: grid;
+        grid-template-columns: minmax(76px, 30%) minmax(0, 1fr);
+        align-items: start;
+        gap: 12px;
+        padding: 10px 12px;
+        text-align: left;
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: break-word;
+    }
+
+    .mobile-card-table td::before,
+    .audit-table td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.35;
+        text-transform: uppercase;
+    }
+
+    .mobile-card-table td:last-child,
+    .audit-table td:last-child {
+        border-bottom: 0;
+    }
+
+    .mobile-card-table td[colspan],
+    .audit-table td[colspan] {
+        display: block;
+        margin: 0;
+        text-align: center !important;
+    }
+
+    .mobile-card-table td[colspan]::before,
+    .audit-table td[colspan]::before {
+        content: none;
+    }
+
+    .activity-table .icon-only-btn,
+    .audit-table td:last-child .btn {
+        justify-self: start;
+    }
+
+    .audit-table-wrap {
+        min-height: 0;
+        overflow-x: visible;
+    }
+
+    #docs-list .list-item {
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 12px;
+        margin: 10px 12px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+    }
+
+    #docs-list .osa-document-title-cell {
+        align-items: flex-start;
+    }
+
+    #docs-list .osa-document-title-cell > :first-child {
+        flex: 0 0 40px;
+    }
+
+    #docs-list .osa-document-title-copy {
+        overflow: visible;
+    }
+
+    #docs-list .osa-document-title-row h4 {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        overflow-wrap: break-word;
+    }
+
+    #docs-list .col-status {
+        width: 100%;
+        justify-content: flex-start;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+    }
+
+    #docs-list .req-action-group {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    #docs-list .osa-document-comment-btn {
+        width: auto;
+        padding-inline: 9px;
+    }
+}
+
+/* Keep dashboard summaries in one reachable row on phone viewports. */
+@media (max-width: 640px) {
+    #dashboard > .stats-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 12px;
+        max-width: 100%;
+        padding-bottom: 6px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-inline: contain;
+        scroll-snap-type: inline proximity;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #dashboard > .stats-grid > .stat-card {
+        flex: 0 0 min(76vw, 240px);
+        min-width: 0;
+        scroll-snap-align: start;
+    }
+
+    #docs-list .list-item {
+        display: block !important;
+    }
+
+    #docs-list .list-item > [data-label] {
+        display: grid !important;
+        grid-template-columns: minmax(86px, 31%) minmax(0, 1fr);
+        align-items: start;
+        gap: 10px;
+        width: 100%;
+        padding: 10px 0;
+        border: 0;
+        border-bottom: 1px solid var(--border);
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    #docs-list .list-item > [data-label]::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        line-height: 1.35;
+        text-transform: uppercase;
+    }
+
+    #docs-list .list-item > [data-label]:last-child {
+        border-bottom: 0;
+    }
+
+    #docs-list .list-item > .mobile-hide[data-label] {
+        display: grid !important;
+    }
+
+    #docs-list .osa-document-title-cell > :first-of-type {
+        display: none;
+    }
+
+    #docs-list .osa-document-title-copy,
+    #docs-list .col-status .req-action-group {
+        grid-column: 2;
+    }
+
+    #docs-list .col-status {
+        padding-top: 10px;
+    }
 }
 

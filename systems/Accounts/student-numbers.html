@@ -11,17 +11,18 @@
     <meta http-equiv="Expires" content="0">
     <title>Student Numbers Management</title>
     <link href="lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260325c">
+    <link rel="stylesheet" href="styles.css?v=20260901-responsive-2">
+    <link rel="stylesheet" href="../../assets/css/responsive-tables.css?v=20260901-2">
 </head>
 
-<body>
+<body class="accounts-page">
     <div class="container iframe-view">
 
         <!-- Toolbar -->
         <div class="card mb-3">
             <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
                 <div></div>
-                <div class="d-flex flex-wrap gap-2">
+                <div class="d-flex flex-nowrap gap-2 nav-button-strip">
                     <a href="index.html?v=20260718e" class="btn btn-outline-secondary btn-sm">Back to Accounts</a>
                     <button class="btn btn-outline-secondary btn-sm" onclick="importStudentNumbers()">Import XLSX</button>
                     <button class="btn btn-outline-secondary btn-sm" onclick="exportStudentNumbers()">Export XLSX</button>
@@ -242,6 +243,7 @@
     <!-- Scripts -->
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/bootstrap.bundle.min.js"></script>
+    <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
     <script src="accounts-api.js?v=20260718e"></script>
     <script src="student-numbers.js?v=20260820-profile-contacts-1"></script>
 </body>

@@ -8820,13 +8820,13 @@ function createRentalHistoryRow(rental) {
         const statusText = getStatusText(status);
 
         row.innerHTML = `
-            <td>${submittedDate}</td>
-            <td>Printing</td>
-            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(fileName)}">${escapeStudentHtml(fileName)}</td>
-            <td>${escapeStudentHtml(orgName)}</td>
-            <td style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(details)}">${escapeStudentHtml(details)}</td>
-            <td>${escapeStudentHtml(queueLabel)}</td>
-            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            <td data-label="Date">${submittedDate}</td>
+            <td data-label="Activity">Printing</td>
+            <td data-label="Items / File" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(fileName)}">${escapeStudentHtml(fileName)}</td>
+            <td data-label="Organization">${escapeStudentHtml(orgName)}</td>
+            <td data-label="Details" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(details)}">${escapeStudentHtml(details)}</td>
+            <td data-label="Cost / Queue">${escapeStudentHtml(queueLabel)}</td>
+            <td data-label="Status"><span class="status-badge ${statusClass}">${statusText}</span></td>
         `;
 
         return row;
@@ -8842,13 +8842,13 @@ function createRentalHistoryRow(rental) {
         const statusClass = getLockerActivityStatusClass(rental.status, rental);
         const statusText = getLockerActivityStatusLabel(rental.status, rental);
         row.innerHTML = `
-            <td>${activityDate}</td>
-            <td>Locker</td>
-            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(lockerCode)}">${escapeStudentHtml(lockerCode)}</td>
-            <td>${escapeStudentHtml(rental.org_name || 'Supreme Student Council')}</td>
-            <td style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(details)}">${escapeStudentHtml(details)}</td>
-            <td>${Number(rental.total_cost || 0).toFixed(2)}</td>
-            <td><span class="status-badge ${statusClass}">${escapeStudentHtml(statusText)}</span></td>
+            <td data-label="Date">${activityDate}</td>
+            <td data-label="Activity">Locker</td>
+            <td data-label="Items / File" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(lockerCode)}">${escapeStudentHtml(lockerCode)}</td>
+            <td data-label="Organization">${escapeStudentHtml(rental.org_name || 'Supreme Student Council')}</td>
+            <td data-label="Details" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(details)}">${escapeStudentHtml(details)}</td>
+            <td data-label="Cost / Queue">${Number(rental.total_cost || 0).toFixed(2)}</td>
+            <td data-label="Status"><span class="status-badge ${statusClass}">${escapeStudentHtml(statusText)}</span></td>
         `;
         return row;
     }
@@ -8876,13 +8876,13 @@ function createRentalHistoryRow(rental) {
     const statusText = getStatusText(status);
 
     row.innerHTML = `
-        <td>${rentDate}</td>
-        <td>Rental</td>
-        <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${items}">${items}</td>
-        <td>${orgName}</td>
-        <td>${duration}</td>
-        <td>${cost}</td>
-        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        <td data-label="Date">${rentDate}</td>
+        <td data-label="Activity">Rental</td>
+        <td data-label="Items / File" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${items}">${items}</td>
+        <td data-label="Organization">${orgName}</td>
+        <td data-label="Details">${duration}</td>
+        <td data-label="Cost / Queue">${cost}</td>
+        <td data-label="Status"><span class="status-badge ${statusClass}">${statusText}</span></td>
     `;
 
     return row;

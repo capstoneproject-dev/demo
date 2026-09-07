@@ -90,6 +90,36 @@ body {
     font-weight: 600;
 }
 
+/* Navigation and toolbar actions stay in one reachable row on every viewport. */
+.nav-button-strip,
+.nav-tabs,
+.nav-pills {
+    flex-wrap: nowrap !important;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+}
+
+.nav-button-strip {
+    min-width: 0;
+    margin-left: auto;
+}
+
+.nav-button-strip > *,
+.nav-tabs > .nav-item,
+.nav-pills > .nav-item {
+    flex: 0 0 auto;
+}
+
+.nav-button-strip .btn,
+.nav-tabs .nav-link,
+.nav-pills .nav-link {
+    white-space: nowrap;
+}
+
 /* --- BUTTON STYLING --- */
 .btn {
     padding: 10px 20px;
@@ -314,4 +344,161 @@ body {
     background-color: var(--panel);
     border-radius: var(--radius-sm);
     display: inline-block;
+}
+
+/* --- RESPONSIVE APPLICATION SHELL --- */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body,
+.container,
+.container-fluid,
+.row,
+[class*="col-"],
+.card,
+.card-header,
+.card-body,
+.tab-content,
+.table-responsive,
+form {
+    min-width: 0;
+}
+
+img,
+svg,
+canvas,
+video {
+    max-width: 100%;
+    height: auto;
+}
+
+.table-responsive {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive > .table {
+    margin-bottom: 0;
+}
+
+.modal-dialog {
+    width: auto;
+    max-width: min(calc(100% - 24px), var(--bs-modal-width, 500px));
+    margin: 12px auto;
+}
+
+.modal-content {
+    max-height: calc(100dvh - 24px);
+    overflow: hidden;
+}
+
+.modal-body {
+    min-width: 0;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+}
+
+.modal-header,
+.modal-footer,
+.card-header,
+.toolbar-status,
+.btn-group,
+.input-group {
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.form-control,
+.form-select,
+input,
+select,
+textarea {
+    max-width: 100%;
+}
+
+td,
+th,
+pre,
+.form-text,
+.invalid-feedback,
+.alert {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 767.98px) {
+    .container,
+    .container-fluid {
+        max-width: 100%;
+        padding-inline: 14px;
+    }
+
+    .iframe-view.container,
+    .iframe-view.container-fluid {
+        padding-inline: 0;
+    }
+
+    .card-header,
+    .card-body {
+        padding: 16px;
+    }
+
+    .card-header > *,
+    .toolbar-status > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding-inline: 16px;
+    }
+
+    .modal-footer .btn {
+        flex: 1 1 120px;
+    }
+
+    .nav-tabs,
+    .nav-pills {
+        flex-wrap: nowrap;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+    }
+
+    .nav-tabs .nav-link,
+    .nav-pills .nav-link {
+        white-space: nowrap;
+    }
+
+    .table-responsive > .table {
+        min-width: 680px;
+    }
+
+    #qrCode {
+        width: 100%;
+        overflow-x: auto;
+    }
+}
+
+@media (max-width: 479.98px) {
+    .card-header,
+    .card-body,
+    .toolbar-status {
+        padding-inline: 12px;
+    }
+
+    .modal-footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
+    }
 }

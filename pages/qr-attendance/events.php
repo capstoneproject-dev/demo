@@ -20,7 +20,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>Events - QR Attendance System</title>
     <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260821-archive-reset-compact">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260902-responsive-2">
     <style>
         /* Keep queued events visibly distinct even with Bootstrap's collapsed table borders. */
         #eventsList tr.queued-event-row > td {
@@ -950,7 +950,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     <td>${event.preRegisteredCount}</td>
                     <td>${escapeEventHtml(formatEventRecordDate(event.firstDate))}</td>
                     <td>${escapeEventHtml(formatEventRecordDate(event.lastDate))}</td>
-                    <td class="text-end"><div class="d-inline-flex gap-2 align-items-center">${syncState}${stateAction}<button class="btn btn-sm btn-info view-event">View Details</button>${startAction}</div></td>
+                    <td class="text-end"><div class="d-inline-flex gap-2 align-items-center event-action-strip">${syncState}${stateAction}<button class="btn btn-sm btn-info view-event">View Details</button>${startAction}</div></td>
                 `;
                 row.querySelector('.view-event').addEventListener('click', () => showEventDetails(event.name, event.id, currentEventsView === 'archived'));
                 row.querySelector('.archive-event')?.addEventListener('click', () => setEventArchiveState(event.id, event.name, 'archive'));

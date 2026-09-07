@@ -23,9 +23,9 @@
     <script src="../assets/vendor/pdf.min.js"></script>
     <link rel="stylesheet" href="../assets/vendor/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260831-offline-docs-locker-3">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260902-responsive-5">
     <!-- PDF Viewer Styles -->
-    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260831-offline-annotations-2">
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260901-responsive-1">
 </head>
 
 <body>
@@ -331,7 +331,21 @@
         <!-- SERVICES TRACKER VIEW -->
         <div id="tracker" class="section-view">
             <div id="trackerLayout" class="tracker-layout">
+                <button id="trackerSidebarToggle" class="tracker-sidebar-toggle" type="button" data-readonly-allow
+                    aria-controls="trackerSidebar" aria-expanded="false" onclick="toggleTrackerSidebar()">
+                    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                    <span>Services Menu</span>
+                </button>
+                <button id="trackerSidebarBackdrop" class="tracker-sidebar-backdrop" type="button"
+                    data-readonly-allow aria-label="Close services menu" onclick="setTrackerSidebarOpen(false)"></button>
                 <aside id="trackerSidebar" class="tracker-sidebar card">
+                    <div class="tracker-sidebar-mobile-header">
+                        <strong>Services</strong>
+                        <button type="button" data-readonly-allow aria-label="Close services menu"
+                            onclick="setTrackerSidebarOpen(false)">
+                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        </button>
+                    </div>
                     <div class="tracker-sidebar-nav">
                         <button id="trackerRentalsBtn" class="sub-nav-btn active" data-readonly-allow
                             onclick="switchTrackerSubView('rentals', this)" hidden>
@@ -478,7 +492,7 @@
                                     <div class="card-title">All Transactions</div>
                                 </div>
                                 <div class="table-container">
-                                    <table>
+                                    <table class="tracker-mobile-card-table financial-transactions-table">
                                         <thead>
                                             <tr>
                                                 <th>Date</th>
@@ -507,7 +521,7 @@
                                     <div class="card-title">Date Breakdown</div>
                                 </div>
                                 <div class="table-container">
-                                    <table>
+                                    <table class="tracker-mobile-card-table financial-breakdown-table">
                                         <thead>
                                             <tr>
                                                 <th>Date</th>
@@ -580,7 +594,7 @@
                                     </div>
 
                                     <div class="table-container" id="officerPendingPrintRequestsTableWrap">
-                                        <table>
+                                        <table class="tracker-mobile-card-table printing-pending-table">
                                             <thead>
                                                 <tr>
                                                     <th>Document</th>
@@ -599,7 +613,7 @@
                                 </div>
 
                                 <div class="table-container" id="officerPrintingQueueTableWrap">
-                                    <table>
+                                    <table class="tracker-mobile-card-table printing-queue-table">
                                         <thead>
                                             <tr>
                                                 <th>Queue</th>
@@ -633,7 +647,7 @@
                                     </div>
                                 </div>
                                 <div class="table-container">
-                                    <table>
+                                    <table class="tracker-mobile-card-table printing-history-table">
                                         <thead>
                                             <tr>
                                                 <th>Queue</th>
@@ -2314,7 +2328,7 @@
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260824-service-applicability-1"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260827-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260831-offline-documents-locker-8"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260902-tracker-menu-3"></script>
     <script src="../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 

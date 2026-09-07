@@ -19,7 +19,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <title>IGP Rental - Import</title>
     <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css">
+    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css?v=20260901-responsive-2">
+    <link rel="stylesheet" href="../../assets/css/responsive-tables.css?v=20260901-2">
 </head>
 <body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top custom-navbar">
@@ -61,5 +62,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <script src="../../assets/js/igp-api.js"></script>
 <script src="../../assets/js/igp-import.js"></script>
     <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
+    <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
 </body>
 </html>
