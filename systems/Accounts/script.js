@@ -10,9 +10,6 @@ let studentNumbers = [];
 let currentAccountsSession = null;
 let osaStaff = [];
 let osaInvitations = [];
-let auditPage = 1;
-let auditTotal = 0;
-const AUDIT_PAGE_SIZE = 25;
 
 var lastFingerprint = null;  // realtime poll baseline (null = not yet set)
 var pollTimer       = null;
@@ -114,42 +111,6 @@ function renderOsaStaffManagement() {
     }
 }
 
-async function loadAuditLogs(page) {
-    if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
-    auditPage = Math.max(1, page || 1);
-    var params = new URLSearchParams({
-        page: String(auditPage),
-        limit: String(AUDIT_PAGE_SIZE),
-        search: (document.getElementById('auditSearch') || {}).value || '',
-        action: (document.getElementById('auditActionFilter') || {}).value || '',
-        date_from: (document.getElementById('auditDateFrom') || {}).value || '',
-        date_to: (document.getElementById('auditDateTo') || {}).value || ''
-    });
-    var data = await primaryApi('audit-logs/list.php?' + params.toString());
-    auditTotal = Number(data.pagination && data.pagination.total) || 0;
-    var body = document.getElementById('auditLogRecords');
-    if (body) {
-        body.innerHTML = (data.logs || []).length ? data.logs.map(function(log) {
-            var target = log.target_name || log.target_email || (log.target_type + ' ' + (log.target_id || ''));
-            return '<tr><td>' + escHtml(formatDate(log.created_at)) + '</td><td>' + escHtml(log.actor_name || 'System') + '</td>'
-                + '<td>' + escHtml(log.action) + '</td><td>' + escHtml(target) + '</td><td>' + escHtml(log.result) + '</td>'
-                + '<td><button class="btn btn-outline-secondary btn-sm" data-audit-detail="' + log.audit_id + '">View</button></td></tr>';
-        }).join('') : '<tr><td colspan="6" class="text-center text-muted">No audit entries</td></tr>';
-    }
-    var filter = document.getElementById('auditActionFilter');
-    if (filter && filter.options.length <= 1) {
-        (data.actions || []).forEach(function(action) { filter.add(new Option(action, action)); });
-    }
-    var start = auditTotal ? (auditPage - 1) * AUDIT_PAGE_SIZE + 1 : 0;
-    var end = Math.min(auditTotal, auditPage * AUDIT_PAGE_SIZE);
-    var summary = document.getElementById('auditPageSummary');
-    if (summary) summary.textContent = start + '–' + end + ' of ' + auditTotal;
-    var previous = document.getElementById('auditPreviousPage');
-    var next = document.getElementById('auditNextPage');
-    if (previous) previous.disabled = auditPage <= 1;
-    if (next) next.disabled = end >= auditTotal;
-}
-
 function setupPrimaryOsaManagement() {
     if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
     revealPrimaryOsaFeatures();
@@ -238,28 +199,8 @@ function setupPrimaryOsaManagement() {
         }
     });
 
-    document.getElementById('auditFilterForm').addEventListener('submit', function(event) {
-        event.preventDefault();
-        loadAuditLogs(1).catch(function(error) { return showPrimaryOsaNotice(error.message, 'error'); });
-    });
-    document.getElementById('auditPreviousPage').addEventListener('click', function() { loadAuditLogs(auditPage - 1); });
-    document.getElementById('auditNextPage').addEventListener('click', function() { loadAuditLogs(auditPage + 1); });
-    document.getElementById('auditLogRecords').addEventListener('click', async function(event) {
-        var button = event.target.closest('[data-audit-detail]');
-        if (!button) return;
-        try {
-            var data = await primaryApi('audit-logs/detail.php?audit_id=' + encodeURIComponent(button.dataset.auditDetail));
-            document.getElementById('auditDetailContent').textContent = JSON.stringify(data.log, null, 2);
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('auditDetailModal')).show();
-        } catch (error) {
-            await showPrimaryOsaNotice(error.message, 'error');
-        }
-    });
     document.getElementById('osa-staff-tab').addEventListener('shown.bs.tab', function() {
         loadOsaStaffManagement().catch(function(error) { return showPrimaryOsaNotice(error.message, 'error'); });
-    });
-    document.getElementById('audit-log-tab').addEventListener('shown.bs.tab', function() {
-        loadAuditLogs(1).catch(function(error) { return showPrimaryOsaNotice(error.message, 'error'); });
     });
 }
 

@@ -273,7 +273,7 @@ async function openOsaAlertTarget(item) {
     closeOsaAlerts();
     if (!submissionId) return;
 
-    navigate('requests');
+    navigate('documents');
     try {
         await loadRequestsFromApi();
         const requestItem = requests.find((request) =>
@@ -281,17 +281,6 @@ async function openOsaAlertTarget(item) {
         );
         if (!requestItem) throw new Error('This document submission is no longer available.');
 
-        clearRequestFilters(false);
-        const desiredStatus = requestItem.status || 'all';
-        const statusTab = Array.from(document.querySelectorAll('.req-tab')).find((button) =>
-            desiredStatus === 'all'
-                ? button.textContent.includes('Overview')
-                : button.textContent.trim() === desiredStatus
-        );
-        if (statusTab) switchReqStatus(desiredStatus, statusTab);
-
-        const row = document.querySelector(`[data-submission-id="${submissionId}"]`);
-        focusOsaAlertTarget(row);
         openPdfViewer(requestItem.viewerId || `submission_${submissionId}`);
     } catch (error) {
         showToast(error.message || 'Could not open this alert.', 'error');
@@ -2360,7 +2349,6 @@ function navigate(viewId, element) {
         'dashboard': 'OSA Dashboard',
         'organizations': 'Student Organizations',
         'monitoring': 'Organization Monitoring Panel',
-        'requests': 'Requests & Approvals',
         'documents': 'Document Repository',
         'account': 'Account Management',
         'audit': 'Protected Audit Log',

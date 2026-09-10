@@ -54,12 +54,6 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link" onclick="navigate('requests', this)">
-                    <i class="fa-solid fa-file-signature nav-icon"></i>
-                    <span class="nav-label">Requests & Approval</span>
-                </a>
-            </li>
-            <li class="nav-item">
                 <a href="#" class="nav-link" onclick="navigate('documents', this)">
                     <i class="fa-solid fa-folder-open nav-icon"></i>
                     <span class="nav-label">Documents</span>
@@ -464,66 +458,6 @@
             </div>
         </div>
 
-        <!-- REQUESTS & APPROVAL VIEW -->
-        <div id="requests" class="section-view">
-            <div class="card">
-                <!-- Simplified Filter Bar -->
-                <div class="requests-filter-bar">
-                    <!-- Status Tabs -->
-                    <div class="req-tabs">
-                        <button class="req-tab active" onclick="switchReqStatus('all', this)">Overview</button>
-                        <button class="req-tab" onclick="switchReqStatus('Pending', this)">Pending</button>
-                        <button class="req-tab" onclick="switchReqStatus('Approved', this)">Approved</button>
-                        <button class="req-tab" onclick="switchReqStatus('Rejected', this)">Rejected</button>
-                    </div>
-
-                    <!-- Filter Controls -->
-                    <div class="req-filter-controls">
-                        <select id="req-type-filter" onchange="renderRequests()">
-                            <option value="all">All Types</option>
-                            <option value="Event Proposal">Event Proposals</option>
-                            <option value="Posting">Posting Approval</option>
-                            <option value="Document">Document Submissions</option>
-                        </select>
-
-                        <select id="req-org-filter" onchange="renderRequests()">
-                            <option value="all">All Organizations</option>
-                            <!-- Populated via JS -->
-                        </select>
-
-                        <button class="date-range-btn" onclick="openDatePicker('requests')">
-                            <i class="fa-solid fa-calendar-days"></i>
-                            <span id="date-range-label">Select Date Range</span>
-                        </button>
-
-                        <button class="btn btn-outline btn-sm" onclick="clearRequestFilters()">
-                            <i class="fa-solid fa-filter-circle-xmark"></i> Clear
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Table -->
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Organization</th>
-                                <th>Sender</th>
-                                <th>Subject/Title</th>
-                                <th>Date Submitted</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="requests-table">
-                            <!-- JS Populated -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- DOCUMENTS VIEW -->
         <!-- DOCUMENTS VIEW -->
         <div id="documents" class="section-view">
             <div class="sub-view-nav">

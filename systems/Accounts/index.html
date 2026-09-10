@@ -52,11 +52,6 @@
                 data-bs-toggle="tab" data-bs-target="#osaStaffPanel"
                 type="button" role="tab">OSA Staff</button>
         </li>
-        <li class="nav-item primary-osa-only" role="presentation" hidden>
-            <button class="nav-link" id="audit-log-tab"
-                data-bs-toggle="tab" data-bs-target="#auditLogPanel"
-                type="button" role="tab">Audit Log</button>
-        </li>
     </ul>
 
     <div class="tab-content border border-top-0 rounded-bottom p-3 mb-4" id="mainTabContent">
@@ -181,30 +176,6 @@
             </div>
         </div>
 
-        <div class="tab-pane fade primary-osa-only" id="auditLogPanel" role="tabpanel" hidden>
-            <form id="auditFilterForm" class="row g-2 mb-3">
-                <div class="col-md-4"><input id="auditSearch" class="form-control form-control-sm" placeholder="Search actor or target"></div>
-                <div class="col-md-3"><select id="auditActionFilter" class="form-select form-select-sm"><option value="">All actions</option></select></div>
-                <div class="col-md-2"><input id="auditDateFrom" type="date" class="form-control form-control-sm" aria-label="From date"></div>
-                <div class="col-md-2"><input id="auditDateTo" type="date" class="form-control form-control-sm" aria-label="To date"></div>
-                <div class="col-md-1"><button class="btn btn-outline-primary btn-sm w-100" type="submit">Go</button></div>
-            </form>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle">
-                    <thead class="table-dark"><tr>
-                        <th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Result</th><th></th>
-                    </tr></thead>
-                    <tbody id="auditLogRecords"><tr><td colspan="6" class="text-center text-muted">No audit entries</td></tr></tbody>
-                </table>
-            </div>
-            <div class="audit-pagination">
-                <small id="auditPageSummary" class="text-muted"></small>
-                <div class="audit-pagination-actions">
-                    <button id="auditPreviousPage" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
-                    <button id="auditNextPage" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- ── Account Requests ── -->
@@ -505,18 +476,6 @@
 
 <!-- Toast container -->
 <div id="toastContainer" style="position:fixed;bottom:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;"></div>
-
-<div class="modal fade" id="auditDetailModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Audit Entry</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body"><pre id="auditDetailContent" class="bg-light border rounded p-3 mb-0" style="white-space:pre-wrap"></pre></div>
-        </div>
-    </div>
-</div>
 
 <!-- -------- IMPORT STUDENTS MODAL -------- -->
 <div class="modal fade" id="importStudentsModal" tabindex="-1" aria-hidden="true">
