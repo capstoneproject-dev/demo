@@ -66,7 +66,8 @@
             <input type="text" id="forgotStudentNumber" placeholder="Student / Employee Number" autocomplete="off" />
             <input type="email" id="forgotEmail" placeholder="Email" autocomplete="off" />
             <div class="forgot-reset-fields">
-              <div class="password-field"><input type="password" id="forgotNewPassword" placeholder="New Password"
+              <p id="forgotNewPassword-requirements" style="font-size: 0.8rem; margin: 0 0 8px;">Password must be at least 12 characters and contain an uppercase letter and a number.</p>
+              <div class="password-field"><input type="password" id="forgotNewPassword" minlength="12" aria-describedby="forgotNewPassword-requirements" placeholder="New Password"
                   autocomplete="new-password" /><button type="button" class="password-toggle" aria-label="Show password"
                   aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
@@ -131,18 +132,19 @@
           <input type="text" id="student-section-input" placeholder="Section" />
           <input type="email" id="student-email-input" placeholder="Email" />
           <input type="tel" id="student-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
-          <div class="password-field"><input type="password" id="student-password-input"
+              <div class="password-field"><input type="password" id="student-password-input" minlength="12" aria-describedby="student-password-input-requirements"
               placeholder="Password" /><button type="button" class="password-toggle" aria-label="Show password"
               aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                 <circle cx="12" cy="12" r="2.75" />
               </svg></button></div>
-          <div class="password-field"><input type="password" id="student-confirm-password-input"
+          <div class="password-field"><input type="password" id="student-confirm-password-input" aria-describedby="student-password-input-requirements"
               placeholder="Re-enter Password" /><button type="button" class="password-toggle" aria-label="Show password"
               aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                 <circle cx="12" cy="12" r="2.75" />
               </svg></button></div>
+          <p hidden id="student-password-input-requirements" style="color: #b42318; font-size: 0.8rem; margin: 0 0 8px; text-align: left;" aria-live="polite">Password must be at least 12 characters and contain an uppercase letter and a number.</p>
           <label class="privacy-consent" for="student-privacy-consent">
             <input type="checkbox" id="student-privacy-consent" />
             <span>By creating an account, you acknowledge that the system will collect and process your personal data
@@ -160,7 +162,8 @@
           <input type="text" id="osa-name-input" placeholder="Name" />
           <input type="email" id="osa-email-input" placeholder="Email" readonly />
           <input type="tel" id="osa-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
-          <div class="password-field"><input type="password" id="osa-password-input" placeholder="Password" /><button
+          <p id="osa-password-input-requirements" style="font-size: 0.8rem; margin: 0 0 8px;">Password must be at least 12 characters and contain an uppercase letter and a number.</p>
+              <div class="password-field"><input type="password" id="osa-password-input" minlength="12" aria-describedby="osa-password-input-requirements" placeholder="Password" /><button
               type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"
               title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
@@ -222,7 +225,8 @@
             <input type="text" id="org-adviser-name-input" placeholder="Full Name" autocomplete="name" />
             <input type="email" id="org-adviser-email-input" placeholder="Email" autocomplete="email" />
             <input type="tel" id="org-adviser-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
-            <div class="password-field org-full-width"><input type="password" id="org-adviser-password-input"
+            <p id="org-adviser-password-input-requirements" style="font-size: 0.8rem; margin: 0 0 8px;">Password must be at least 12 characters and contain an uppercase letter and a number.</p>
+              <div class="password-field org-full-width"><input type="password" id="org-adviser-password-input" minlength="12" aria-describedby="org-adviser-password-input-requirements"
                 placeholder="Password" autocomplete="new-password" /><button type="button" class="password-toggle"
                 aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24"
                   aria-hidden="true">
@@ -467,7 +471,7 @@
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20260901-local-osa-otp-bypass-5"></script>
+  <script src="../assets/js/login.js?v=20260911-password-validation-3"></script>
   <script>
     (() => {
       const localHosts = new Set(['localhost', '127.0.0.1', '::1']);

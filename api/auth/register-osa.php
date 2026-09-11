@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/password_policy.php';
 /**
  * POST /api/auth/register-osa.php
  *
@@ -42,8 +43,8 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 if ($password !== $confirmPassword) {
     jsonError('Passwords do not match.');
 }
-if (strlen($password) < 8) {
-    jsonError('Password must be at least 8 characters.');
+if (!passwordMeetsPolicy($password)) {
+    jsonError(PASSWORD_POLICY_MESSAGE);
 }
 if (!$privacyConsent) {
     jsonError('Privacy consent is required.');

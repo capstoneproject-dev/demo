@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/password_policy.php';
 /**
  * POST /api/auth/forgot-password-reset.php
  *
@@ -23,8 +24,8 @@ if ($accountIdentifier === '' || $email === '' || $verificationToken === '' || $
     jsonError('Student or employee number, email verification, and new password are required.', 422);
 }
 
-if (strlen($newPassword) < 8) {
-    jsonError('New password must be at least 8 characters.', 422);
+if (!passwordMeetsPolicy($newPassword)) {
+    jsonError(PASSWORD_POLICY_MESSAGE, 422);
 }
 
 rateLimitEnsureAllowed('password_reset_ip', 'ip:' . rateLimitClientIp(), 30, 3600);

@@ -1,3 +1,10 @@
+// Only use this for new passwords, never login or existing-account verification.
+function passwordMeetsPolicy(password) {
+  return Array.from(password).length >= 12
+    && /[A-Z]/.test(password)
+    && /[0-9]/.test(password);
+}
+
 /* =====================
    AUTH + UI STATE (LocalStorage simulation of SQL flow)
    ===================== */
@@ -813,8 +820,8 @@ async function sendForgotOtp() {
     setForgotFormFeedback('Enter your new password and confirm it before sending the OTP.', false);
     return;
   }
-  if (newPassword.length < 8) {
-    setForgotFormFeedback('New password must be at least 8 characters.', false);
+  if (!passwordMeetsPolicy(newPassword)) {
+    setForgotFormFeedback('Password must be at least 12 characters and contain an uppercase letter and a number.', false);
     return;
   }
   if (newPassword !== confirmPassword) {
@@ -877,8 +884,8 @@ async function verifyForgotOtp() {
     setForgotOtpFeedback('Enter your new password and confirm it.', false);
     return;
   }
-  if (newPassword.length < 8) {
-    setForgotOtpFeedback('New password must be at least 8 characters.', false);
+  if (!passwordMeetsPolicy(newPassword)) {
+    setForgotOtpFeedback('Password must be at least 12 characters and contain an uppercase letter and a number.', false);
     return;
   }
   if (newPassword !== confirmPassword) {
@@ -1778,6 +1785,25 @@ function hasPrivacyConsent(inputId) {
   return false;
 }
 
+function validateStudentPassword(focusInvalid = false) {
+  const passwordInput = document.getElementById('student-password-input');
+  const confirmInput = document.getElementById('student-confirm-password-input');
+  const feedback = document.getElementById('student-password-input-requirements');
+  const meetsPolicy = passwordMeetsPolicy(passwordInput.value);
+  const matches = passwordInput.value === confirmInput.value;
+  const requirements = 'Password must be at least 12 characters and contain an uppercase letter and a number.';
+  const invalidPassword = passwordInput.value !== '' && !meetsPolicy;
+  const invalidConfirmation = confirmInput.value !== '' && !matches;
+  feedback.textContent = invalidPassword ? requirements : 'Passwords do not match.';
+  feedback.hidden = !invalidPassword && !invalidConfirmation;
+  passwordInput.setAttribute('aria-invalid', String(invalidPassword));
+  confirmInput.setAttribute('aria-invalid', String(invalidConfirmation));
+  if (focusInvalid && (!meetsPolicy || !matches)) {
+    (meetsPolicy ? confirmInput : passwordInput).focus();
+  }
+  return meetsPolicy && matches;
+}
+
 async function registerStudent() {
   const studentNumber = (document.getElementById('student-number-input') || {}).value?.trim() || '';
   const fullName = (document.getElementById('student-name-input') || {}).value?.trim() || '';
@@ -1796,14 +1822,7 @@ async function registerStudent() {
     alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
-  if (password !== confirmPassword) {
-    alert('Passwords do not match.');
-    return;
-  }
-  if (password.length < 8) {
-    alert('Password must be at least 8 characters.');
-    return;
-  }
+  if (!validateStudentPassword(true)) return;
   if (!hasPrivacyConsent('student-privacy-consent')) return;
 
   startRegistrationOtpFlow('student', email, studentNumber, 'student_registration', async (verificationToken) => {
@@ -1917,8 +1936,8 @@ async function registerOrganizationAdviser() {
     alert('Passwords do not match.');
     return;
   }
-  if (password.length < 8) {
-    alert('Password must be at least 8 characters.');
+  if (!passwordMeetsPolicy(password)) {
+    alert('Password must be at least 12 characters and contain an uppercase letter and a number.');
     return;
   }
   if (!hasPrivacyConsent('org-privacy-consent')) return;
@@ -1964,8 +1983,8 @@ async function registerOsa() {
     alert('Passwords do not match.');
     return;
   }
-  if (password.length < 8) {
-    alert('Password must be at least 8 characters.');
+  if (!passwordMeetsPolicy(password)) {
+    alert('Password must be at least 12 characters and contain an uppercase letter and a number.');
     return;
   }
   if (!hasPrivacyConsent('osa-privacy-consent')) return;
@@ -2435,6 +2454,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const osaForm = document.getElementById('form-osa');
   const loginForm = document.getElementById('loginForm');
 
+  ['student-password-input', 'student-confirm-password-input'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('input', () => {
+      const feedback = document.getElementById('student-password-input-requirements');
+      if (feedback) feedback.hidden = true;
+      document.getElementById('student-password-input')?.removeAttribute('aria-invalid');
+      document.getElementById('student-confirm-password-input')?.removeAttribute('aria-invalid');
+    });
+  });
+  if (studentForm) studentForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    registerStudent();
+  });
   if (studentRegisterBtn) studentRegisterBtn.addEventListener('click', registerStudent);
   if (orgRegisterBtn) orgRegisterBtn.addEventListener('click', registerOrgOfficer);
   if (osaRegisterBtn) osaRegisterBtn.addEventListener('click', registerOsa);

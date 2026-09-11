@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../includes/password_policy.php';
 // Public endpoint (no session guard) – students submit account requests from the login page or Android app
 require_once '../../../config/db.php';
 require_once '../../../includes/auth.php';
@@ -39,9 +40,13 @@ if ($reqRole === 'organization_adviser') {
     if ($employeeNumber === '' || $reqOrg === '' || strcasecmp($reqPosition, 'Organization Adviser') !== 0) {
         jsonError('Employee number, organization, and the Organization Adviser position are required.', 422);
     }
-    if (strlen($password) < 8) jsonError('Password must be at least 8 characters.', 422);
 } elseif ($studentNumber === '') {
     jsonError('Student number is required.', 422);
+}
+
+// Officer requests verify an existing password, rather than choose a new one.
+if ($reqRole !== 'org_officer' && !passwordMeetsPolicy($password)) {
+    jsonError(PASSWORD_POLICY_MESSAGE, 422);
 }
 
 $registrationIpSubject = 'ip:' . rateLimitClientIp();

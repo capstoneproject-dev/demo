@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../includes/password_policy.php';
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 
@@ -25,8 +26,8 @@ if ($newPassword !== $confirmPassword) {
     jsonError('New passwords do not match.', 422);
 }
 
-if (strlen($newPassword) < 8) {
-    jsonError('New password must be at least 8 characters.', 422);
+if (!passwordMeetsPolicy($newPassword)) {
+    jsonError(PASSWORD_POLICY_MESSAGE, 422);
 }
 
 $user = getUserById($userId);
