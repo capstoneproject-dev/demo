@@ -161,7 +161,7 @@ function isOfficerServiceAnalyticsApplicable() {
 async function loadOfficerAnalyticsEvents() {
     try {
         const [eventsRes, attendanceRes] = await Promise.all([
-            fetch('../api/qr-attendance/events/list.php', { credentials: 'same-origin' }),
+            fetch('../api/qr-attendance/events/list.php?state=all', { credentials: 'same-origin' }),
             fetch('../api/qr-attendance/attendance/list.php?limit=10000', { credentials: 'same-origin' }),
         ]);
         const eventsData = await eventsRes.json().catch(() => ({}));
@@ -174,7 +174,7 @@ async function loadOfficerAnalyticsEvents() {
         }
 
         officerAnalyticsState.liveAttendance = Array.isArray(attendanceData.items)
-            ? attendanceData.items.map((item) => ({
+            ? attendanceData.items.filter(item => item.time_in).map((item) => ({
                 record_id: item.record_id,
                 event_id: item.event_id,
                 event_name: item.event_name || '',
@@ -198,7 +198,7 @@ async function loadOfficerAnalyticsEvents() {
                 title: item.event_name || 'Event',
                 date: item.event_datetime || item.event_date || item.created_at || '',
                 venue: item.location || 'TBA',
-                participants: Number(item.attendance_count || 0),
+                participants: Number(item.attended_count || 0),
                 status: Number(item.is_published || 0) ? 'published' : 'draft',
                 attendees: attendeesByEventId.get(Number(item.event_id || 0)) || [],
             }))
@@ -339,7 +339,7 @@ function formatOfficerAnalyticsRevenueTrend(growthBreakdown) {
 }
 
 function getOfficerAnalyticsRetentionLevel(events) {
-    if (!Array.isArray(events) || !events.length) return 'Low';
+    if (!Array.isArray(events) || !events.length) return 'Insufficient data';
 
     const chronological = events
         .slice()
@@ -357,7 +357,7 @@ function getOfficerAnalyticsRetentionLevel(events) {
         })
         .filter((event) => event.attendeeKeys.length > 0);
 
-    if (chronological.length < 2) return 'Low';
+    if (chronological.length < 2) return 'Insufficient data';
 
     let overlapSum = 0;
     let overlapCount = 0;
@@ -387,7 +387,64 @@ function getOfficerAnalyticsRetentionLevel(events) {
     return 'Low';
 }
 
-function buildOfficerDocumentRejectionPatterns(documents) {
+const documentRevisionChecks = {
+    missing_requirements: 'Compare the submission with the required attachments checklist and include each missing file.',
+    signature_approval: 'Verify that the required signatories and endorsements are complete.',
+    formatting_template: 'Compare the document with the current required template, layout, and file naming rules.',
+    budget_financial: 'Recheck itemized amounts, totals, quotations, and supporting receipts.',
+    schedule_venue: 'Check that dates, times, and venue details agree throughout the submission.',
+    content_details: 'Complete the objectives, activity details, participants, and other sections identified by the reviewer.',
+    inconsistent_incorrect: 'Cross-check conflicting statements and correct the specific information flagged by the reviewer.',
+    policy_compliance: 'Compare the flagged section with the applicable published guideline and reviewer instructions.',
+    other: 'Read the original reviewer note for the specific revision requested.'
+};
+
+async function loadAnalyticsReviewAnnotations(documents) {
+    const rejected = documents.filter(doc => String(doc.rawStatus || doc.status || '').toLowerCase().includes('reject') && Number(doc.submission_id) > 0);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(3, rejected.length) }, async () => {
+        while (next < rejected.length) {
+            const doc = rejected[next++];
+            try {
+                const response = await fetch(`../api/documents/annotations/list.php?submission_id=${encodeURIComponent(doc.submission_id)}`, { credentials: 'same-origin' });
+                const data = await response.json();
+                if (!response.ok || !data.ok) throw new Error('Annotations unavailable');
+                doc.reviewAnnotations = data.items || [];
+                doc.reviewAnnotationsUnavailable = false;
+            } catch (_) {
+                doc.reviewAnnotationsUnavailable = true;
+            }
+        }
+    }));
+    refreshAnalyticsCharts();
+}
+
+function getDocumentRejectionFeedback(doc) {
+    const feedback = [];
+    const stages = [['adviser', 'Adviser'], ['ssc', 'SSC'], ['osa', 'OSA']];
+    stages.forEach(([key, label]) => {
+        const note = String(doc[`${key}ReviewerNotes`] || '').trim();
+        if (note) feedback.push({ source: `${label} comment`, text: note });
+    });
+    const generic = String(doc.reviewerNotes || '').trim();
+    if (generic && !feedback.some(item => item.text === generic)) {
+        feedback.push({ source: 'Reviewer comment', text: generic });
+    }
+    (doc.reviewAnnotations || []).forEach(annotation => {
+        const stage = stages.find(([key]) => Number(doc[`${key}ReviewerUserId`]) > 0
+            && Number(doc[`${key}ReviewerUserId`]) === Number(annotation.created_by_user_id));
+        const role = annotation.author_account_type;
+        const label = stage?.[1] || (role === 'organization_adviser' ? 'Adviser' : role === 'osa_staff' ? 'OSA' : null);
+        const comment = String(annotation.comment_text || '').trim();
+        // A highlight alone contains document text, not a stated rejection reason.
+        if (!label || !comment) return;
+        feedback.push({ source: `${label} annotation, page ${annotation.page_number || '?'}`, text: comment,
+            selectedText: String(annotation.selected_text || '') });
+    });
+    return feedback;
+}
+
+function buildOfficerDocumentRejectionPatterns(documents, includeRecords = false) {
     const categories = [
         { key: 'missing_requirements', label: 'Missing requirements or attachments', pattern: /\b(missing|incomplete|lack(?:ing)?|absent|attach(?:ments?|ed)?|requirements?|kulang)\b/i },
         { key: 'signature_approval', label: 'Missing signature or approval', pattern: /\b(signatures?|signatory|signed|approval|approve|endorse(?:ment)?|pirma)\b/i },
@@ -405,28 +462,21 @@ function buildOfficerDocumentRejectionPatterns(documents) {
     const counts = new Map(categories.map((category) => [category.key, 0]));
     counts.set('other', 0);
     let withNotes = 0;
+    const recordsByCategory = new Map();
 
     rejectedDocuments.forEach((documentItem) => {
-        const rejectedNotes = [];
-        if (String(documentItem.sscDecision || '').toLowerCase() === 'rejected' && documentItem.sscReviewerNotes) {
-            rejectedNotes.push(documentItem.sscReviewerNotes);
-        }
-        if (String(documentItem.osaDecision || '').toLowerCase() === 'rejected' && documentItem.osaReviewerNotes) {
-            rejectedNotes.push(documentItem.osaReviewerNotes);
-        }
-        if (documentItem.reviewerNotes) {
-            rejectedNotes.push(documentItem.reviewerNotes);
-        }
-        if (!rejectedNotes.length) {
-            [documentItem.sscReviewerNotes, documentItem.osaReviewerNotes]
-                .filter(Boolean)
-                .forEach((note) => rejectedNotes.push(note));
-        }
-
-        const combinedNotes = rejectedNotes.map((note) => String(note).trim()).filter(Boolean).join(' ');
+        const feedback = getDocumentRejectionFeedback(documentItem);
+        const combinedNotes = feedback.map(item => item.text).join(' ');
         if (!combinedNotes) return;
         withNotes += 1;
         const matches = categories.filter((category) => category.pattern.test(combinedNotes));
+        (matches.length ? matches.map(category => category.key) : ['other']).forEach(key => {
+            if (!recordsByCategory.has(key)) recordsByCategory.set(key, []);
+            const category = categories.find(item => item.key === key);
+            const matchingFeedback = category ? feedback.filter(item => category.pattern.test(item.text)) : feedback;
+            recordsByCategory.get(key).push({ ...documentItem, rejectionEvidence: matchingFeedback.map(item =>
+                `${item.source}: ${item.text}${item.selectedText ? ` [Highlighted passage: ${item.selectedText}]` : ''}`).join('\n') });
+        });
         if (!matches.length) {
             counts.set('other', counts.get('other') + 1);
             return;
@@ -448,8 +498,14 @@ function buildOfficerDocumentRejectionPatterns(documents) {
         rejectedDocuments: rejectedDocuments.length,
         rejectedWithNotes: withNotes,
         rejectedWithoutNotes: Math.max(rejectedDocuments.length - withNotes, 0),
-        categories: categoryRows,
-        categoryMethod: 'A rejected document may appear in more than one category.',
+        annotationsUnavailable: rejectedDocuments.filter(doc => doc.reviewAnnotationsUnavailable).length,
+        categories: categoryRows.map(category => ({
+            ...category,
+            share: withNotes ? Number((category.count / withNotes * 100).toFixed(1)) : 0,
+            revisionCheck: documentRevisionChecks[category.key],
+            ...(includeRecords ? { records: recordsByCategory.get(category.key) || [] } : {})
+        })),
+        categoryMethod: 'Keyword matches in reviewer notes, not verified causes. Percentages use rejected documents with notes; categories can overlap.',
     };
 }
 
@@ -1371,11 +1427,141 @@ function refreshAnalyticsCharts() {
     officerAnalyticsState.snapshot = snapshot;
     updateOfficerAnalyticsCardText(snapshot);
     renderOfficerAnalyticsCharts(snapshot);
+    renderOfficerAnalyticsEvidence(snapshot);
 
     if (officerAnalyticsInsightsState.currentKey !== cacheKey) {
         officerAnalyticsInsightsState.currentKey = cacheKey;
         setOfficerAnalyticsInsightsIdle();
     }
+}
+
+// Evidence stays local: only aggregate category counts and revision checks go to AI.
+function openAnalyticsEvidence(title, records) {
+    document.getElementById('analytics-evidence-dialog')?.remove();
+    const dialog = document.createElement('dialog');
+    dialog.id = 'analytics-evidence-dialog';
+    dialog.className = 'analytics-evidence-dialog';
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    dialog.append(heading);
+    const close = document.createElement('button');
+    close.className = 'btn btn-outline btn-sm';
+    close.textContent = 'Close';
+    close.onclick = () => dialog.close();
+    dialog.append(close);
+    records.forEach(record => {
+        const article = document.createElement('article');
+        const label = document.createElement('strong');
+        label.textContent = record.title || record.item || record.item_label || record.service_type || 'Record';
+        const detail = document.createElement('p');
+        detail.textContent = [record.submittedAt || record.date || record.transaction_date || record.due,
+            record.status || record.payment_status,
+            record.participants !== undefined ? `${record.participants} participants` : '',
+            record.total_cost !== undefined ? `PHP ${record.total_cost}` : '',
+            record.rejectionEvidence || ''].filter(Boolean).join(' · ');
+        article.append(label, detail);
+        dialog.append(article);
+    });
+    if (!records.length) dialog.append(document.createTextNode('No supporting records in the selected period.'));
+    dialog.addEventListener('close', () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+}
+
+function renderOfficerAnalyticsEvidence(snapshot) {
+    const groups = [
+        ['Financial', snapshot.financial],
+        ['Participation', snapshot.events],
+        ['Inventory', snapshot.rentals],
+        ['Documents', snapshot.docs]
+    ];
+    groups.forEach(([name, records]) => {
+        const insight = document.getElementById(`analyticsInsight${name}`);
+        if (!insight) return;
+        let panel = document.getElementById(`analyticsEvidence${name}`);
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = `analyticsEvidence${name}`;
+            panel.className = 'analytics-evidence';
+            insight.after(panel);
+        }
+        panel.replaceChildren();
+        panel.hidden = ['Financial', 'Inventory'].includes(name) && !snapshot.availability.servicesApplicable;
+        const button = document.createElement('button');
+        button.className = 'btn btn-outline btn-sm';
+        button.textContent = 'View supporting records';
+        button.onclick = () => openAnalyticsEvidence(`${name} — supporting records`, records);
+        panel.append(button);
+    });
+}
+
+function getOfficerDocumentReportSections(snapshot) {
+    const patterns = buildOfficerDocumentRejectionPatterns(snapshot.docs, true);
+    const priorities = [...patterns.categories].sort((a, b) => b.count - a.count).slice(0, 3);
+    const summary = priorities.length
+        ? `Summary: The most frequently recorded feedback categories are ${priorities.map(category => `${category.label.toLowerCase()} (${category.count} document${category.count === 1 ? '' : 's'}; ${category.share}%)`).join('; ')}.`
+        : 'Summary: No usable rejection feedback is available to identify common document issues.';
+    const improvements = priorities.length
+        ? ['Workflow improvements: Use a pre-submission checklist focused on these recorded issues.',
+            ...priorities.map((category, index) => `${index + 1}. ${category.revisionCheck}`),
+            'Before resubmitting, record the correction made for each Adviser, SSC, or OSA comment or annotation. Ask the reviewer to clarify any missing or unclear rejection feedback.']
+        : [patterns.rejectedDocuments
+            ? 'Workflow improvement: Obtain specific reviewer comments for rejected documents, then record each requested correction before resubmission.'
+            : 'Workflow review: No rejection-based priorities can be identified for this period. Continue checking submissions against the required document checklist.'];
+    const feedback = snapshot.docs
+        .filter(doc => String(doc.rawStatus || doc.status || '').toLowerCase().includes('reject'))
+        .flatMap(doc => getDocumentRejectionFeedback(doc).map(note => [
+            doc.title || 'Document', note.source, note.text + (note.selectedText ? `\nHighlighted passage: ${note.selectedText}` : '')
+        ]));
+    return [
+        {
+            title: 'Document Workflow - Summary',
+            description: 'Recorded document status for the selected period.',
+            head: ['Total documents', 'Approved', 'Pending', 'Rejected'],
+            body: [[snapshot.docs.length, snapshot.counts.docs.approved, snapshot.counts.docs.pending, snapshot.counts.docs.rejected]]
+        },
+        {
+            title: 'Rejection Reasons and Revision Checklist',
+            description: [summary, '', ...improvements, '', `Coverage: ${patterns.rejectedWithNotes} of ${patterns.rejectedDocuments} rejected documents have feedback; ${patterns.rejectedWithoutNotes} have no usable feedback.${patterns.annotationsUnavailable ? ` Annotations could not be loaded for ${patterns.annotationsUnavailable} documents.` : ''} Percentages use documents with feedback; categories may overlap. Checks address observed feedback and do not guarantee approval.`].join('\n'),
+            head: ['Feedback category', 'Count', 'Share', 'What to review'],
+            body: patterns.categories.length ? patterns.categories.map(category => [category.label, category.count, `${category.share}%`, category.revisionCheck]) : [['No usable rejection feedback', '-', '-', '-']]
+        },
+        {
+            title: 'Document Records', description: '',
+            head: ['Title', 'Type', 'Submitted', 'Status'],
+            body: snapshot.docs.length ? snapshot.docs.map(doc => [doc.title || '-', doc.type || '-', doc.submittedAt || doc.date || '-', doc.status || '-']) : [['No document records', '', '', '']]
+        },
+        {
+            title: 'Reviewer Comments and Annotations',
+            description: 'Original feedback from rejected documents, listed once per comment or annotation. Categories above are keyword matches in this feedback.',
+            head: ['Document', 'Reviewer / source', 'Feedback'],
+            body: feedback.length ? feedback : [['No reviewer feedback available', '', '']]
+        }
+    ];
+}
+
+function getOfficerAnalyticsEvidenceReportRows(snapshot) {
+    const rows = [];
+    const groups = [
+        ['Financial', snapshot.financial, `${snapshot.counts.financial.outstanding} outstanding transactions`, snapshot.counts.financial.outstanding],
+        ['Participation', snapshot.events, `${snapshot.events.length} events; median attendance ${snapshot.patterns.eventParticipation.medianAttendance || 0}`, 0],
+        ['Inventory', snapshot.rentals, `${snapshot.counts.rentals.overdue} overdue rentals`, snapshot.counts.rentals.overdue],
+        ['Documents', snapshot.docs, `${snapshot.counts.docs.rejected} rejected; ${snapshot.counts.docs.pending} pending`, snapshot.counts.docs.rejected]
+    ];
+    groups.forEach(([name, records, finding, flagged]) => {
+        if (['Financial', 'Inventory'].includes(name) && !snapshot.availability.servicesApplicable) return;
+        rows.push([name, `${officerAnalyticsState.mockData ? 'MOCK DATA. ' : ''}${finding}. Evidence: ${records.length} records in the selected period. ${records.length === 0 ? 'Insufficient data.' : `${flagged ? 'Attention: recorded exceptions present.' : 'Descriptive observation.'}${records.length < 3 ? ' Small sample; interpret cautiously.' : ''}`}`]);
+    });
+    const patterns = buildOfficerDocumentRejectionPatterns(snapshot.docs, true);
+    rows.push(['Rejection feedback coverage', `${patterns.rejectedWithNotes} of ${patterns.rejectedDocuments} rejected documents have comments or annotation comments; ${patterns.rejectedWithoutNotes} lack usable feedback. ${patterns.annotationsUnavailable || 0} documents could not load annotations. ${patterns.categoryMethod} Checks address observed issues and do not guarantee approval.`]);
+    if (!patterns.categories.length) rows.push(['Rejection reasons', 'No usable rejection reasons for this period.']);
+    patterns.categories.forEach(category => {
+        rows.push([category.label, `${category.count}/${patterns.rejectedWithNotes} (${category.share}%). ${category.count >= 2 ? 'Recurring observation' : 'Single observation'}.\nRevision check: ${category.revisionCheck}`]);
+        category.records.forEach(record => {
+            rows.push([record.title || 'Document', record.rejectionEvidence || '']);
+        });
+    });
+    return rows;
 }
 
 function getOfficerAnalyticsReportData(overrides = {}) {
@@ -1576,7 +1762,21 @@ function generateMockAnalyticsData() {
     }
 
     // Generate 10-20 documents
-    const docCount = 10 + Math.floor(Math.random() * 11);
+    const docCount = 20;
+    const mockRejectionNotes = [
+        'Missing required attachments and supporting files.',
+        'Missing required attachments and supporting files.',
+        'Missing required attachments and signature of the signatory.',
+        'Signature and endorsement are incomplete.',
+        'Use the required template and correct the font and margins.',
+        'Budget totals do not match the quotation amounts.',
+        'Schedule and venue conflict; correct the date and time.',
+        'Explain the objectives and participant details.',
+        'Incorrect and inconsistent information across sections.',
+        'Review the policy compliance requirements.',
+        'Please consult the reviewer.',
+        '' // Deliberately missing evidence to test coverage warnings.
+    ];
     const docs = [];
     for (let i = 0; i < docCount; i++) {
         const statuses = ['approved', 'pending', 'pending', 'rejected']; // More pending
@@ -1594,7 +1794,22 @@ function generateMockAnalyticsData() {
             submittedAt: toIsoDateTime(docDate, 10 + (i % 5), 15),
             submitted_at: toIsoDateTime(docDate, 10 + (i % 5), 15),
             date: toIsoDate(docDate),
-            status: pick(statuses),
+            status: i < mockRejectionNotes.length ? 'rejected' : (i % 2 ? 'approved' : 'pending'),
+            reviewerNotes: i < 4 ? mockRejectionNotes[i] : '',
+            adviserDecision: i < 4 ? 'rejected' : '',
+            adviserReviewerNotes: i < 4 ? mockRejectionNotes[i] : '',
+            sscDecision: i >= 4 && i < 8 ? 'rejected' : '',
+            sscReviewerUserId: 9002,
+            osaDecision: i >= 8 && i < 12 ? 'rejected' : '',
+            osaReviewerUserId: 9003,
+            adviserReviewerUserId: 9001,
+            reviewAnnotations: i >= 4 && i < 11 ? [{
+                created_by_user_id: i < 8 ? 9002 : 9003,
+                author_account_type: i < 8 ? 'student' : 'osa_staff',
+                page_number: 1 + (i % 3),
+                selected_text: `Example passage in ${docType}`,
+                comment_text: mockRejectionNotes[i]
+            }] : (i === 11 ? [{ created_by_user_id: 9003, page_number: 1, selected_text: 'Budget', comment_text: '' }] : []),
             description: `${title} generated for mock workflow simulation.`,
             submitted_by: submitter,
             sender: submitter,
@@ -1661,6 +1876,13 @@ function generateMockAnalyticsData() {
     }
 
     // Refresh charts
+    initializeOfficerAnalyticsYearOptions();
+    const mockYearSelect = document.getElementById('filter-year');
+    if (mockYearSelect) mockYearSelect.value = `${academicYear}-${academicYear + 1}`;
+    if (typeof analyticsDateFilters !== 'undefined') {
+        analyticsDateFilters.startDate = null;
+        analyticsDateFilters.endDate = null;
+    }
     refreshAnalyticsCharts();
 }
 

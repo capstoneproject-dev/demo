@@ -1215,6 +1215,7 @@ function docListAnnotations(PDO $pdo, int $submissionId, array $session): array
                 a.rects_json,
                 a.comment_text,
                 a.created_by_user_id,
+                u.account_type AS author_account_type,
                 a.created_at,
                 a.updated_at,
                 u.first_name,

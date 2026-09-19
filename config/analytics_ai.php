@@ -13,7 +13,7 @@ if (!defined('ANALYTICS_AI_ZERO_COST_ONLY')) {
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_ENABLED')) {
-    define('ANALYTICS_AI_GEMINI_ENABLED', true);
+    define('ANALYTICS_AI_GEMINI_ENABLED', false);
 }
 
 if (!defined('ANALYTICS_AI_GEMINI_API_KEY')) {

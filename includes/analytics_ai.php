@@ -69,7 +69,7 @@ function analyticsAiGenerateInsights(array $snapshot, array $filters, int $orgId
 function analyticsAiBuildCacheKey(array $snapshot, array $filters, int $orgId): string
 {
     $payload = [
-        'version' => 6,
+        'version' => 8,
         'orgId' => $orgId,
         'filters' => $filters,
         'availability' => $snapshot['availability'] ?? [],
@@ -231,7 +231,7 @@ For every chart summary:
 4. When appropriate, quantify meaningful differences using percentages, absolute changes, rankings, averages, or proportions calculated only from the supplied data.
 5. Do not merely repeat the values shown in the chart.
 6. Do not claim causation unless causation is explicitly supported by the supplied data.
-7. Do not make predictions, forecasts, or unsupported recommendations.
+7. Do not make predictions, forecasts, or unsupported recommendations. For documents, give at most two short descriptive observations about recorded statuses or feedback categories. Do not label the process inefficient or claim that changes will improve approval rates. Do not enumerate revision checks in prose; the export renders the supplied checks in a separate table.
 8. Do not describe a small difference as a major change.
 9. If the data does not contain a meaningful pattern or sufficient evidence for an interpretation, explicitly state that rather than inventing an insight.
 

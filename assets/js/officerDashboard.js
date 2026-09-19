@@ -8461,17 +8461,17 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
     }
 
     rows.push([]);
-    rows.push(['DOCUMENT WORKFLOW']);
-    rows.push(['Description', insights?.exportSections?.documentWorkflow || '-']);
-    rows.push(['Title', 'Type', 'Submitted', 'Status']);
-    if (report.docs.length) {
-        report.docs.forEach((item) => {
-            rows.push([item.title || '-', item.type || '-', item.date || '-', item.status || '-']);
-        });
-    } else {
-        rows.push(['No document records', '', '', '']);
-    }
+    getOfficerDocumentReportSections(report).forEach(section => {
+        rows.push([], [section.title]);
+        if (section.description) rows.push(['Notes', section.description]);
+        rows.push(section.head, ...section.body);
+    });
 
+    if (typeof getOfficerAnalyticsEvidenceReportRows === 'function') {
+        rows.push([], ['OTHER SUPPORTING EVIDENCE']);
+        rows.push(['Topic', 'Findings']);
+        rows.push(...getOfficerAnalyticsEvidenceReportRows(report).filter(row => ['Financial', 'Participation', 'Inventory'].includes(row[0])));
+    }
     return rows;
 }
 
@@ -8671,23 +8671,45 @@ async function exportPDF(options = {}) {
     });
 
     currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
-    currentY = addAnalyticsPdfSectionDescription(
-        doc,
-        'Document Workflow',
-        insights?.exportSections?.documentWorkflow || 'No descriptive analysis available.',
-        currentY
-    );
-    doc.autoTable({
-        startY: currentY + 4,
-        head: [['Title', 'Type', 'Submitted', 'Status']],
-        body: report.docs.length
-            ? report.docs.map((item) => [item.title || '-', item.type || '-', item.date || '-', item.status || '-'])
-            : [['No document records', '', '', '']],
-        theme: 'striped',
-        headStyles: { fillColor: [107, 114, 128] },
-        styles: { fontSize: 8 },
+    getOfficerDocumentReportSections(report).forEach((section, index) => {
+        if (index === 0 || index === 3) {
+            doc.addPage();
+            currentY = 20;
+        }
+        if (currentY > 225) {
+            doc.addPage();
+            currentY = 20;
+        }
+        currentY = addAnalyticsPdfSectionDescription(doc, section.title, section.description || 'Records for the selected period.', currentY);
+        doc.autoTable({
+            startY: currentY + 3,
+            head: [section.head],
+            body: section.body.map(row => row.map(normalizeAnalyticsPdfText)),
+            theme: 'striped',
+            headStyles: { fillColor: [0, 33, 71], cellPadding: 3 },
+            styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak', valign: 'top' },
+            columnStyles: index === 1 ? { 0: { cellWidth: 48 }, 1: { cellWidth: 22 }, 2: { cellWidth: 18 } }
+                : index === 3 ? { 0: { cellWidth: 42 }, 1: { cellWidth: 35 } } : {},
+            rowPageBreak: 'avoid',
+            margin: { top: 20, bottom: 20 },
+        });
+        currentY = doc.lastAutoTable.finalY + 12;
     });
 
+    if (typeof getOfficerAnalyticsEvidenceReportRows === 'function') {
+        doc.addPage();
+        currentY = addAnalyticsPdfSectionDescription(doc, 'Other Supporting Evidence',
+            'Recorded financial, participation, and inventory findings for the selected report period.', 20);
+        doc.autoTable({
+            startY: currentY + 4,
+            head: [['Topic / Document', 'Findings / Reviewer Feedback']],
+            body: getOfficerAnalyticsEvidenceReportRows(report).filter(row => ['Financial', 'Participation', 'Inventory'].includes(row[0])).map(row => row.map(normalizeAnalyticsPdfText)),
+            theme: 'striped',
+            headStyles: { fillColor: [107, 114, 128] },
+            styles: { fontSize: 8, overflow: 'linebreak' },
+            columnStyles: { 0: { cellWidth: 48 } },
+        });
+    }
     setAnalyticsExportLoadingMessage('Finalizing the PDF and starting your download...');
     await waitForAnalyticsExportUiPaint();
     doc.save(`${getAnalyticsExportFileStem(meta)}.pdf`);
@@ -9139,6 +9161,9 @@ async function loadDocsFromApi({ silent = false, skipUnchanged = false } = {}) {
             hasNewerVersion: Boolean(item.has_newer_version),
         }));
         await mergeQueuedOfficerDocuments();
+        if (typeof loadAnalyticsReviewAnnotations === 'function') {
+            await loadAnalyticsReviewAnnotations(docsData);
+        }
         docsData.forEach(doc => {
             if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
                 PDFViewer.registerRemote(doc.viewerId, doc.title, doc.fileUrl, { submissionId: doc.submission_id });

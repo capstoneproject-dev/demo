@@ -6843,3 +6843,75 @@ body.dark .btn-outline:hover {
         transition-duration: 0.01ms;
     }
 }
+.analytics-evidence { margin-top: 12px; font-size: .85rem; }
+.analytics-evidence p { margin: 8px 0; }
+.analytics-evidence article, .analytics-evidence-dialog article { padding: 12px 0; border-top: 1px solid var(--border, #d1d5db); }
+.analytics-evidence-dialog { position: fixed; inset: 0; margin: auto; width: min(760px, 92vw); max-height: 80vh; overflow: auto; border: 1px solid var(--border, #d1d5db); border-radius: 14px; padding: 24px; background: var(--panel, white); color: var(--text, #172033); }
+.analytics-evidence-dialog::backdrop { background: #0008; }
+
+/* Analytics controls must wrap independently of the shared dashboard toolbar. */
+#analytics .analytics-toolbar { flex-wrap: wrap; }
+#analytics .analytics-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+}
+#analytics .analytics-actions .export-dropdown { top: calc(100% + 8px); max-width: 100%; }
+#analytics .analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#analytics .analytics-grid > .card { min-width: 0; }
+#analytics .analytics-chart-with-legend { flex-wrap: wrap; gap: 16px; }
+#analytics-active-filter { padding-bottom: 12px; overflow-wrap: anywhere; }
+
+@media (max-width: 768px) {
+    #analytics .analytics-toolbar { padding: 16px; gap: 16px; }
+    #analytics .analytics-toolbar .filters,
+    #analytics .analytics-toolbar .filter-group { min-width: 0; width: 100%; }
+    #analytics .analytics-toolbar select,
+    #analytics .analytics-toolbar .filter-group button { width: 100%; min-height: 44px; }
+    #analytics .analytics-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+        align-items: stretch;
+        gap: 10px;
+    }
+    #analytics .analytics-actions > button {
+        min-width: 0;
+        width: 100%;
+        min-height: 44px;
+        padding: 10px;
+        justify-content: center;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.4;
+    }
+    #analytics .analytics-actions > button:last-of-type { grid-column: 1 / -1; }
+    #analytics #analyticsInsightsProviderBadge {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        justify-self: center;
+        justify-content: center;
+        text-align: center;
+        max-width: 100%;
+    }
+    #analytics .analytics-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    #analytics .analytics-grid > .card { padding: 16px; }
+    #analytics .card-title { font-size: 1rem; overflow-wrap: anywhere; }
+    #analytics .analytics-chart-with-legend { flex-direction: column; height: auto !important; }
+    #analytics .analytics-chart-with-legend .chart-wrapper {
+        position: relative;
+        width: 200px;
+        max-width: 100%;
+        flex: 0 0 auto;
+    }
+    #analytics .analytics-legend-modern { min-width: 0; width: 100%; padding: 0; gap: 8px; }
+    #analytics .chart-container-relative { min-width: 0; }
+    #analytics canvas { max-width: 100%; }
+    #analytics .stat-item { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+    #analytics [id^="analyticsInsight"] { overflow-wrap: anywhere; }
+    .analytics-evidence-dialog { padding: 16px; max-height: 80dvh; }
+}
