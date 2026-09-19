@@ -13,7 +13,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <link rel="manifest" href="../../manifest.webmanifest">
     <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
     <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
-    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
+    <script src="../../assets/js/offline-client.js?v=20260919-40"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -223,7 +223,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
     <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
     <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
-    <script src="../../systems/QR-Attendance/lib/script.js?v=20260829-offline-optimistic-3"></script>
+    <script src="../../systems/QR-Attendance/lib/script.js?v=20260919-active-events-offline-4"></script>
     <script>
         // Utility to check if any of the filter/search/section controls are focused
         function updateBarcodeInputState() {

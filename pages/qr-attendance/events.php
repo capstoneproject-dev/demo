@@ -13,7 +13,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <link rel="manifest" href="../../manifest.webmanifest">
     <script src="../../assets/js/app-dialog.js?v=20260821-white-panel"></script>
     <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
-    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
+    <script src="../../assets/js/offline-client.js?v=20260919-40"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -290,6 +290,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         let attendanceRecords = [];
         let events = [];
         let archivedEvents = [];
+        let archivedEventsLoaded = false;
         let currentEventDetails = null;
         let currentEventsView = 'active';
         let activeAcademicTerm = {
@@ -368,16 +369,47 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             return payload;
         }
 
-        async function loadEventsFromApi() {
-            // Load sequentially so the active request can safely apply the one-time
-            // archive schema migration before the archived query runs.
-            const activePayload = await qrApiRequest('/events/list.php?state=active', { method: 'GET' });
+        async function loadArchivedEventsFromApi() {
             const archivedPayload = await qrApiRequest('/events/list.php?state=archived', { method: 'GET' });
-            events = (activePayload.items || []).map(mapApiEvent);
             archivedEvents = (archivedPayload.items || []).map(mapApiEvent);
+            archivedEventsLoaded = true;
             await mergeQueuedEvents();
             await mergeQueuedEventAttendance();
-            return [...events, ...archivedEvents];
+            return archivedEvents;
+        }
+
+        async function cacheActiveEventDataForOffline() {
+            if (!navigator.onLine) return;
+            const snapshotRequests = events
+                .filter(event => Number(event.id || 0) > 0 && !event.pendingSync)
+                .map(event => () => qrApiRequest(`/attendance/list.php?event_id=${encodeURIComponent(event.id)}&limit=10000`, { method: 'GET' }));
+            snapshotRequests.push(
+                () => fetch('../../api/igp/students/list.php', { credentials: 'same-origin' }),
+                () => fetch('../../api/qr-attendance/students/list.php', { credentials: 'same-origin' })
+            );
+
+            // Keep network and database pressure bounded while caching only the
+            // active events needed by the offline attendance tracker.
+            const workerCount = Math.min(3, snapshotRequests.length);
+            let nextRequest = 0;
+            await Promise.all(Array.from({ length: workerCount }, async () => {
+                while (nextRequest < snapshotRequests.length) {
+                    const request = snapshotRequests[nextRequest++];
+                    try { await request(); } catch (_error) { /* Best-effort warming. */ }
+                }
+            }));
+        }
+
+        async function loadEventsFromApi(options = {}) {
+            const activePayload = await qrApiRequest('/events/list.php?state=active', { method: 'GET' });
+            events = (activePayload.items || []).map(mapApiEvent);
+            if (options.includeArchived) {
+                await loadArchivedEventsFromApi();
+            }
+            await mergeQueuedEvents();
+            await mergeQueuedEventAttendance();
+            void cacheActiveEventDataForOffline();
+            return options.includeArchived ? [...events, ...archivedEvents] : events;
         }
 
         async function mergeQueuedEvents() {
@@ -792,20 +824,27 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                     body: JSON.stringify({ event_id: Number(eventId), event_name: eventName, event: currentEvent || null, action })
                 });
                 if (result.queued) await mergeQueuedEvents();
-                else await loadEventsFromApi();
+                else await loadEventsFromApi({ includeArchived: currentEventsView === 'archived' });
                 updateEventsList();
             } catch (error) {
                 alert(`Unable to ${action} event: ${error.message}`);
             }
         }
 
-        function switchEventsView(view) {
+        async function switchEventsView(view) {
             currentEventsView = view === 'archived' ? 'archived' : 'active';
             document.getElementById('eventsListTitle').textContent = currentEventsView === 'archived' ? 'Archived Events' : 'Active Events';
             document.querySelectorAll('[data-event-view]').forEach(button => {
                 const active = button.dataset.eventView === currentEventsView;
                 button.classList.toggle('active', active);
             });
+            if (currentEventsView === 'archived' && !archivedEventsLoaded) {
+                try {
+                    await loadArchivedEventsFromApi();
+                } catch (error) {
+                    console.warn('Archived events are unavailable while offline unless opened online before.', error);
+                }
+            }
             updateEventsList();
         }
 
@@ -955,7 +994,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 row.querySelector('.view-event').addEventListener('click', () => showEventDetails(event.name, event.id, currentEventsView === 'archived'));
                 row.querySelector('.archive-event')?.addEventListener('click', () => setEventArchiveState(event.id, event.name, 'archive'));
                 row.querySelector('.restore-event')?.addEventListener('click', () => setEventArchiveState(event.id, event.name, 'restore'));
-                row.querySelector('.start-event')?.addEventListener('click', () => startEventAttendance(event.name));
+                row.querySelector('.start-event')?.addEventListener('click', () => startEventAttendance(event.name, event.id));
                 eventsList.appendChild(row);
             });
         }
@@ -967,9 +1006,11 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         });
 
         // Function to start attendance for an event
-        async function startEventAttendance(eventName) {
+        async function startEventAttendance(eventName, eventId = null) {
             localStorage.removeItem('currentEvent');
-            window.location.href = `index.php?event=${encodeURIComponent(eventName || '')}`;
+            const params = new URLSearchParams({ event: eventName || '' });
+            if (Number(eventId || 0) > 0) params.set('event_id', String(Number(eventId)));
+            window.location.href = `index.php?${params.toString()}`;
         }
 
         // Show event details in modal
@@ -1040,7 +1081,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         // Add event listener for modal start attendance button
         document.getElementById('startEventAttendance').addEventListener('click', function () {
             if (currentEventDetails && !currentEventDetails.archived) {
-                startEventAttendance(currentEventDetails.name);
+                startEventAttendance(currentEventDetails.name, currentEventDetails.id);
             }
         });
 
@@ -1489,7 +1530,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 const eventId = Number(event.data.eventId || 0);
                 const eventName = normalizeEventName(event.data.eventName || '');
                 try {
-                    await loadEventsFromApi();
+                    await loadEventsFromApi({ includeArchived: true });
                     if (typeof updateEventsList === 'function') updateEventsList();
                     const matchedEvent = [...events, ...archivedEvents].find((item) =>
                         (eventId > 0 && Number(item.id || 0) === eventId)

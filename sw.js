@@ -3,11 +3,32 @@
 const APP_BASE = self.location.pathname.replace(/\/sw\.js$/, '');
 const appPath = (path) => `${APP_BASE}${path}`;
 
-const STATIC_CACHE = 'naap-static-v39';
-const RUNTIME_CACHE = 'naap-runtime-v39';
+const STATIC_CACHE = 'naap-static-v40';
+const RUNTIME_CACHE = 'naap-runtime-v40';
 const ASSET_REVALIDATE_MS = 5 * 60 * 1000;
 const assetLastChecked = new Map();
 const OFFLINE_PAGE = appPath('/offline.html');
+const QR_OFFLINE_ROUTES = [
+    appPath('/pages/qr-attendance/events.php'),
+    appPath('/pages/qr-attendance/index.php')
+];
+const QR_OFFLINE_ASSETS = [
+    '/assets/js/app-dialog.js?v=20260821-white-panel',
+    '/assets/js/app-dialog.js?v=20260807-security-1',
+    '/assets/js/offline-store.js?v=20260829-7',
+    '/assets/js/offline-client.js?v=20260919-40',
+    '/assets/js/responsive-tables.js?v=20260901-2',
+    '/assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3',
+    '/assets/css/responsive-tables.css?v=20260901-2',
+    '/assets/vendor/fontawesome/css/all.min.css',
+    '/systems/QR-Attendance/lib/bootstrap.min.css',
+    '/systems/QR-Attendance/lib/styles.css?v=20260902-responsive-2',
+    '/systems/QR-Attendance/lib/bootstrap.bundle.min.js',
+    '/systems/QR-Attendance/lib/encoder.js',
+    '/systems/QR-Attendance/lib/xlsx.full.min.js',
+    '/systems/QR-Attendance/lib/script.js?v=20260919-active-events-offline-4',
+    '/systems/QR-Attendance/lib/Barcode%20scanner%20beep%20sound%20(sound%20effect).mp3'
+].map(appPath);
 const PRECACHE = [
     '/', '/index.html', '/offline.html', '/manifest.webmanifest',
     '/pages/login.html', '/pages/studentDashboard.html', '/pages/officerDashboard.html', '/pages/osaDashboard.html',
@@ -92,7 +113,17 @@ self.addEventListener('fetch', (event) => {
                 }
                 return response;
             } catch (_error) {
-                return (await caches.match(request)) || (await caches.match(OFFLINE_PAGE));
+                const exact = await caches.match(request);
+                if (exact) return exact;
+                // The scanner uses ?event=... and ?event_id=... per active event.
+                // Reuse its authenticated cached shell while preserving the
+                // requested query string in window.location for the page code.
+                const canonicalUrl = new URL(request.url);
+                canonicalUrl.search = '';
+                const qrShell = QR_OFFLINE_ROUTES.includes(canonicalUrl.pathname)
+                    ? await caches.match(canonicalUrl.href)
+                    : null;
+                return qrShell || (await caches.match(OFFLINE_PAGE));
             }
         })());
         return;
@@ -116,4 +147,25 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('message', (event) => {
     if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+    if (event.data?.type === 'NAAP_WARM_QR_ATTENDANCE') {
+        event.waitUntil((async () => {
+            const cache = await caches.open(RUNTIME_CACHE);
+            await Promise.all([...QR_OFFLINE_ROUTES, ...QR_OFFLINE_ASSETS].map(async (path) => {
+                const url = new URL(path, self.location.origin).href;
+                try {
+                    const response = await fetch(url, { credentials: 'include', cache: 'no-store' });
+                    const contentType = response.headers.get('Content-Type') || '';
+                    const isPrivateRoute = QR_OFFLINE_ROUTES.includes(new URL(url).pathname);
+                    const cacheable = response.status === 200
+                        && !response.redirected
+                        && (!isPrivateRoute || contentType.includes('text/html'));
+                    if (cacheable) {
+                        await cache.put(url, response);
+                    }
+                } catch (_error) {
+                    // A previous authenticated shell remains available.
+                }
+            }));
+        })());
+    }
 });

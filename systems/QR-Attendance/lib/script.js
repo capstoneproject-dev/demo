@@ -58,7 +58,12 @@ function normalizeAttendanceFromApi(rows) {
 }
 
 async function loadAttendanceFromApi() {
-    const payload = await qrAttendanceApiRequest('/attendance/list.php', { method: 'GET' });
+    const eventId = getCurrentEventId();
+    const eventName = getCurrentEvent();
+    const query = eventId > 0
+        ? `?event_id=${encodeURIComponent(eventId)}&limit=10000`
+        : (eventName ? `?event_name=${encodeURIComponent(eventName)}&limit=10000` : '');
+    const payload = await qrAttendanceApiRequest(`/attendance/list.php${query}`, { method: 'GET' });
     const normalized = normalizeAttendanceFromApi(payload.items || []);
     attendanceRecords = normalized;
     await mergeQueuedAttendanceRecords();
@@ -69,8 +74,14 @@ async function mergeQueuedAttendanceRecords() {
     attendanceRecords = attendanceRecords.filter(record => !record.pendingSync);
     if (!window.NAAPOffline?.listQueuedOperations) return;
     const queued = await window.NAAPOffline.listQueuedOperations(['attendance.checkin', 'attendance.checkout']);
+    const selectedEvent = getCurrentEvent().toLocaleLowerCase();
+    const selectedEventId = getCurrentEventId();
     queued.forEach(operation => {
         const payload = operation.payload || {};
+        const queuedEvent = String(payload.event_name || '').trim().toLocaleLowerCase();
+        const queuedEventId = Number(payload.event_id || 0);
+        if (selectedEventId > 0 && queuedEventId > 0 && queuedEventId !== selectedEventId) return;
+        if (selectedEvent && queuedEvent && queuedEvent !== selectedEvent) return;
         const captured = new Date(payload.captured_at || operation.createdAt);
         const date = Number.isNaN(captured.getTime()) ? '' : captured.toLocaleDateString();
         const time = Number.isNaN(captured.getTime()) ? '' : captured.toLocaleTimeString();
@@ -165,6 +176,12 @@ function getCurrentEvent() {
     const params = new URLSearchParams(window.location.search);
     const eventName = params.get('event');
     return eventName ? String(eventName).trim() : '';
+}
+
+function getCurrentEventId() {
+    const params = new URLSearchParams(window.location.search);
+    const eventId = Number(params.get('event_id') || 0);
+    return Number.isFinite(eventId) && eventId > 0 ? eventId : 0;
 }
 
 async function initializeLocalData() {
@@ -495,6 +512,8 @@ function showToast(title, message, type) {
 function updateEventFilter() {
     const eventFilter = document.getElementById('eventFilter');
     const events = new Set(attendanceRecords.map(record => record.event));
+    const currentEvent = getCurrentEvent();
+    if (currentEvent) events.add(currentEvent);
     eventFilter.innerHTML = '<option value="all">All Events</option>';
     events.forEach(event => {
         if (event) {
@@ -505,7 +524,6 @@ function updateEventFilter() {
         }
     });
     // Set current event as selected
-    const currentEvent = getCurrentEvent();
     if (currentEvent) {
         eventFilter.value = currentEvent;
     }
@@ -888,6 +906,7 @@ if (exportBtn) {
 
 async function markAttendance(student) {
     const currentEvent = getCurrentEvent();
+    const currentEventId = getCurrentEventId();
     if (!currentEvent) return;
 
     // Check if there are any records for the current event before adding
@@ -907,6 +926,7 @@ async function markAttendance(student) {
             await qrAttendanceApiRequest('/attendance/checkout.php', {
                 method: 'POST',
                 body: JSON.stringify({
+                    event_id: currentEventId,
                     event_name: currentEvent,
                     student_number: student.studentId || '',
                     date: new Date().toISOString().slice(0, 10)
@@ -917,6 +937,7 @@ async function markAttendance(student) {
             const checkinResult = await qrAttendanceApiRequest('/attendance/checkin.php', {
                 method: 'POST',
                 body: JSON.stringify({
+                    event_id: currentEventId,
                     event_name: currentEvent,
                     student_number: student.studentId || '',
                     student_name: student.studentName || '',
@@ -929,6 +950,7 @@ async function markAttendance(student) {
                     method: 'POST',
                     body: JSON.stringify({
                         record_id: Number(checkinResult.record_id || 0),
+                        event_id: currentEventId,
                         event_name: currentEvent,
                         student_number: student.studentId || ''
                     })

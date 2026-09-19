@@ -164,6 +164,22 @@ input:focus {
   background: #fff;
 }
 
+input.registration-field-invalid,
+input.registration-field-invalid:focus {
+  border-color: #dc2626;
+  background: #fff7f7;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+}
+
+.privacy-consent.registration-field-invalid {
+  color: #b91c1c;
+}
+
+.privacy-consent.registration-field-invalid input[type="checkbox"] {
+  outline: 2px solid #dc2626;
+  outline-offset: 2px;
+}
+
 .password-field {
   position: relative;
   width: 100%;
@@ -201,6 +217,40 @@ input:focus {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
+}
+
+.password-requirements {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 12px;
+  margin: -8px 0 2px;
+  padding: 0;
+  list-style: none;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.password-requirements li::before {
+  content: "\2717";
+  display: inline-block;
+  width: 16px;
+  font-weight: 700;
+}
+
+.password-requirements li.password-rule-passed {
+  color: #15803d;
+}
+
+.password-requirements li.password-rule-passed::before {
+  content: "\2713";
+}
+
+@media (max-width: 480px) {
+  .password-requirements {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* BUTTONS */

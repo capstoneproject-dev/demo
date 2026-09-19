@@ -1368,6 +1368,7 @@ function selectOrg(orgName) {
   const normalizedOrgName = normalizeOrgName(orgName);
   const organizationChanged = orgInput && orgInput.value !== normalizedOrgName;
   if (orgInput) orgInput.value = normalizedOrgName;
+  setRegistrationFieldInvalid(orgInput, false);
   if (organizationChanged && orgPositionInput) {
     orgPositionInput.value = '';
     updateOrganizationRegistrationMode();
@@ -1448,7 +1449,10 @@ function closePositionModal() {
 }
 
 function selectPosition(positionTitle) {
-  if (orgPositionInput) orgPositionInput.value = String(positionTitle || '').trim();
+  if (orgPositionInput) {
+    orgPositionInput.value = String(positionTitle || '').trim();
+    setRegistrationFieldInvalid(orgPositionInput, false);
+  }
   updateOrganizationRegistrationMode();
   closePositionModal();
 }
@@ -1537,7 +1541,10 @@ function closeCourseModal() {
 function selectCourse(courseName) {
   if (activeCourseInputId) {
     const input = document.getElementById(activeCourseInputId);
-    if (input) input.value = courseName;
+    if (input) {
+      input.value = courseName;
+      setRegistrationFieldInvalid(input, false);
+    }
   }
   closeCourseModal();
 }
@@ -1777,31 +1784,106 @@ if (goOfficerDashboardBtn) {
 /* =====================
    REGISTRATION HANDLERS
    ===================== */
+const REGISTRATION_PASSWORD_GUIDES = {
+  student: {
+    passwordId: 'student-password-input',
+    confirmId: 'student-confirm-password-input',
+    requirementsId: 'student-password-input-requirements'
+  },
+  osa: {
+    passwordId: 'osa-password-input',
+    confirmId: 'osa-confirm-password-input',
+    requirementsId: 'osa-password-input-requirements'
+  },
+  orgAdviser: {
+    passwordId: 'org-adviser-password-input',
+    confirmId: 'org-adviser-confirm-password-input',
+    requirementsId: 'org-adviser-password-input-requirements'
+  }
+};
+
+function setRegistrationFieldInvalid(inputOrId, invalid) {
+  const input = typeof inputOrId === 'string' ? document.getElementById(inputOrId) : inputOrId;
+  if (!input) return;
+  input.classList.toggle('registration-field-invalid', invalid);
+  input.setAttribute('aria-invalid', String(invalid));
+  if (input.type === 'checkbox') {
+    input.closest('.privacy-consent')?.classList.toggle('registration-field-invalid', invalid);
+  }
+}
+
+function registrationFieldHasValue(input) {
+  if (!input) return false;
+  if (input.type === 'checkbox') return input.checked;
+  const value = String(input.value || '').trim();
+  if (input.type === 'tel') return value !== '' && value !== '+63';
+  if (input.type === 'email' && value !== '') return input.checkValidity();
+  return value !== '';
+}
+
+function validateRequiredRegistrationFields(fieldIds, focusInvalid = true) {
+  const invalidFields = [];
+  fieldIds.forEach((id) => {
+    const input = document.getElementById(id);
+    const invalid = !registrationFieldHasValue(input);
+    setRegistrationFieldInvalid(input, invalid);
+    if (invalid && input) invalidFields.push(input);
+  });
+  if (focusInvalid && invalidFields[0]) invalidFields[0].focus();
+  return invalidFields.length === 0;
+}
+
+function updatePasswordRequirements(guideName, markInputs = false) {
+  const guide = REGISTRATION_PASSWORD_GUIDES[guideName];
+  if (!guide) return false;
+  const passwordInput = document.getElementById(guide.passwordId);
+  const confirmInput = document.getElementById(guide.confirmId);
+  const requirements = document.getElementById(guide.requirementsId);
+  if (!passwordInput || !confirmInput || !requirements) return false;
+
+  const password = passwordInput.value || '';
+  const confirmation = confirmInput.value || '';
+  const rules = {
+    length: Array.from(password).length >= 12,
+    uppercase: /[A-Z]/.test(password),
+    number: /[0-9]/.test(password),
+    match: confirmation !== '' && password === confirmation
+  };
+
+  Object.entries(rules).forEach(([name, passed]) => {
+    requirements.querySelector(`[data-password-rule="${name}"]`)?.classList.toggle('password-rule-passed', passed);
+  });
+
+  const valid = Object.values(rules).every(Boolean);
+  if (markInputs) {
+    setRegistrationFieldInvalid(passwordInput, !(rules.length && rules.uppercase && rules.number));
+    setRegistrationFieldInvalid(confirmInput, !rules.match);
+  }
+  return valid;
+}
+
+function validatePasswordPair(guideName, focusInvalid = false) {
+  const valid = updatePasswordRequirements(guideName, true);
+  if (!valid && focusInvalid) {
+    const guide = REGISTRATION_PASSWORD_GUIDES[guideName];
+    const passwordInput = document.getElementById(guide.passwordId);
+    const confirmInput = document.getElementById(guide.confirmId);
+    (passwordMeetsPolicy(passwordInput.value) ? confirmInput : passwordInput).focus();
+  }
+  return valid;
+}
+
 function hasPrivacyConsent(inputId) {
   const checkbox = document.getElementById(inputId);
   if (!checkbox || checkbox.checked) return true;
+  setRegistrationFieldInvalid(checkbox, true);
   alert('Please acknowledge the Data Privacy Act notice before registering.');
   checkbox.focus();
   return false;
 }
 
 function validateStudentPassword(focusInvalid = false) {
-  const passwordInput = document.getElementById('student-password-input');
-  const confirmInput = document.getElementById('student-confirm-password-input');
-  const feedback = document.getElementById('student-password-input-requirements');
-  const meetsPolicy = passwordMeetsPolicy(passwordInput.value);
-  const matches = passwordInput.value === confirmInput.value;
-  const requirements = 'Password must be at least 12 characters and contain an uppercase letter and a number.';
-  const invalidPassword = passwordInput.value !== '' && !meetsPolicy;
-  const invalidConfirmation = confirmInput.value !== '' && !matches;
-  feedback.textContent = invalidPassword ? requirements : 'Passwords do not match.';
-  feedback.hidden = !invalidPassword && !invalidConfirmation;
-  passwordInput.setAttribute('aria-invalid', String(invalidPassword));
-  confirmInput.setAttribute('aria-invalid', String(invalidConfirmation));
-  if (focusInvalid && (!meetsPolicy || !matches)) {
-    (meetsPolicy ? confirmInput : passwordInput).focus();
-  }
-  return meetsPolicy && matches;
+  return validatePasswordPair('student', focusInvalid);
 }
 
 async function registerStudent() {
@@ -1814,11 +1896,20 @@ async function registerStudent() {
   const password = (document.getElementById('student-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('student-confirm-password-input') || {}).value || '';
 
+  if (!validateRequiredRegistrationFields([
+    'student-number-input', 'student-name-input', 'student-course-input', 'student-section-input',
+    'student-email-input', 'student-phone-input', 'student-password-input',
+    'student-confirm-password-input', 'student-privacy-consent'
+  ])) {
+    alert('Please complete the Student registration fields highlighted in red.');
+    return;
+  }
   if (!studentNumber || !fullName || !course || !section || !email || !phone || !password || !confirmPassword) {
     alert('Please complete all Student registration fields.');
     return;
   }
   if (!isValidPhoneInput(phone)) {
+    setRegistrationFieldInvalid('student-phone-input', true);
     alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
@@ -1865,9 +1956,23 @@ async function registerOrgOfficer() {
   const phone = normalizePhoneInput((document.getElementById('org-phone-input') || {}).value?.trim() || '');
   const password = (document.getElementById('org-password-input') || {}).value || '';
 
+  if (!validateRequiredRegistrationFields(['org-input', 'org-position-input', 'org-student-number-input'])) {
+    alert('Please complete the Organization registration fields highlighted in red.');
+    return;
+  }
+
   const verified = await lookupOrganizationStudent();
   if (!verified || verifiedOrgStudentNumber !== studentNumber) {
     alert('Enter a student number that is already registered as a student account first.');
+    return;
+  }
+
+  if (!validateRequiredRegistrationFields([
+    'org-input', 'org-position-input', 'org-student-number-input', 'org-name-input',
+    'org-course-input', 'org-section-input', 'org-email-input', 'org-phone-input',
+    'org-password-input', 'org-privacy-consent'
+  ])) {
+    alert('Please complete the Organization registration fields highlighted in red.');
     return;
   }
 
@@ -1880,6 +1985,7 @@ async function registerOrgOfficer() {
     return;
   }
   if (phone && !isValidPhoneInput(phone)) {
+    setRegistrationFieldInvalid('org-phone-input', true);
     alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
@@ -1920,6 +2026,15 @@ async function registerOrganizationAdviser() {
   const confirmPassword = (document.getElementById('org-adviser-confirm-password-input') || {}).value || '';
   const orgName = normalizeOrgName((document.getElementById('org-input') || {}).value?.trim() || '');
 
+  if (!validateRequiredRegistrationFields([
+    'org-input', 'org-position-input', 'org-adviser-employee-number-input', 'org-adviser-name-input',
+    'org-adviser-email-input', 'org-adviser-phone-input', 'org-adviser-password-input',
+    'org-adviser-confirm-password-input', 'org-privacy-consent'
+  ])) {
+    alert('Please complete the Organization Adviser fields highlighted in red.');
+    return;
+  }
+
   if (!employeeNumber || !fullName || !email || !phone || !password || !confirmPassword || !orgName) {
     alert('Please complete all Organization Adviser registration fields.');
     return;
@@ -1929,17 +2044,11 @@ async function registerOrganizationAdviser() {
     return;
   }
   if (!isValidPhoneInput(phone)) {
+    setRegistrationFieldInvalid('org-adviser-phone-input', true);
     alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
-  if (password !== confirmPassword) {
-    alert('Passwords do not match.');
-    return;
-  }
-  if (!passwordMeetsPolicy(password)) {
-    alert('Password must be at least 12 characters and contain an uppercase letter and a number.');
-    return;
-  }
+  if (!validatePasswordPair('orgAdviser', true)) return;
   if (!hasPrivacyConsent('org-privacy-consent')) return;
 
   startRegistrationOtpFlow('organization adviser', email, employeeNumber, 'organization_adviser_registration', async (verificationToken) => {
@@ -1971,22 +2080,24 @@ async function registerOsa() {
   const password = (document.getElementById('osa-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('osa-confirm-password-input') || {}).value || '';
 
+  if (!validateRequiredRegistrationFields([
+    'osa-employee-number-input', 'osa-name-input', 'osa-email-input', 'osa-phone-input',
+    'osa-password-input', 'osa-confirm-password-input', 'osa-privacy-consent'
+  ])) {
+    alert('Please complete the OSA registration fields highlighted in red.');
+    return;
+  }
+
   if (!employeeNumber || !fullName || !email || !phone || !password || !confirmPassword) {
     alert('Please complete all OSA registration fields.');
     return;
   }
   if (!isValidPhoneInput(phone)) {
+    setRegistrationFieldInvalid('osa-phone-input', true);
     alert('Phone number must be +63 followed by a space and 10 digits.');
     return;
   }
-  if (password !== confirmPassword) {
-    alert('Passwords do not match.');
-    return;
-  }
-  if (!passwordMeetsPolicy(password)) {
-    alert('Password must be at least 12 characters and contain an uppercase letter and a number.');
-    return;
-  }
+  if (!validatePasswordPair('osa', true)) return;
   if (!hasPrivacyConsent('osa-privacy-consent')) return;
 
   if (!activeOsaInvitationToken) {
@@ -2454,12 +2565,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const osaForm = document.getElementById('form-osa');
   const loginForm = document.getElementById('loginForm');
 
-  ['student-password-input', 'student-confirm-password-input'].forEach((id) => {
-    document.getElementById(id)?.addEventListener('input', () => {
-      const feedback = document.getElementById('student-password-input-requirements');
-      if (feedback) feedback.hidden = true;
-      document.getElementById('student-password-input')?.removeAttribute('aria-invalid');
-      document.getElementById('student-confirm-password-input')?.removeAttribute('aria-invalid');
+  Object.entries(REGISTRATION_PASSWORD_GUIDES).forEach(([guideName, guide]) => {
+    [guide.passwordId, guide.confirmId].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => {
+        updatePasswordRequirements(guideName);
+        setRegistrationFieldInvalid(id, false);
+      });
+    });
+    updatePasswordRequirements(guideName);
+  });
+
+  document.querySelectorAll('.reg-fields input[required]').forEach((input) => {
+    const eventName = input.type === 'checkbox' ? 'change' : 'input';
+    input.addEventListener(eventName, () => {
+      if (registrationFieldHasValue(input)) setRegistrationFieldInvalid(input, false);
     });
   });
   if (studentForm) studentForm.addEventListener('submit', (event) => {

@@ -10,7 +10,7 @@
   <meta name="description" content="NAAP ORG is a centralized portal for managing student organizations, memberships, events, attendance, documents, and campus activities.">
 
   <!-- Link to your CSS file -->
-  <link rel="stylesheet" href="../assets/css/login.css?v=20260901-responsive-2">
+  <link rel="stylesheet" href="../assets/css/login.css?v=20260919-registration-guidance-1">
 
 </head>
 
@@ -124,28 +124,33 @@
 
         <!-- Student Fields -->
         <form id="form-student" class="reg-fields active">
-          <input type="text" id="student-number-input" placeholder="Student Number" />
-          <input type="text" id="student-name-input" placeholder="Name" />
+          <input type="text" id="student-number-input" placeholder="Student Number" maxlength="14" required />
+          <input type="text" id="student-name-input" placeholder="Name" required />
           <input type="text" id="student-course-input" placeholder="Select Course" class="org-select-trigger" readonly
-            onclick="openCourseModal('student-course-input')" />
-          <input type="text" id="student-section-input" placeholder="Section" />
-          <input type="email" id="student-email-input" placeholder="Email" />
-          <input type="tel" id="student-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
+            onclick="openCourseModal('student-course-input')" required />
+          <input type="text" id="student-section-input" placeholder="Section" required />
+          <input type="email" id="student-email-input" placeholder="Email" required />
+          <input type="tel" id="student-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " required />
               <div class="password-field"><input type="password" id="student-password-input" minlength="12" aria-describedby="student-password-input-requirements"
-              placeholder="Password" /><button type="button" class="password-toggle" aria-label="Show password"
+              placeholder="Password" required /><button type="button" class="password-toggle" aria-label="Show password"
               aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                 <circle cx="12" cy="12" r="2.75" />
               </svg></button></div>
           <div class="password-field"><input type="password" id="student-confirm-password-input" aria-describedby="student-password-input-requirements"
-              placeholder="Re-enter Password" /><button type="button" class="password-toggle" aria-label="Show password"
+              placeholder="Re-enter Password" required /><button type="button" class="password-toggle" aria-label="Show password"
               aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                 <circle cx="12" cy="12" r="2.75" />
               </svg></button></div>
-          <p hidden id="student-password-input-requirements" style="color: #b42318; font-size: 0.8rem; margin: 0 0 8px; text-align: left;" aria-live="polite">Password must be at least 12 characters and contain an uppercase letter and a number.</p>
+          <ul id="student-password-input-requirements" class="password-requirements" aria-live="polite">
+            <li data-password-rule="length">At least 12 characters</li>
+            <li data-password-rule="uppercase">At least one uppercase letter</li>
+            <li data-password-rule="number">At least one number</li>
+            <li data-password-rule="match">Passwords match</li>
+          </ul>
           <label class="privacy-consent" for="student-privacy-consent">
-            <input type="checkbox" id="student-privacy-consent" />
+            <input type="checkbox" id="student-privacy-consent" required />
             <span>By creating an account, you acknowledge that the system will collect and process your personal data
               for registration, user authentication, student organization management, document submission,
               communication, monitoring, and other legitimate academic and administrative purposes. Your data will be
@@ -157,25 +162,30 @@
         <!-- OSA Fields -->
         <form id="form-osa" class="reg-fields">
           <p id="osa-invitation-status" class="org-lookup-message" aria-live="polite"></p>
-          <input type="text" id="osa-employee-number-input" placeholder="Employee Number" readonly />
-          <input type="text" id="osa-name-input" placeholder="Name" />
-          <input type="email" id="osa-email-input" placeholder="Email" readonly />
-          <input type="tel" id="osa-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
-          <p id="osa-password-input-requirements" style="font-size: 0.8rem; margin: 0 0 8px;">Password must be at least 12 characters and contain an uppercase letter and a number.</p>
-              <div class="password-field"><input type="password" id="osa-password-input" minlength="12" aria-describedby="osa-password-input-requirements" placeholder="Password" /><button
+          <input type="text" id="osa-employee-number-input" placeholder="Employee Number" readonly required />
+          <input type="text" id="osa-name-input" placeholder="Name" required />
+          <input type="email" id="osa-email-input" placeholder="Email" readonly required />
+          <input type="tel" id="osa-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " required />
+              <div class="password-field"><input type="password" id="osa-password-input" minlength="12" aria-describedby="osa-password-input-requirements" placeholder="Password" required /><button
               type="button" class="password-toggle" aria-label="Show password" aria-pressed="false"
               title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                 <circle cx="12" cy="12" r="2.75" />
               </svg></button></div>
-          <div class="password-field"><input type="password" id="osa-confirm-password-input"
-              placeholder="Re-enter Password" /><button type="button" class="password-toggle" aria-label="Show password"
+          <div class="password-field"><input type="password" id="osa-confirm-password-input" aria-describedby="osa-password-input-requirements"
+              placeholder="Re-enter Password" required /><button type="button" class="password-toggle" aria-label="Show password"
               aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                 <circle cx="12" cy="12" r="2.75" />
               </svg></button></div>
+          <ul id="osa-password-input-requirements" class="password-requirements" aria-live="polite">
+            <li data-password-rule="length">At least 12 characters</li>
+            <li data-password-rule="uppercase">At least one uppercase letter</li>
+            <li data-password-rule="number">At least one number</li>
+            <li data-password-rule="match">Passwords match</li>
+          </ul>
           <label class="privacy-consent" for="osa-privacy-consent">
-            <input type="checkbox" id="osa-privacy-consent" />
+            <input type="checkbox" id="osa-privacy-consent" required />
             <span>By creating an account, you acknowledge that the system will collect and process your personal data
               for registration, user authentication, student organization management, document submission,
               communication, monitoring, and other legitimate academic and administrative purposes. Your data will be
@@ -187,15 +197,15 @@
         <!-- Organization Fields -->
         <form id="form-org" class="reg-fields">
           <div class="org-registration-inline-picks org-full-width">
-            <input type="text" id="org-input" placeholder="Select Organization" class="org-select-trigger" readonly
+            <input type="text" id="org-input" placeholder="Select Organization" class="org-select-trigger" readonly required
               onclick="openOrgModal()" />
             <input type="text" id="org-position-input" placeholder="Select Organization First"
-              class="org-select-trigger org-select-trigger-disabled" readonly aria-disabled="true"
+              class="org-select-trigger org-select-trigger-disabled" readonly aria-disabled="true" required
               onclick="openPositionModal()" />
           </div>
 
           <div id="org-student-registration-fields">
-            <input type="text" id="org-student-number-input" placeholder="Student Number" />
+            <input type="text" id="org-student-number-input" placeholder="Student Number" maxlength="14" required />
             <p id="org-student-lookup-message" class="org-lookup-message">
               Enter a registered student number to continue organization account registration.
             </p>
@@ -207,7 +217,7 @@
               <input type="tel" id="org-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 "
                 readonly />
               <div class="password-field org-full-width"><input type="password" id="org-password-input"
-                  placeholder="Current Student Account Password" autocomplete="current-password" /><button type="button"
+                  placeholder="Current Student Account Password" autocomplete="current-password" required /><button type="button"
                   class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg
                     viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
@@ -220,28 +230,33 @@
 
           <div id="org-adviser-registration-fields" class="org-registration-details" hidden>
             <input type="text" id="org-adviser-employee-number-input" placeholder="Employee Number"
-              autocomplete="username" />
-            <input type="text" id="org-adviser-name-input" placeholder="Full Name" autocomplete="name" />
-            <input type="email" id="org-adviser-email-input" placeholder="Email" autocomplete="email" />
-            <input type="tel" id="org-adviser-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " />
-            <p id="org-adviser-password-input-requirements" style="font-size: 0.8rem; margin: 0 0 8px;">Password must be at least 12 characters and contain an uppercase letter and a number.</p>
+              autocomplete="username" required />
+            <input type="text" id="org-adviser-name-input" placeholder="Full Name" autocomplete="name" required />
+            <input type="email" id="org-adviser-email-input" placeholder="Email" autocomplete="email" required />
+            <input type="tel" id="org-adviser-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " required />
               <div class="password-field org-full-width"><input type="password" id="org-adviser-password-input" minlength="12" aria-describedby="org-adviser-password-input-requirements"
-                placeholder="Password" autocomplete="new-password" /><button type="button" class="password-toggle"
+                placeholder="Password" autocomplete="new-password" required /><button type="button" class="password-toggle"
                 aria-label="Show password" aria-pressed="false" title="Show password"><svg viewBox="0 0 24 24"
                   aria-hidden="true">
                   <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                   <circle cx="12" cy="12" r="2.75" />
                 </svg></button></div>
             <div class="password-field org-full-width"><input type="password" id="org-adviser-confirm-password-input"
-                placeholder="Re-enter Password" autocomplete="new-password" /><button type="button"
+                placeholder="Re-enter Password" autocomplete="new-password" aria-describedby="org-adviser-password-input-requirements" required /><button type="button"
                 class="password-toggle" aria-label="Show password" aria-pressed="false" title="Show password"><svg
                   viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                   <circle cx="12" cy="12" r="2.75" />
-                </svg></button></div>
+                  </svg></button></div>
+            <ul id="org-adviser-password-input-requirements" class="password-requirements org-full-width" aria-live="polite">
+              <li data-password-rule="length">At least 12 characters</li>
+              <li data-password-rule="uppercase">At least one uppercase letter</li>
+              <li data-password-rule="number">At least one number</li>
+              <li data-password-rule="match">Passwords match</li>
+            </ul>
           </div>
           <label class="privacy-consent org-full-width" for="org-privacy-consent">
-            <input type="checkbox" id="org-privacy-consent" />
+            <input type="checkbox" id="org-privacy-consent" required />
             <span>By creating an account, you acknowledge that the system will collect and process your personal data
               for registration, user authentication, student organization management, document submission,
               communication, monitoring, and other legitimate academic and administrative purposes. Your data will be
@@ -470,7 +485,7 @@
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20260911-password-validation-3"></script>
+  <script src="../assets/js/login.js?v=20260919-registration-guidance-1"></script>
   <script>
     (() => {
       const localHosts = new Set(['localhost', '127.0.0.1', '::1']);

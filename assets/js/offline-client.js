@@ -990,7 +990,23 @@
                 if (isThisWorker && registration.scope !== desiredScope) await registration.unregister();
             }));
 
-            await navigator.serviceWorker.register(`${workerPath}?v=20260901-39`, { scope: `${APP_BASE}/` });
+            const registration = await navigator.serviceWorker.register(`${workerPath}?v=20260919-40`, { scope: `${APP_BASE}/` });
+            const warmQrAttendance = () => {
+                const identity = Store.currentIdentity() || activeIdentity;
+                if (identity?.role !== 'org' || !navigator.onLine) return;
+                const workers = new Set([
+                    registration.installing,
+                    registration.waiting,
+                    registration.active,
+                    navigator.serviceWorker.controller
+                ].filter(Boolean));
+                workers.forEach((worker) => {
+                    try { worker.postMessage({ type: 'NAAP_WARM_QR_ATTENDANCE' }); }
+                    catch (_error) { /* The controllerchange retry handles worker transitions. */ }
+                });
+            };
+            warmQrAttendance();
+            navigator.serviceWorker.addEventListener('controllerchange', warmQrAttendance, { once: true });
         }
         catch (error) { console.warn('[offline] Service Worker registration failed:', error); }
     }
