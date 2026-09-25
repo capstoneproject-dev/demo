@@ -4419,14 +4419,21 @@ function toggleAllDashboardAnnouncements(button) {
 function renderDashboard() {
     // 1. Render Announcements
     const annList = document.getElementById('announcements-list');
-    const latestAnnouncements = getStudentScopedAnnouncements().slice(0, 5);
+    const todayKey = getStudentManilaDateKey(new Date());
+    const latestAnnouncements = getStudentScopedAnnouncements()
+        .filter((item) => {
+            const relevantDate = item.event_datetime || item.dateRaw;
+            const announcementDateKey = getStudentManilaDateKey(relevantDate);
+            return announcementDateKey !== '' && announcementDateKey >= todayKey;
+        })
+        .slice(0, 5);
     if (!annList) return;
     const notificationMarkup = renderStudentTransactionNotifications();
     let announcementMarkup = '';
     if (!latestAnnouncements.length) {
         announcementMarkup = `
             <div class="dashboard-announcement-empty">
-                No announcements have been posted yet.
+                No current organization announcements.
             </div>
         `;
     } else {

@@ -3540,7 +3540,7 @@ body.dark .sub-nav-btn.active {
 #docs-list .list-item {
     display: grid !important;
     /* Columns: Name, Sent, Adviser, SSC, OSA, Actions */
-    grid-template-columns: 2fr 1fr 1fr 1fr 1fr minmax(220px, auto);
+    grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)) 220px;
     gap: 10px;
     align-items: center;
 }
@@ -4825,7 +4825,7 @@ body.dark .btn-outline:hover {
 
 #docs-list .action-btn-group {
     gap: 5px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 
 #docs-list .action-btn-group .btn-sm {
@@ -4840,7 +4840,7 @@ body.dark .btn-outline:hover {
 @media (max-width: 1350px) and (min-width: 901px) {
     .list-header-row,
     #docs-list .list-item {
-        grid-template-columns: minmax(220px, 2fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(110px, auto);
+        grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(100px, 1fr)) 110px;
     }
 
     #docs-list .document-workflow-action {

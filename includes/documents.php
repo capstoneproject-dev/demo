@@ -494,6 +494,7 @@ function docListSubmissions(PDO $pdo, array $filters = [], ?int $orgScope = null
 
     $sql = "SELECT ds.*,
                    o.org_name,
+                   o.org_code,
                    u.first_name AS submitted_by_first_name,
                    u.last_name AS submitted_by_last_name,
                    reviewer.first_name AS reviewer_first_name,
@@ -988,7 +989,7 @@ function docListRepository(PDO $pdo, array $filters = [], ?int $orgScope = null)
         $params[':q'] = '%' . trim($filters['q']) . '%';
     }
 
-    $sql = "SELECT da.*, o.org_name, ds.recipient,
+    $sql = "SELECT da.*, o.org_name, o.org_code, ds.recipient,
                    dv.root_submission_id, dv.parent_submission_id, dv.version_number, dv.file_sha256
             FROM documents_approved da
             JOIN organizations o ON o.org_id = da.org_id

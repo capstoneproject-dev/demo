@@ -812,6 +812,8 @@ async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
         docsData = items.map(item => ({
             id: item.submission_id,
             submission_id: item.submission_id,
+            orgId: Number(item.org_id || 0),
+            orgCode: item.org_code || '',
             title: item.title,
             typeCategory: normalizeDocumentTypeCategory(item.document_type),
             customDocumentType: item.custom_document_type || '',
@@ -851,6 +853,7 @@ async function loadDocsFromApi({ skipUnchanged = false, silent = false } = {}) {
             hasNewerVersion: Boolean(item.has_newer_version)
         }));
         await mergeQueuedOsaDocumentChanges();
+        populateOsaDocumentOrgFilter('filter-by-org', docsData);
         docsData.forEach(doc => {
             if (typeof PDFViewer !== 'undefined' && doc.fileUrl) {
                 PDFViewer.registerRemote(doc.viewerId, doc.title, doc.fileUrl, { submissionId: doc.submission_id });
@@ -884,6 +887,8 @@ async function loadRepoFromApi({ skipUnchanged = false, silent = false } = {}) {
         repositoryData = items.map(item => ({
             id: item.repo_id,
             submission_id: item.submission_id,
+            orgId: Number(item.org_id || 0),
+            orgCode: item.org_code || '',
             name: item.title,
             category: normalizeDocumentTypeCategory(item.document_type),
             customDocumentType: item.custom_document_type || '',
@@ -898,6 +903,7 @@ async function loadRepoFromApi({ skipUnchanged = false, silent = false } = {}) {
             viewerId: `submission_${item.submission_id}`,
             versionNumber: Number(item.version_number || 1)
         }));
+        populateOsaDocumentOrgFilter('repo-filter-org', repositoryData);
         repositoryData.forEach(item => {
             if (typeof PDFViewer !== 'undefined' && item.file_url) {
                 PDFViewer.registerRemote(item.viewerId, item.name, item.file_url, { submissionId: item.submission_id });
@@ -3157,18 +3163,40 @@ function renderRequests() {
 
 // Initialize Organization filter for Documents
 function initDocOrgFilter() {
-    const orgSelect = document.getElementById('filter-by-org');
+    populateOsaDocumentOrgFilter('filter-by-org', docsData);
+}
+
+function getOsaDocumentOrgFilterValue(item) {
+    const orgId = Number(item?.orgId || item?.org_id || 0);
+    if (orgId > 0) return `id:${orgId}`;
+    return `name:${String(item?.org || item?.org_name || '').trim().toLowerCase()}`;
+}
+
+function populateOsaDocumentOrgFilter(selectId, items) {
+    const orgSelect = document.getElementById(selectId);
     if (!orgSelect) return;
 
-    // Clear existing except "All"
-    orgSelect.innerHTML = '<option value="all">All Organizations</option>';
-
-    organizations.forEach(org => {
-        const option = document.createElement('option');
-        option.value = org.name;
-        option.innerText = org.name;
-        orgSelect.appendChild(option);
+    const selectedValue = orgSelect.value || 'all';
+    const choices = new Map();
+    (Array.isArray(items) ? items : []).forEach((item) => {
+        const label = String(item?.orgCode || item?.org_code || item?.org || item?.org_name || '').trim();
+        if (!label) return;
+        choices.set(getOsaDocumentOrgFilterValue(item), label);
     });
+
+    orgSelect.innerHTML = '<option value="all">All Organizations</option>';
+    Array.from(choices.entries())
+        .sort(([, left], [, right]) => left.localeCompare(right))
+        .forEach(([value, label]) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            orgSelect.appendChild(option);
+        });
+
+    orgSelect.value = Array.from(orgSelect.options).some(option => option.value === selectedValue)
+        ? selectedValue
+        : 'all';
 }
 
 // --- PORTED DOCUMENT LOGIC ---
@@ -3302,7 +3330,7 @@ function renderDocs(filter = 'All', btnElement = null) {
             (filter === 'Rejected' && statusText === 'rejected');
 
         // 2. Organization Filter
-        const matchesOrg = (orgVal === 'all') || (doc.org === orgVal);
+        const matchesOrg = orgVal === 'all' || getOsaDocumentOrgFilterValue(doc) === orgVal;
 
         // 3. Academic term filter
         const matchesTerm = String(doc.semester || '').toLowerCase() === String(termSemester).toLowerCase()
@@ -3408,7 +3436,12 @@ function renderDocs(filter = 'All', btnElement = null) {
                     <p style="font-size:0.8rem; color:var(--muted);">${doc.type} • ${doc.date}</p>
                 </div>
             </div>
-            <div class="col-sent mobile-hide" data-label="Sent By">${escapeDashboardHtml(sender)}</div>
+            <div class="col-sent mobile-hide" data-label="Sent By">
+                <div class="sender-info">
+                    <span class="sender-name">${escapeDashboardHtml(sender)}</span>
+                    <span class="sender-position" title="${escapeDashboardHtml(doc.org)}">${escapeDashboardHtml(doc.orgCode || doc.org)}</span>
+                </div>
+            </div>
             <div class="col-adviser mobile-hide" data-label="Adviser Review">${adviserReviewHtml}</div>
             <div class="col-ssc mobile-hide" data-label="SSC Review">${sscReviewHtml}</div>
             <div class="col-osa mobile-hide" data-label="OSA Approval">${osaReviewHtml}</div>
@@ -4197,18 +4230,7 @@ function initRepository() {
 
 // 2. Populate Organization Dropdown
 function initRepoOrgFilter() {
-    const orgSelect = document.getElementById('repo-filter-org');
-    if (!orgSelect) return;
-
-    // Check if we need to repopulate (avoid duplicates if already populated)
-    if (orgSelect.options.length > 1) return;
-
-    organizations.forEach(org => {
-        const option = document.createElement('option');
-        option.value = org.name;
-        option.innerText = org.name;
-        orgSelect.appendChild(option);
-    });
+    populateOsaDocumentOrgFilter('repo-filter-org', repositoryData);
 }
 
 // 3. Update File Type Dropdown with Counts
@@ -4263,7 +4285,7 @@ function renderRepoTable() {
         const matchesType = filterType === 'All' || item.category === filterType;
 
         // 2. Organization
-        const matchesOrg = filterOrg === 'all' || item.org === filterOrg;
+        const matchesOrg = filterOrg === 'all' || getOsaDocumentOrgFilterValue(item) === filterOrg;
 
         // 3. Search Text
         const matchesSearch = item.name.toLowerCase().includes(searchInput) ||
