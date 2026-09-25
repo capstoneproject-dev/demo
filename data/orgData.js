@@ -341,8 +341,8 @@ const ORG_DATA = {
     },
 
     // -------------------------------------------------------------------------
-    "Scholar's Guild": {
-        fullName: "Scholar's Guild",
+    "SAGE": {
+        fullName: "Scholars' Aviation Guild of Excellence",
         motto: "Academic Excellence for All",
         events: [],
         services: [],
@@ -351,7 +351,7 @@ const ORG_DATA = {
         rentals:   [],
         inventory: [],
         officerBarcodes: [
-            { officerId: "PSG-OFF001", officerName: "PSG President", position: "President" }
+            { officerId: "SAGE-OFF001", officerName: "SAGE President", position: "President" }
         ]
     },
 
@@ -409,10 +409,18 @@ const SHARED_SERVICES = [
  */
 function getOrgData(orgKeyRaw) {
     if (!orgKeyRaw) return null;
-    // Direct match first (handles exact keys like "AISERS", "Scholar's Guild")
+    // Direct match first (handles exact keys like "AISERS" and "SAGE")
     if (ORG_DATA[orgKeyRaw]) return ORG_DATA[orgKeyRaw];
     // Case-insensitive fallback (handles uppercase from officer session)
     const upper = String(orgKeyRaw).toUpperCase().trim();
+    const aliases = {
+        "SCHOLARS' AVIATION GUILD OF EXCELLENCE": 'SAGE',
+        "SCHOLAR'S GUILD": 'SAGE',
+        'SCHOLARS GUILD': 'SAGE',
+        'PSG': 'SAGE',
+        'SCHOLARS': 'SAGE'
+    };
+    if (aliases[upper] && ORG_DATA[aliases[upper]]) return ORG_DATA[aliases[upper]];
     const found = Object.keys(ORG_DATA).find(k => k.toUpperCase().trim() === upper);
     return found ? ORG_DATA[found] : null;
 }

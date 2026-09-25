@@ -24,7 +24,7 @@ const INSTITUTE_ORGS = {
 };
 
 // College-wide organizations (not tied to a single institute)
-const COLLEGE_WIDE_ORGS = ['Supreme Student Council', 'RCYC', 'CYC', "Scholar's Guild", 'Aeronautica'];
+const COLLEGE_WIDE_ORGS = ['Supreme Student Council', 'RCYC', 'CYC', "Scholars' Aviation Guild of Excellence", 'Aeronautica'];
 
 // All org roles (mirrors org_roles in DB)
 const ORG_ROLES = ['officer', 'auditor', 'member'];

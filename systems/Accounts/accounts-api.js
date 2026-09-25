@@ -19,7 +19,7 @@ const INSTITUTE_ORGS = {
     'Institute of Liberal Arts and Sciences': ['ILASSO']
 };
 
-const COLLEGE_WIDE_ORGS = ['Supreme Student Council', 'RCYC', 'CYC', "Scholar's Guild", 'Aeronautica'];
+const COLLEGE_WIDE_ORGS = ['Supreme Student Council', 'RCYC', 'CYC', "Scholars' Aviation Guild of Excellence", 'Aeronautica'];
 
 const ORG_ROLES = ['officer', 'auditor', 'member'];
 

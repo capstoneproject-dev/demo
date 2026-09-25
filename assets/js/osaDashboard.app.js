@@ -1121,7 +1121,7 @@ const organizations = [
     { id: 7, name: "AMTSO", fullName: "Aircraft Maintenance Technology Student Organization", orgCode: "AMTSO", category: "INET", president: "TBD", members: "N/A", status: "Active" },
     { id: 8, name: "RCYC", fullName: "Red Cross Youth Council", orgCode: "RCYC", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
     { id: 9, name: "CYC", fullName: "College Youth Club", orgCode: "CYC", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
-    { id: 10, name: "SCHOLAR'S GUILD", fullName: "Scholar's Guild", orgCode: "SCHOLARS", aliases: ["SCHOLAR'S GUILD"], category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
+    { id: 10, name: "SAGE", fullName: "Scholars' Aviation Guild of Excellence", orgCode: "SAGE", aliases: ["SCHOLAR'S GUILD", "SCHOLARS GUILD", "PSG", "SCHOLARS"], category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" },
     { id: 11, name: "AERONAUTICA", fullName: "Aeronautica", orgCode: "AERONAUTICA", category: "INTEREST CLUB", president: "TBD", members: "N/A", status: "Active" }
 ];
 
@@ -1138,8 +1138,12 @@ function normalizeMonitoringOrgName(name) {
         'AMTSO': 'AMTSO',
         'RCYC': 'RCYC',
         'CYC': 'CYC',
-        "SCHOLAR'S GUILD": "SCHOLAR'S GUILD",
-        'SCHOLARS GUILD': "SCHOLAR'S GUILD",
+        "SAGE": "SAGE",
+        "PSG": "SAGE",
+        "SCHOLARS": "SAGE",
+        "SCHOLARS' AVIATION GUILD OF EXCELLENCE": "SAGE",
+        "SCHOLAR'S GUILD": "SAGE",
+        'SCHOLARS GUILD': "SAGE",
         'AERONAUTICA': 'AERONAUTICA'
     };
     return aliases[normalized] || normalized;
@@ -1823,7 +1827,7 @@ let requests = [
     { id: 101, type: "Event Proposal", org: "AISERS", sender: "Pres. Alano", title: "AIS-AHAN: Constituency Check", date: "Oct 24, 2023", status: "Pending" },
     { id: 102, type: "Posting", org: "Supreme Student Council", sender: "VPI Flores", title: "Love Surge", date: "Oct 24, 2023", status: "Pending" },
     { id: 103, type: "Document", org: "AERO-ATSO", sender: "Tres. Beltrano", title: "Semestral Financial Report", date: "Oct 23, 2023", status: "Pending" },
-    { id: 104, type: "Event Proposal", org: "SCHOLAR'S GUILD", sender: "PO Martinez", title: "Mental Health Week", date: "Oct 22, 2023", status: "Pending" }
+    { id: 104, type: "Event Proposal", org: "SAGE", sender: "PO Martinez", title: "Mental Health Week", date: "Oct 22, 2023", status: "Pending" }
 ];
 
 let docsData = [];
@@ -3550,8 +3554,13 @@ async function openMonitoring(orgId) {
             : Promise.resolve();
 
         // 1. Basic Info
-        document.getElementById('monitoring-org-name').innerText = org.name;
-        document.getElementById('monitoring-org-details').innerText = `${org.category} • ID: ${org.id}`;
+        const organizationCode = String(org.orgCode || org.org_code || org.name || '').trim();
+        const organizationFullName = String(org.fullName || org.full_name || org.name || '').trim();
+        document.getElementById('monitoring-org-name').innerText = organizationCode;
+        document.getElementById('monitoring-org-details').innerText = organizationFullName
+            && organizationFullName.toUpperCase() !== organizationCode.toUpperCase()
+            ? `${organizationFullName} • ${org.category} • ID: ${org.id}`
+            : `${org.category} • ID: ${org.id}`;
 
         const monitoringActivities = buildMonitoringActivities(org);
         const latestActivity = monitoringActivities[0];

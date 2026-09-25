@@ -53,7 +53,7 @@ const organizationData = [
     // Interest Club
     { name: "RCYC", category: "Interest Club", imgSeed: "bicycle", color: "#059669", image: "../assets/photos/studentDashboard/Organization/RCYC.png", banner: "../assets/photos/studentDashboard/Organization/banners/rcycbanner.png" },
     { name: "CYC", category: "Interest Club", imgSeed: "child", color: "#059669", image: "../assets/photos/studentDashboard/Organization/CYC.png", banner: "../assets/photos/studentDashboard/Organization/banners/cycbanner.png" },
-    { name: "Scholar’s Guild", category: "Interest Club", imgSeed: "grad", color: "#059669", image: "../assets/photos/studentDashboard/Organization/PSG.png", banner: "../assets/photos/studentDashboard/Organization/banners/scholarsguildbanner.jpg" },
+    { name: "SAGE", category: "Interest Club", imgSeed: "grad", color: "#059669", image: "../assets/photos/studentDashboard/Organization/PSG.png", banner: "../assets/photos/studentDashboard/Organization/banners/scholarsguildbanner.jpg" },
     { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669", image: "../assets/photos/studentDashboard/Organization/AERONAUTICA.png", banner: "../assets/photos/studentDashboard/Organization/banners/aeronauticabanner.jpg" }
 ];
 
@@ -449,7 +449,7 @@ const orgProfileConfig = {
         officers: ["President: Den C. Martinez", "Vice President: Kira T. Solis", "Secretary: Abby D. Flores"],
         highlights: ["Leadership Bootcamp", "Peer Engagement Sessions", "Volunteer Mobilization"]
     },
-    "Scholar's Guild": {
+    "SAGE": {
         tagline: "Academic excellence and peer support group",
         about: "Supports scholars through mentoring, academic planning, and enrichment programs.",
         officers: ["President: Trisha A. Ong", "Vice President: Yuri P. Lim", "Secretary: Sam J. Cruz"],
@@ -473,7 +473,7 @@ const orgThemeClassMap = {
     "Supreme Student Council": "org-theme-ssc",
     "RCYC": "org-theme-rcyc",
     "CYC": "org-theme-cyc",
-    "Scholar's Guild": "org-theme-scholar-guild",
+    "SAGE": "org-theme-scholar-guild",
     "Aeronautica": "org-theme-aero-atso"
 };
 
@@ -503,10 +503,14 @@ function normalizeOrgName(name) {
         "COLLEGE YOUTH CLUB": "CYC",
         "AERONAUTICA": "Aeronautica",
         "ELITECH ORGANIZATION": "ELITECH",
-        "SCHOLAR'S GUILD": "Scholar's Guild",
-        "SCHOLARS GUILD": "Scholar's Guild",
-        "SCHOLAR’S GUILD": "Scholar's Guild",
-        "SCHOLARA€™S GUILD": "Scholar's Guild",
+        "SAGE": "SAGE",
+        "SCHOLARS' AVIATION GUILD OF EXCELLENCE": "SAGE",
+        "PSG": "SAGE",
+        "SCHOLARS": "SAGE",
+        "SCHOLAR'S GUILD": "SAGE",
+        "SCHOLARS GUILD": "SAGE",
+        "SCHOLAR’S GUILD": "SAGE",
+        "SCHOLARA€™S GUILD": "SAGE",
         "AMT": "AMTSO",
         "AET": "AETSO"
     };
@@ -3397,7 +3401,7 @@ function renderOrganizationsAboutTab(contentDiv) {
             orgsToShow = organizationData.filter(o => ['AERO-ATSO', 'AETSO', 'AMTSO'].includes(o.name));
         } else if (categoryKey === 'Interest Club') {
             orgsToShow = organizationData.filter(o => [
-                'RCYC', 'CYC', "Scholarâ€™s Guild", 'Aeronautica'
+                'RCYC', 'CYC', 'SAGE', 'Aeronautica'
             ].includes(o.name));
         }
 
@@ -3741,7 +3745,7 @@ function switchOrgTab(tabName, btn) {
                 orgsToShow = organizationData.filter(o => ['AERO-ATSO', 'AETSO', 'AMTSO'].includes(o.name));
             } else if (categoryKey === 'Interest Club') {
                 orgsToShow = organizationData.filter(o => [
-                    'RCYC', 'CYC', "Scholar’s Guild", 'Aeronautica'
+                    'RCYC', 'CYC', 'SAGE', 'Aeronautica'
                 ].includes(o.name));
             }
 

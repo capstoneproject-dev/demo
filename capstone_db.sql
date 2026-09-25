@@ -562,7 +562,7 @@ INSERT INTO `organizations` (`org_id`, `org_name`, `org_code`, `logo_url`, `bann
 (7, 'Aircraft Maintenance Technology Student Organization', 'AMTSO', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-24 23:39:35', 1, 1),
 (8, 'Red Cross Youth Council', 'RCYC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
 (9, 'College Youth Club', 'CYC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:00', 1, 1),
-(10, 'Scholar\'s Guild', 'SCHOLARS', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
+(10, 'Scholars\' Aviation Guild of Excellence', 'SAGE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1),
 (11, 'Aeronautica', 'AERONAUTICA', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'active', '2026-02-25 19:13:37', '2026-03-22 20:01:05', 0, 1);
 
 --

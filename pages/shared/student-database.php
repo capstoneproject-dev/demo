@@ -7,8 +7,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 }
 $activeOrgCode = strtoupper(trim((string)($session['active_org_code'] ?? '')));
 $activeOrgName = strtoupper(trim((string)($session['active_org_name'] ?? '')));
-$interestClubCodes = ['RCYC', 'CYC', 'SCHOLARS', 'AERONAUTICA'];
-$interestClubNames = ['RED CROSS YOUTH COUNCIL', 'COLLEGE YOUTH CLUB', "SCHOLAR'S GUILD", 'AERONAUTICA'];
+$interestClubCodes = ['RCYC', 'CYC', 'SAGE', 'PSG', 'SCHOLARS', 'AERONAUTICA'];
+$interestClubNames = ['RED CROSS YOUTH COUNCIL', 'COLLEGE YOUTH CLUB', "SCHOLARS' AVIATION GUILD OF EXCELLENCE", "SCHOLAR'S GUILD", 'AERONAUTICA'];
 $isInterestClubStudentDatabase = in_array($activeOrgCode, $interestClubCodes, true)
     || in_array($activeOrgName, $interestClubNames, true);
 $defaultProgramFilter = $isInterestClubStudentDatabase ? '__ALL__' : '__ORG__';

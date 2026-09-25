@@ -56,8 +56,11 @@ function normalizeOrgName(name) {
     SSC: 'Supreme Student Council',
     'SUPREME STUDENT COUNCIL': 'Supreme Student Council',
     AERONAUTICA: 'AERONAUTICA',
-    "SCHOLAR'S GUILD": "SCHOLAR'S GUILD",
-    'SCHOLARS GUILD': "SCHOLAR'S GUILD",
+    SAGE: "Scholars' Aviation Guild of Excellence",
+    PSG: "Scholars' Aviation Guild of Excellence",
+    "SCHOLARS' AVIATION GUILD OF EXCELLENCE": "Scholars' Aviation Guild of Excellence",
+    "SCHOLAR'S GUILD": "Scholars' Aviation Guild of Excellence",
+    'SCHOLARS GUILD': "Scholars' Aviation Guild of Excellence",
     AMT: 'AMTSO',
     AET: 'AETSO'
   };
@@ -104,7 +107,7 @@ function seedAuthDb() {
     { org_id: 7, org_name: 'AETSO', org_code: 'AETSO', status: 'active' },
     { org_id: 8, org_name: 'AMTSO', org_code: 'AMTSO', status: 'active' },
     { org_id: 9, org_name: 'RCYC', org_code: 'RCYC', status: 'active' },
-    { org_id: 10, org_name: "SCHOLAR'S GUILD", org_code: 'PSG', status: 'active' },
+    { org_id: 10, org_name: "Scholars' Aviation Guild of Excellence", org_code: 'SAGE', status: 'active' },
     { org_id: 11, org_name: 'AERONAUTICA', org_code: 'AERONAUTICA', status: 'active' }
   ];
 
@@ -1322,7 +1325,7 @@ const ORGANIZATION_POSITIONS = {
     'Director for Events and Services', 'Director for Sports & Logistics',
     'Director for Ecumenical and Spiritual Care', 'Director for Extension and Community Engagement'
   ],
-  "SCHOLAR'S GUILD": [
+  "SCHOLARS' AVIATION GUILD OF EXCELLENCE": [
     'President', 'Vice President for Internal Affairs', 'Vice President for External Affairs',
     'Vice President for Finance', 'Vice President for Audit and Logistics',
     'Vice President for Documentation', 'Vice President for Public Relations',

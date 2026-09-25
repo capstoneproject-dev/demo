@@ -105,7 +105,10 @@ function notificationEmailOrganizationBranding(string $organizationCode, string 
         'AIRCRAFT MAINTENANCE TECHNOLOGY STUDENT ORGANIZATION' => 'AMTSO',
         'RED CROSS YOUTH COUNCIL' => 'RCYC',
         'COLLEGE YOUTH CLUB' => 'CYC',
-        "SCHOLAR'S GUILD" => 'SCHOLARS',
+        "SCHOLARS' AVIATION GUILD OF EXCELLENCE" => 'SAGE',
+        "SCHOLAR'S GUILD" => 'SAGE',
+        'PSG' => 'SAGE',
+        'SCHOLARS' => 'SAGE',
         'AERONAUTICA' => 'AERONAUTICA',
     ];
     if (!isset($aliases[$key]) && isset($aliases[$name])) {
@@ -125,7 +128,7 @@ function notificationEmailOrganizationBranding(string $organizationCode, string 
         'AMTSO' => ['#ff7a33', '#ffc494'],
         'RCYC' => ['#ff4a43', '#ffaca8'],
         'CYC' => ['#ff4db3', '#ffb8df'],
-        'SCHOLARS' => ['#8f7320', '#9fd9b5'],
+        'SAGE' => ['#8f7320', '#9fd9b5'],
         'AERONAUTICA' => ['#49a6ff', '#a5d3ff'],
     ];
     [$primary, $secondary] = $headerColors[$key] ?? ['#002147', '#003366'];

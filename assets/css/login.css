@@ -765,6 +765,32 @@ button.ghost:hover {
   border-color: var(--primary);
 }
 
+#orgModal .org-item {
+  min-height: 78px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#orgModal .org-item-name {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+#orgModal .org-item-code {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+#orgModal .org-item:hover .org-item-code {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 .position-list {
   display: grid;
   grid-template-columns: 1fr 1fr;

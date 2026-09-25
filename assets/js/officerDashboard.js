@@ -537,7 +537,10 @@ function normalizeOfficerOrgName(name) {
         "SUPREME STUDENT COUNCIL": "SUPREME STUDENT COUNCIL",
         "AET": "AETSO",
         "AMT": "AMTSO",
-        "SCHOLARS GUILD": "SCHOLAR'S GUILD"
+        "SAGE": "SCHOLARS' AVIATION GUILD OF EXCELLENCE",
+        "PSG": "SCHOLARS' AVIATION GUILD OF EXCELLENCE",
+        "SCHOLAR'S GUILD": "SCHOLARS' AVIATION GUILD OF EXCELLENCE",
+        "SCHOLARS GUILD": "SCHOLARS' AVIATION GUILD OF EXCELLENCE"
     };
     return aliases[normalized] || normalized;
 }
@@ -565,6 +568,8 @@ function resolveOfficerAnnouncementOrgIcon(item) {
         AMTSO: '../assets/photos/studentDashboard/Organization/AMT.png',
         RCYC: '../assets/photos/studentDashboard/Organization/RCYC.png',
         CYC: '../assets/photos/studentDashboard/Organization/CYC.png',
+        SAGE: '../assets/photos/studentDashboard/Organization/PSG.png',
+        PSG: '../assets/photos/studentDashboard/Organization/PSG.png',
         SCHOLARS: '../assets/photos/studentDashboard/Organization/PSG.png',
         AERONAUTICA: '../assets/photos/studentDashboard/Organization/AERONAUTICA.png'
     };

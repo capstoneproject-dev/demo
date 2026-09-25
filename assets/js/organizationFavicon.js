@@ -31,7 +31,7 @@
     register('amtso.png', ['AMT', 'AMTSO', 'Aircraft Maintenance Technology Student Organization']);
     register('rcyc.png', ['RCYC', 'Red Cross Youth Council']);
     register('cyc.png', ['CYC', 'College Youth Club']);
-    register('scholars.png', ['PSG', 'SCHOLARS', "Scholar's Guild", 'Scholars Guild']);
+    register('scholars.png', ['SAGE', "Scholars' Aviation Guild of Excellence", 'PSG', 'SCHOLARS', "Scholar's Guild", 'Scholars Guild']);
     register('aeronautica.png', ['AERONAUTICA', 'Aeronautica']);
 
     function resolveFileName(values) {
