@@ -63,19 +63,6 @@
         document.body.classList.add('org-read-only-banner-visible');
     }
 
-    function positionBelowFixedNavbar() {
-        var navbar = document.querySelector('.navbar.fixed-top, .fixed-top.custom-navbar');
-        if (!navbar) {
-            document.body.classList.remove('org-read-only-fixed-navbar');
-            document.documentElement.style.removeProperty('--org-read-only-navbar-height');
-            return;
-        }
-
-        var navbarHeight = Math.max(navbar.getBoundingClientRect().height, navbar.scrollHeight);
-        document.body.classList.add('org-read-only-fixed-navbar');
-        document.documentElement.style.setProperty('--org-read-only-navbar-height', Math.ceil(navbarHeight) + 'px');
-    }
-
     function syncBannerHeight() {
         var banner = document.getElementById('organizationAdviserReadOnlyBanner');
         if (!banner) return;
@@ -89,25 +76,77 @@
         if (document.getElementById('organizationAdviserReadOnlyStyles')) return;
         var style = document.createElement('style');
         style.id = 'organizationAdviserReadOnlyStyles';
-        style.textContent = 'body.org-read-only-banner-visible{padding-top:var(--org-read-only-banner-height,39px)}.organization-adviser-readonly-banner{position:fixed;top:0;left:0;right:0;width:100%;z-index:10050;padding:9px 16px;text-align:center;background:#fff7d6;color:#714f00;border-bottom:1px solid #eed27a;font:600 14px/1.4 system-ui,sans-serif}.org-read-only-fixed-navbar .organization-adviser-readonly-banner{top:var(--org-read-only-navbar-height,70px)}body.org-read-only-banner-visible:not(.org-read-only-fixed-navbar) .sidebar{top:var(--org-read-only-banner-height,39px);height:calc(100vh - var(--org-read-only-banner-height,39px))}.organization-adviser-readonly-banner i{margin-right:7px}[data-readonly-hidden="1"]{display:none!important}';
+        style.textContent = `
+            body.org-read-only-banner-visible {
+                padding-top: calc(var(--org-read-only-original-padding-top, 0px) + var(--org-read-only-banner-height, 39px)) !important;
+            }
+            .organization-adviser-readonly-banner {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 10050;
+                box-sizing: border-box;
+                padding: 9px 16px;
+                text-align: center;
+                background: #fff7d6;
+                color: #714f00;
+                border-bottom: 1px solid #eed27a;
+                font: 600 14px/1.4 system-ui, sans-serif;
+            }
+            .organization-adviser-readonly-banner i { margin-right: 7px; }
+            body.org-read-only-banner-visible .navbar.fixed-top,
+            body.org-read-only-banner-visible .fixed-top.custom-navbar {
+                top: var(--org-read-only-banner-height, 39px) !important;
+            }
+            @media (min-width: 769px) {
+                body.org-read-only-banner-visible .sidebar {
+                    top: var(--org-read-only-banner-height, 39px);
+                    height: calc(100vh - var(--org-read-only-banner-height, 39px));
+                }
+            }
+            body.org-read-only-banner-visible .main-content.tracker-fullscreen > header {
+                top: calc(30px + var(--org-read-only-banner-height, 39px));
+            }
+            body.org-read-only-banner-visible .main-content.tracker-fullscreen,
+            body.org-read-only-banner-visible .main-content.tracker-fullscreen #tracker .tracker-layout {
+                min-height: calc(100vh - var(--org-read-only-banner-height, 39px));
+            }
+            @media (min-width: 769px) {
+                body.org-read-only-banner-visible .main-content.tracker-fullscreen #events.section-view.active,
+                body.org-read-only-banner-visible .main-content.tracker-fullscreen #tracker.section-view.active,
+                body.org-read-only-banner-visible .main-content.tracker-fullscreen #tracker .tracker-sidebar,
+                body.org-read-only-banner-visible .main-content.tracker-fullscreen #tracker-rentals-view .card,
+                body.org-read-only-banner-visible .main-content.tracker-fullscreen #tracker-printing-view .card,
+                body.org-read-only-banner-visible .main-content.tracker-fullscreen #tracker-rentals-view iframe {
+                    height: calc(100vh - var(--org-read-only-banner-height, 39px));
+                }
+                body.org-read-only-banner-visible .main-content.tracker-fullscreen #tracker .tracker-sidebar {
+                    top: var(--org-read-only-banner-height, 39px);
+                }
+            }
+            @media (max-width: 768px) {
+                body.org-read-only-banner-visible .main-content.tracker-fullscreen > header {
+                    top: calc(20px + var(--org-read-only-banner-height, 39px));
+                }
+                body.org-read-only-banner-visible #tracker .tracker-sidebar,
+                body.org-read-only-banner-visible #tracker .tracker-sidebar-backdrop {
+                    top: var(--org-read-only-banner-height, 39px);
+                }
+            }
+            [data-readonly-hidden="1"] { display: none !important; }
+        `;
         document.head.appendChild(style);
     }
 
     function initialize() {
         if (!isReadOnly()) return;
+        document.body.style.setProperty('--org-read-only-original-padding-top', getComputedStyle(document.body).paddingTop);
         document.body.classList.add('org-read-only');
         addStyles();
         addBanner();
-        positionBelowFixedNavbar();
         syncBannerHeight();
-        window.addEventListener('resize', function () {
-            positionBelowFixedNavbar();
-            syncBannerHeight();
-        }, { passive: true });
-        var fixedNavbar = document.querySelector('.navbar.fixed-top, .fixed-top.custom-navbar');
-        if (fixedNavbar && typeof ResizeObserver === 'function') {
-            new ResizeObserver(positionBelowFixedNavbar).observe(fixedNavbar);
-        }
+        window.addEventListener('resize', syncBannerHeight, { passive: true });
         var readOnlyBanner = document.getElementById('organizationAdviserReadOnlyBanner');
         if (readOnlyBanner && typeof ResizeObserver === 'function') {
             new ResizeObserver(syncBannerHeight).observe(readOnlyBanner);

@@ -169,7 +169,7 @@ $databaseReturnUrl = '../shared/student-database.php?context=' . rawurlencode(
     <script src="../../assets/js/igp-api.js?v=20260227e"></script>
     <script src="../../assets/js/barcode-download.js?v=20260821-compact-white-background"></script>
     <script src="../../assets/js/igp-students-exact.js?v=20260829-offline-actions-1"></script>
-    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260925-banner-offset-1"></script>
 </body>
 
 </html>

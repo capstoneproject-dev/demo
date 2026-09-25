@@ -61,7 +61,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
 <script src="../../assets/js/igp-api.js"></script>
 <script src="../../assets/js/igp-import.js"></script>
-    <script src="../../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260925-banner-offset-1"></script>
     <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
 </body>
 </html>

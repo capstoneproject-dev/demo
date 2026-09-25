@@ -5667,9 +5667,11 @@ function closeSubmitModal() {
     // document.getElementById('doc-form').reset();
 }
 
-function openReviewerNoteModal(encodedNote) {
+function openReviewerNoteModal(encodedNote, label = 'Reviewer Comment') {
+    closeReviewerCommentOptions();
     const modal = document.getElementById('review-comment-modal');
     const body = document.getElementById('review-comment-body');
+    const title = document.getElementById('review-comment-title');
     if (!modal || !body) return;
 
     let noteText = '';
@@ -5679,9 +5681,72 @@ function openReviewerNoteModal(encodedNote) {
         noteText = String(encodedNote || '');
     }
 
+    if (title) title.textContent = label;
     body.innerHTML = escapeHtml(noteText).replace(/\n/g, '<br>');
     modal.classList.add('show');
 }
+
+let activeReviewerCommentTrigger = null;
+
+function closeReviewerCommentOptions() {
+    const menu = document.getElementById('review-comment-options-menu');
+    if (menu) menu.hidden = true;
+    if (activeReviewerCommentTrigger) activeReviewerCommentTrigger.setAttribute('aria-expanded', 'false');
+    activeReviewerCommentTrigger = null;
+}
+
+function openReviewerCommentOptions(encodedOptions, trigger) {
+    const menu = document.getElementById('review-comment-options-menu');
+    if (!menu || !trigger) return;
+    if (!menu.hidden && activeReviewerCommentTrigger === trigger) {
+        closeReviewerCommentOptions();
+        return;
+    }
+
+    let options;
+    try {
+        options = JSON.parse(decodeURIComponent(encodedOptions || ''));
+    } catch (_error) {
+        return;
+    }
+    if (!Array.isArray(options) || !options.length) return;
+
+    closeReviewerCommentOptions();
+    menu.replaceChildren();
+    options.forEach(({ label, note }) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'reviewer-comment-option';
+        button.setAttribute('role', 'menuitem');
+        button.setAttribute('data-readonly-allow', '');
+        button.textContent = label;
+        button.addEventListener('click', () => openReviewerNoteModal(encodeURIComponent(note), label));
+        menu.appendChild(button);
+    });
+    menu.hidden = false;
+    activeReviewerCommentTrigger = trigger;
+    trigger.setAttribute('aria-expanded', 'true');
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuWidth = menu.offsetWidth;
+    const menuHeight = menu.offsetHeight;
+    menu.style.left = `${Math.max(8, Math.min(triggerRect.right - menuWidth, window.innerWidth - menuWidth - 8))}px`;
+    menu.style.top = `${triggerRect.bottom + menuHeight + 8 <= window.innerHeight
+        ? triggerRect.bottom + 5
+        : Math.max(8, triggerRect.top - menuHeight - 5)}px`;
+    menu.querySelector('button')?.focus();
+}
+
+document.addEventListener('click', (event) => {
+    const menu = document.getElementById('review-comment-options-menu');
+    if (menu && !menu.hidden && !menu.contains(event.target) && !event.target.closest('.document-comment-trigger')) {
+        closeReviewerCommentOptions();
+    }
+});
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeReviewerCommentOptions();
+});
+window.addEventListener('scroll', closeReviewerCommentOptions, true);
+window.addEventListener('resize', closeReviewerCommentOptions);
 
 function closeReviewerNoteModal() {
     const modal = document.getElementById('review-comment-modal');
@@ -6195,28 +6260,24 @@ function renderDocs(filter = 'All', btnElement = null) {
             : doc.osaDecision === 'rejected'
                 ? rejectedReview(osaReviewerName, doc.osaReviewedAt)
                 : emptyReview;
-        const stageNoteButtons = [];
+        const stageNotes = [];
         if (doc.adviserReviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.adviserReviewerNotes).replace(/'/g, '%27')}')" title="View Adviser Comment" aria-label="View Adviser Comment">
-                <i class="fa-regular fa-message"></i><span class="doc-action-label">Adviser Comment</span>
-            </button>`);
+            stageNotes.push({ label: 'Adviser Comment', note: doc.adviserReviewerNotes });
         }
         if (doc.sscReviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.sscReviewerNotes).replace(/'/g, '%27')}')" title="View SSC Comment" aria-label="View SSC Comment">
-                <i class="fa-regular fa-message"></i><span class="doc-action-label">SSC Comment</span>
-            </button>`);
+            stageNotes.push({ label: 'SSC Comment', note: doc.sscReviewerNotes });
         }
         if (doc.osaReviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.osaReviewerNotes).replace(/'/g, '%27')}')" title="View OSA Comment" aria-label="View OSA Comment">
-                <i class="fa-regular fa-message"></i><span class="doc-action-label">OSA Comment</span>
-            </button>`);
+            stageNotes.push({ label: 'OSA Comment', note: doc.osaReviewerNotes });
         }
-        if (stageNoteButtons.length === 0 && doc.reviewerNotes) {
-            stageNoteButtons.push(`<button class="btn btn-outline btn-sm document-workflow-action" data-readonly-allow onclick="event.stopPropagation(); openReviewerNoteModal('${encodeURIComponent(doc.reviewerNotes).replace(/'/g, '%27')}')" title="View Reviewer Comment" aria-label="View Reviewer Comment">
-                <i class="fa-regular fa-message"></i><span class="doc-action-label">Comment</span>
-            </button>`);
+        if (stageNotes.length === 0 && doc.reviewerNotes) {
+            stageNotes.push({ label: 'Reviewer Comment', note: doc.reviewerNotes });
         }
-        const reviewNoteButton = stageNoteButtons.join('');
+        const reviewNoteButton = stageNotes.length
+            ? `<button class="btn btn-outline btn-sm document-comment-trigger" type="button" data-readonly-allow aria-haspopup="menu" aria-expanded="false" onclick="event.stopPropagation(); openReviewerCommentOptions('${encodeURIComponent(JSON.stringify(stageNotes)).replace(/'/g, '%27')}', this)" title="View Comments" aria-label="View Comments">
+                <i class="fa-regular fa-message" aria-hidden="true"></i>
+            </button>`
+            : '';
         const revisionButton = canManageDashboard && isOwnedByActiveOrg && doc.status === 'Rejected' && !doc.hasNewerVersion
             ? `<button class="btn btn-outline btn-sm document-workflow-action" onclick="event.stopPropagation(); openDocumentRevisionModal(${Number(doc.submission_id || doc.id || 0)})" title="Submit Revision" aria-label="Submit Revision">
                     <i class="fa-solid fa-code-branch"></i><span class="doc-action-label">Submit Revision</span>
@@ -6230,7 +6291,7 @@ function renderDocs(filter = 'All', btnElement = null) {
                 </button>`
             : '';
         const viewButton = `
-            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document">
+            <button class="btn btn-sm btn-outline document-view-action" onclick="event.stopPropagation(); openPdfViewer('${doc.viewerId}')" title="View Document" aria-label="View Document">
                 <i class="fa-solid fa-eye"></i>
             </button>`;
         const versionBadge = `<span class="status-badge" style="font-size:0.65rem; padding:2px 6px; margin-left:6px;">v${Number(doc.versionNumber || 1)}</span>`;
@@ -6379,8 +6440,7 @@ function renderDocs(filter = 'All', btnElement = null) {
 
             <div class="col-status">
                 <div class="action-btn-group">
-                    ${actionButtons}
-                    ${reviewNoteButton}
+                    <div class="document-primary-actions">${actionButtons}${reviewNoteButton}</div>
                 </div>
             </div>
         </div>`;

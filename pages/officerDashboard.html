@@ -23,7 +23,7 @@
     <script src="../assets/vendor/pdf.min.js"></script>
     <link rel="stylesheet" href="../assets/vendor/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260925-org-switch-3">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260925-document-actions-row-1">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260901-responsive-1">
 </head>
@@ -409,7 +409,7 @@
                                     <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerFinancialSummary(true)">
                                         <i class="fa-solid fa-rotate-right"></i> Refresh
                                     </button>
-                                    <button class="btn btn-primary btn-sm" type="button" onclick="exportOfficerFinancialSummaryXlsx()">
+                                    <button class="btn btn-primary btn-sm" type="button" data-readonly-allow onclick="exportOfficerFinancialSummaryXlsx()">
                                         <i class="fa-solid fa-file-excel"></i> Export XLSX
                                     </button>
                                 </div>
@@ -1344,7 +1344,7 @@
             </div>
         </div>
 
-        <div id="analyticsExportDateFilterModal" class="modal-overlay">
+        <div id="analyticsExportDateFilterModal" class="modal-overlay" data-readonly-allow>
             <div class="modal-content printing-history-date-filter-modal-content">
                 <div class="modal-header">
                     <h3>Export Analytics by Date Range</h3>
@@ -1637,7 +1637,7 @@
                     <button id="clear-mock-btn" class="btn btn-sm" onclick="clearMockAnalyticsData()" style="background: #dc2626; color: white; display: none;">
                         <i class="fa-solid fa-trash"></i> Clear Mock
                     </button>
-                    <button class="btn btn-outline btn-sm" onclick="toggleExportMenu()">
+                    <button class="btn btn-outline btn-sm" data-readonly-allow onclick="toggleExportMenu()">
                         <i class="fa-solid fa-download"></i> Export Report <i class="fa-solid fa-caret-down ms-2"></i>
                     </button>
                     <div class="export-dropdown" id="export-dropdown">
@@ -2132,7 +2132,7 @@
     <div id="review-comment-modal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Reviewer Comment</h3>
+                <h3 id="review-comment-title">Reviewer Comment</h3>
                 <button class="close-modal" onclick="closeReviewerNoteModal()">&times;</button>
             </div>
             <div class="modal-body">
@@ -2143,6 +2143,8 @@
             </div>
         </div>
     </div>
+
+    <div id="review-comment-options-menu" class="reviewer-comment-options" role="menu" aria-label="Document comments" hidden></div>
 
     <div id="officer-document-approve-modal" class="modal-overlay">
         <div class="modal-content document-review-modal-content">
@@ -2346,8 +2348,8 @@
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260919-workflow-summary-5"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260925-sage-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260925-org-switch-2"></script>
-    <script src="../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260925-document-actions-row-1"></script>
+    <script src="../assets/js/readonly-org-dashboard.js?v=20260925-banner-offset-1"></script>
 </body>
 
 </html>

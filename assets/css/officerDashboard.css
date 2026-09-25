@@ -3710,7 +3710,7 @@ body.dark .sub-nav-btn.active {
 #docs-list .list-item {
     display: grid !important;
     /* Columns: Name, Sent, Adviser, SSC, OSA, Actions */
-    grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)) 220px;
+    grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)) 250px;
     gap: 10px;
     align-items: center;
 }
@@ -4059,6 +4059,18 @@ body.dark .sub-nav-btn.active {
     padding: 14px;
     white-space: normal;
     word-break: break-word;
+}
+
+#review-comment-modal .modal-content {
+    max-width: 420px;
+}
+
+#review-comment-modal .modal-body {
+    padding: 16px;
+}
+
+#review-comment-modal .review-comment-body {
+    min-height: 0;
 }
 
 .document-review-modal-content {
@@ -4994,8 +5006,72 @@ body.dark .btn-outline:hover {
 }
 
 #docs-list .action-btn-group {
+    width: 100%;
+    max-width: 250px;
+    margin-left: auto;
+}
+
+#docs-list .document-primary-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
     gap: 5px;
-    flex-wrap: wrap;
+    width: 100%;
+    white-space: nowrap;
+}
+
+#docs-list .document-primary-actions .document-view-action {
+    flex: 0 0 30px;
+    width: 30px;
+    justify-content: center;
+    padding-inline: 0;
+}
+
+#docs-list .document-primary-actions .document-workflow-action {
+    flex: 0 0 auto;
+    justify-content: center;
+}
+
+#docs-list .document-primary-actions .document-comment-trigger {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    justify-content: center;
+}
+
+.reviewer-comment-options {
+    position: fixed;
+    z-index: 2100;
+    width: 178px;
+    padding: 5px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: 0 12px 30px rgba(0, 18, 43, 0.2);
+}
+
+.reviewer-comment-options[hidden] {
+    display: none;
+}
+
+.reviewer-comment-option {
+    width: 100%;
+    padding: 9px 11px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.reviewer-comment-option:hover,
+.reviewer-comment-option:focus-visible {
+    background: var(--panel-2);
+    color: var(--primary);
 }
 
 #docs-list .action-btn-group .btn-sm {
@@ -5010,13 +5086,35 @@ body.dark .btn-outline:hover {
 @media (max-width: 1350px) and (min-width: 901px) {
     .list-header-row,
     #docs-list .list-item {
-        grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(100px, 1fr)) 110px;
+        grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(100px, 1fr)) 140px;
     }
 
     #docs-list .document-workflow-action {
         width: 30px;
         height: 30px;
         min-height: 30px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    #docs-list .document-workflow-action .doc-action-label {
+        display: none;
+    }
+
+    #docs-list .action-btn-group {
+        max-width: 140px;
+    }
+
+}
+
+@media (max-width: 900px) {
+    #docs-list .action-btn-group {
+        max-width: 140px;
+    }
+
+    #docs-list .document-workflow-action {
+        width: 30px;
+        height: 30px;
         padding: 0;
         justify-content: center;
     }
