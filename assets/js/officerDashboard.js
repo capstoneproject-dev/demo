@@ -1,6 +1,13 @@
 const AUTH_SESSION_KEY = 'naapAuthSession';
 const OFFICER_ACADEMIC_TERM_API = '../api/settings/academic-term.php';
 let officerOrgSyncPromise = Promise.resolve();
+let officerOrgSwitching = false;
+const OFFICER_ORG_IMAGES = {
+    SSC: 'SSC.png', AISERS: 'AISERS.png', ELITECH: 'ELITECH.png',
+    ILASSO: 'ILASSO.png', 'AERO-ATSO': 'AEROATSO.png', AETSO: 'AET.png',
+    AMTSO: 'AMT.png', RCYC: 'RCYC.png', CYC: 'CYC.png',
+    SAGE: 'PSG.png', AERONAUTICA: 'AERONAUTICA.png'
+};
 const DEFAULT_OFFICER_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E";
 const OFFICER_ANNOUNCEMENT_PREVIEW_KEY_PREFIX = 'osaAnnouncementPreview_';
 let officerAnnouncementPreviewPayloadCache = undefined;
@@ -43,6 +50,95 @@ function readAuthSession() {
         return JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || '{}');
     } catch (_error) {
         return {};
+    }
+}
+
+function getOfficerSwitchMemberships(session = readAuthSession()) {
+    const unique = new Map();
+    (Array.isArray(session.officer_memberships) ? session.officer_memberships : []).forEach((membership) => {
+        const orgId = Number(membership.org_id || 0);
+        if (orgId > 0 && !unique.has(orgId)) unique.set(orgId, membership);
+    });
+    return [...unique.values()];
+}
+
+function updateOfficerOrgSwitchButton(session = readAuthSession()) {
+    const button = document.getElementById('officerOrgSwitchButton');
+    if (button) button.hidden = session.login_role !== 'org' || getOfficerSwitchMemberships(session).length < 2;
+}
+
+function closeOfficerOrgSwitcher() {
+    const dialog = document.getElementById('officerOrgSwitchDialog');
+    if (dialog?.open && !officerOrgSwitching) dialog.close();
+}
+
+function openOfficerOrgSwitcher() {
+    const session = readAuthSession();
+    const memberships = getOfficerSwitchMemberships(session);
+    const dialog = document.getElementById('officerOrgSwitchDialog');
+    const options = document.getElementById('officerOrgSwitchOptions');
+    if (session.login_role !== 'org' || memberships.length < 2 || !dialog || !options) return;
+
+    options.replaceChildren();
+    memberships.forEach((membership) => {
+        const orgId = Number(membership.org_id);
+        const isCurrent = orgId === Number(session.active_org_id || 0);
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'officer-org-switch-card';
+        card.disabled = isCurrent;
+        card.setAttribute('aria-label', `${isCurrent ? 'Current organization' : 'Switch to'} ${membership.org_name}`);
+
+        const image = document.createElement('img');
+        const imageName = OFFICER_ORG_IMAGES[String(membership.org_code || '').toUpperCase()];
+        image.src = imageName
+            ? `../assets/photos/studentDashboard/Organization/${imageName}`
+            : '../assets/favicon.png';
+        image.alt = '';
+        image.onerror = () => { image.onerror = null; image.src = '../assets/favicon.png'; };
+
+        const name = document.createElement('span');
+        name.className = 'officer-org-switch-card-name';
+        name.textContent = membership.org_name || membership.org_code || 'Organization';
+        card.append(image, name);
+        if (isCurrent) {
+            const badge = document.createElement('span');
+            badge.className = 'officer-org-switch-card-current';
+            badge.textContent = 'Current';
+            card.appendChild(badge);
+        } else {
+            card.addEventListener('click', () => switchOfficerOrganization(orgId));
+        }
+        options.appendChild(card);
+    });
+    if (!dialog.open) dialog.showModal();
+    options.querySelector('.officer-org-switch-card:not(:disabled)')?.focus();
+}
+
+async function switchOfficerOrganization(orgId) {
+    if (officerOrgSwitching || !getOfficerSwitchMemberships().some((membership) => Number(membership.org_id) === orgId)) return;
+    officerOrgSwitching = true;
+    document.querySelectorAll('#officerOrgSwitchOptions button').forEach((button) => { button.disabled = true; });
+
+    try {
+        await officerOrgSyncPromise;
+        const response = await fetch('../api/auth/activate-org.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ org_id: orgId })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok || !data.session || Number(data.session.active_org_id) !== orgId) {
+            throw new Error(data.error || 'Could not switch organization.');
+        }
+        localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+        window.location.reload();
+    } catch (error) {
+        console.error('[switchOfficerOrganization] error:', error);
+        showToast('Could not switch organization. Please try again.', 'error');
+        officerOrgSwitching = false;
+        closeOfficerOrgSwitcher();
     }
 }
 
@@ -432,6 +528,7 @@ function syncActiveOrgToPhpSession() {
             if (!data || !data.ok || !data.session) return;
             localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
             updateOfficerProfileView(data.session);
+            updateOfficerOrgSwitchButton(data.session);
             if (Array.isArray(docsData)) renderDocs(currentDocFilter);
             document.querySelectorAll('#tracker iframe').forEach((trackerFrame) => {
                 if (trackerFrame && trackerFrame.src) {
@@ -469,6 +566,7 @@ function initOfficerAuthContext() {
     }
 
     updateOfficerProfileView(session);
+    updateOfficerOrgSwitchButton(session);
 
     // Validate PHP session in the background (catches server-side expiry)
     validatePhpSession();
@@ -1330,6 +1428,7 @@ function navigate(viewId, element) {
         section.classList.remove('active');
     });
     document.getElementById(viewId).classList.add('active');
+    document.getElementById('officerOrgSwitchButton')?.classList.toggle('icon-only', viewId !== 'dashboard');
 
     // 3. Title & Header Update
     const titleEl = document.getElementById('page-title');

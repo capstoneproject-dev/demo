@@ -272,6 +272,176 @@ header {
     gap: 12px;
 }
 
+.officer-org-switch-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.officer-org-switch-button[hidden] {
+    display: none;
+}
+
+.officer-org-switch-button.icon-only {
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+}
+
+.officer-org-switch-button.icon-only span {
+    display: none;
+}
+
+.officer-org-switch-button:hover,
+.officer-org-switch-button:focus-visible {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.officer-org-switch-dialog {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: min(1120px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    max-height: min(85vh, 720px);
+    overflow-y: auto;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 22px 70px rgba(0, 18, 43, 0.24);
+}
+
+.officer-org-switch-dialog::backdrop {
+    background: rgba(0, 18, 43, 0.6);
+}
+
+.officer-org-switch-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 26px 30px;
+    border-bottom: 1px solid var(--border);
+}
+
+.officer-org-switch-heading h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.officer-org-switch-heading p {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.officer-org-switch-close {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+.officer-org-switch-options {
+    display: flex;
+    gap: 18px;
+    overflow-x: auto;
+    padding: 28px 30px 32px;
+}
+
+.officer-org-switch-card {
+    position: relative;
+    flex: 1 0 270px;
+    min-height: 220px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    background: #111a28;
+    color: #fff;
+    cursor: pointer;
+    text-align: center;
+}
+
+.officer-org-switch-card img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.46;
+}
+
+.officer-org-switch-card-name {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-content: center;
+    min-height: 216px;
+    padding: 20px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-shadow: 0 1px 5px #000;
+}
+
+.officer-org-switch-card-current {
+    position: absolute;
+    z-index: 2;
+    top: 8px;
+    right: 8px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: #fff;
+    color: #0b2545;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.officer-org-switch-card:hover:not(:disabled),
+.officer-org-switch-card:focus-visible {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.officer-org-switch-card:disabled {
+    cursor: default;
+    border-color: var(--primary);
+}
+
+@media (max-width: 520px) {
+    .officer-org-switch-button {
+        padding: 9px 11px;
+    }
+
+    .officer-org-switch-button span {
+        display: none;
+    }
+
+    .officer-org-switch-card {
+        flex-basis: 220px;
+        min-height: 170px;
+    }
+
+    .officer-org-switch-card-name {
+        min-height: 166px;
+    }
+}
+
 /* Icon Buttons (Mobile) */
 .icon-btn {
     background: none;

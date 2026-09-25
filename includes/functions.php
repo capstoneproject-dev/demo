@@ -82,6 +82,8 @@ function getOfficerMemberships(int $userId): array
         "SELECT om.membership_id,
                 om.org_id,
                 o.org_name,
+                o.org_code,
+                o.logo_url,
                 r.role_name,
                 r.role_id,
                 om.position_title,

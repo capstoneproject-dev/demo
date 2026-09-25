@@ -1717,7 +1717,32 @@ const goStudentDashboardBtn = document.getElementById('goStudentDashboardBtn');
 const goOfficerDashboardBtn = document.getElementById('goOfficerDashboardBtn');
 let pendingOrgLogin = null;
 
+const officerOrganizationImages = {
+  SSC: 'SSC.png',
+  AISERS: 'AISERS.png',
+  ELITECH: 'ELITECH.png',
+  ILASSO: 'ILASSO.png',
+  'AERO-ATSO': 'AEROATSO.png',
+  AETSO: 'AET.png',
+  AMTSO: 'AMT.png',
+  RCYC: 'RCYC.png',
+  CYC: 'CYC.png',
+  SAGE: 'PSG.png',
+  AERONAUTICA: 'AERONAUTICA.png'
+};
+
+function officerOrganizationImage(membership) {
+  const code = String(membership.org_code || '').trim().toUpperCase();
+  const image = officerOrganizationImages[code];
+  return image
+    ? `../assets/photos/studentDashboard/Organization/${image}`
+    : '../assets/favicon.png';
+}
+
 function openDashboardChoiceModal() {
+  document.getElementById('dashboardChoiceActions').hidden = false;
+  document.getElementById('officerOrganizationChoice').hidden = true;
+  dashboardChoiceModal?.querySelector('.dashboard-choice-box')?.classList.remove('choosing-organizations');
   if (dashboardChoiceModal) dashboardChoiceModal.classList.add('open');
 }
 
@@ -1751,9 +1776,44 @@ if (goStudentDashboardBtn) {
 if (goOfficerDashboardBtn) {
   goOfficerDashboardBtn.addEventListener('click', async () => {
     if (!pendingOrgLogin) return;
-    const { memberships, baseSession } = pendingOrgLogin;
-    const selectedMembership = memberships && memberships.length > 0 ? memberships[0] : null;
+    const memberships = Array.from(new Map((pendingOrgLogin.memberships || [])
+      .filter(item => Number(item.org_id) > 0)
+      .map(item => [Number(item.org_id), item])).values());
+    if (memberships.length > 1) {
+      const options = document.getElementById('officerOrganizationOptions');
+      options.replaceChildren();
+      memberships.forEach(membership => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'officer-organization-card';
+        button.setAttribute('aria-label', `Open ${membership.org_name} officer dashboard`);
+        const image = document.createElement('img');
+        image.src = officerOrganizationImage(membership);
+        image.alt = '';
+        image.onerror = () => { image.src = '../assets/favicon.png'; image.onerror = null; };
+        const title = document.createElement('span');
+        title.className = 'officer-organization-card-title';
+        title.textContent = membership.org_name;
+        button.append(image, title);
+        button.addEventListener('click', () => activateSelectedOfficerOrganization(membership));
+        options.appendChild(button);
+      });
+      document.getElementById('dashboardChoiceActions').hidden = true;
+      document.getElementById('officerOrganizationChoice').hidden = false;
+      dashboardChoiceModal?.querySelector('.dashboard-choice-box')?.classList.add('choosing-organizations');
+      options.querySelector('button')?.focus();
+      return;
+    }
+    await activateSelectedOfficerOrganization(memberships[0]);
+  });
+}
+
+let officerOrganizationActivating = false;
+async function activateSelectedOfficerOrganization(selectedMembership) {
+    if (!pendingOrgLogin || officerOrganizationActivating) return;
+    const { baseSession } = pendingOrgLogin;
     if (!selectedMembership) { alert('Invalid organization selection.'); return; }
+    officerOrganizationActivating = true;
     const session = {
       ...baseSession,
       login_role: 'org',
@@ -1780,8 +1840,9 @@ if (goOfficerDashboardBtn) {
     } catch (err) {
       console.error('[activate-org] error:', err);
       alert('Could not activate organization session on server.');
+    } finally {
+      officerOrganizationActivating = false;
     }
-  });
 }
 
 /* =====================

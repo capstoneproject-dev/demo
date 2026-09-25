@@ -10,7 +10,7 @@
   <meta name="description" content="NAAP ORG is a centralized portal for managing student organizations, memberships, events, attendance, documents, and campus activities.">
 
   <!-- Link to your CSS file -->
-  <link rel="stylesheet" href="../assets/css/login.css?v=20260925-org-names-1">
+  <link rel="stylesheet" href="../assets/css/login.css?v=20260925-org-choice-3">
 
 </head>
 
@@ -509,16 +509,21 @@
         <button class="close-modal" onclick="closeDashboardChoiceModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="dashboard-choice-actions">
+        <div class="dashboard-choice-actions" id="dashboardChoiceActions">
           <button type="button" id="goStudentDashboardBtn">Student Dashboard</button>
           <button type="button" id="goOfficerDashboardBtn">Officer Dashboard</button>
+        </div>
+        <div id="officerOrganizationChoice" hidden>
+          <p>Select the organization dashboard you want to open.</p>
+          <div id="officerOrganizationOptions" class="officer-organization-options"></div>
+          <button type="button" onclick="openDashboardChoiceModal()">Back to Dashboard Selection</button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20260925-sage-1"></script>
+  <script src="../assets/js/login.js?v=20260925-org-choice-3"></script>
   <script>
     (() => {
       const localHosts = new Set(['localhost', '127.0.0.1', '::1']);

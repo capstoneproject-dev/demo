@@ -23,7 +23,7 @@
     <script src="../assets/vendor/pdf.min.js"></script>
     <link rel="stylesheet" href="../assets/vendor/pdf_viewer.min.css">
 
-    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260925-document-columns-1">
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20260925-org-switch-3">
     <!-- PDF Viewer Styles -->
     <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260901-responsive-1">
 </head>
@@ -115,6 +115,11 @@
 
             <!-- Right: Controls -->
             <div class="header-controls">
+                <button id="officerOrgSwitchButton" class="officer-org-switch-button" type="button"
+                    aria-label="Switch organization" aria-haspopup="dialog" onclick="openOfficerOrgSwitcher()" hidden>
+                    <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>
+                    <span>Switch Organization</span>
+                </button>
                 <!-- Mobile Theme Toggle -->
                 <button class="icon-btn mobile-only" onclick="toggleThemeMobile()">
                     <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
@@ -173,6 +178,19 @@
                 </a>
             </div>
         </header>
+
+        <dialog id="officerOrgSwitchDialog" class="officer-org-switch-dialog" aria-labelledby="officerOrgSwitchTitle">
+            <div class="officer-org-switch-heading">
+                <div>
+                    <h2 id="officerOrgSwitchTitle">Switch Organization</h2>
+                    <p>Choose the organization dashboard you want to open.</p>
+                </div>
+                <button class="officer-org-switch-close" type="button" aria-label="Close" onclick="closeOfficerOrgSwitcher()">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div id="officerOrgSwitchOptions" class="officer-org-switch-options"></div>
+        </dialog>
 
         <!-- DASHBOARD VIEW -->
         <div id="dashboard" class="section-view active">
@@ -2328,7 +2346,7 @@
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
     <script src="../assets/js/officerAnalytics.js?v=20260919-workflow-summary-5"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260925-sage-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20260925-sage-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20260925-org-switch-2"></script>
     <script src="../assets/js/readonly-org-dashboard.js?v=20260823-single-banner-3"></script>
 </body>
 
