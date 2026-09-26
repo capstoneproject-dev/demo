@@ -2,8 +2,14 @@
 <html lang="en">
 
 <head>
+    <base href="../pages/">
+    <script>
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('a[href="#"]')) event.preventDefault();
+        });
+    </script>
     <link rel="manifest" href="../manifest.webmanifest">
-    <script src="../assets/js/app-dialog.js?v=20260822-presence-1"></script>
+    <script src="../assets/js/app-dialog.js?v=20260927-clean-urls-2"></script>
     <script src="../assets/js/offline-store.js?v=20260829-7"></script>
     <script src="../assets/js/offline-client.js?v=20260831-29"></script>
     <meta charset="UTF-8">
@@ -1125,7 +1131,7 @@
     <!-- JS References -->
     <script src="../data/orgData.js?v=20260925-sage-1"></script>
     <script src="../assets/js/responsive-tables.js?v=20260901-2"></script>
-    <script src="../assets/js/osaDashboard.app.js?v=20260925-sage-2"></script>
+    <script src="../assets/js/osaDashboard.app.js?v=20260927-clean-urls-2"></script>
     <script src="../assets/js/pdfViewer.js?v=20260901-mobile-fit-1"></script>
 </body>
 

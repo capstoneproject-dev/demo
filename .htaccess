@@ -8,6 +8,34 @@ Options -Indexes
     RewriteCond %{HTTP_HOST} !^(?:localhost|127\.0\.0\.1)(?::\d+)?$ [NC]
     RewriteCond %{HTTPS} !=on
     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L,NE]
+
+    # Keep the authentication page at the site's clean root URL. Direct visits
+    # to the old file URL are redirected; the root is served internally.
+    RewriteCond %{THE_REQUEST} \s/+[^?\ ]*pages/login\.html(?:[?\ ]|$) [NC]
+    RewriteCond %{REQUEST_URI} ^(.*/)pages/login\.html$ [NC]
+    RewriteRule ^pages/login\.html$ %1 [R=301,L,NE]
+
+    RewriteCond %{THE_REQUEST} \s/+[^?\ ]*pages/studentDashboard\.html(?:[?\ ]|$) [NC]
+    RewriteCond %{REQUEST_URI} ^(.*/)pages/studentDashboard\.html$ [NC]
+    RewriteRule ^pages/studentDashboard\.html$ %1student/ [R=301,L,NE]
+    RewriteCond %{THE_REQUEST} \s/+[^?\ ]*pages/officerDashboard\.html(?:[?\ ]|$) [NC]
+    RewriteCond %{REQUEST_URI} ^(.*/)pages/officerDashboard\.html$ [NC]
+    RewriteRule ^pages/officerDashboard\.html$ %1officer/ [R=301,L,NE]
+    RewriteCond %{THE_REQUEST} \s/+[^?\ ]*pages/osaDashboard\.html(?:[?\ ]|$) [NC]
+    RewriteCond %{REQUEST_URI} ^(.*/)pages/osaDashboard\.html$ [NC]
+    RewriteRule ^pages/osaDashboard\.html$ %1osa/ [R=301,L,NE]
+
+    RewriteCond %{REQUEST_URI} ^(.*/)student$ [NC]
+    RewriteRule ^student$ %1student/ [R=301,L,NE]
+    RewriteCond %{REQUEST_URI} ^(.*/)officer$ [NC]
+    RewriteRule ^officer$ %1officer/ [R=301,L,NE]
+    RewriteCond %{REQUEST_URI} ^(.*/)osa$ [NC]
+    RewriteRule ^osa$ %1osa/ [R=301,L,NE]
+
+    RewriteRule ^$ pages/login.html [L]
+    RewriteRule ^student/$ pages/studentDashboard.html [L]
+    RewriteRule ^officer/$ pages/officerDashboard.html [L]
+    RewriteRule ^osa/$ pages/osaDashboard.html [L]
 </IfModule>
 
 <IfModule mod_headers.c>

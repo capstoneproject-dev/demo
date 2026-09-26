@@ -405,7 +405,7 @@
             localStorage.removeItem('naapStudentProfile');
         } catch (_error) {
         }
-        const loginUrl = new URL('../../pages/login.html', appDialogScriptUrl).href;
+        const loginUrl = new URL('../../', appDialogScriptUrl).href;
         if (window.location.href !== loginUrl) window.top.location.href = loginUrl;
         return true;
     }

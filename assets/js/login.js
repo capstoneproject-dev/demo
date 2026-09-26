@@ -427,7 +427,7 @@ function redirectToStudent(db, user, preferredOrgName) {
   };
   setSession(session);
   setLegacyStudentProfile(db, user, preferredOrgName || null);
-  window.location.href = 'studentDashboard.html';
+  window.location.href = '../student/';
 }
 
 function redirectToOfficer(db, user, selectedOrgId) {
@@ -446,7 +446,7 @@ function redirectToOfficer(db, user, selectedOrgId) {
     active_role_name: selectedMembership.role_name
   });
 
-  window.location.href = 'officerDashboard.html';
+  window.location.href = '../officer/';
 }
 
 function redirectToOsa(db, user) {
@@ -458,7 +458,7 @@ function redirectToOsa(db, user) {
     active_role_name: 'osa_staff'
   };
   setSession(session);
-  window.location.href = 'osaDashboard.html';
+  window.location.href = '../osa/';
 }
 
 function createUser(db, payload) {
@@ -1769,7 +1769,7 @@ if (goStudentDashboardBtn) {
     };
     localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
     closeDashboardChoiceModal();
-    window.location.href = 'studentDashboard.html';
+    window.location.href = '../student/';
   });
 }
 
@@ -1836,7 +1836,7 @@ async function activateSelectedOfficerOrganization(selectedMembership) {
 
       localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ ...session, ...data.session }));
       closeDashboardChoiceModal();
-      window.location.href = 'officerDashboard.html';
+      window.location.href = '../officer/';
     } catch (err) {
       console.error('[activate-org] error:', err);
       alert('Could not activate organization session on server.');
@@ -2217,7 +2217,7 @@ async function registerOsa() {
       };
       localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
       sessionStorage.removeItem(OSA_INVITATION_SESSION_KEY);
-      window.location.href = 'osaDashboard.html';
+      window.location.href = '../osa/';
     } catch (err) {
       console.error('[registerOsa] error:', err);
       alert('Could not connect to the server. Please try again.');
@@ -2467,7 +2467,7 @@ function completeAuthenticatedLogin(data) {
       active_org_name: 'Office of Student Affairs',
       active_role_name: 'osa_staff'
     }));
-    window.location.href = 'osaDashboard.html';
+    window.location.href = '../osa/';
     return;
   }
 
@@ -2483,7 +2483,7 @@ function completeAuthenticatedLogin(data) {
       active_org_id: null,
       active_org_name: null
     }));
-    window.location.href = 'studentDashboard.html';
+    window.location.href = '../student/';
     return;
   }
 
@@ -2506,7 +2506,7 @@ async function activateOrganizationAdviserDashboard(memberships, baseSession) {
   const data = await response.json();
   if (!response.ok || !data.ok) throw new Error(data.error || 'Could not activate the adviser organization.');
   localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ ...baseSession, ...data.session }));
-  window.location.href = 'officerDashboard.html';
+  window.location.href = '../officer/';
 }
 
 async function handleLogin(testingBypassOtp = false) {
@@ -2565,7 +2565,7 @@ async function handleLogin(testingBypassOtp = false) {
         active_role_name: 'osa_staff'
       };
       localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-      window.location.href = 'osaDashboard.html';
+      window.location.href = '../osa/';
       return;
     }
 
@@ -2583,7 +2583,7 @@ async function handleLogin(testingBypassOtp = false) {
         active_org_name: null
       };
       localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-      window.location.href = 'studentDashboard.html';
+      window.location.href = '../student/';
       return;
     }
 

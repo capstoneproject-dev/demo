@@ -533,7 +533,7 @@ function initOsaAuthContext() {
     const session = readAuthSession();
     const isOsaSession = session && (session.login_role === 'osa' || session.account_type === 'osa_staff') && session.user_id;
     if (!isOsaSession) {
-        window.location.href = '../pages/login.html';
+        window.location.href = new URL('../', document.baseURI).href;
         return;
     }
 
@@ -1073,7 +1073,7 @@ async function handleLogout(e) {
             if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
             if (window.NAAPOffline) await window.NAAPOffline.completeLogout(preparation);
             localStorage.removeItem(AUTH_SESSION_KEY);
-            window.location.href = '../pages/login.html';
+            window.location.href = new URL('../', document.baseURI).href;
         } catch (error) {
             await appAlert(error.message || 'Could not log out. Please try again.', { type: 'error' });
         }

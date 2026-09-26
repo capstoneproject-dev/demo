@@ -506,7 +506,7 @@ function validatePhpSession() {
         .then(data => {
             if (!data.authenticated) {
                 localStorage.removeItem(AUTH_SESSION_KEY);
-                window.location.href = '../pages/login.html';
+                window.location.href = new URL('../', document.baseURI).href;
             }
         })
         .catch(() => { /* silently ignore — XAMPP may be offline during dev */ });
@@ -561,7 +561,7 @@ function initOfficerAuthContext() {
     const session = readAuthSession();
     const isOfficerSession = session && session.login_role === 'org' && session.user_id;
     if (!isOfficerSession) {
-        window.location.href = '../pages/login.html';
+        window.location.href = new URL('../', document.baseURI).href;
         return;
     }
 
@@ -1318,7 +1318,7 @@ async function handleLogout(e) {
             if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
             if (window.NAAPOffline) await window.NAAPOffline.completeLogout(preparation);
             localStorage.removeItem(AUTH_SESSION_KEY);
-            window.location.href = '../pages/login.html';
+            window.location.href = new URL('../', document.baseURI).href;
         } catch (error) {
             await appAlert(error.message || 'Could not log out. Please try again.', { type: 'error' });
         }

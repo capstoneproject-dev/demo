@@ -1,7 +1,7 @@
 {
   "name": "NAAP Organization Management System",
   "short_name": "NAAP",
-  "start_url": "pages/login.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#071a33",

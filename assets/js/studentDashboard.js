@@ -534,7 +534,7 @@ function validatePhpSession() {
     const authSession = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || 'null');
     // Only check against server if we actually have a local session
     if (!authSession || !authSession.user_id) {
-        window.location.href = '../pages/login.html';
+        window.location.href = new URL('../', document.baseURI).href;
         return;
     }
     fetch('../api/auth/session.php', { credentials: 'same-origin' })
@@ -542,7 +542,7 @@ function validatePhpSession() {
         .then(data => {
             if (!data.authenticated) {
                 localStorage.removeItem(AUTH_SESSION_KEY);
-                window.location.href = '../pages/login.html';
+                window.location.href = new URL('../', document.baseURI).href;
                 return;
             }
             if (data.session) {
@@ -4827,7 +4827,7 @@ async function handleLogout(e) {
             if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
             if (window.NAAPOffline) await window.NAAPOffline.completeLogout(preparation);
             localStorage.removeItem(AUTH_SESSION_KEY);
-            window.location.href = '../pages/login.html';
+            window.location.href = new URL('../', document.baseURI).href;
         } catch (error) {
             await appAlert(error.message || 'Could not log out. Please try again.', { type: 'error' });
         }
