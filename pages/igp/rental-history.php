@@ -11,17 +11,17 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
 <head>
     <link rel="manifest" href="../../manifest.webmanifest">
-    <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
-    <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
-    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
+    <script src="../../assets/js/app-dialog.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/offline-store.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/offline-client.js?v=20260927-complete-ui-1"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rental History</title>
-    <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css?v=20260901-responsive-2">
-    <link rel="stylesheet" href="../../assets/css/responsive-tables.css?v=20260901-2">
+    <link href="../../systems/IGPRentalSystem/lib/bootstrap.min.css?v=20260927-complete-ui-1" rel="stylesheet">
+    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css?v=20260927-complete-ui-1">
+    <link rel="stylesheet" href="../../systems/IGPRentalSystem/lib/styles.css?v=20260927-complete-ui-1">
+    <link rel="stylesheet" href="../../assets/css/responsive-tables.css?v=20260927-complete-ui-1">
     <style>
         #rentalHistoryRecords tr.naap-queued-rental > td {
             background: #fff8e6;
@@ -455,13 +455,13 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
             </div>
         </div>
     </div>
-    <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js"></script>
-    <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js"></script>
+    <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js?v=20260927-complete-ui-1"></script>
+    <script src="../../systems/IGPRentalSystem/lib/xlsx.full.min.js?v=20260927-complete-ui-1"></script>
     <audio id="beepSound" src="../../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
-    <script src="../../assets/js/igp-api.js?v=20260819-payment-officer-1"></script>
-    <script src="../../assets/js/igp-rental-history-exact.js?v=20260830-order-number-2"></script>
-    <script src="../../assets/js/readonly-org-dashboard.js?v=20260925-banner-offset-1"></script>
-    <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
+    <script src="../../assets/js/igp-api.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/igp-rental-history-exact.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/responsive-tables.js?v=20260927-complete-ui-1"></script>
 </body>
 
 </html>

@@ -11,16 +11,16 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
 
 <head>
     <link rel="manifest" href="../../manifest.webmanifest">
-    <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
-    <script src="../../assets/js/offline-store.js?v=20260829-7"></script>
-    <script src="../../assets/js/offline-client.js?v=20260831-29"></script>
+    <script src="../../assets/js/app-dialog.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/offline-store.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/offline-client.js?v=20260927-complete-ui-1"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generate Barcode - QR Attendance System</title>
-    <link href="../../systems/QR-Attendance/lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260901-responsive-1">
+    <link href="../../systems/QR-Attendance/lib/bootstrap.min.css?v=20260927-complete-ui-1" rel="stylesheet">
+    <link rel="stylesheet" href="../../assets/vendor/fontawesome/css/all.min.css?v=20260927-complete-ui-1">
+    <link rel="stylesheet" href="../../systems/QR-Attendance/lib/styles.css?v=20260927-complete-ui-1">
 </head>
 
 <body data-org-read-only="<?= !empty($session['is_read_only']) ? '1' : '0' ?>">
@@ -114,13 +114,13 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     </div>
 
     <!-- Scripts -->
-    <script src="../../systems/QR-Attendance/lib/bootstrap.bundle.min.js"></script>
-    <script src="../../systems/QR-Attendance/lib/JsBarcode.all.min.js"></script>
-    <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js"></script>
-    <script src="../../systems/QR-Attendance/lib/jszip.min.js"></script>
-    <script src="../../systems/QR-Attendance/lib/encoder.js"></script>
-    <script src="../../systems/QR-Attendance/lib/generate-qr.js?v=20260821-compact-white-background"></script>
-    <script src="../../assets/js/readonly-org-dashboard.js?v=20260925-banner-offset-1"></script>
+    <script src="../../systems/QR-Attendance/lib/bootstrap.bundle.min.js?v=20260927-complete-ui-1"></script>
+    <script src="../../systems/QR-Attendance/lib/JsBarcode.all.min.js?v=20260927-complete-ui-1"></script>
+    <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js?v=20260927-complete-ui-1"></script>
+    <script src="../../systems/QR-Attendance/lib/jszip.min.js?v=20260927-complete-ui-1"></script>
+    <script src="../../systems/QR-Attendance/lib/encoder.js?v=20260927-complete-ui-1"></script>
+    <script src="../../systems/QR-Attendance/lib/generate-qr.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/readonly-org-dashboard.js?v=20260927-complete-ui-1"></script>
 </body>
 
 </html>
