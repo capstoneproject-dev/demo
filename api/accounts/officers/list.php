@@ -24,6 +24,7 @@ try {
         JOIN organizations org ON org.org_id = om.org_id
         JOIN org_roles     r   ON r.role_id  = om.role_id
         LEFT JOIN institutes i         ON i.institute_id = u.institute_id
+        WHERE u.account_type <> 'organization_adviser'
         ORDER BY org.org_code ASC, u.student_number ASC
     ");
     $stmt->execute();

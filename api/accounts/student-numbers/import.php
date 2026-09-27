@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../../config/db.php';
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/system_settings.php';
+require_once __DIR__ . '/../advisers/roster.php';
 
 header('Content-Type: application/json');
 $session = apiRequireOsaSystemAdministrator();
@@ -255,8 +256,8 @@ try {
     $action = strtolower(trim((string)($body['action'] ?? 'preview')));
     if ($action === 'apply') apiRequireRecentReauthentication();
     $records = $body['records'] ?? [];
-    if (!is_array($records) || count($records) === 0) {
-        jsonError('The roster must contain at least one student.', 422);
+    if (!is_array($records) || (!$records && empty($body['advisers']))) {
+        jsonError('The workbook must contain students or advisers.', 422);
     }
     if (!in_array($action, ['preview', 'apply'], true)) {
         jsonError('action must be preview or apply.', 422);
@@ -269,7 +270,16 @@ try {
         jsonError("Roster validation failed:\n" . implode("\n", array_slice($validation['errors'], 0, 20)), 422);
     }
 
-    $preview = rosterBuildPreview($pdo, $validation['records'], $academicYear);
+    $preview = $records ? rosterBuildPreview($pdo, $validation['records'], $academicYear) : [
+        'summary' => [], 'changes' => ['deactivated' => []],
+    ];
+    try {
+        $adviserInput = $body['advisers'] ?? [];
+        if (!is_array($adviserInput)) throw new InvalidArgumentException('Invalid Advisers sheet.');
+        $adviserRecords = validateAdviserRows($pdo, $adviserInput);
+    } catch (InvalidArgumentException $e) {
+        jsonError($e->getMessage(), 422);
+    }
     if ($action === 'preview') {
         jsonOk([
             'academicYear' => $academicYear,
@@ -345,6 +355,7 @@ try {
             }
         }
 
+        applyAdviserRows($pdo, $adviserRecords);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();

@@ -362,7 +362,8 @@ async function processXLSXImport() {
         try {
             actionButton.disabled = true;
             actionButton.textContent = 'Applying…';
-            var applied = await getService().applyAnnualRoster(pendingAnnualRoster.records, pendingAnnualRoster.academicYear);
+            var applied = await getService().applyAnnualRoster(pendingAnnualRoster.records, pendingAnnualRoster.academicYear, pendingAnnualRoster.advisers || []);
+            await AdviserWorkbook.load();
             await loadStudentNumbers();
             updateStudentNumbersTable();
             updateTotalCount();
@@ -387,7 +388,20 @@ async function processXLSXImport() {
         actionButton.textContent = 'Validating…';
         var data = await file.arrayBuffer();
         var workbook = XLSX.read(data, { type: 'array' });
-        var ws = workbook.Sheets[workbook.SheetNames[0]];
+        AdviserWorkbook.validateType(workbook, 'users');
+        if (AdviserWorkbook.isAdviserOnly(workbook)) {
+            var onlyAdvisers = AdviserWorkbook.parse(workbook);
+            var adviserPreview = await getService().previewAnnualRoster([], onlyAdvisers);
+            pendingAnnualRoster = {records: [], academicYear: adviserPreview.academicYear, advisers: onlyAdvisers};
+            renderAnnualRosterPreview(adviserPreview);
+            AdviserWorkbook.describe(onlyAdvisers, 'annualRosterDetails');
+            actionButton.disabled = false;
+            actionButton.textContent = 'Confirm & Apply Roster';
+            actionButton.className = 'btn btn-danger';
+            return;
+        }
+        var studentSheetName = workbook.SheetNames.find(function(name) { return ['students', 'student numbers'].includes(name.trim().toLowerCase()); });
+        var ws = workbook.Sheets[studentSheetName || workbook.SheetNames[0]];
         var jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
         if (jsonData.length < 2) { throw new Error('File needs at least a header row and one data row.'); }
@@ -464,9 +478,11 @@ async function processXLSXImport() {
             throw new Error(invalidRows + ' row(s) have missing required values. No changes were made.');
         }
 
-        var result = await getService().previewAnnualRoster(records);
-        pendingAnnualRoster = { records: records, academicYear: result.academicYear };
+        var adviserRecords = AdviserWorkbook.parse(workbook);
+        var result = await getService().previewAnnualRoster(records, adviserRecords);
+        pendingAnnualRoster = { records: records, academicYear: result.academicYear, advisers: adviserRecords };
         renderAnnualRosterPreview(result);
+        AdviserWorkbook.describe(adviserRecords, 'annualRosterDetails');
         actionButton.disabled = false;
         actionButton.textContent = 'Confirm & Apply Roster';
         actionButton.className = 'btn btn-danger';
@@ -501,7 +517,6 @@ function formatStudentNumberWorksheetAsText(worksheet) {
 // -- Export XLSX --
 async function exportStudentNumbers() {
     await loadStudentNumbers();
-    if (studentNumbers.length === 0) { showToast('Warning', 'No data to export.', 'warning'); return; }
     try {
         var exportData = studentNumbers.map(function(s) {
             return {
@@ -516,11 +531,13 @@ async function exportStudentNumbers() {
                 phone:       s.phone       || ''
             };
         });
-        var ws = XLSX.utils.json_to_sheet(exportData);
+        var ws = XLSX.utils.json_to_sheet(exportData, {header: ['studentId', 'studentName', 'institute', 'programCode', 'yearSection', 'academicYear', 'isActive', 'email', 'phone']});
         formatStudentNumberWorksheetAsText(ws);
         ws['!cols'] = [14,30,40,12,14,14,10,30,16].map(function(w) { return { wch: w }; });
         var wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Student Numbers');
+        XLSX.utils.book_append_sheet(wb, ws, 'Students');
+        await AdviserWorkbook.appendSheet(wb);
+        AdviserWorkbook.stamp(wb, 'users');
         XLSX.writeFile(wb, 'users_' + new Date().toISOString().slice(0,10) + '.xlsx', { cellStyles: true });
         showToast('Exported', 'Download started.', 'success');
     } catch (err) {
