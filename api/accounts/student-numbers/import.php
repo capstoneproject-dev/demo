@@ -8,7 +8,6 @@ require_once __DIR__ . '/../../../includes/system_settings.php';
 header('Content-Type: application/json');
 $session = apiRequireOsaSystemAdministrator();
 requirePost();
-apiRequireRecentReauthentication();
 
 function rosterEnsureAcademicYearColumn(PDO $pdo): void
 {
@@ -59,19 +58,20 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
         $programCode = trim((string)($row['programCode'] ?? ''));
         $instituteName = trim((string)($row['institute'] ?? ''));
         $yearSection = trim((string)($row['yearSection'] ?? ''));
+        $targetAcademicYear = array_key_exists('academicYear', $row)
+            ? trim((string)$row['academicYear'])
+            : $academicYear;
+        $targetIsActive = array_key_exists('isActive', $row) ? (bool)$row['isActive'] : true;
         $key = strtoupper($studentNumber);
 
         $missing = [];
         if ($studentNumber === '') $missing[] = 'studentId';
         if ($studentName === '') $missing[] = 'studentName';
-        if ($instituteName === '') $missing[] = 'institute';
-        if ($programCode === '') $missing[] = 'programCode';
-        if ($yearSection === '') $missing[] = 'yearSection';
         if ($missing) {
             $errors[] = "Row {$rowNumber}: missing " . implode(', ', $missing) . '.';
             continue;
         }
-        if (strlen($studentNumber) > 20 || strlen($studentName) > 200 || strlen($yearSection) > 50) {
+        if (strlen($studentNumber) > 20 || strlen($studentName) > 200 || strlen($yearSection) > 50 || strlen($targetAcademicYear) > 9) {
             $errors[] = "Row {$rowNumber}: one or more values exceed the database length limit.";
             continue;
         }
@@ -81,20 +81,32 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
         }
         $seen[$key] = $rowNumber;
 
-        $programStmt->execute([':program_code' => $programCode]);
-        $program = $programStmt->fetch();
-        if (!$program) {
-            $errors[] = "Row {$rowNumber}: unknown programCode '{$programCode}'.";
-            continue;
+        $program = null;
+        if ($programCode !== '') {
+            $programStmt->execute([':program_code' => $programCode]);
+            $program = $programStmt->fetch();
+            if (!$program) {
+                $errors[] = "Row {$rowNumber}: unknown programCode '{$programCode}'.";
+                continue;
+            }
         }
 
-        $instituteStmt->execute([':institute_name' => $instituteName]);
-        $institute = $instituteStmt->fetch();
-        if (!$institute) {
-            $errors[] = "Row {$rowNumber}: unknown institute '{$instituteName}'.";
-            continue;
+        $institute = null;
+        if ($instituteName !== '') {
+            $instituteStmt->execute([':institute_name' => $instituteName]);
+            $institute = $instituteStmt->fetch();
+            if (!$institute) {
+                $errors[] = "Row {$rowNumber}: unknown institute '{$instituteName}'.";
+                continue;
+            }
         }
-        if ((int)$program['institute_id'] !== (int)$institute['institute_id']) {
+        if ($program && !$institute) {
+            $institute = [
+                'institute_id' => $program['institute_id'],
+                'institute_name' => $program['institute_name'],
+            ];
+        }
+        if ($program && $institute && (int)$program['institute_id'] !== (int)$institute['institute_id']) {
             $errors[] = "Row {$rowNumber}: {$program['program_code']} does not belong to {$institute['institute_name']}.";
             continue;
         }
@@ -102,12 +114,13 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
         $normalized[] = [
             'student_number' => $studentNumber,
             'student_name' => $studentName,
-            'program_id' => (int)$program['program_id'],
-            'program_code' => (string)$program['program_code'],
-            'institute_id' => (int)$institute['institute_id'],
-            'institute_name' => (string)$institute['institute_name'],
+            'program_id' => $program ? (int)$program['program_id'] : null,
+            'program_code' => $program ? (string)$program['program_code'] : '',
+            'institute_id' => $institute ? (int)$institute['institute_id'] : null,
+            'institute_name' => $institute ? (string)$institute['institute_name'] : '',
             'year_section' => $yearSection,
-            'academic_year' => $academicYear,
+            'academic_year' => $targetAcademicYear !== '' ? $targetAcademicYear : null,
+            'is_active' => $targetIsActive,
         ];
     }
 
@@ -180,12 +193,13 @@ function rosterBuildPreview(PDO $pdo, array $records, string $academicYear): arr
         if ((int)$old['program_id'] !== (int)$record['program_id']) $changedFields[] = 'program';
         if ((int)$old['institute_id'] !== (int)$record['institute_id']) $changedFields[] = 'institute';
         if ((string)$old['year_section'] !== (string)$record['year_section']) $changedFields[] = 'year/section';
-        if ((string)$old['academic_year'] !== $academicYear) $changedFields[] = 'academic year';
+        if ((string)$old['academic_year'] !== (string)$record['academic_year']) $changedFields[] = 'academic year';
+        if ((bool)$old['is_active'] !== (bool)$record['is_active']) $changedFields[] = 'status';
         $base['previousProgramCode'] = $old['program_code'] ?? '';
         $base['previousYearSection'] = $old['year_section'] ?? '';
         $base['changedFields'] = $changedFields;
 
-        if (!(bool)$old['is_active']) {
+        if (!(bool)$old['is_active'] && (bool)$record['is_active']) {
             $changes['reactivated'][] = $base;
         } elseif ($changedFields) {
             $changes['updated'][] = $base;
@@ -239,6 +253,7 @@ try {
 
     $body = getRequestBody();
     $action = strtolower(trim((string)($body['action'] ?? 'preview')));
+    if ($action === 'apply') apiRequireRecentReauthentication();
     $records = $body['records'] ?? [];
     if (!is_array($records) || count($records) === 0) {
         jsonError('The roster must contain at least one student.', 422);
@@ -275,20 +290,20 @@ try {
                  academic_year, is_active, added_by_user_id)
              VALUES
                 (:student_number, :student_name, :program_id, :institute_id, :year_section,
-                 :academic_year, 1, :actor_id)
+                 :academic_year, :is_active, :actor_id)
              ON DUPLICATE KEY UPDATE
                 student_name = VALUES(student_name),
                 program_id = VALUES(program_id),
                 institute_id = VALUES(institute_id),
                 year_section = VALUES(year_section),
                 academic_year = VALUES(academic_year),
-                is_active = 1"
+                is_active = VALUES(is_active)"
         );
         $syncUser = $pdo->prepare(
             "UPDATE users
              SET program_id = :program_id,
                  institute_id = :institute_id,
-                 is_active = 1
+                 is_active = :is_active
              WHERE student_number = :student_number
                AND account_type = 'student'"
         );
@@ -300,12 +315,14 @@ try {
                 ':program_id' => $record['program_id'],
                 ':institute_id' => $record['institute_id'],
                 ':year_section' => $record['year_section'],
-                ':academic_year' => $academicYear,
+                ':academic_year' => $record['academic_year'],
+                ':is_active' => $record['is_active'] ? 1 : 0,
                 ':actor_id' => $session['user_id'] ?? null,
             ]);
             $syncUser->execute([
                 ':program_id' => $record['program_id'],
                 ':institute_id' => $record['institute_id'],
+                ':is_active' => $record['is_active'] ? 1 : 0,
                 ':student_number' => $record['student_number'],
             ]);
         }

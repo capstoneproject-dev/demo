@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
+    <script src="../../assets/js/app-dialog.js?v=20260927-roster-password-1"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -39,7 +39,7 @@
         <!-- Student Numbers Management Section -->
         <div class="card">
             <div class="card-header">
-                <h2 class="h5 mb-0">Student Numbers Database</h2>
+                <h2 class="h5 mb-0">Users</h2>
             </div>
             <div class="card-body">
                 <div class="row mb-3">
@@ -218,7 +218,9 @@
                     <div class="alert alert-info">
                         <strong>XLSX Format (first row = headers):</strong><br>
                         <code>studentId | studentName | institute | programCode | yearSection</code><br>
-                        This must be the complete official enrollment roster. All five columns are required.
+                        This must be the complete official enrollment roster. All five columns must be present;
+                        only studentId and studentName require values. Exports also include academicYear and
+                        isActive so importing an unchanged export preserves each record's current state.
                     </div>
                     <div id="annualRosterPreview" class="d-none">
                         <div id="annualRosterWarning" class="alert alert-warning d-none"></div>
@@ -244,8 +246,8 @@
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/bootstrap.bundle.min.js"></script>
     <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
-    <script src="accounts-api.js?v=20260718e"></script>
-    <script src="student-numbers.js?v=20260820-profile-contacts-1"></script>
+    <script src="accounts-api.js?v=20260927-roster-password-1"></script>
+    <script src="student-numbers.js?v=20260927-export-names-1"></script>
 </body>
 
 </html>

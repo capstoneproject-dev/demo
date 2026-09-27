@@ -188,6 +188,9 @@
         };
         elements.cancel.addEventListener('click', () => settle(false));
         elements.confirm.addEventListener('click', () => settle(true));
+        // Bootstrap modals trap focus at document level. Keep focus events from
+        // this higher dialog inside it so prompts can be typed while a modal is open.
+        overlay.addEventListener('focusin', event => event.stopPropagation());
         overlay.addEventListener('click', event => {
             if (event.target === overlay) settle(false);
         });
@@ -477,6 +480,8 @@
         })().finally(() => { reauthenticationPromise = null; });
         return reauthenticationPromise;
     }
+
+    window.appConfirmIdentity = requestReauthentication;
 
     async function securedFetch(input, init = {}, allowCsrfRetry = true, allowReauthRetry = true) {
         if (!isSameOriginApi(input)) return nativeFetch(input, init);

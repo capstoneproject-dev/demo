@@ -407,6 +407,8 @@ async function processXLSXImport() {
         var instIdx      = col(['institute','institutename']);
         var progIdx      = col(['programcode','program','course']);
         var ysIdx        = col(['yearsection','section','yearsec']);
+        var academicYearIdx = col(['academicyear','schoolyear']);
+        var isActiveIdx   = col(['isactive','active','status']);
 
         var missingRequiredHeaders = [];
         if (idIdx === -1)   missingRequiredHeaders.push('studentId');
@@ -430,18 +432,28 @@ async function processXLSXImport() {
             var institute   = instIdx  !== -1 ? String(row[instIdx]  || '').trim() : '';
             var programCode = progIdx  !== -1 ? String(row[progIdx]  || '').trim() : '';
             var yearSection = ysIdx !== -1 ? String(row[ysIdx] || '').trim() : '';
-            if (!studentId || !studentName || !institute || !programCode || !yearSection) {
+            if (!studentId || !studentName) {
                 invalidRows++;
                 continue;
             }
 
-            records.push({
+            var record = {
                 studentId: studentId,
                 studentName: studentName,
                 institute:   institute,
                 programCode: programCode,
                 yearSection: yearSection
-            });
+            };
+            if (academicYearIdx !== -1) {
+                record.academicYear = String(row[academicYearIdx] || '').trim();
+            }
+            if (isActiveIdx !== -1) {
+                var activeValue = String(row[isActiveIdx] == null ? '' : row[isActiveIdx]).trim().toLowerCase();
+                if (['true', '1', 'yes', 'active'].indexOf(activeValue) !== -1) record.isActive = true;
+                else if (['false', '0', 'no', 'inactive'].indexOf(activeValue) !== -1) record.isActive = false;
+                else throw new Error('Row ' + (i + 1) + ' has an invalid isActive value.');
+            }
+            records.push(record);
         }
 
         if (records.length === 0) {
@@ -498,16 +510,18 @@ async function exportStudentNumbers() {
                 institute:   s.institute   || '',
                 programCode: s.programCode || '',
                 yearSection: s.yearSection || '',
+                academicYear: s.academicYear || '',
+                isActive:     s.isActive !== false ? 'true' : 'false',
                 email:       s.email       || '',
                 phone:       s.phone       || ''
             };
         });
         var ws = XLSX.utils.json_to_sheet(exportData);
         formatStudentNumberWorksheetAsText(ws);
-        ws['!cols'] = [14,30,40,12,14,30,16].map(function(w) { return { wch: w }; });
+        ws['!cols'] = [14,30,40,12,14,14,10,30,16].map(function(w) { return { wch: w }; });
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Student Numbers');
-        XLSX.writeFile(wb, 'student_numbers_' + new Date().toISOString().slice(0,10) + '.xlsx', { cellStyles: true });
+        XLSX.writeFile(wb, 'users_' + new Date().toISOString().slice(0,10) + '.xlsx', { cellStyles: true });
         showToast('Exported', 'Download started.', 'success');
     } catch (err) {
         showToast('Error', 'Export failed: ' + err.message, 'error');
@@ -580,7 +594,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
     updateStudentNumbersTable();
     updateTotalCount();
-    ensureNewPhonePrefix();
 
     var query = new URLSearchParams(window.location.search);
     if (query.get('import') === 'annual') {

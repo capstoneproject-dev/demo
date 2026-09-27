@@ -16,6 +16,7 @@ try {
                sn.institute_id AS instituteId,
                i.institute_name AS institute,
                sn.year_section AS yearSection,
+               sn.academic_year AS academicYear,
                CASE
                    WHEN u.user_id IS NOT NULL AND u.email NOT LIKE '%@student.noop'
                    THEN COALESCE(u.email, '')

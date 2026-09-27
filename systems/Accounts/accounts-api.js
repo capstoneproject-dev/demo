@@ -247,6 +247,7 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
                 studentId:   officerData.studentId,
                 orgCode:     officerData.orgCode,
                 roleName:    officerData.roleName || 'Officer',
+                positionTitle: officerData.positionTitle || '',
                 joinedAt:    officerData.joinedAt || new Date().toISOString().slice(0, 10),
                 isActive:    officerData.isActive !== undefined ? officerData.isActive : true
             };
@@ -260,6 +261,7 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
                 studentId: officerData.studentId,
                 orgCode:   officerData.orgCode,
                 roleName:  officerData.roleName || 'Officer',
+                positionTitle: officerData.positionTitle || '',
                 joinedAt:  officerData.joinedAt || new Date().toISOString().slice(0, 10),
                 isActive:  officerData.isActive !== undefined ? officerData.isActive : true
             });
@@ -283,6 +285,9 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
         }
 
         async applyAnnualRoster(records, confirmedAcademicYear) {
+            if (!await window.appConfirmIdentity()) {
+                throw new Error('Roster was not applied. Password confirmation is required.');
+            }
             return await post('/student-numbers/import.php', {
                 action: 'apply',
                 records,

@@ -775,6 +775,35 @@ function resetAccountRosterImport() {
     }
 }
 
+async function applyOfficerWorkbookRecords(records) {
+    var result = { added: 0, updated: 0, unchanged: 0 };
+    for (var index = 0; index < records.length; index++) {
+        var record = records[index];
+        var existing = officers.find(function(officer) {
+            if (record.officerId && String(officer.id) === String(record.officerId)) return true;
+            return String(officer.studentId).toLowerCase() === String(record.studentId).toLowerCase()
+                && String(officer.orgCode).toLowerCase() === String(record.orgCode).toLowerCase();
+        });
+        var unchanged = existing
+            && String(existing.studentId || '') === String(record.studentId || '')
+            && String(existing.orgCode || '') === String(record.orgCode || '')
+            && String(existing.roleName || '') === String(record.roleName || '')
+            && String(existing.positionTitle || '') === String(record.positionTitle || '')
+            && String(existing.joinedAt || '').slice(0, 10) === String(record.joinedAt || '').slice(0, 10)
+            && Boolean(existing.isActive) === Boolean(record.isActive);
+        if (unchanged) {
+            result.unchanged++;
+        } else if (existing) {
+            await getService().updateOfficer(existing.id, record);
+            result.updated++;
+        } else {
+            await getService().addOfficer(record);
+            result.added++;
+        }
+    }
+    return result;
+}
+
 function renderAccountRosterPreview(result) {
     var summary = result.summary || {};
     var preview = document.getElementById('accountRosterPreview');
@@ -817,6 +846,10 @@ function renderAccountRosterPreview(result) {
         if (rows.length > 8) items += '<li class="text-muted">…and ' + (rows.length - 8) + ' more</li>';
         return '<div class="mb-2"><strong>' + group[0] + ' (' + rows.length + ')</strong><ul class="mb-0">' + items + '</ul></div>';
     }).join('') || '<span class="text-muted">No enrollment changes detected.</span>';
+    if (result.officerImportCount) {
+        details.innerHTML += '<div class="mt-2"><strong>Officers in workbook (' + result.officerImportCount +
+            ')</strong><br><span class="text-muted">Matching records will be updated; new records will be added. Officers absent from the workbook will not be deleted.</span></div>';
+    }
 
     if (summary.largeDeactivationWarning) {
         warning.textContent = 'Warning: this import will deactivate ' + summary.deactivationPercent + '% of active students. Verify that this is the complete roster.';
@@ -835,14 +868,19 @@ async function processStudentsXLSXImport() {
         try {
             actionButton.disabled = true;
             actionButton.textContent = 'Applying…';
+            var officerRecordsToApply = pendingAccountRoster.officers || [];
             var applied = await getService().applyAnnualRoster(pendingAccountRoster.records, pendingAccountRoster.academicYear);
+            var officerResult = await applyOfficerWorkbookRecords(officerRecordsToApply);
             bootstrap.Modal.getInstance(document.getElementById('importStudentsModal'))?.hide();
             fileInput.value = '';
             resetAccountRosterImport();
             lastFingerprint = null;
             await loadData();
             refreshAll();
-            showToast(applied.msg || 'Annual enrollment roster applied.', 'success');
+            var officerMessage = officerRecordsToApply.length
+                ? ' Officers: ' + officerResult.added + ' added, ' + officerResult.updated + ' updated, ' + officerResult.unchanged + ' unchanged.'
+                : '';
+            showToast((applied.msg || 'Annual enrollment roster applied.') + officerMessage, 'success');
         } catch (err) {
             actionButton.disabled = false;
             actionButton.textContent = 'Confirm & Apply Roster';
@@ -879,6 +917,8 @@ async function processStudentsXLSXImport() {
         var instIdx = col(['institute', 'institutename']);
         var progIdx = col(['programcode', 'program', 'course']);
         var ysIdx = col(['yearsection', 'section', 'yearsec']);
+        var academicYearIdx = col(['academicyear', 'schoolyear']);
+        var isActiveIdx = col(['isactive', 'active', 'status']);
         var missing = [];
         if (idIdx === -1) missing.push('studentId');
         if (nameIdx === -1) missing.push('studentName');
@@ -899,7 +939,16 @@ async function processStudentsXLSXImport() {
                 programCode: String(row[progIdx] || '').trim(),
                 yearSection: String(row[ysIdx] || '').trim()
             };
-            if (!record.studentId || !record.studentName || !record.institute || !record.programCode || !record.yearSection) {
+            if (academicYearIdx !== -1) {
+                record.academicYear = String(row[academicYearIdx] || '').trim();
+            }
+            if (isActiveIdx !== -1) {
+                var activeValue = String(row[isActiveIdx] == null ? '' : row[isActiveIdx]).trim().toLowerCase();
+                if (['true', '1', 'yes', 'active'].indexOf(activeValue) !== -1) record.isActive = true;
+                else if (['false', '0', 'no', 'inactive'].indexOf(activeValue) !== -1) record.isActive = false;
+                else throw new Error('Row ' + (rowIndex + 1) + ' has an invalid isActive value.');
+            }
+            if (!record.studentId || !record.studentName) {
                 invalidRows.push(rowIndex + 1);
             } else {
                 records.push(record);
@@ -908,8 +957,80 @@ async function processStudentsXLSXImport() {
         if (invalidRows.length) throw new Error('Missing required values on row(s): ' + invalidRows.slice(0, 20).join(', '));
         if (!records.length) throw new Error('No valid students were found in the file.');
 
+        var officerRecords = [];
+        var officerSheetName = workbook.SheetNames.find(function(sheetName) {
+            return String(sheetName).trim().toLowerCase() === 'officers';
+        });
+        if (officerSheetName) {
+            var officerRows = XLSX.utils.sheet_to_json(workbook.Sheets[officerSheetName], { header: 1 });
+            if (officerRows.length > 1) {
+                var officerHeaders = officerRows[0].map(function(header) {
+                    return String(header || '').trim().toLowerCase().replace(/[\s_-]/g, '');
+                });
+                function officerCol(names) {
+                    for (var officerColumn = 0; officerColumn < names.length; officerColumn++) {
+                        var officerIndex = officerHeaders.indexOf(names[officerColumn]);
+                        if (officerIndex !== -1) return officerIndex;
+                    }
+                    return -1;
+                }
+                var officerIdIdx = officerCol(['officerid', 'membershipid', 'id']);
+                var officerStudentIdx = officerCol(['studentid', 'studentnumber']);
+                var officerOrgIdx = officerCol(['orgcode', 'organizationcode']);
+                var officerRoleIdx = officerCol(['rolename', 'role']);
+                var officerPositionIdx = officerCol(['positiontitle', 'position']);
+                var officerJoinedIdx = officerCol(['joinedat', 'joineddate']);
+                var officerActiveIdx = officerCol(['isactive', 'active', 'status']);
+                var missingOfficerHeaders = [];
+                if (officerIdIdx === -1 && officerStudentIdx === -1) missingOfficerHeaders.push('officerId or studentId');
+                if (officerIdIdx === -1 && officerOrgIdx === -1) missingOfficerHeaders.push('officerId or orgCode');
+                if (officerIdIdx === -1 && officerRoleIdx === -1) missingOfficerHeaders.push('officerId or roleName');
+                if (missingOfficerHeaders.length) {
+                    throw new Error('Officers sheet is missing required column(s): ' + missingOfficerHeaders.join(', '));
+                }
+                for (var officerRowIndex = 1; officerRowIndex < officerRows.length; officerRowIndex++) {
+                    var officerRow = officerRows[officerRowIndex];
+                    if (!officerRow || officerRow.length === 0) continue;
+                    var importedOfficerId = officerIdIdx !== -1 ? String(officerRow[officerIdIdx] || '').trim() : '';
+                    var existingOfficer = importedOfficerId ? officers.find(function(officer) {
+                        return String(officer.id) === importedOfficerId;
+                    }) : null;
+                    var importedStudentId = officerStudentIdx !== -1 ? String(officerRow[officerStudentIdx] || '').trim() : '';
+                    var importedOrgCode = officerOrgIdx !== -1 ? String(officerRow[officerOrgIdx] || '').trim() : '';
+                    var importedRoleName = officerRoleIdx !== -1 ? String(officerRow[officerRoleIdx] || '').trim() : '';
+                    var importedJoinedAt = officerJoinedIdx !== -1 ? String(officerRow[officerJoinedIdx] || '').trim().slice(0, 10) : '';
+                    var officerRecord = {
+                        officerId: importedOfficerId,
+                        studentId: importedStudentId || (existingOfficer && existingOfficer.studentId) || '',
+                        orgCode: importedOrgCode || (existingOfficer && existingOfficer.orgCode) || '',
+                        roleName: importedRoleName || (existingOfficer && existingOfficer.roleName) || '',
+                        positionTitle: officerPositionIdx !== -1
+                            ? String(officerRow[officerPositionIdx] || '').trim()
+                            : ((existingOfficer && existingOfficer.positionTitle) || ''),
+                        joinedAt: importedJoinedAt || (existingOfficer && String(existingOfficer.joinedAt || '').slice(0, 10)) || '',
+                        isActive: existingOfficer ? Boolean(existingOfficer.isActive) : true
+                    };
+                    if ((!officerRecord.studentId && !existingOfficer) || !officerRecord.orgCode || !officerRecord.roleName) {
+                        var missingOfficerValues = [];
+                        if (!officerRecord.studentId && !existingOfficer) missingOfficerValues.push('studentId or an existing officerId');
+                        if (!officerRecord.orgCode) missingOfficerValues.push('orgCode');
+                        if (!officerRecord.roleName) missingOfficerValues.push('roleName');
+                        throw new Error('Officers sheet row ' + (officerRowIndex + 1) + ' (officerId: ' + (importedOfficerId || 'blank') + ') is missing ' + missingOfficerValues.join(', ') + '.');
+                    }
+                    if (officerActiveIdx !== -1) {
+                        var officerActiveValue = String(officerRow[officerActiveIdx] == null ? '' : officerRow[officerActiveIdx]).trim().toLowerCase();
+                        if (['true', '1', 'yes', 'active'].indexOf(officerActiveValue) !== -1) officerRecord.isActive = true;
+                        else if (['false', '0', 'no', 'inactive'].indexOf(officerActiveValue) !== -1) officerRecord.isActive = false;
+                        else throw new Error('Officers sheet row ' + (officerRowIndex + 1) + ' has an invalid isActive value.');
+                    }
+                    officerRecords.push(officerRecord);
+                }
+            }
+        }
+
         var result = await getService().previewAnnualRoster(records);
-        pendingAccountRoster = { records: records, academicYear: result.academicYear };
+        result.officerImportCount = officerRecords.length;
+        pendingAccountRoster = { records: records, academicYear: result.academicYear, officers: officerRecords };
         renderAccountRosterPreview(result);
         actionButton.disabled = false;
         actionButton.textContent = 'Confirm & Apply Roster';
@@ -947,39 +1068,42 @@ async function exportData() {
     try {
         var wb = XLSX.utils.book_new();
 
-        var studentsSheet = students.map(function(s) {
+        var studentsSheet = studentNumbers.map(function(s) {
             return {
                 studentId: s.studentId || '',
                 studentName: s.studentName || '',
                 institute: s.institute || '',
                 programCode: s.programCode || '',
                 yearSection: s.yearSection || '',
+                academicYear: s.academicYear || '',
+                isActive: s.isActive !== false ? 'true' : 'false',
                 email: s.email || '',
                 phone: s.phone || ''
             };
         });
         var wsStudents = XLSX.utils.json_to_sheet(studentsSheet);
         formatWorksheetAsText(wsStudents);
-        wsStudents['!cols'] = [14,28,40,16,14,30,18].map(function(w) { return { wch: w }; });
+        wsStudents['!cols'] = [14,28,40,16,14,14,10,30,18].map(function(w) { return { wch: w }; });
         XLSX.utils.book_append_sheet(wb, wsStudents, 'Students');
 
         var officersSheet = officers.map(function(o) {
             return {
                 officerId: o.id || '',
-                name: o.name || '',
-                role: o.role || '',
+                studentId: o.studentId || '',
+                studentName: o.studentName || '',
                 institute: o.institute || '',
-                organization: o.organization || '',
-                employeeNumber: o.employeeNumber || '',
-                email: o.email || '',
-                status: o.status || '',
-                notes: o.notes || '',
-                createdAt: o.createdAt || ''
+                orgCode: o.orgCode || '',
+                orgName: o.orgName || '',
+                roleName: o.roleName || '',
+                positionTitle: o.positionTitle || '',
+                joinedAt: o.joinedAt || '',
+                isActive: o.isActive !== false ? 'true' : 'false',
+                addedAt: o.addedAt || ''
             };
         });
         var wsOfficers = XLSX.utils.json_to_sheet(officersSheet);
         formatWorksheetAsText(wsOfficers);
-        wsOfficers['!cols'] = [12,24,14,36,32,20,30,12,24,22].map(function(w) { return { wch: w }; });
+        wsOfficers['!cols'] = [12,16,28,36,16,32,20,24,14,10,22].map(function(w) { return { wch: w }; });
         XLSX.utils.book_append_sheet(wb, wsOfficers, 'Officers');
 
         var pendingSheet = pendingRequests.map(function(r) {
@@ -1003,7 +1127,7 @@ async function exportData() {
         wsPending['!cols'] = [12,14,28,40,16,14,30,18,16,24,12,22].map(function(w) { return { wch: w }; });
         XLSX.utils.book_append_sheet(wb, wsPending, 'PendingRequests');
 
-        XLSX.writeFile(wb, 'users_' + new Date().toISOString().slice(0, 10) + '.xlsx', { cellStyles: true });
+        XLSX.writeFile(wb, 'active_users_' + new Date().toISOString().slice(0, 10) + '.xlsx', { cellStyles: true });
         showToast('Export complete.', 'success');
     } catch (err) {
         showToast('Export failed: ' + err.message, 'danger');
