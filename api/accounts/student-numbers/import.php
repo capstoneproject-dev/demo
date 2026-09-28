@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/system_settings.php';
 require_once __DIR__ . '/../advisers/roster.php';
 require_once __DIR__ . '/../officers/roster.php';
+require_once __DIR__ . '/roster-status.php';
 
 header('Content-Type: application/json');
 $session = apiRequireOsaSystemAdministrator();
@@ -63,7 +64,12 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
         $targetAcademicYear = array_key_exists('academicYear', $row)
             ? trim((string)$row['academicYear'])
             : $academicYear;
-        $targetIsActive = array_key_exists('isActive', $row) ? (bool)$row['isActive'] : true;
+        try {
+            $targetIsActive = array_key_exists('isActive', $row) ? rosterParseActiveStatus($row['isActive']) : true;
+        } catch (InvalidArgumentException $e) {
+            $errors[] = "Row {$rowNumber}: " . $e->getMessage();
+            continue;
+        }
         $key = strtoupper($studentNumber);
 
         $missing = [];
