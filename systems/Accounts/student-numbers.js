@@ -312,24 +312,16 @@ function renderAnnualRosterPreview(result) {
     if (!preview || !summaryEl || !details) return;
 
     year.textContent = 'Active academic year: ' + (result.academicYear || 'Not set');
-    var cards = [
-        ['New', summary.new || 0, 'text-primary'], ['Updated', summary.updated || 0, 'text-info'],
-        ['Reactivated', summary.reactivated || 0, 'text-success'], ['Unchanged', summary.unchanged || 0, 'text-secondary'],
-        ['Deactivate', summary.deactivated || 0, 'text-danger'], ['Officers affected', summary.officersAffected || 0, 'text-danger'],
-        ['Rejected', summary.rejected || 0, 'text-warning']
-    ];
-    summaryEl.innerHTML = cards.map(function(card) {
-        return '<div class="col-6 col-md-4"><div class="border rounded p-2 text-center">' +
-            '<div class="fs-4 fw-bold ' + card[2] + '">' + card[1] + '</div>' +
-            '<div class="text-muted">' + card[0] + '</div></div></div>';
-    }).join('');
+    summaryEl.innerHTML = [
+        ['new', 'New', 'text-primary'], ['updated', 'Updated', 'text-info'],
+        ['reactivated', 'Reactivated', 'text-success'], ['unchanged', 'Unchanged', 'text-secondary']
+    ].map(function(card) { return AdviserWorkbook.changeCard(result, card[0], card[1], card[2]); }).join('') +
+        AdviserWorkbook.deactivationCard(result);
 
     var groups = [
         ['New students', result.changes && result.changes.new],
         ['Updated students', result.changes && result.changes.updated],
-        ['Reactivated students', result.changes && result.changes.reactivated],
-        ['Students to deactivate', result.changes && result.changes.deactivated],
-        ['Officers affected', result.changes && result.changes.officersAffected]
+        ['Reactivated students', result.changes && result.changes.reactivated]
     ];
     details.innerHTML = groups.map(function(group) {
         var rows = group[1] || [];
@@ -343,7 +335,9 @@ function renderAnnualRosterPreview(result) {
         }).join('');
         var remaining = rows.length > 8 ? '<li class="text-muted">…and ' + (rows.length - 8) + ' more</li>' : '';
         return '<div class="mb-2"><strong>' + group[0] + ' (' + rows.length + ')</strong><ul class="mb-0">' + visible + remaining + '</ul></div>';
-    }).join('') || '<span class="text-muted">No enrollment changes detected.</span>';
+    }).join('') || '<span class="text-muted">No student enrollment changes detected.</span>';
+    AdviserWorkbook.appendDeactivationDetails(result, 'annualRosterDetails');
+    AdviserWorkbook.appendChangeDetails(result, 'annualRosterDetails');
 
     if (summary.largeDeactivationWarning) {
         warning.textContent = 'Warning: this import will deactivate ' + summary.deactivationPercent + '% of currently active students. Verify that the XLSX contains the complete enrollment roster.';
@@ -362,7 +356,7 @@ async function processXLSXImport() {
         try {
             actionButton.disabled = true;
             actionButton.textContent = 'Applying…';
-            var applied = await getService().applyAnnualRoster(pendingAnnualRoster.records, pendingAnnualRoster.academicYear, pendingAnnualRoster.advisers || []);
+            var applied = await getService().applyAnnualRoster(pendingAnnualRoster.records, pendingAnnualRoster.academicYear, pendingAnnualRoster.advisers || [], [], pendingAnnualRoster.advisersPresent);
             await AdviserWorkbook.load();
             await loadStudentNumbers();
             updateStudentNumbersTable();
@@ -391,10 +385,10 @@ async function processXLSXImport() {
         AdviserWorkbook.validateType(workbook, 'users');
         if (AdviserWorkbook.isAdviserOnly(workbook)) {
             var onlyAdvisers = AdviserWorkbook.parse(workbook);
-            var adviserPreview = await getService().previewAnnualRoster([], onlyAdvisers);
-            pendingAnnualRoster = {records: [], academicYear: adviserPreview.academicYear, advisers: onlyAdvisers};
+            var adviserPreview = await getService().previewAnnualRoster([], onlyAdvisers, [], true);
+            pendingAnnualRoster = {records: [], academicYear: adviserPreview.academicYear, advisers: onlyAdvisers, advisersPresent: true};
             renderAnnualRosterPreview(adviserPreview);
-            AdviserWorkbook.describe(onlyAdvisers, 'annualRosterDetails');
+            AdviserWorkbook.describe(onlyAdvisers, 'annualRosterDetails', adviserPreview.adviserOmissions);
             actionButton.disabled = false;
             actionButton.textContent = 'Confirm & Apply Roster';
             actionButton.className = 'btn btn-danger';
@@ -479,10 +473,11 @@ async function processXLSXImport() {
         }
 
         var adviserRecords = AdviserWorkbook.parse(workbook);
-        var result = await getService().previewAnnualRoster(records, adviserRecords);
-        pendingAnnualRoster = { records: records, academicYear: result.academicYear, advisers: adviserRecords };
+        var advisersPresent = AdviserWorkbook.hasSheet(workbook);
+        var result = await getService().previewAnnualRoster(records, adviserRecords, [], advisersPresent);
+        pendingAnnualRoster = { records: records, academicYear: result.academicYear, advisers: adviserRecords, advisersPresent: advisersPresent };
         renderAnnualRosterPreview(result);
-        AdviserWorkbook.describe(adviserRecords, 'annualRosterDetails');
+        if (advisersPresent) AdviserWorkbook.describe(adviserRecords, 'annualRosterDetails', result.adviserOmissions);
         actionButton.disabled = false;
         actionButton.textContent = 'Confirm & Apply Roster';
         actionButton.className = 'btn btn-danger';

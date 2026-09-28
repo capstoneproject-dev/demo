@@ -55,17 +55,178 @@
         })));
     }
 
-    function describe(records, targetId) {
-        if (!records.length) return;
+    function describe(records, targetId, omissions) {
         const target = document.getElementById(targetId);
         const message = document.createElement('p');
-        message.className = 'mt-3';
-        message.textContent = 'Advisers: ' + records.length + ' account/organization rows will be matched by employee number and organization. Existing accounts are updated; new accounts can set their password through Forgot password. Advisers absent from this sheet are retained.';
+        const accountCount = omissions?.accounts?.length || 0;
+        const membershipCount = omissions?.memberships?.length || 0;
+        message.className = accountCount || membershipCount ? 'alert alert-warning mt-3' : 'mt-3';
+        message.textContent = 'Advisers: ' + records.length + ' account/organization rows will be matched by employee number and organization. Existing accounts are updated; new accounts can set their password through Forgot password. ' + accountCount + ' active adviser account(s) absent from this sheet and ' + membershipCount + ' active organization membership(s) will be deactivated. Inactive records are not counted as changes and remain in the database for history.';
         target?.appendChild(message);
     }
 
+    function hasSheet(workbook) {
+        return workbook.SheetNames.some(name => name.trim().toLowerCase() === 'advisers');
+    }
+
+    function deactivationSections(result) {
+        const changes = result.changes || {};
+        const omissions = result.adviserOmissions || {};
+        const students = (changes.deactivated || []).map(row =>
+            text(row.studentId) + ' — ' + text(row.studentName));
+        const officers = (changes.officersAffected || []).map(row =>
+            text(row.studentId) + ' — ' + text(row.studentName) + (row.officerRoles ? ' — ' + text(row.officerRoles) : ''));
+        const advisersByEmployee = new Map();
+        for (const row of omissions.accounts || []) {
+            advisersByEmployee.set(text(row.employeeNumber).toLowerCase(), {
+                employeeNumber: text(row.employeeNumber), name: text(row.name), account: true, orgs: []
+            });
+        }
+        for (const row of omissions.memberships || []) {
+            const key = text(row.employeeNumber).toLowerCase();
+            if (!advisersByEmployee.has(key)) advisersByEmployee.set(key, {
+                employeeNumber: text(row.employeeNumber), name: text(row.name), account: false, orgs: []
+            });
+            advisersByEmployee.get(key).orgs.push(text(row.orgCode));
+        }
+        const advisers = [...advisersByEmployee.values()].map(row =>
+            row.employeeNumber + ' — ' + row.name + ' — ' +
+            (row.account ? 'Account deactivated' : 'Organization membership deactivated') +
+            (row.orgs.length ? ' (' + row.orgs.join(', ') + ')' : ''));
+        return {Students: students, Officers: officers, Advisers: advisers};
+    }
+
+    function deactivationBreakdown(result) {
+        const sections = deactivationSections(result);
+        return {students: sections.Students.length, officers: sections.Officers.length, advisers: sections.Advisers.length};
+    }
+
+    function deactivationCount(result) {
+        const counts = deactivationBreakdown(result);
+        return counts.students + counts.officers + counts.advisers;
+    }
+
+    function categoryCell(entry, index, tone) {
+        const tint = entry[1] > 0 && tone ? 'background:rgba(' + (tone === 'red' ? '220,53,69' : '25,135,84') + ',.12);' : '';
+        return '<div class="flex-fill' + (index ? ' border-start' : '') + '" style="font-size:.72rem;' + tint + '"><strong>' +
+            entry[1] + '</strong><br>' + entry[0] + '</div>';
+    }
+
+    function deactivationCard(result) {
+        const counts = deactivationBreakdown(result);
+        const total = counts.students + counts.officers + counts.advisers;
+        return '<div class="col-6"><div class="border rounded p-2 text-center h-100">' +
+            '<div class="fs-4 fw-bold text-danger">' + total + '</div><div class="text-muted">Deactivate</div>' +
+            '<div class="d-flex border-top mt-2 pt-2">' +
+            [['Students', counts.students], ['Officers', counts.officers], ['Advisers', counts.advisers]].map((entry, index) =>
+                categoryCell(entry, index, 'red')).join('') + '</div></div></div>';
+    }
+
+    function changeCard(result, key, label, color) {
+        const students = (result.summary || {})[key] || 0;
+        const officers = ((result.officerChanges || {})[key] || []).length;
+        const advisers = ((result.adviserChanges || {})[key] || []).length;
+        return '<div class="col-6"><div class="border rounded p-2 text-center h-100">' +
+            '<div class="fs-4 fw-bold ' + color + '">' + (students + officers + advisers) + '</div>' +
+            '<div class="text-muted">' + label + '</div>' +
+            '<div class="d-flex border-top mt-2 pt-2">' +
+            [['Students', students], ['Officers', officers], ['Advisers', advisers]].map((entry, index) =>
+                categoryCell(entry, index, key === 'unchanged' ? null : 'green')).join('') +
+            '</div></div></div>';
+    }
+
+    function appendChangeDetails(result, targetId) {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+        const officerChanges = result.officerChanges || {};
+        for (const [key, title] of [['new', 'New officers'], ['updated', 'Updated officers'], ['reactivated', 'Reactivated officers']]) {
+            const rows = officerChanges[key] || [];
+            if (!rows.length) continue;
+            const section = document.createElement('div');
+            section.className = 'mt-2';
+            const heading = document.createElement('strong');
+            heading.textContent = title + ' (' + rows.length + ')';
+            section.appendChild(heading);
+            const list = document.createElement('ul');
+            list.className = 'mb-0';
+            for (const row of rows) {
+                const item = document.createElement('li');
+                item.textContent = text(row.studentId) + ' — ' + text(row.name) + ' — ' +
+                    text(row.orgCode) + ' (' + text(row.roleName) + ')';
+                list.appendChild(item);
+            }
+            section.appendChild(list);
+            target.appendChild(section);
+        }
+        const changes = result.adviserChanges || {};
+        for (const [key, title] of [['new', 'New advisers'], ['updated', 'Updated advisers'], ['reactivated', 'Reactivated advisers']]) {
+            const rows = changes[key] || [];
+            if (!rows.length) continue;
+            const section = document.createElement('div');
+            section.className = 'mt-2';
+            const heading = document.createElement('strong');
+            heading.textContent = title + ' (' + rows.length + ')';
+            section.appendChild(heading);
+            const list = document.createElement('ul');
+            list.className = 'mb-0';
+            for (const row of rows) {
+                const item = document.createElement('li');
+                item.textContent = text(row.employeeNumber) + ' — ' + text(row.name) +
+                    (row.orgCodes?.length ? ' — ' + row.orgCodes.join(', ') : '');
+                list.appendChild(item);
+            }
+            section.appendChild(list);
+            target.appendChild(section);
+        }
+    }
+
+    function appendDeactivationDetails(result, targetId) {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+        const sections = deactivationSections(result);
+        const total = deactivationCount(result);
+        if (!total) return;
+        const limit = total >= 11 ? 10 : Infinity;
+        const container = document.createElement('div');
+        container.className = 'mt-3';
+        for (const [title, lines] of Object.entries(sections)) {
+            if (!lines.length) continue;
+            const heading = document.createElement('strong');
+            heading.textContent = title + ' affected (' + lines.length + ')';
+            container.appendChild(heading);
+            const list = document.createElement('ul');
+            list.className = 'mb-2';
+            for (const line of lines.slice(0, limit)) {
+                const item = document.createElement('li');
+                item.textContent = line;
+                list.appendChild(item);
+            }
+            container.appendChild(list);
+        }
+        if (total >= 11) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-secondary btn-sm mt-2';
+            button.textContent = 'Show full list (.txt)';
+            button.addEventListener('click', () => {
+                const content = Object.entries(sections).map(([title, lines]) =>
+                    title + ' (' + lines.length + ')\r\n' + (lines.length ? lines.join('\r\n') : 'None')).join('\r\n\r\n');
+                const url = URL.createObjectURL(new Blob(['\uFEFF' + content + '\r\n'], {type: 'text/plain;charset=utf-8'}));
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'roster_deactivation_list_' + new Date().toISOString().slice(0, 10) + '.txt';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+            });
+            container.appendChild(button);
+        }
+        target.appendChild(container);
+    }
+
     function isAdviserOnly(workbook) {
-        if (!workbook.SheetNames.some(name => name.trim().toLowerCase() === 'advisers')) return false;
+        if (!hasSheet(workbook)) return false;
         const name = workbook.SheetNames.find(name => ['students', 'student numbers'].includes(name.trim().toLowerCase()));
         return !name || XLSX.utils.sheet_to_json(workbook.Sheets[name], {blankrows: false}).length === 0;
     }
@@ -99,5 +260,5 @@
         }
     }
 
-    window.AdviserWorkbook = {load, appendSheet, parse, describe, isAdviserOnly, stamp, validateType};
+    window.AdviserWorkbook = {load, appendSheet, parse, describe, hasSheet, isAdviserOnly, stamp, validateType, changeCard, appendChangeDetails, deactivationBreakdown, deactivationCount, deactivationCard, appendDeactivationDetails};
 })();

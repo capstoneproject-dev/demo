@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../../config/db.php';
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/system_settings.php';
 require_once __DIR__ . '/../advisers/roster.php';
+require_once __DIR__ . '/../officers/roster.php';
 
 header('Content-Type: application/json');
 $session = apiRequireOsaSystemAdministrator();
@@ -256,7 +257,10 @@ try {
     $action = strtolower(trim((string)($body['action'] ?? 'preview')));
     if ($action === 'apply') apiRequireRecentReauthentication();
     $records = $body['records'] ?? [];
-    if (!is_array($records) || (!$records && empty($body['advisers']))) {
+    $officerInput = $body['officers'] ?? [];
+    $syncAdvisers = ($body['advisersPresent'] ?? false) === true;
+    if (!is_array($officerInput)) jsonError('Invalid Officers sheet.', 422);
+    if (!is_array($records) || (!$records && !$syncAdvisers)) {
         jsonError('The workbook must contain students or advisers.', 422);
     }
     if (!in_array($action, ['preview', 'apply'], true)) {
@@ -276,7 +280,12 @@ try {
     try {
         $adviserInput = $body['advisers'] ?? [];
         if (!is_array($adviserInput)) throw new InvalidArgumentException('Invalid Advisers sheet.');
+        if (!$syncAdvisers && $adviserInput) throw new InvalidArgumentException('Advisers sheet indicator is missing.');
         $adviserRecords = validateAdviserRows($pdo, $adviserInput);
+        $adviserChanges = $syncAdvisers ? adviserChangePreview($pdo, $adviserRecords) : ['new' => [], 'updated' => [], 'reactivated' => [], 'unchanged' => []];
+        $adviserOmissions = $syncAdvisers ? adviserOmissions($pdo, $adviserRecords) : ['accounts' => [], 'memberships' => []];
+        $officerRecords = validateOfficerWorkbook($pdo, $officerInput);
+        $officerChanges = officerChangePreview($pdo, $officerRecords);
     } catch (InvalidArgumentException $e) {
         jsonError($e->getMessage(), 422);
     }
@@ -285,6 +294,10 @@ try {
             'academicYear' => $academicYear,
             'summary' => $preview['summary'],
             'changes' => $preview['changes'],
+            'officerImportCount' => count($officerRecords),
+            'officerChanges' => $officerChanges,
+            'adviserOmissions' => $adviserOmissions,
+            'adviserChanges' => $adviserChanges,
         ]);
     }
 
@@ -356,6 +369,8 @@ try {
         }
 
         applyAdviserRows($pdo, $adviserRecords);
+        if ($syncAdvisers) deactivateOmittedAdvisers($pdo, $adviserOmissions);
+        $officerResult = applyOfficerWorkbook($pdo, $officerRecords);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -365,6 +380,7 @@ try {
     jsonOk([
         'academicYear' => $academicYear,
         'summary' => $preview['summary'],
+        'officers' => $officerResult,
         'msg' => "Annual enrollment roster for {$academicYear} applied successfully.",
     ]);
 } catch (InvalidArgumentException $e) {

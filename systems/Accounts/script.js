@@ -775,35 +775,6 @@ function resetAccountRosterImport() {
     }
 }
 
-async function applyOfficerWorkbookRecords(records) {
-    var result = { added: 0, updated: 0, unchanged: 0 };
-    for (var index = 0; index < records.length; index++) {
-        var record = records[index];
-        var existing = officers.find(function(officer) {
-            if (record.officerId && String(officer.id) === String(record.officerId)) return true;
-            return String(officer.studentId).toLowerCase() === String(record.studentId).toLowerCase()
-                && String(officer.orgCode).toLowerCase() === String(record.orgCode).toLowerCase();
-        });
-        var unchanged = existing
-            && String(existing.studentId || '') === String(record.studentId || '')
-            && String(existing.orgCode || '') === String(record.orgCode || '')
-            && String(existing.roleName || '') === String(record.roleName || '')
-            && String(existing.positionTitle || '') === String(record.positionTitle || '')
-            && String(existing.joinedAt || '').slice(0, 10) === String(record.joinedAt || '').slice(0, 10)
-            && Boolean(existing.isActive) === Boolean(record.isActive);
-        if (unchanged) {
-            result.unchanged++;
-        } else if (existing) {
-            await getService().updateOfficer(existing.id, record);
-            result.updated++;
-        } else {
-            await getService().addOfficer(record);
-            result.added++;
-        }
-    }
-    return result;
-}
-
 function renderAccountRosterPreview(result) {
     var summary = result.summary || {};
     var preview = document.getElementById('accountRosterPreview');
@@ -812,27 +783,16 @@ function renderAccountRosterPreview(result) {
     var details = document.getElementById('accountRosterDetails');
     document.getElementById('accountRosterYear').textContent = 'Active academic year: ' + result.academicYear;
 
-    var cards = [
-        ['New', summary.new || 0, 'text-primary'],
-        ['Updated', summary.updated || 0, 'text-info'],
-        ['Reactivated', summary.reactivated || 0, 'text-success'],
-        ['Unchanged', summary.unchanged || 0, 'text-secondary'],
-        ['Deactivate', summary.deactivated || 0, 'text-danger'],
-        ['Officers affected', summary.officersAffected || 0, 'text-danger'],
-        ['Rejected', summary.rejected || 0, 'text-warning']
-    ];
-    summaryEl.innerHTML = cards.map(function(card) {
-        return '<div class="col-6 col-md-4"><div class="border rounded p-2 text-center">' +
-            '<div class="fs-4 fw-bold ' + card[2] + '">' + card[1] + '</div>' +
-            '<div class="text-muted">' + card[0] + '</div></div></div>';
-    }).join('');
+    summaryEl.innerHTML = [
+        ['new', 'New', 'text-primary'], ['updated', 'Updated', 'text-info'],
+        ['reactivated', 'Reactivated', 'text-success'], ['unchanged', 'Unchanged', 'text-secondary']
+    ].map(function(card) { return AdviserWorkbook.changeCard(result, card[0], card[1], card[2]); }).join('') +
+        AdviserWorkbook.deactivationCard(result);
 
     var groups = [
         ['New students', result.changes && result.changes.new],
         ['Updated students', result.changes && result.changes.updated],
-        ['Reactivated students', result.changes && result.changes.reactivated],
-        ['Students to deactivate', result.changes && result.changes.deactivated],
-        ['Officers affected', result.changes && result.changes.officersAffected]
+        ['Reactivated students', result.changes && result.changes.reactivated]
     ];
     details.innerHTML = groups.map(function(group) {
         var rows = group[1] || [];
@@ -845,11 +805,13 @@ function renderAccountRosterPreview(result) {
         }).join('');
         if (rows.length > 8) items += '<li class="text-muted">…and ' + (rows.length - 8) + ' more</li>';
         return '<div class="mb-2"><strong>' + group[0] + ' (' + rows.length + ')</strong><ul class="mb-0">' + items + '</ul></div>';
-    }).join('') || '<span class="text-muted">No enrollment changes detected.</span>';
+    }).join('') || '<span class="text-muted">No student enrollment changes detected.</span>';
     if (result.officerImportCount) {
         details.innerHTML += '<div class="mt-2"><strong>Officers in workbook (' + result.officerImportCount +
             ')</strong><br><span class="text-muted">Matching records will be updated; new records will be added. Officers absent from the workbook will not be deleted.</span></div>';
     }
+    AdviserWorkbook.appendDeactivationDetails(result, 'accountRosterDetails');
+    AdviserWorkbook.appendChangeDetails(result, 'accountRosterDetails');
 
     if (summary.largeDeactivationWarning) {
         warning.textContent = 'Warning: this import will deactivate ' + summary.deactivationPercent + '% of active students. Verify that this is the complete roster.';
@@ -869,9 +831,8 @@ async function processStudentsXLSXImport() {
             actionButton.disabled = true;
             actionButton.textContent = 'Applying…';
             var officerRecordsToApply = pendingAccountRoster.officers || [];
-            var applied = await getService().applyAnnualRoster(pendingAccountRoster.records, pendingAccountRoster.academicYear, pendingAccountRoster.advisers || []);
+            var applied = await getService().applyAnnualRoster(pendingAccountRoster.records, pendingAccountRoster.academicYear, pendingAccountRoster.advisers || [], officerRecordsToApply, pendingAccountRoster.advisersPresent);
             await AdviserWorkbook.load();
-            var officerResult = await applyOfficerWorkbookRecords(officerRecordsToApply);
             bootstrap.Modal.getInstance(document.getElementById('importStudentsModal'))?.hide();
             fileInput.value = '';
             resetAccountRosterImport();
@@ -879,7 +840,7 @@ async function processStudentsXLSXImport() {
             await loadData();
             refreshAll();
             var officerMessage = officerRecordsToApply.length
-                ? ' Officers: ' + officerResult.added + ' added, ' + officerResult.updated + ' updated, ' + officerResult.unchanged + ' unchanged.'
+                ? ' Officers: ' + applied.officers.added + ' added, ' + applied.officers.updated + ' updated.'
                 : '';
             showToast((applied.msg || 'Annual enrollment roster applied.') + officerMessage, 'success');
         } catch (err) {
@@ -901,10 +862,10 @@ async function processStudentsXLSXImport() {
         AdviserWorkbook.validateType(workbook, 'active_users');
         if (AdviserWorkbook.isAdviserOnly(workbook)) {
             var onlyAdvisers = AdviserWorkbook.parse(workbook);
-            var adviserPreview = await getService().previewAnnualRoster([], onlyAdvisers);
-            pendingAccountRoster = {records: [], academicYear: adviserPreview.academicYear, officers: [], advisers: onlyAdvisers};
+            var adviserPreview = await getService().previewAnnualRoster([], onlyAdvisers, [], true);
+            pendingAccountRoster = {records: [], academicYear: adviserPreview.academicYear, officers: [], advisers: onlyAdvisers, advisersPresent: true};
             renderAccountRosterPreview(adviserPreview);
-            AdviserWorkbook.describe(onlyAdvisers, 'accountRosterDetails');
+            AdviserWorkbook.describe(onlyAdvisers, 'accountRosterDetails', adviserPreview.adviserOmissions);
             actionButton.disabled = false;
             actionButton.textContent = 'Confirm & Apply Roster';
             actionButton.className = 'btn btn-danger';
@@ -1043,11 +1004,11 @@ async function processStudentsXLSXImport() {
         }
 
         var adviserRecords = AdviserWorkbook.parse(workbook);
-        var result = await getService().previewAnnualRoster(records, adviserRecords);
-        result.officerImportCount = officerRecords.length;
-        pendingAccountRoster = { records: records, academicYear: result.academicYear, officers: officerRecords, advisers: adviserRecords };
+        var advisersPresent = AdviserWorkbook.hasSheet(workbook);
+        var result = await getService().previewAnnualRoster(records, adviserRecords, officerRecords, advisersPresent);
+        pendingAccountRoster = { records: records, academicYear: result.academicYear, officers: officerRecords, advisers: adviserRecords, advisersPresent: advisersPresent };
         renderAccountRosterPreview(result);
-        AdviserWorkbook.describe(adviserRecords, 'accountRosterDetails');
+        if (advisersPresent) AdviserWorkbook.describe(adviserRecords, 'accountRosterDetails', result.adviserOmissions);
         actionButton.disabled = false;
         actionButton.textContent = 'Confirm & Apply Roster';
         actionButton.className = 'btn btn-danger';

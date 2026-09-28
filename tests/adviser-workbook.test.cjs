@@ -65,3 +65,75 @@ test('Both page importers pass advisers to preview and retain them for apply', a
         assert.equal(vm.runInContext(pending + '.advisers[0].membershipActive', ctx), 'false');
     }
 });
+
+test('One deactivation card separates students, officers, and advisers and downloads all 11+ affected entries', async () => {
+    const ctx = context();
+    const api = ctx.window.AdviserWorkbook;
+    const students = Array.from({length: 10}, (_, index) => ({studentId: 'S' + index, studentName: 'Student ' + index}));
+    const result = {
+        changes: {deactivated: students, officersAffected: [students[0], students[1]]},
+        adviserOmissions: {
+            accounts: [{employeeNumber: 'A1', name: 'Adviser One'}],
+            memberships: [{employeeNumber: 'A1', name: 'Adviser One', orgCode: 'CLUB'}]
+        }
+    };
+    assert.equal(api.deactivationCount(result), 13);
+    assert.match(api.deactivationCard(result), /Deactivate/);
+    assert.match(api.deactivationCard(result), /10<\/strong><br>Students/);
+    assert.match(api.deactivationCard(result), /2<\/strong><br>Officers/);
+    assert.match(api.deactivationCard(result), /1<\/strong><br>Advisers/);
+    const target = {children: [], appendChild(child) { this.children.push(child); }};
+    const elements = [];
+    ctx.document.getElementById = () => target;
+    ctx.document.createElement = tag => {
+        const element = {tag, children: [], appendChild(child) { this.children.push(child); }, addEventListener(name, fn) { this[name] = fn; }, click() {}, remove() {}};
+        elements.push(element);
+        return element;
+    };
+    ctx.document.body = {appendChild() {}};
+    let downloaded;
+    ctx.Blob = Blob;
+    ctx.URL = {createObjectURL(blob) { downloaded = blob; return 'blob:test'; }, revokeObjectURL() {}};
+    ctx.setTimeout = () => {};
+    api.appendDeactivationDetails(result, 'details');
+    const headings = elements.filter(element => element.tag === 'strong').map(element => element.textContent);
+    assert.deepEqual(headings, ['Students affected (10)', 'Officers affected (2)', 'Advisers affected (1)']);
+    const button = elements.find(element => element.tag === 'button');
+    assert.equal(button.textContent, 'Show full list (.txt)');
+    button.click();
+    const content = await downloaded.text();
+    for (const section of ['Students (10)', 'Officers (2)', 'Advisers (1)', 'S9', 'A1', 'CLUB']) assert.ok(content.includes(section));
+    assert.equal(elements.find(element => element.tag === 'a').download.endsWith('.txt'), true);
+    assert.equal(api.deactivationCount({changes: {deactivated: [students[0]], officersAffected: [students[0]]}}), 2);
+});
+
+test('Adviser additions appear in the New card and preview list', () => {
+    const ctx = context();
+    const api = ctx.window.AdviserWorkbook;
+    const result = {summary: {new: 0}, adviserChanges: {new: [{employeeNumber: 'A9', name: 'New Adviser', orgCodes: ['CLUB']}]},
+        officerChanges: {new: [{studentId: 'S1', name: 'New Officer', orgCode: 'CLUB', roleName: 'President'}]}};
+    assert.match(api.changeCard(result, 'new', 'New', 'text-primary'), />2<\/div><div class="text-muted">New/);
+    assert.match(api.changeCard(result, 'new', 'New', 'text-primary'), /Officers/);
+    const target = {children: [], appendChild(child) { this.children.push(child); }};
+    ctx.document.getElementById = () => target;
+    ctx.document.createElement = tag => ({tag, children: [], appendChild(child) { this.children.push(child); }});
+    api.appendChangeDetails(result, 'details');
+    assert.equal(target.children[0].children[0].textContent, 'New officers (1)');
+    assert.match(target.children[0].children[1].children[0].textContent, /S1.*New Officer.*CLUB/);
+    assert.equal(target.children[1].children[0].textContent, 'New advisers (1)');
+    assert.match(target.children[1].children[1].children[0].textContent, /A9.*New Adviser.*CLUB/);
+});
+
+test('Only changed, nonzero category cells receive low-opacity green or red backgrounds', () => {
+    const api = context().window.AdviserWorkbook;
+    const result = {
+        summary: {new: 0, unchanged: 1},
+        adviserChanges: {new: [{employeeNumber: 'A1'}]},
+        adviserOmissions: {accounts: [{employeeNumber: 'A1'}], memberships: []}
+    };
+    const added = api.changeCard(result, 'new', 'New', 'text-primary');
+    assert.equal((added.match(/background:rgba\(25,135,84,\.12\)/g) || []).length, 1);
+    assert.doesNotMatch(api.changeCard(result, 'unchanged', 'Unchanged', 'text-secondary'), /background:rgba/);
+    const removed = api.deactivationCard(result);
+    assert.equal((removed.match(/background:rgba\(220,53,69,\.12\)/g) || []).length, 1);
+});

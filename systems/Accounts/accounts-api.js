@@ -280,17 +280,19 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
 
         // ── ANNUAL ENROLLMENT ROSTER ────────────────────────────────
 
-        async previewAnnualRoster(records, advisers = []) {
-            return await post('/student-numbers/import.php', { action: 'preview', records, advisers });
+        async previewAnnualRoster(records, advisers = [], officers = [], advisersPresent = false) {
+            return await post('/student-numbers/import.php', { action: 'preview', records, advisers, officers, advisersPresent });
         }
 
-        async applyAnnualRoster(records, confirmedAcademicYear, advisers = []) {
+        async applyAnnualRoster(records, confirmedAcademicYear, advisers = [], officers = [], advisersPresent = false) {
             if (!await window.appConfirmIdentity()) {
                 throw new Error('Roster was not applied. Password confirmation is required.');
             }
             return await post('/student-numbers/import.php', {
                 action: 'apply',
                 advisers,
+                advisersPresent,
+                officers,
                 records,
                 confirmedAcademicYear
             });

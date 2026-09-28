@@ -10,7 +10,8 @@ function adviserRows(PDO $pdo): array
         COALESCE(om.is_active, 0) AS membershipActive
         FROM users u LEFT JOIN organization_members om ON om.user_id = u.user_id
         LEFT JOIN organizations o ON o.org_id = om.org_id
-        WHERE u.account_type = 'organization_adviser'
+        WHERE u.account_type = 'organization_adviser' AND u.is_active = 1
+          AND (om.membership_id IS NULL OR om.is_active = 1)
         ORDER BY u.employee_number, o.org_code")->fetchAll();
 }
 
@@ -74,6 +75,51 @@ function validateAdviserRows(PDO $pdo, array $rows): array
     return $result;
 }
 
+function adviserChangePreview(PDO $pdo, array $rows): array
+{
+    $changes = ['new' => [], 'updated' => [], 'reactivated' => [], 'unchanged' => []];
+    $byEmployee = [];
+    $userQuery = $pdo->prepare("SELECT user_id, first_name, last_name, email, COALESCE(phone, '') AS phone, is_active
+        FROM users WHERE employee_number = ? AND account_type = 'organization_adviser'");
+    $membershipQuery = $pdo->prepare('SELECT joined_at, is_active FROM organization_members WHERE user_id = ? AND org_id = ?');
+    foreach ($rows as $row) {
+        $key = strtolower($row['employeeNumber']);
+        if (!isset($byEmployee[$key])) {
+            $userQuery->execute([$row['employeeNumber']]);
+            $old = $userQuery->fetch();
+            $status = !$old ? 'new' : ((int)$old['is_active'] === 0 && $row['isActive'] === 1 ? 'reactivated' : 'unchanged');
+            if ($old && $status === 'unchanged') {
+                foreach (['first_name' => 'firstName', 'last_name' => 'lastName', 'email' => 'email', 'phone' => 'phone', 'is_active' => 'isActive'] as $column => $field) {
+                    if ((string)$old[$column] !== (string)$row[$field]) { $status = 'updated'; break; }
+                }
+            }
+            $byEmployee[$key] = [
+                'employeeNumber' => $row['employeeNumber'],
+                'name' => trim($row['firstName'] . ' ' . $row['lastName']),
+                'orgCodes' => [], 'status' => $status,
+            ];
+        }
+        if ($row['orgId'] !== null) {
+            $byEmployee[$key]['orgCodes'][] = $row['orgCode'];
+            if ($byEmployee[$key]['status'] === 'new') continue;
+            $membershipQuery->execute([$row['userId'], $row['orgId']]);
+            $oldMembership = $membershipQuery->fetch();
+            if ($oldMembership && (int)$oldMembership['is_active'] === 0 && $row['membershipActive'] === 1) {
+                $byEmployee[$key]['status'] = 'reactivated';
+            } elseif (!$oldMembership || (string)$oldMembership['joined_at'] !== $row['joinedAt'] ||
+                (int)$oldMembership['is_active'] !== $row['membershipActive']) {
+                if ($byEmployee[$key]['status'] === 'unchanged') $byEmployee[$key]['status'] = 'updated';
+            }
+        }
+    }
+    foreach ($byEmployee as $item) {
+        $status = $item['status'];
+        unset($item['status']);
+        $changes[$status][] = $item;
+    }
+    return $changes;
+}
+
 function applyAdviserRows(PDO $pdo, array $rows): void
 {
     foreach ($rows as $row) {
@@ -103,4 +149,50 @@ function applyAdviserRows(PDO $pdo, array $rows): void
             ON DUPLICATE KEY UPDATE role_id=VALUES(role_id), joined_at=VALUES(joined_at), is_active=VALUES(is_active)")
             ->execute([$userId, $row['orgId'], $roleId, $row['joinedAt'], $row['membershipActive']]);
     }
+}
+
+function adviserOmissions(PDO $pdo, array $rows): array
+{
+    $listedAccounts = [];
+    $listedMemberships = [];
+    foreach ($rows as $row) {
+        $employee = strtolower($row['employeeNumber']);
+        $listedAccounts[$employee] = true;
+        if ($row['orgId'] !== null) $listedMemberships[$employee . '|' . $row['orgId']] = true;
+    }
+    $accounts = [];
+    $memberships = [];
+    $existing = $pdo->query("SELECT u.user_id, u.employee_number, u.first_name, u.last_name, u.is_active,
+        om.membership_id, om.org_id, om.is_active AS membership_active, o.org_code
+        FROM users u LEFT JOIN organization_members om ON om.user_id = u.user_id
+        LEFT JOIN organizations o ON o.org_id = om.org_id
+        WHERE u.account_type = 'organization_adviser'")->fetchAll();
+    foreach ($existing as $row) {
+        $employee = strtolower((string)$row['employee_number']);
+        if (!isset($listedAccounts[$employee]) && (int)$row['is_active'] === 1) {
+            $accounts[(int)$row['user_id']] = [
+                'userId' => (int)$row['user_id'],
+                'employeeNumber' => $row['employee_number'],
+                'name' => trim($row['first_name'] . ' ' . $row['last_name']),
+            ];
+        }
+        if ($row['membership_id'] !== null && (int)$row['membership_active'] === 1 &&
+            !isset($listedMemberships[$employee . '|' . $row['org_id']])) {
+            $memberships[(int)$row['membership_id']] = [
+                'membershipId' => (int)$row['membership_id'],
+                'employeeNumber' => $row['employee_number'],
+                'name' => trim($row['first_name'] . ' ' . $row['last_name']),
+                'orgCode' => $row['org_code'],
+            ];
+        }
+    }
+    return ['accounts' => array_values($accounts), 'memberships' => array_values($memberships)];
+}
+
+function deactivateOmittedAdvisers(PDO $pdo, array $omissions): void
+{
+    $account = $pdo->prepare("UPDATE users SET is_active = 0 WHERE user_id = ? AND account_type = 'organization_adviser'");
+    foreach ($omissions['accounts'] as $row) $account->execute([$row['userId']]);
+    $membership = $pdo->prepare('UPDATE organization_members SET is_active = 0 WHERE membership_id = ?');
+    foreach ($omissions['memberships'] as $row) $membership->execute([$row['membershipId']]);
 }
