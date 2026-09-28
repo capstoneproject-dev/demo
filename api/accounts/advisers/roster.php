@@ -15,6 +15,19 @@ function adviserRows(PDO $pdo): array
         ORDER BY u.employee_number, o.org_code")->fetchAll();
 }
 
+function adviserExportRows(PDO $pdo): array
+{
+    return $pdo->query("SELECT u.employee_number AS employeeNumber, u.first_name AS firstName,
+        u.last_name AS lastName, u.email, COALESCE(u.phone, '') AS phone,
+        u.is_active AS isActive, COALESCE(o.org_code, '') AS orgCode,
+        COALESCE(o.org_name, '') AS orgName, COALESCE(om.joined_at, '') AS joinedAt,
+        COALESCE(om.is_active, 0) AS membershipActive
+        FROM users u LEFT JOIN organization_members om ON om.user_id = u.user_id AND om.is_active = 1
+        LEFT JOIN organizations o ON o.org_id = om.org_id
+        WHERE u.account_type = 'organization_adviser' AND u.is_active = 1
+        ORDER BY u.employee_number, o.org_code")->fetchAll();
+}
+
 function validateAdviserRows(PDO $pdo, array $rows): array
 {
     $result = [];

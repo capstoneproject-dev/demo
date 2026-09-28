@@ -2,6 +2,7 @@
     'use strict';
     const headers = ['employeeNumber', 'firstName', 'lastName', 'email', 'phone', 'isActive', 'orgCode', 'orgName', 'joinedAt', 'membershipActive'];
     let rows = [];
+    let exportRows = [];
     const text = value => String(value == null ? '' : value);
     const escape = value => text(value).replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[char]));
     const active = value => ['1', 'true', 'yes', 'active'].includes(text(value).toLowerCase());
@@ -24,13 +25,14 @@
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || 'Could not load advisers.');
         rows = result.items || [];
+        exportRows = result.exportItems || rows;
         render();
         return rows;
     }
 
     async function appendSheet(workbook) {
-        const data = await load();
-        const exported = data.map(row => Object.fromEntries(headers.map(key => [key,
+        await load();
+        const exported = exportRows.map(row => Object.fromEntries(headers.map(key => [key,
             ['isActive', 'membershipActive'].includes(key) ? (active(row[key]) ? 'true' : 'false') : text(row[key])])));
         const sheet = XLSX.utils.json_to_sheet(exported, {header: headers});
         Object.keys(sheet).filter(key => !key.startsWith('!')).forEach(key => {

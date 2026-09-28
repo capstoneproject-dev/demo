@@ -28,4 +28,31 @@ if ((int)$pdo->query('SELECT is_active FROM users WHERE user_id = 3')->fetchColu
     (int)$pdo->query('SELECT COUNT(*) FROM organization_members WHERE is_active = 1')->fetchColumn() !== 1) throw new Exception('Adviser omission deactivation failed');
 if (count(adviserRows($pdo)) !== 1 || adviserRows($pdo)[0]['employeeNumber'] !== '0007') throw new Exception('Inactive adviser is still listed or exported');
 if (count(adviserChangePreview($pdo, validateAdviserRows($pdo, [array_merge($row, ['employeeNumber'=>'0008','firstName'=>'Ben','lastName'=>'Reyes','email'=>'ben@example.test','isActive'=>'true','membershipActive'=>'true'])]))['reactivated']) !== 1) throw new Exception('Reactivated adviser preview failed');
+$pdo->exec("UPDATE users SET is_active = 1 WHERE user_id = 3");
+$pdo->exec("INSERT INTO users VALUES (4, '0010', 'organization_adviser', 'cara@example.test', 'Cara', 'Santos', 1, '')");
+$visible = adviserRows($pdo);
+if (count($visible) !== 2 || $visible[0]['employeeNumber'] !== '0007' || $visible[1]['employeeNumber'] !== '0010') {
+    throw new Exception('Advisers with only inactive memberships should stay hidden from the tab');
+}
+$exported = adviserExportRows($pdo);
+if (count($exported) !== 3 || $exported[1]['employeeNumber'] !== '0008' ||
+    $exported[1]['orgCode'] !== '' || $exported[1]['joinedAt'] !== '' ||
+    (int)$exported[1]['membershipActive'] !== 0) {
+    throw new Exception('Active adviser with inactive membership was omitted from export');
+}
+$roundTrip = validateAdviserRows($pdo, $exported);
+$roundTripOmissions = adviserOmissions($pdo, $roundTrip);
+if ($roundTripOmissions['accounts'] || $roundTripOmissions['memberships']) {
+    throw new Exception('Unchanged adviser export would deactivate an account or membership');
+}
+$withoutHidden = array_values(array_filter($roundTrip, fn($item) => $item['employeeNumber'] !== '0008'));
+$removed = adviserOmissions($pdo, $withoutHidden);
+if (count($removed['accounts']) !== 1 || $removed['accounts'][0]['employeeNumber'] !== '0008' || $removed['memberships']) {
+    throw new Exception('Adviser removed from workbook was not scheduled for account deactivation');
+}
+$omittedActive = adviserOmissions($pdo, []);
+if (count($omittedActive['accounts']) !== 3 ||
+    count($omittedActive['memberships']) !== 1) {
+    throw new Exception('Omitting all advisers must deactivate all active adviser accounts');
+}
 echo "Adviser validation passed: state, multiple organizations, duplicates, conflicts, dates, status, and omitted advisers.\n";

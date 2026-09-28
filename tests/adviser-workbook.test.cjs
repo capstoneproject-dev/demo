@@ -37,6 +37,19 @@ test('Advisers XLSX export/import preserves employee numbers and inactive states
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{studentId: '001'}]), 'Students');
     assert.equal(ctx.window.AdviserWorkbook.isAdviserOnly(workbook), false);
 });
+test('XLSX export includes active advisers hidden from the Advisers tab', async () => {
+    const ctx = context();
+    const hidden = {...adviser, isActive: 1, orgCode: '', orgName: '', joinedAt: '', membershipActive: 0};
+    ctx.fetch = async () => ({ok: true, json: async () => ({ok: true, items: [], exportItems: [hidden]})});
+    const workbook = XLSX.utils.book_new();
+    await ctx.window.AdviserWorkbook.appendSheet(workbook);
+    const parsed = ctx.window.AdviserWorkbook.parse(workbook);
+    assert.equal(parsed.length, 1);
+    assert.equal(parsed[0].employeeNumber, hidden.employeeNumber);
+    assert.equal(parsed[0].isActive, 'true');
+    assert.equal(parsed[0].membershipActive, 'false');
+    assert.equal(parsed[0].orgCode, '');
+});
 test('Both page importers pass advisers to preview and retain them for apply', async () => {
     for (const [file, fn, input, pending] of [
         ['script.js', 'processStudentsXLSXImport', 'importStudentsFile', 'pendingAccountRoster'],
