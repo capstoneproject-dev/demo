@@ -1,6 +1,7 @@
 <?php
 require_once '../../../config/db.php';
 require_once '../../../includes/auth.php';
+require_once __DIR__ . '/save-target.php';
 
 header('Content-Type: application/json');
 apiRequireOsaSystemAdministrator();
@@ -23,20 +24,9 @@ if ((!$studentNumber && $membershipId <= 0) || !$orgCode || !$roleName) {
 try {
     $pdo = getPdo();
 
-    // Resolve user_id
-    if ($studentNumber === '' && $membershipId > 0) {
-        // Existing memberships may belong to accounts without a student number.
-        $uStmt = $pdo->prepare("SELECT user_id FROM organization_members WHERE membership_id = :mid");
-        $uStmt->execute([':mid' => $membershipId]);
-    } else {
-        $uStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn LIMIT 1");
-        $uStmt->execute([':sn' => $studentNumber]);
-    }
-    $user = $uStmt->fetch();
-    if (!$user) {
-        jsonError("Student '$studentNumber' not found in accounts.", 404);
-    }
-    $userId = (int)$user['user_id'];
+    // Never let the officer endpoint update an adviser or another non-student membership.
+    $userId = officerSaveStudentUserId($pdo, $membershipId, $studentNumber);
+    if ($userId === null) jsonError('Student officer account or membership not found.', 404);
 
     // Resolve org_id
     $oStmt = $pdo->prepare("SELECT org_id FROM organizations WHERE org_code = :oc LIMIT 1");

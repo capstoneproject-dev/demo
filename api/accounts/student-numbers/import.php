@@ -61,10 +61,8 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
         $programCode = trim((string)($row['programCode'] ?? ''));
         $instituteName = trim((string)($row['institute'] ?? ''));
         $yearSection = trim((string)($row['yearSection'] ?? ''));
-        $targetAcademicYear = array_key_exists('academicYear', $row)
-            ? trim((string)$row['academicYear'])
-            : $academicYear;
         try {
+            $targetAcademicYear = rosterParseAcademicYear($row['academicYear'] ?? null, $academicYear);
             $targetIsActive = array_key_exists('isActive', $row) ? rosterParseActiveStatus($row['isActive']) : true;
         } catch (InvalidArgumentException $e) {
             $errors[] = "Row {$rowNumber}: " . $e->getMessage();
@@ -79,7 +77,7 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
             $errors[] = "Row {$rowNumber}: missing " . implode(', ', $missing) . '.';
             continue;
         }
-        if (strlen($studentNumber) > 20 || strlen($studentName) > 200 || strlen($yearSection) > 50 || strlen($targetAcademicYear) > 9) {
+        if (strlen($studentNumber) > 20 || strlen($studentName) > 200 || strlen($yearSection) > 50) {
             $errors[] = "Row {$rowNumber}: one or more values exceed the database length limit.";
             continue;
         }
@@ -127,7 +125,7 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
             'institute_id' => $institute ? (int)$institute['institute_id'] : null,
             'institute_name' => $institute ? (string)$institute['institute_name'] : '',
             'year_section' => $yearSection,
-            'academic_year' => $targetAcademicYear !== '' ? $targetAcademicYear : null,
+            'academic_year' => $targetAcademicYear,
             'is_active' => $targetIsActive,
         ];
     }

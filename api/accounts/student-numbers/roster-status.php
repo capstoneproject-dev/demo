@@ -1,6 +1,18 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../../includes/system_settings.php';
+
+function rosterParseAcademicYear(mixed $value, string $activeAcademicYear): string
+{
+    if ($value === null) return $activeAcademicYear;
+    if (!is_string($value) && !is_int($value)) {
+        throw new InvalidArgumentException('Invalid academicYear value. Use YYYY-YYYY.');
+    }
+    $year = trim((string)$value);
+    return $year === '' ? $activeAcademicYear : settingsValidateAcademicYear($year);
+}
+
 function rosterParseActiveStatus(mixed $value): bool
 {
     if (is_bool($value)) return $value;

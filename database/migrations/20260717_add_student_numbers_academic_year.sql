@@ -1,4 +1,7 @@
 ALTER TABLE student_numbers
+    ADD COLUMN IF NOT EXISTS year_section VARCHAR(50) NULL AFTER institute_id;
+
+ALTER TABLE student_numbers
     ADD COLUMN IF NOT EXISTS academic_year VARCHAR(9) NULL AFTER year_section;
 
 SET @academic_year_index_exists = (

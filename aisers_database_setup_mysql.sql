@@ -387,6 +387,8 @@ CREATE TABLE student_numbers (
     student_name VARCHAR(200) NOT NULL,
     program_id INT NULL,
     institute_id INT NULL,
+    year_section VARCHAR(50) NULL,
+    academic_year VARCHAR(9) NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     added_by_user_id INT NULL,
     added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -452,6 +454,7 @@ CREATE INDEX idx_document_workflow_queue ON document_submissions(recipient, stat
 CREATE INDEX idx_student_numbers_sn      ON student_numbers(student_number, is_active);
 CREATE INDEX idx_student_numbers_program ON student_numbers(program_id);
 CREATE INDEX idx_student_numbers_inst    ON student_numbers(institute_id);
+CREATE INDEX idx_student_numbers_academic_year ON student_numbers(academic_year);
 CREATE INDEX idx_pending_reg_status      ON pending_registrations(status, requested_at);
 CREATE INDEX idx_pending_reg_student_num ON pending_registrations(student_number);
 
