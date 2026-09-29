@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../api/accounts/officers/save-target.php';
+require __DIR__ . '/../api/accounts/officers/delete-target.php';
 
 $pdo = new PDO('sqlite::memory:', null, null, [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -30,4 +31,12 @@ foreach ([
     }
 }
 
-echo "Officer save target validation passed.\n";
+if (officerDeleteStudentMembership($pdo, 22) || officerDeleteStudentMembership($pdo, 33) ||
+    !officerDeleteStudentMembership($pdo, 11)) {
+    throw new Exception('Officer delete did not enforce student ownership');
+}
+if ((int)$pdo->query('SELECT COUNT(*) FROM organization_members')->fetchColumn() !== 2) {
+    throw new Exception('Officer delete modified a non-student membership');
+}
+
+echo "Officer save and delete target validation passed.\n";

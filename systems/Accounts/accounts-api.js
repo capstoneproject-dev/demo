@@ -284,6 +284,17 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
             return await post('/student-numbers/import.php', { action: 'preview', records, advisers, officers, advisersPresent });
         }
 
+        async previewAccountRoster(records, advisers = [], officers = [], advisersPresent = false) {
+            return await post('/students/import.php', { action: 'preview', records, advisers, officers, advisersPresent });
+        }
+
+        async applyAccountRoster(records, confirmedAcademicYear, advisers = [], officers = [], advisersPresent = false) {
+            if (!await window.appConfirmIdentity()) {
+                throw new Error('Account import was not applied. Password confirmation is required.');
+            }
+            return await post('/students/import.php', { action: 'apply', records, confirmedAcademicYear, advisers, officers, advisersPresent });
+        }
+
         async applyAnnualRoster(records, confirmedAcademicYear, advisers = [], officers = [], advisersPresent = false) {
             if (!await window.appConfirmIdentity()) {
                 throw new Error('Roster was not applied. Password confirmation is required.');

@@ -17,20 +17,12 @@ try {
                i.institute_name AS institute,
                sn.year_section AS yearSection,
                sn.academic_year AS academicYear,
-               CASE
-                   WHEN u.user_id IS NOT NULL AND u.email NOT LIKE '%@student.noop'
-                   THEN COALESCE(u.email, '')
-                   ELSE ''
-               END AS email,
-               CASE WHEN u.user_id IS NOT NULL THEN COALESCE(u.phone, '') ELSE '' END AS phone,
-               CASE WHEN u.user_id IS NOT NULL THEN 1 ELSE 0 END AS isRegistered,
                sn.is_active    AS isActive,
                sn.added_at     AS addedAt,
                sn.updated_at   AS updatedAt
         FROM student_numbers sn
         LEFT JOIN academic_programs ap ON ap.program_id = sn.program_id
         LEFT JOIN institutes i ON i.institute_id = sn.institute_id
-        LEFT JOIN users u ON u.student_number = sn.student_number
         ORDER BY sn.student_number ASC
     ");
     $stmt->execute();
@@ -38,7 +30,6 @@ try {
     foreach ($rows as &$r) {
         $r['programId'] = $r['programId'] !== null ? (int)$r['programId'] : null;
         $r['instituteId'] = $r['instituteId'] !== null ? (int)$r['instituteId'] : null;
-        $r['isRegistered'] = (bool)$r['isRegistered'];
         $r['isActive']      = (bool)$r['isActive'];
     }
     jsonOk(['items' => $rows]);

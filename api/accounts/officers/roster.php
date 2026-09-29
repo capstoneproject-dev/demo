@@ -20,7 +20,7 @@ function validateOfficerWorkbook(PDO $pdo, array $rows): array
             $stmt = $pdo->prepare("SELECT om.membership_id, om.user_id, om.org_id, om.joined_at,
                 u.student_number FROM organization_members om
                 JOIN users u ON u.user_id = om.user_id
-                WHERE om.membership_id = ? AND u.account_type <> 'organization_adviser'");
+                WHERE om.membership_id = ? AND u.account_type = 'student'");
             $stmt->execute([$membershipId]);
             $existing = $stmt->fetch();
             if (!$existing) throw new InvalidArgumentException("$label: officerId does not match an existing officer.");
@@ -116,11 +116,26 @@ function officerChangePreview(PDO $pdo, array $rows): array
 function applyOfficerWorkbook(PDO $pdo, array $rows): array
 {
     $counts = ['added' => 0, 'updated' => 0];
+    $findStudent = $pdo->prepare("SELECT user_id FROM users WHERE user_id = ? AND account_type = 'student'");
+    $findStudentMembership = $pdo->prepare("SELECT om.membership_id FROM organization_members om
+        JOIN users u ON u.user_id = om.user_id
+        WHERE om.membership_id = ? AND u.account_type = 'student'");
     $findRole = $pdo->prepare('SELECT role_id FROM org_roles WHERE org_id = ? AND role_name = ?');
     $createRole = $pdo->prepare('INSERT INTO org_roles (org_id, role_name, can_access_org_dashboard) VALUES (?, ?, 0)');
     $insert = $pdo->prepare('INSERT INTO organization_members (user_id, org_id, role_id, position_title, joined_at, is_active) VALUES (?, ?, ?, ?, ?, ?)');
-    $update = $pdo->prepare('UPDATE organization_members SET user_id=?, org_id=?, role_id=?, position_title=?, joined_at=?, is_active=? WHERE membership_id=?');
+    $update = $pdo->prepare("UPDATE organization_members
+        SET user_id=?, org_id=?, role_id=?, position_title=?, joined_at=?, is_active=?
+        WHERE membership_id=?
+          AND user_id IN (SELECT user_id FROM users WHERE account_type = 'student')");
     foreach ($rows as $row) {
+        $findStudent->execute([$row['userId']]);
+        if (!$findStudent->fetchColumn()) throw new InvalidArgumentException('Officer workbook may only assign student accounts.');
+        if ($row['membershipId']) {
+            $findStudentMembership->execute([$row['membershipId']]);
+            if (!$findStudentMembership->fetchColumn()) {
+                throw new InvalidArgumentException('Officer workbook may only update student memberships.');
+            }
+        }
         $findRole->execute([$row['orgId'], $row['roleName']]);
         $roleId = $findRole->fetchColumn();
         if (!$roleId) {
@@ -130,6 +145,12 @@ function applyOfficerWorkbook(PDO $pdo, array $rows): array
         $params = [$row['userId'], $row['orgId'], $roleId, $row['positionTitle'] ?: null, $row['joinedAt'], $row['active'] ? 1 : 0];
         if ($row['membershipId']) {
             $update->execute([...$params, $row['membershipId']]);
+            if ($update->rowCount() === 0) {
+                $findStudentMembership->execute([$row['membershipId']]);
+                if (!$findStudentMembership->fetchColumn()) {
+                    throw new InvalidArgumentException('Officer membership changed during import. Please preview again.');
+                }
+            }
             $counts['updated']++;
         } else {
             $insert->execute($params);

@@ -20,7 +20,7 @@
         <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <h2 class="h5 mb-0">Account Management</h2>
             <div class="d-flex flex-nowrap gap-2 nav-button-strip">
-                <a href="student-numbers.html?v=20260927-users" class="btn btn-outline-secondary btn-sm">Users</a>
+                <a href="student-numbers.html?v=20260929-students-badge-1" class="btn btn-outline-secondary btn-sm">Users</a>
                 <button id="importData" class="btn btn-outline-secondary btn-sm"
                     data-bs-toggle="modal" data-bs-target="#importStudentsModal">Import XLSX</button>
                 <button id="exportData"   class="btn btn-outline-secondary btn-sm">Export XLSX</button>
@@ -492,7 +492,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Import Annual Enrollment Roster from XLSX</h5>
+                <h5 class="modal-title">Import Registered Student Accounts from XLSX</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -503,7 +503,7 @@
                 <div class="alert alert-info mb-0">
                     <strong>Expected columns (first row = headers):</strong><br>
                     <code>studentId &nbsp;|&nbsp; studentName &nbsp;|&nbsp; institute &nbsp;|&nbsp; programCode &nbsp;|&nbsp; yearSection</code><br>
-                    <small class="text-muted">Upload the complete official enrollment roster. Only studentId and studentName require values. If an Officers sheet is included, matching officers are updated and new officers are added; omitted officers are retained.</small>
+                    <small class="text-muted">Upload the complete registered-account list. Unknown student IDs are rejected; students must register their own accounts. This import does not change Users page student-number records. Only studentId and studentName require values. If an Officers sheet is included, matching officers are updated and new officers are added; omitted officers are retained.</small>
                     <br><small class="text-muted">Officers sheet: officerId (optional), studentId, orgCode, roleName, positionTitle, joinedAt, isActive.</small>
                     <br><small class="text-muted">Advisers sheet: employeeNumber, firstName, lastName, email, phone, isActive, orgCode, joinedAt, membershipActive. Use one row per organization. Adviser-only files are also accepted.</small>
                 </div>
@@ -513,7 +513,7 @@
                     <div id="accountRosterSummary" class="row g-2 mb-3"></div>
                     <div id="accountRosterDetails" class="small"></div>
                     <div class="alert alert-danger mt-3 mb-0">
-                        Confirming will deactivate students absent from this complete roster and disable their portal accounts.
+                        Confirming will deactivate registered student accounts absent from this complete account list. Student-number eligibility records on the Users page will not change.
                     </div>
                 </div>
             </div>
@@ -529,10 +529,10 @@
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/bootstrap.bundle.min.js"></script>
 <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
-<script src="accounts-api.js?v=20260928-adviser-sync-1"></script>
+<script src="accounts-api.js?v=20260929-account-split-1"></script>
 <script src="advisers.js?v=20260929-adviser-export-1"></script>
 <script src="api.js"></script>
-<script src="script.js?v=20260928-officer-card-1"></script>
+<script src="script.js?v=20260929-account-split-1"></script>
 </body>
 </html>
 

@@ -805,7 +805,7 @@ function renderAccountRosterPreview(result) {
         }).join('');
         if (rows.length > 8) items += '<li class="text-muted">…and ' + (rows.length - 8) + ' more</li>';
         return '<div class="mb-2"><strong>' + group[0] + ' (' + rows.length + ')</strong><ul class="mb-0">' + items + '</ul></div>';
-    }).join('') || '<span class="text-muted">No student enrollment changes detected.</span>';
+    }).join('') || '<span class="text-muted">No registered student account changes detected.</span>';
     if (result.officerImportCount) {
         details.innerHTML += '<div class="mt-2"><strong>Officers in workbook (' + result.officerImportCount +
             ')</strong><br><span class="text-muted">Matching records will be updated; new records will be added. Officers absent from the workbook will not be deleted.</span></div>';
@@ -814,7 +814,7 @@ function renderAccountRosterPreview(result) {
     AdviserWorkbook.appendChangeDetails(result, 'accountRosterDetails');
 
     if (summary.largeDeactivationWarning) {
-        warning.textContent = 'Warning: this import will deactivate ' + summary.deactivationPercent + '% of active students. Verify that this is the complete roster.';
+        warning.textContent = 'Warning: this import will deactivate ' + summary.deactivationPercent + '% of active student accounts. Verify that this is the complete account list.';
         warning.classList.remove('d-none');
     } else {
         warning.classList.add('d-none');
@@ -831,7 +831,7 @@ async function processStudentsXLSXImport() {
             actionButton.disabled = true;
             actionButton.textContent = 'Applying…';
             var officerRecordsToApply = pendingAccountRoster.officers || [];
-            var applied = await getService().applyAnnualRoster(pendingAccountRoster.records, pendingAccountRoster.academicYear, pendingAccountRoster.advisers || [], officerRecordsToApply, pendingAccountRoster.advisersPresent);
+            var applied = await getService().applyAccountRoster(pendingAccountRoster.records, pendingAccountRoster.academicYear, pendingAccountRoster.advisers || [], officerRecordsToApply, pendingAccountRoster.advisersPresent);
             await AdviserWorkbook.load();
             bootstrap.Modal.getInstance(document.getElementById('importStudentsModal'))?.hide();
             fileInput.value = '';
@@ -842,10 +842,10 @@ async function processStudentsXLSXImport() {
             var officerMessage = officerRecordsToApply.length
                 ? ' Officers: ' + applied.officers.added + ' added, ' + applied.officers.updated + ' updated.'
                 : '';
-            showToast((applied.msg || 'Annual enrollment roster applied.') + officerMessage, 'success');
+            showToast((applied.msg || 'Registered accounts updated.') + officerMessage, 'success');
         } catch (err) {
             actionButton.disabled = false;
-            actionButton.textContent = 'Confirm & Apply Roster';
+            actionButton.textContent = 'Confirm & Apply Accounts';
             showToast(err.message || 'Roster import failed.', 'danger');
         }
         return;
@@ -862,12 +862,12 @@ async function processStudentsXLSXImport() {
         AdviserWorkbook.validateType(workbook, 'active_users');
         if (AdviserWorkbook.isAdviserOnly(workbook)) {
             var onlyAdvisers = AdviserWorkbook.parse(workbook);
-            var adviserPreview = await getService().previewAnnualRoster([], onlyAdvisers, [], true);
+            var adviserPreview = await getService().previewAccountRoster([], onlyAdvisers, [], true);
             pendingAccountRoster = {records: [], academicYear: adviserPreview.academicYear, officers: [], advisers: onlyAdvisers, advisersPresent: true};
             renderAccountRosterPreview(adviserPreview);
             AdviserWorkbook.describe(onlyAdvisers, 'accountRosterDetails', adviserPreview.adviserOmissions);
             actionButton.disabled = false;
-            actionButton.textContent = 'Confirm & Apply Roster';
+            actionButton.textContent = 'Confirm & Apply Accounts';
             actionButton.className = 'btn btn-danger';
             return;
         }
@@ -894,6 +894,8 @@ async function processStudentsXLSXImport() {
         var ysIdx = col(['yearsection', 'section', 'yearsec']);
         var academicYearIdx = col(['academicyear', 'schoolyear']);
         var isActiveIdx = col(['isactive', 'active', 'status']);
+        var emailIdx = col(['email', 'emailaddress']);
+        var phoneIdx = col(['phone', 'phonenumber']);
         var missing = [];
         if (idIdx === -1) missing.push('studentId');
         if (nameIdx === -1) missing.push('studentName');
@@ -914,6 +916,8 @@ async function processStudentsXLSXImport() {
                 programCode: String(row[progIdx] || '').trim(),
                 yearSection: String(row[ysIdx] || '').trim()
             };
+            if (emailIdx !== -1) record.email = String(row[emailIdx] || '').trim();
+            if (phoneIdx !== -1) record.phone = String(row[phoneIdx] || '').trim();
             if (academicYearIdx !== -1) {
                 record.academicYear = String(row[academicYearIdx] || '').trim();
             }
@@ -1005,12 +1009,12 @@ async function processStudentsXLSXImport() {
 
         var adviserRecords = AdviserWorkbook.parse(workbook);
         var advisersPresent = AdviserWorkbook.hasSheet(workbook);
-        var result = await getService().previewAnnualRoster(records, adviserRecords, officerRecords, advisersPresent);
+        var result = await getService().previewAccountRoster(records, adviserRecords, officerRecords, advisersPresent);
         pendingAccountRoster = { records: records, academicYear: result.academicYear, officers: officerRecords, advisers: adviserRecords, advisersPresent: advisersPresent };
         renderAccountRosterPreview(result);
         if (advisersPresent) AdviserWorkbook.describe(adviserRecords, 'accountRosterDetails', result.adviserOmissions);
         actionButton.disabled = false;
-        actionButton.textContent = 'Confirm & Apply Roster';
+        actionButton.textContent = 'Confirm & Apply Accounts';
         actionButton.className = 'btn btn-danger';
     } catch (err) {
         actionButton.disabled = false;
@@ -1045,22 +1049,21 @@ async function exportData() {
     try {
         var wb = XLSX.utils.book_new();
 
-        var studentsSheet = studentNumbers.map(function(s) {
+        var studentsSheet = students.map(function(s) {
             return {
                 studentId: s.studentId || '',
                 studentName: s.studentName || '',
                 institute: s.institute || '',
                 programCode: s.programCode || '',
                 yearSection: s.yearSection || '',
-                academicYear: s.academicYear || '',
                 isActive: s.isActive !== false ? 'true' : 'false',
                 email: s.email || '',
                 phone: s.phone || ''
             };
         });
-        var wsStudents = XLSX.utils.json_to_sheet(studentsSheet, {header: ['studentId', 'studentName', 'institute', 'programCode', 'yearSection', 'academicYear', 'isActive', 'email', 'phone']});
+        var wsStudents = XLSX.utils.json_to_sheet(studentsSheet, {header: ['studentId', 'studentName', 'institute', 'programCode', 'yearSection', 'isActive', 'email', 'phone']});
         formatWorksheetAsText(wsStudents);
-        wsStudents['!cols'] = [14,28,40,16,14,14,10,30,18].map(function(w) { return { wch: w }; });
+        wsStudents['!cols'] = [14,28,40,16,14,10,30,18].map(function(w) { return { wch: w }; });
         XLSX.utils.book_append_sheet(wb, wsStudents, 'Students');
 
         var officersSheet = officers.map(function(o) {

@@ -114,6 +114,8 @@ function updateStudentNumbersTable() {
 function updateTotalCount() {
     var el = document.getElementById('totalStudentCount');
     if (el) el.textContent = studentNumbers.length;
+    var badge = document.getElementById('studentsTotalBadge');
+    if (badge) badge.textContent = studentNumbers.length;
 }
 
 async function refreshStudentNumbers() {
@@ -201,12 +203,6 @@ function editStudentNumber(studentId) {
     document.getElementById('editStudentNumber').value = s.studentId;
     document.getElementById('editStudentName').value  = s.studentName;
     document.getElementById('editYearSection').value  = s.yearSection || '';
-    var registeredEmail = s.isRegistered ? (s.email || '') : '';
-    var registeredPhone = s.isRegistered ? (s.phone || '') : '';
-    document.getElementById('editEmail').value        = registeredEmail;
-    document.getElementById('editEmail').placeholder  = registeredEmail || 'No registered email provided';
-    document.getElementById('editPhone').value        = registeredPhone;
-    document.getElementById('editPhone').placeholder  = registeredPhone || 'No registered phone provided';
 
     var instSel = document.getElementById('editInstitute');
     populateInstituteSelect(instSel, s.institute);
@@ -225,8 +221,6 @@ async function handleEditStudentNumber(e) {
     var institute   = document.getElementById('editInstitute').value;
     var programCode = document.getElementById('editProgram').value;
     var yearSection = document.getElementById('editYearSection').value.trim();
-    var email       = document.getElementById('editEmail').value.trim();
-    var phone       = document.getElementById('editPhone').value.trim();
 
     if (!newId || !studentName) {
         showToast('Error', 'Student Number and Name are required.', 'error'); return;
@@ -241,7 +235,7 @@ async function handleEditStudentNumber(e) {
     var updated = Object.assign({}, studentNumbers[idx], {
         studentId: newId, studentName: studentName,
         institute: institute, programCode: programCode, yearSection: yearSection,
-        email: email, phone: phone, updatedAt: new Date().toISOString(), updatedBy: 'Admin'
+        updatedAt: new Date().toISOString(), updatedBy: 'Admin'
     });
 
     try {
@@ -521,14 +515,12 @@ async function exportStudentNumbers() {
                 programCode: s.programCode || '',
                 yearSection: s.yearSection || '',
                 academicYear: s.academicYear || '',
-                isActive:     s.isActive !== false ? 'true' : 'false',
-                email:       s.email       || '',
-                phone:       s.phone       || ''
+                isActive:     s.isActive !== false ? 'true' : 'false'
             };
         });
-        var ws = XLSX.utils.json_to_sheet(exportData, {header: ['studentId', 'studentName', 'institute', 'programCode', 'yearSection', 'academicYear', 'isActive', 'email', 'phone']});
+        var ws = XLSX.utils.json_to_sheet(exportData, {header: ['studentId', 'studentName', 'institute', 'programCode', 'yearSection', 'academicYear', 'isActive']});
         formatStudentNumberWorksheetAsText(ws);
-        ws['!cols'] = [14,30,40,12,14,14,10,30,16].map(function(w) { return { wch: w }; });
+        ws['!cols'] = [14,30,40,12,14,14,10].map(function(w) { return { wch: w }; });
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Students');
         await AdviserWorkbook.appendSheet(wb);

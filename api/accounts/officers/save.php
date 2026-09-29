@@ -77,6 +77,7 @@ try {
                 joined_at = :ja,
                 is_active = :active
             WHERE membership_id = :mid
+              AND user_id IN (SELECT user_id FROM users WHERE account_type = 'student')
         ");
         $upd->execute([
             ':uid'    => $userId,
@@ -88,7 +89,9 @@ try {
             ':mid'    => $membershipId,
         ]);
         if ($upd->rowCount() === 0) {
-            $exists = $pdo->prepare("SELECT membership_id FROM organization_members WHERE membership_id = :mid");
+            $exists = $pdo->prepare("SELECT membership_id FROM organization_members
+                WHERE membership_id = :mid
+                  AND user_id IN (SELECT user_id FROM users WHERE account_type = 'student')");
             $exists->execute([':mid' => $membershipId]);
             if (!$exists->fetch()) jsonError('Officer record not found.', 404);
         }

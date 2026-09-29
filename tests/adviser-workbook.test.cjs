@@ -65,9 +65,10 @@ test('Both page importers pass advisers to preview and retain them for apply', a
         ctx.INSTITUTE_PROGRAMS = {};
         ctx.console = console;
         let received;
-        ctx.window.accountsLocalStorageService = {previewAnnualRoster: async (students, advisers) => {
+        const preview = async (students, advisers) => {
             received = {students, advisers}; return {academicYear: '2026-2027'};
-        }};
+        };
+        ctx.window.accountsLocalStorageService = {previewAnnualRoster: preview, previewAccountRoster: preview};
         vm.runInContext(fs.readFileSync('systems/Accounts/' + file, 'utf8'), ctx);
         vm.runInContext('renderAccountRosterPreview = renderAnnualRosterPreview = function() {}; showToast = function(message) { throw new Error(message); };', ctx);
         ctx.window.AdviserWorkbook.describe = () => {};

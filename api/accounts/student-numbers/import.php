@@ -139,29 +139,10 @@ function rosterBuildPreview(PDO $pdo, array $records, string $academicYear): arr
     $rows = $pdo->query(
         "SELECT sn.student_number, sn.student_name, sn.program_id, sn.institute_id,
                 sn.year_section, sn.academic_year, sn.is_active,
-                ap.program_code, i.institute_name,
-                CASE WHEN u.user_id IS NULL THEN 0 ELSE 1 END AS has_account,
-                CASE WHEN EXISTS (
-                    SELECT 1
-                    FROM organization_members active_om
-                    WHERE active_om.user_id = u.user_id
-                      AND active_om.is_active = 1
-                ) THEN 1 ELSE 0 END AS is_officer,
-                (
-                    SELECT GROUP_CONCAT(
-                        DISTINCT CONCAT(officer_org.org_name, ' (', officer_role.role_name, ')')
-                        ORDER BY officer_org.org_name SEPARATOR ', '
-                    )
-                    FROM organization_members officer_om
-                    JOIN organizations officer_org ON officer_org.org_id = officer_om.org_id
-                    JOIN org_roles officer_role ON officer_role.role_id = officer_om.role_id
-                    WHERE officer_om.user_id = u.user_id
-                      AND officer_om.is_active = 1
-                ) AS officer_roles
+                ap.program_code, i.institute_name
          FROM student_numbers sn
          LEFT JOIN academic_programs ap ON ap.program_id = sn.program_id
-         LEFT JOIN institutes i ON i.institute_id = sn.institute_id
-         LEFT JOIN users u ON u.student_number = sn.student_number AND u.account_type = 'student'"
+         LEFT JOIN institutes i ON i.institute_id = sn.institute_id"
     )->fetchAll();
 
     $existing = [];
@@ -221,14 +202,11 @@ function rosterBuildPreview(PDO $pdo, array $records, string $academicYear): arr
                 'studentName' => $old['student_name'],
                 'programCode' => $old['program_code'] ?? '',
                 'yearSection' => $old['year_section'] ?? '',
-                'hasAccount' => (bool)$old['has_account'],
-                'isOfficer' => (bool)$old['is_officer'],
-                'officerRoles' => $old['officer_roles'] ?? '',
+                'hasAccount' => false,
+                'isOfficer' => false,
+                'officerRoles' => '',
             ];
             $changes['deactivated'][] = $deactivatedStudent;
-            if ($deactivatedStudent['isOfficer']) {
-                $changes['officersAffected'][] = $deactivatedStudent;
-            }
         }
     }
 
@@ -326,15 +304,6 @@ try {
                 academic_year = VALUES(academic_year),
                 is_active = VALUES(is_active)"
         );
-        $syncUser = $pdo->prepare(
-            "UPDATE users
-             SET program_id = :program_id,
-                 institute_id = :institute_id,
-                 is_active = :is_active
-             WHERE student_number = :student_number
-               AND account_type = 'student'"
-        );
-
         foreach ($validation['records'] as $record) {
             $upsert->execute([
                 ':student_number' => $record['student_number'],
@@ -346,12 +315,6 @@ try {
                 ':is_active' => $record['is_active'] ? 1 : 0,
                 ':actor_id' => $session['user_id'] ?? null,
             ]);
-            $syncUser->execute([
-                ':program_id' => $record['program_id'],
-                ':institute_id' => $record['institute_id'],
-                ':is_active' => $record['is_active'] ? 1 : 0,
-                ':student_number' => $record['student_number'],
-            ]);
         }
 
         $toDeactivate = $preview['changes']['deactivated'];
@@ -359,16 +322,9 @@ try {
             $deactivateRoster = $pdo->prepare(
                 "UPDATE student_numbers SET is_active = 0 WHERE student_number = :student_number"
             );
-            $deactivateUser = $pdo->prepare(
-                "UPDATE users
-                 SET is_active = 0
-                 WHERE student_number = :student_number
-                   AND account_type = 'student'"
-            );
             foreach ($toDeactivate as $student) {
                 $params = [':student_number' => $student['studentId']];
                 $deactivateRoster->execute($params);
-                $deactivateUser->execute($params);
             }
         }
 

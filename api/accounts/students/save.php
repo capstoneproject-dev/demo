@@ -48,75 +48,16 @@ try {
     }
     $programId = (int)$prog['program_id'];
 
-    // Keep the enrollment roster snapshot present and synchronized. Some student
-    // accounts (especially manually created ones) do not yet have a matching
-    // student_numbers row, so a plain UPDATE would silently save nothing.
-    $actorId = (int)(getPhpSession()['user_id'] ?? 0);
-    $syncStudentNumber = $pdo->prepare("
-        INSERT INTO student_numbers
-            (student_number, student_name, program_id, institute_id, year_section, is_active, added_by_user_id)
-        VALUES
-            (:sn, :name, :pid, (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1), :ys, :active, :actor)
-        ON DUPLICATE KEY UPDATE
-            student_name = VALUES(student_name),
-            program_id = VALUES(program_id),
-            institute_id = VALUES(institute_id),
-            year_section = VALUES(year_section),
-            is_active = VALUES(is_active)
-    ");
-    $syncStudentNumberParams = [
-        ':sn' => $studentNumber,
-        ':name' => $studentName,
-        ':pid' => $programId,
-        ':pid2' => $programId,
-        ':ys' => $yearSection,
-        ':active' => $isActive,
-        ':actor' => $actorId > 0 ? $actorId : null,
-    ];
-
     if ($userId === 0 && $origStudentId === '') {
-        // ----- INSERT -----
-        // Check for duplicate student_number
-        $chk = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn");
-        $chk->execute([':sn' => $studentNumber]);
-        if ($chk->fetch()) {
-            jsonError('That student number already exists.', 409);
-        }
-
-        // Default password = bcrypt(studentNumber)
-        $pwHash = password_hash($studentNumber, PASSWORD_BCRYPT);
-
-        $ins = $pdo->prepare("
-            INSERT INTO users
-                (student_number, program_id, institute_id, email, password_hash, first_name, last_name, phone,
-                 account_type, has_unpaid_debt, is_active)
-            VALUES (:sn, :pid, (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1), :email, :pw, :fn, :ln, :phone, 'student', :debt, :active)
-        ");
-        $ins->execute([
-            ':sn'     => $studentNumber,
-            ':pid'    => $programId,
-            ':pid2'   => $programId,
-            ':email'  => $email,
-            ':pw'     => $pwHash,
-            ':fn'     => $firstName,
-            ':ln'     => $lastName,
-            ':phone'  => $phone,
-            ':debt'   => $hasUnpaidDebt,
-            ':active' => $isActive,
-        ]);
-        $userId = (int)$pdo->lastInsertId();
-
-        $syncStudentNumber->execute($syncStudentNumberParams);
-
-        jsonOk(['user_id' => $userId, 'msg' => 'Student account created.']);
+        jsonError('Student accounts must be created through student registration, not Account Management.', 422);
     } else {
         // ----- UPDATE -----
         // Look up by userId (user_id) if provided, otherwise fall back to origStudentId
         if ($userId > 0) {
-            $chk = $pdo->prepare("SELECT user_id, student_number FROM users WHERE user_id = :uid");
+            $chk = $pdo->prepare("SELECT user_id, student_number FROM users WHERE user_id = :uid AND account_type = 'student'");
             $chk->execute([':uid' => $userId]);
         } else {
-            $chk = $pdo->prepare("SELECT user_id, student_number FROM users WHERE student_number = :sn");
+            $chk = $pdo->prepare("SELECT user_id, student_number FROM users WHERE student_number = :sn AND account_type = 'student'");
             $chk->execute([':sn' => $origStudentId]);
         }
         $existing = $chk->fetch();
@@ -140,18 +81,20 @@ try {
             SET student_number = :sn,
                 program_id      = :pid,
                 institute_id    = (SELECT institute_id FROM academic_programs WHERE program_id = :pid2 LIMIT 1),
+                year_section    = :ys,
                 email          = :email,
                 first_name     = :fn,
                 last_name      = :ln,
                 phone          = :phone,
                 has_unpaid_debt = :debt,
                 is_active      = :active
-            WHERE user_id = :uid
+            WHERE user_id = :uid AND account_type = 'student'
         ");
         $upd->execute([
             ':sn'     => $studentNumber,
             ':pid'    => $programId,
             ':pid2'   => $programId,
+            ':ys'     => $yearSection,
             ':email'  => $email,
             ':fn'     => $firstName,
             ':ln'     => $lastName,
@@ -160,8 +103,6 @@ try {
             ':active' => $isActive,
             ':uid'    => $userId,
         ]);
-
-        $syncStudentNumber->execute($syncStudentNumberParams);
 
         jsonOk(['user_id' => $userId, 'msg' => 'Student account updated.']);
     }
