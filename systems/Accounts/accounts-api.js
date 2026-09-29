@@ -247,6 +247,7 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
                 studentId:   officerData.studentId,
                 orgCode:     officerData.orgCode,
                 roleName:    officerData.roleName || 'Officer',
+                positionTitle: officerData.positionTitle || '',
                 joinedAt:    officerData.joinedAt || new Date().toISOString().slice(0, 10),
                 isActive:    officerData.isActive !== undefined ? officerData.isActive : true
             };
@@ -260,6 +261,7 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
                 studentId: officerData.studentId,
                 orgCode:   officerData.orgCode,
                 roleName:  officerData.roleName || 'Officer',
+                positionTitle: officerData.positionTitle || '',
                 joinedAt:  officerData.joinedAt || new Date().toISOString().slice(0, 10),
                 isActive:  officerData.isActive !== undefined ? officerData.isActive : true
             });
@@ -278,13 +280,30 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
 
         // ── ANNUAL ENROLLMENT ROSTER ────────────────────────────────
 
-        async previewAnnualRoster(records) {
-            return await post('/student-numbers/import.php', { action: 'preview', records });
+        async previewAnnualRoster(records, advisers = [], officers = [], advisersPresent = false) {
+            return await post('/student-numbers/import.php', { action: 'preview', records, advisers, officers, advisersPresent });
         }
 
-        async applyAnnualRoster(records, confirmedAcademicYear) {
+        async previewAccountRoster(records, advisers = [], officers = [], advisersPresent = false) {
+            return await post('/students/import.php', { action: 'preview', records, advisers, officers, advisersPresent });
+        }
+
+        async applyAccountRoster(records, confirmedAcademicYear, advisers = [], officers = [], advisersPresent = false) {
+            if (!await window.appConfirmIdentity()) {
+                throw new Error('Account import was not applied. Password confirmation is required.');
+            }
+            return await post('/students/import.php', { action: 'apply', records, confirmedAcademicYear, advisers, officers, advisersPresent });
+        }
+
+        async applyAnnualRoster(records, confirmedAcademicYear, advisers = [], officers = [], advisersPresent = false) {
+            if (!await window.appConfirmIdentity()) {
+                throw new Error('Roster was not applied. Password confirmation is required.');
+            }
             return await post('/student-numbers/import.php', {
                 action: 'apply',
+                advisers,
+                advisersPresent,
+                officers,
                 records,
                 confirmedAcademicYear
             });

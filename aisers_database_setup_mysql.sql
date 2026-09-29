@@ -19,6 +19,7 @@ CREATE TABLE users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
     student_number VARCHAR(20) NULL UNIQUE,
     program_id INT NULL,
+    institute_id INT NULL,
     year_section VARCHAR(50) NULL,
     employee_number VARCHAR(20) NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
@@ -385,8 +386,10 @@ CREATE TABLE student_numbers (
     sn_id INT AUTO_INCREMENT PRIMARY KEY,
     student_number VARCHAR(20) NOT NULL UNIQUE,
     student_name VARCHAR(200) NOT NULL,
-    program_id INT NOT NULL,
-    institute_id INT NOT NULL,
+    program_id INT NULL,
+    institute_id INT NULL,
+    year_section VARCHAR(50) NULL,
+    academic_year VARCHAR(9) NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     added_by_user_id INT NULL,
     added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -452,6 +455,7 @@ CREATE INDEX idx_document_workflow_queue ON document_submissions(recipient, stat
 CREATE INDEX idx_student_numbers_sn      ON student_numbers(student_number, is_active);
 CREATE INDEX idx_student_numbers_program ON student_numbers(program_id);
 CREATE INDEX idx_student_numbers_inst    ON student_numbers(institute_id);
+CREATE INDEX idx_student_numbers_academic_year ON student_numbers(academic_year);
 CREATE INDEX idx_pending_reg_status      ON pending_registrations(status, requested_at);
 CREATE INDEX idx_pending_reg_student_num ON pending_registrations(student_number);
 
@@ -789,6 +793,13 @@ SET program_id = CASE student_number
     ELSE program_id
 END
 WHERE student_number IN ('2023-10001', '2023-10002', '2023-10003');
+
+-- Keep the account institute in step with each seeded student's program.
+UPDATE users u
+JOIN academic_programs ap ON ap.program_id = u.program_id
+SET u.institute_id = ap.institute_id
+WHERE u.account_type = 'student'
+  AND u.institute_id IS NULL;
 
 -- BSAIT(1) → ELITECH(2), BSAIS(2) → AISERS(1)
 -- Other programs (BSAET, BSAT, BSAMT, BSAEE, BAT-AET → AETSO/AERO-ATSO/AMTSO)

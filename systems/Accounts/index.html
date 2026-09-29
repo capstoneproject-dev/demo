@@ -2,13 +2,13 @@
 <html lang="en">
 
 <head>
-    <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
+    <script src="../../assets/js/app-dialog.js?v=20260927-roster-password-1"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Account Management System</title>
     <link href="lib/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260901-responsive-2">
+    <link rel="stylesheet" href="styles.css?v=20260929-modal-scroll-1">
     <link rel="stylesheet" href="../../assets/css/responsive-tables.css?v=20260901-2">
 </head>
 
@@ -20,7 +20,7 @@
         <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <h2 class="h5 mb-0">Account Management</h2>
             <div class="d-flex flex-nowrap gap-2 nav-button-strip">
-                <a href="student-numbers.html?v=20260718e" class="btn btn-outline-secondary btn-sm">Student Database</a>
+                <a href="student-numbers.html?v=20260929-students-badge-1" class="btn btn-outline-secondary btn-sm">Users</a>
                 <button id="importData" class="btn btn-outline-secondary btn-sm"
                     data-bs-toggle="modal" data-bs-target="#importStudentsModal">Import XLSX</button>
                 <button id="exportData"   class="btn btn-outline-secondary btn-sm">Export XLSX</button>
@@ -47,6 +47,9 @@
                 Officers <span class="badge bg-secondary ms-1" id="officersTotalBadge">0</span>
             </button>
         </li>
+        <li class="nav-item" role="presentation" id="advisersTabItem">
+            <button class="nav-link" id="advisers-tab" data-bs-toggle="tab" data-bs-target="#advisersPanel" type="button" role="tab">Advisers <span class="badge bg-secondary ms-1" id="advisersTotalBadge">0</span></button>
+        </li>
         <li class="nav-item primary-osa-only" role="presentation" hidden>
             <button class="nav-link" id="osa-staff-tab"
                 data-bs-toggle="tab" data-bs-target="#osaStaffPanel"
@@ -55,6 +58,13 @@
     </ul>
 
     <div class="tab-content border border-top-0 rounded-bottom p-3 mb-4" id="mainTabContent">
+        <div class="tab-pane fade" id="advisersPanel" role="tabpanel" aria-labelledby="advisers-tab">
+            <input id="adviserSearch" class="form-control mb-3" placeholder="Search advisers by employee number, name, email, or organization" aria-label="Search advisers">
+            <div class="table-responsive"><table class="table table-hover table-sm align-middle">
+                <thead><tr><th>Employee #</th><th>Name</th><th>Email</th><th>Phone</th><th>Organization</th><th>Joined</th><th>Account status</th><th>Membership status</th></tr></thead>
+                <tbody id="adviserRecords"><tr><td colspan="8">Loading advisers…</td></tr></tbody>
+            </table></div>
+        </div>
 
         <!-- ══════════════ STUDENTS PANEL ══════════════ -->
         <div class="tab-pane fade show active" id="studentsPanel" role="tabpanel">
@@ -482,7 +492,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Import Annual Enrollment Roster from XLSX</h5>
+                <h5 class="modal-title">Import Registered Student Accounts from XLSX</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -493,7 +503,9 @@
                 <div class="alert alert-info mb-0">
                     <strong>Expected columns (first row = headers):</strong><br>
                     <code>studentId &nbsp;|&nbsp; studentName &nbsp;|&nbsp; institute &nbsp;|&nbsp; programCode &nbsp;|&nbsp; yearSection</code><br>
-                    <small class="text-muted">Upload the complete official enrollment roster. Existing student IDs will be updated, not skipped.</small>
+                    <small class="text-muted">Upload the complete registered-account list. Unknown student IDs are rejected; students must register their own accounts. This import does not change Users page student-number records. Only studentId and studentName require values. If an Officers sheet is included, matching officers are updated and new officers are added; omitted officers are retained.</small>
+                    <br><small class="text-muted">Officers sheet: officerId (optional), studentId, orgCode, roleName, positionTitle, joinedAt, isActive.</small>
+                    <br><small class="text-muted">Advisers sheet: employeeNumber, firstName, lastName, email, phone, isActive, orgCode, joinedAt, membershipActive. Use one row per organization. Adviser-only files are also accepted.</small>
                 </div>
                 <div id="accountRosterPreview" class="d-none mt-3">
                     <div id="accountRosterWarning" class="alert alert-warning d-none"></div>
@@ -501,7 +513,7 @@
                     <div id="accountRosterSummary" class="row g-2 mb-3"></div>
                     <div id="accountRosterDetails" class="small"></div>
                     <div class="alert alert-danger mt-3 mb-0">
-                        Confirming will deactivate students absent from this complete roster and disable their portal accounts.
+                        Confirming will deactivate registered student accounts absent from this complete account list. Student-number eligibility records on the Users page will not change.
                     </div>
                 </div>
             </div>
@@ -517,9 +529,10 @@
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/bootstrap.bundle.min.js"></script>
 <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
-<script src="accounts-api.js?v=20260826-year-section-save-1"></script>
+<script src="accounts-api.js?v=20260929-account-split-1"></script>
+<script src="advisers.js?v=20260929-adviser-export-1"></script>
 <script src="api.js"></script>
-<script src="script.js?v=20260826-year-section-save-1"></script>
+<script src="script.js?v=20260929-account-split-1"></script>
 </body>
 </html>
 

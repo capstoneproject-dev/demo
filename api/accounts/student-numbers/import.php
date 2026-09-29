@@ -4,11 +4,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../../config/db.php';
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/system_settings.php';
+require_once __DIR__ . '/../advisers/roster.php';
+require_once __DIR__ . '/../officers/roster.php';
+require_once __DIR__ . '/roster-status.php';
 
 header('Content-Type: application/json');
 $session = apiRequireOsaSystemAdministrator();
 requirePost();
-apiRequireRecentReauthentication();
 
 function rosterEnsureAcademicYearColumn(PDO $pdo): void
 {
@@ -59,14 +61,18 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
         $programCode = trim((string)($row['programCode'] ?? ''));
         $instituteName = trim((string)($row['institute'] ?? ''));
         $yearSection = trim((string)($row['yearSection'] ?? ''));
+        try {
+            $targetAcademicYear = rosterParseAcademicYear($row['academicYear'] ?? null, $academicYear);
+            $targetIsActive = array_key_exists('isActive', $row) ? rosterParseActiveStatus($row['isActive']) : true;
+        } catch (InvalidArgumentException $e) {
+            $errors[] = "Row {$rowNumber}: " . $e->getMessage();
+            continue;
+        }
         $key = strtoupper($studentNumber);
 
         $missing = [];
         if ($studentNumber === '') $missing[] = 'studentId';
         if ($studentName === '') $missing[] = 'studentName';
-        if ($instituteName === '') $missing[] = 'institute';
-        if ($programCode === '') $missing[] = 'programCode';
-        if ($yearSection === '') $missing[] = 'yearSection';
         if ($missing) {
             $errors[] = "Row {$rowNumber}: missing " . implode(', ', $missing) . '.';
             continue;
@@ -81,20 +87,32 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
         }
         $seen[$key] = $rowNumber;
 
-        $programStmt->execute([':program_code' => $programCode]);
-        $program = $programStmt->fetch();
-        if (!$program) {
-            $errors[] = "Row {$rowNumber}: unknown programCode '{$programCode}'.";
-            continue;
+        $program = null;
+        if ($programCode !== '') {
+            $programStmt->execute([':program_code' => $programCode]);
+            $program = $programStmt->fetch();
+            if (!$program) {
+                $errors[] = "Row {$rowNumber}: unknown programCode '{$programCode}'.";
+                continue;
+            }
         }
 
-        $instituteStmt->execute([':institute_name' => $instituteName]);
-        $institute = $instituteStmt->fetch();
-        if (!$institute) {
-            $errors[] = "Row {$rowNumber}: unknown institute '{$instituteName}'.";
-            continue;
+        $institute = null;
+        if ($instituteName !== '') {
+            $instituteStmt->execute([':institute_name' => $instituteName]);
+            $institute = $instituteStmt->fetch();
+            if (!$institute) {
+                $errors[] = "Row {$rowNumber}: unknown institute '{$instituteName}'.";
+                continue;
+            }
         }
-        if ((int)$program['institute_id'] !== (int)$institute['institute_id']) {
+        if ($program && !$institute) {
+            $institute = [
+                'institute_id' => $program['institute_id'],
+                'institute_name' => $program['institute_name'],
+            ];
+        }
+        if ($program && $institute && (int)$program['institute_id'] !== (int)$institute['institute_id']) {
             $errors[] = "Row {$rowNumber}: {$program['program_code']} does not belong to {$institute['institute_name']}.";
             continue;
         }
@@ -102,12 +120,13 @@ function rosterValidateRecords(PDO $pdo, array $records, string $academicYear): 
         $normalized[] = [
             'student_number' => $studentNumber,
             'student_name' => $studentName,
-            'program_id' => (int)$program['program_id'],
-            'program_code' => (string)$program['program_code'],
-            'institute_id' => (int)$institute['institute_id'],
-            'institute_name' => (string)$institute['institute_name'],
+            'program_id' => $program ? (int)$program['program_id'] : null,
+            'program_code' => $program ? (string)$program['program_code'] : '',
+            'institute_id' => $institute ? (int)$institute['institute_id'] : null,
+            'institute_name' => $institute ? (string)$institute['institute_name'] : '',
             'year_section' => $yearSection,
-            'academic_year' => $academicYear,
+            'academic_year' => $targetAcademicYear,
+            'is_active' => $targetIsActive,
         ];
     }
 
@@ -120,29 +139,10 @@ function rosterBuildPreview(PDO $pdo, array $records, string $academicYear): arr
     $rows = $pdo->query(
         "SELECT sn.student_number, sn.student_name, sn.program_id, sn.institute_id,
                 sn.year_section, sn.academic_year, sn.is_active,
-                ap.program_code, i.institute_name,
-                CASE WHEN u.user_id IS NULL THEN 0 ELSE 1 END AS has_account,
-                CASE WHEN EXISTS (
-                    SELECT 1
-                    FROM organization_members active_om
-                    WHERE active_om.user_id = u.user_id
-                      AND active_om.is_active = 1
-                ) THEN 1 ELSE 0 END AS is_officer,
-                (
-                    SELECT GROUP_CONCAT(
-                        DISTINCT CONCAT(officer_org.org_name, ' (', officer_role.role_name, ')')
-                        ORDER BY officer_org.org_name SEPARATOR ', '
-                    )
-                    FROM organization_members officer_om
-                    JOIN organizations officer_org ON officer_org.org_id = officer_om.org_id
-                    JOIN org_roles officer_role ON officer_role.role_id = officer_om.role_id
-                    WHERE officer_om.user_id = u.user_id
-                      AND officer_om.is_active = 1
-                ) AS officer_roles
+                ap.program_code, i.institute_name
          FROM student_numbers sn
          LEFT JOIN academic_programs ap ON ap.program_id = sn.program_id
-         LEFT JOIN institutes i ON i.institute_id = sn.institute_id
-         LEFT JOIN users u ON u.student_number = sn.student_number AND u.account_type = 'student'"
+         LEFT JOIN institutes i ON i.institute_id = sn.institute_id"
     )->fetchAll();
 
     $existing = [];
@@ -180,12 +180,13 @@ function rosterBuildPreview(PDO $pdo, array $records, string $academicYear): arr
         if ((int)$old['program_id'] !== (int)$record['program_id']) $changedFields[] = 'program';
         if ((int)$old['institute_id'] !== (int)$record['institute_id']) $changedFields[] = 'institute';
         if ((string)$old['year_section'] !== (string)$record['year_section']) $changedFields[] = 'year/section';
-        if ((string)$old['academic_year'] !== $academicYear) $changedFields[] = 'academic year';
+        if ((string)$old['academic_year'] !== (string)$record['academic_year']) $changedFields[] = 'academic year';
+        if ((bool)$old['is_active'] !== (bool)$record['is_active']) $changedFields[] = 'status';
         $base['previousProgramCode'] = $old['program_code'] ?? '';
         $base['previousYearSection'] = $old['year_section'] ?? '';
         $base['changedFields'] = $changedFields;
 
-        if (!(bool)$old['is_active']) {
+        if (!(bool)$old['is_active'] && (bool)$record['is_active']) {
             $changes['reactivated'][] = $base;
         } elseif ($changedFields) {
             $changes['updated'][] = $base;
@@ -201,14 +202,11 @@ function rosterBuildPreview(PDO $pdo, array $records, string $academicYear): arr
                 'studentName' => $old['student_name'],
                 'programCode' => $old['program_code'] ?? '',
                 'yearSection' => $old['year_section'] ?? '',
-                'hasAccount' => (bool)$old['has_account'],
-                'isOfficer' => (bool)$old['is_officer'],
-                'officerRoles' => $old['officer_roles'] ?? '',
+                'hasAccount' => false,
+                'isOfficer' => false,
+                'officerRoles' => '',
             ];
             $changes['deactivated'][] = $deactivatedStudent;
-            if ($deactivatedStudent['isOfficer']) {
-                $changes['officersAffected'][] = $deactivatedStudent;
-            }
         }
     }
 
@@ -239,9 +237,13 @@ try {
 
     $body = getRequestBody();
     $action = strtolower(trim((string)($body['action'] ?? 'preview')));
+    if ($action === 'apply') apiRequireRecentReauthentication();
     $records = $body['records'] ?? [];
-    if (!is_array($records) || count($records) === 0) {
-        jsonError('The roster must contain at least one student.', 422);
+    $officerInput = $body['officers'] ?? [];
+    $syncAdvisers = ($body['advisersPresent'] ?? false) === true;
+    if (!is_array($officerInput)) jsonError('Invalid Officers sheet.', 422);
+    if (!is_array($records) || (!$records && !$syncAdvisers)) {
+        jsonError('The workbook must contain students or advisers.', 422);
     }
     if (!in_array($action, ['preview', 'apply'], true)) {
         jsonError('action must be preview or apply.', 422);
@@ -254,12 +256,30 @@ try {
         jsonError("Roster validation failed:\n" . implode("\n", array_slice($validation['errors'], 0, 20)), 422);
     }
 
-    $preview = rosterBuildPreview($pdo, $validation['records'], $academicYear);
+    $preview = $records ? rosterBuildPreview($pdo, $validation['records'], $academicYear) : [
+        'summary' => [], 'changes' => ['deactivated' => []],
+    ];
+    try {
+        $adviserInput = $body['advisers'] ?? [];
+        if (!is_array($adviserInput)) throw new InvalidArgumentException('Invalid Advisers sheet.');
+        if (!$syncAdvisers && $adviserInput) throw new InvalidArgumentException('Advisers sheet indicator is missing.');
+        $adviserRecords = validateAdviserRows($pdo, $adviserInput);
+        $adviserChanges = $syncAdvisers ? adviserChangePreview($pdo, $adviserRecords) : ['new' => [], 'updated' => [], 'reactivated' => [], 'unchanged' => []];
+        $adviserOmissions = $syncAdvisers ? adviserOmissions($pdo, $adviserRecords) : ['accounts' => [], 'memberships' => []];
+        $officerRecords = validateOfficerWorkbook($pdo, $officerInput);
+        $officerChanges = officerChangePreview($pdo, $officerRecords);
+    } catch (InvalidArgumentException $e) {
+        jsonError($e->getMessage(), 422);
+    }
     if ($action === 'preview') {
         jsonOk([
             'academicYear' => $academicYear,
             'summary' => $preview['summary'],
             'changes' => $preview['changes'],
+            'officerImportCount' => count($officerRecords),
+            'officerChanges' => $officerChanges,
+            'adviserOmissions' => $adviserOmissions,
+            'adviserChanges' => $adviserChanges,
         ]);
     }
 
@@ -275,24 +295,15 @@ try {
                  academic_year, is_active, added_by_user_id)
              VALUES
                 (:student_number, :student_name, :program_id, :institute_id, :year_section,
-                 :academic_year, 1, :actor_id)
+                 :academic_year, :is_active, :actor_id)
              ON DUPLICATE KEY UPDATE
                 student_name = VALUES(student_name),
                 program_id = VALUES(program_id),
                 institute_id = VALUES(institute_id),
                 year_section = VALUES(year_section),
                 academic_year = VALUES(academic_year),
-                is_active = 1"
+                is_active = VALUES(is_active)"
         );
-        $syncUser = $pdo->prepare(
-            "UPDATE users
-             SET program_id = :program_id,
-                 institute_id = :institute_id,
-                 is_active = 1
-             WHERE student_number = :student_number
-               AND account_type = 'student'"
-        );
-
         foreach ($validation['records'] as $record) {
             $upsert->execute([
                 ':student_number' => $record['student_number'],
@@ -300,13 +311,9 @@ try {
                 ':program_id' => $record['program_id'],
                 ':institute_id' => $record['institute_id'],
                 ':year_section' => $record['year_section'],
-                ':academic_year' => $academicYear,
+                ':academic_year' => $record['academic_year'],
+                ':is_active' => $record['is_active'] ? 1 : 0,
                 ':actor_id' => $session['user_id'] ?? null,
-            ]);
-            $syncUser->execute([
-                ':program_id' => $record['program_id'],
-                ':institute_id' => $record['institute_id'],
-                ':student_number' => $record['student_number'],
             ]);
         }
 
@@ -315,19 +322,15 @@ try {
             $deactivateRoster = $pdo->prepare(
                 "UPDATE student_numbers SET is_active = 0 WHERE student_number = :student_number"
             );
-            $deactivateUser = $pdo->prepare(
-                "UPDATE users
-                 SET is_active = 0
-                 WHERE student_number = :student_number
-                   AND account_type = 'student'"
-            );
             foreach ($toDeactivate as $student) {
                 $params = [':student_number' => $student['studentId']];
                 $deactivateRoster->execute($params);
-                $deactivateUser->execute($params);
             }
         }
 
+        applyAdviserRows($pdo, $adviserRecords);
+        if ($syncAdvisers) deactivateOmittedAdvisers($pdo, $adviserOmissions);
+        $officerResult = applyOfficerWorkbook($pdo, $officerRecords);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -337,6 +340,7 @@ try {
     jsonOk([
         'academicYear' => $academicYear,
         'summary' => $preview['summary'],
+        'officers' => $officerResult,
         'msg' => "Annual enrollment roster for {$academicYear} applied successfully.",
     ]);
 } catch (InvalidArgumentException $e) {

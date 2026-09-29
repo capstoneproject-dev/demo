@@ -1,6 +1,7 @@
 <?php
 require_once '../../../config/db.php';
 require_once '../../../includes/auth.php';
+require_once __DIR__ . '/delete-target.php';
 
 header('Content-Type: application/json');
 apiRequireOsaSystemAdministrator();
@@ -16,9 +17,7 @@ if (!$membershipId) {
 
 try {
     $pdo  = getPdo();
-    $stmt = $pdo->prepare("DELETE FROM organization_members WHERE membership_id = :mid");
-    $stmt->execute([':mid' => $membershipId]);
-    if ($stmt->rowCount() === 0) {
+    if (!officerDeleteStudentMembership($pdo, $membershipId)) {
         jsonError('Officer record not found.', 404);
     }
     jsonOk(['msg' => 'Officer removed.']);

@@ -1,6 +1,7 @@
 <?php
 require_once '../../../config/db.php';
 require_once '../../../includes/auth.php';
+require_once __DIR__ . '/save-target.php';
 
 header('Content-Type: application/json');
 apiRequireOsaSystemAdministrator();
@@ -16,21 +17,16 @@ $positionTitle = trim($body['positionTitle'] ?? '');
 $joinedAt      = trim($body['joinedAt']  ?? '') ?: date('Y-m-d');
 $isActive      = isset($body['isActive']) ? (int)(bool)$body['isActive'] : 1;
 
-if (!$studentNumber || !$orgCode || !$roleName) {
+if ((!$studentNumber && $membershipId <= 0) || !$orgCode || !$roleName) {
     jsonError('studentId, orgCode, and roleName are required.', 422);
 }
 
 try {
     $pdo = getPdo();
 
-    // Resolve user_id
-    $uStmt = $pdo->prepare("SELECT user_id FROM users WHERE student_number = :sn LIMIT 1");
-    $uStmt->execute([':sn' => $studentNumber]);
-    $user = $uStmt->fetch();
-    if (!$user) {
-        jsonError("Student '$studentNumber' not found in accounts.", 404);
-    }
-    $userId = (int)$user['user_id'];
+    // Never let the officer endpoint update an adviser or another non-student membership.
+    $userId = officerSaveStudentUserId($pdo, $membershipId, $studentNumber);
+    if ($userId === null) jsonError('Student officer account or membership not found.', 404);
 
     // Resolve org_id
     $oStmt = $pdo->prepare("SELECT org_id FROM organizations WHERE org_code = :oc LIMIT 1");
@@ -74,13 +70,18 @@ try {
         // UPDATE
         $upd = $pdo->prepare("
             UPDATE organization_members
-            SET role_id   = :rid,
+            SET user_id   = :uid,
+                org_id    = :oid,
+                role_id   = :rid,
                 position_title = :position,
                 joined_at = :ja,
                 is_active = :active
             WHERE membership_id = :mid
+              AND user_id IN (SELECT user_id FROM users WHERE account_type = 'student')
         ");
         $upd->execute([
+            ':uid'    => $userId,
+            ':oid'    => $orgId,
             ':rid'    => $roleId,
             ':position' => $positionTitle !== '' ? $positionTitle : null,
             ':ja'     => $joinedAt,
@@ -88,7 +89,11 @@ try {
             ':mid'    => $membershipId,
         ]);
         if ($upd->rowCount() === 0) {
-            jsonError('Officer record not found.', 404);
+            $exists = $pdo->prepare("SELECT membership_id FROM organization_members
+                WHERE membership_id = :mid
+                  AND user_id IN (SELECT user_id FROM users WHERE account_type = 'student')");
+            $exists->execute([':mid' => $membershipId]);
+            if (!$exists->fetch()) jsonError('Officer record not found.', 404);
         }
         jsonOk(['msg' => 'Officer updated.']);
     }

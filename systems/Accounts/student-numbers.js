@@ -114,6 +114,8 @@ function updateStudentNumbersTable() {
 function updateTotalCount() {
     var el = document.getElementById('totalStudentCount');
     if (el) el.textContent = studentNumbers.length;
+    var badge = document.getElementById('studentsTotalBadge');
+    if (badge) badge.textContent = studentNumbers.length;
 }
 
 async function refreshStudentNumbers() {
@@ -201,12 +203,6 @@ function editStudentNumber(studentId) {
     document.getElementById('editStudentNumber').value = s.studentId;
     document.getElementById('editStudentName').value  = s.studentName;
     document.getElementById('editYearSection').value  = s.yearSection || '';
-    var registeredEmail = s.isRegistered ? (s.email || '') : '';
-    var registeredPhone = s.isRegistered ? (s.phone || '') : '';
-    document.getElementById('editEmail').value        = registeredEmail;
-    document.getElementById('editEmail').placeholder  = registeredEmail || 'No registered email provided';
-    document.getElementById('editPhone').value        = registeredPhone;
-    document.getElementById('editPhone').placeholder  = registeredPhone || 'No registered phone provided';
 
     var instSel = document.getElementById('editInstitute');
     populateInstituteSelect(instSel, s.institute);
@@ -225,8 +221,6 @@ async function handleEditStudentNumber(e) {
     var institute   = document.getElementById('editInstitute').value;
     var programCode = document.getElementById('editProgram').value;
     var yearSection = document.getElementById('editYearSection').value.trim();
-    var email       = document.getElementById('editEmail').value.trim();
-    var phone       = document.getElementById('editPhone').value.trim();
 
     if (!newId || !studentName) {
         showToast('Error', 'Student Number and Name are required.', 'error'); return;
@@ -241,7 +235,7 @@ async function handleEditStudentNumber(e) {
     var updated = Object.assign({}, studentNumbers[idx], {
         studentId: newId, studentName: studentName,
         institute: institute, programCode: programCode, yearSection: yearSection,
-        email: email, phone: phone, updatedAt: new Date().toISOString(), updatedBy: 'Admin'
+        updatedAt: new Date().toISOString(), updatedBy: 'Admin'
     });
 
     try {
@@ -312,24 +306,16 @@ function renderAnnualRosterPreview(result) {
     if (!preview || !summaryEl || !details) return;
 
     year.textContent = 'Active academic year: ' + (result.academicYear || 'Not set');
-    var cards = [
-        ['New', summary.new || 0, 'text-primary'], ['Updated', summary.updated || 0, 'text-info'],
-        ['Reactivated', summary.reactivated || 0, 'text-success'], ['Unchanged', summary.unchanged || 0, 'text-secondary'],
-        ['Deactivate', summary.deactivated || 0, 'text-danger'], ['Officers affected', summary.officersAffected || 0, 'text-danger'],
-        ['Rejected', summary.rejected || 0, 'text-warning']
-    ];
-    summaryEl.innerHTML = cards.map(function(card) {
-        return '<div class="col-6 col-md-4"><div class="border rounded p-2 text-center">' +
-            '<div class="fs-4 fw-bold ' + card[2] + '">' + card[1] + '</div>' +
-            '<div class="text-muted">' + card[0] + '</div></div></div>';
-    }).join('');
+    summaryEl.innerHTML = [
+        ['new', 'New', 'text-primary'], ['updated', 'Updated', 'text-info'],
+        ['reactivated', 'Reactivated', 'text-success'], ['unchanged', 'Unchanged', 'text-secondary']
+    ].map(function(card) { return AdviserWorkbook.changeCard(result, card[0], card[1], card[2]); }).join('') +
+        AdviserWorkbook.deactivationCard(result);
 
     var groups = [
         ['New students', result.changes && result.changes.new],
         ['Updated students', result.changes && result.changes.updated],
-        ['Reactivated students', result.changes && result.changes.reactivated],
-        ['Students to deactivate', result.changes && result.changes.deactivated],
-        ['Officers affected', result.changes && result.changes.officersAffected]
+        ['Reactivated students', result.changes && result.changes.reactivated]
     ];
     details.innerHTML = groups.map(function(group) {
         var rows = group[1] || [];
@@ -343,7 +329,9 @@ function renderAnnualRosterPreview(result) {
         }).join('');
         var remaining = rows.length > 8 ? '<li class="text-muted">…and ' + (rows.length - 8) + ' more</li>' : '';
         return '<div class="mb-2"><strong>' + group[0] + ' (' + rows.length + ')</strong><ul class="mb-0">' + visible + remaining + '</ul></div>';
-    }).join('') || '<span class="text-muted">No enrollment changes detected.</span>';
+    }).join('') || '<span class="text-muted">No student enrollment changes detected.</span>';
+    AdviserWorkbook.appendDeactivationDetails(result, 'annualRosterDetails');
+    AdviserWorkbook.appendChangeDetails(result, 'annualRosterDetails');
 
     if (summary.largeDeactivationWarning) {
         warning.textContent = 'Warning: this import will deactivate ' + summary.deactivationPercent + '% of currently active students. Verify that the XLSX contains the complete enrollment roster.';
@@ -362,7 +350,8 @@ async function processXLSXImport() {
         try {
             actionButton.disabled = true;
             actionButton.textContent = 'Applying…';
-            var applied = await getService().applyAnnualRoster(pendingAnnualRoster.records, pendingAnnualRoster.academicYear);
+            var applied = await getService().applyAnnualRoster(pendingAnnualRoster.records, pendingAnnualRoster.academicYear, pendingAnnualRoster.advisers || [], [], pendingAnnualRoster.advisersPresent);
+            await AdviserWorkbook.load();
             await loadStudentNumbers();
             updateStudentNumbersTable();
             updateTotalCount();
@@ -387,7 +376,20 @@ async function processXLSXImport() {
         actionButton.textContent = 'Validating…';
         var data = await file.arrayBuffer();
         var workbook = XLSX.read(data, { type: 'array' });
-        var ws = workbook.Sheets[workbook.SheetNames[0]];
+        AdviserWorkbook.validateType(workbook, 'users');
+        if (AdviserWorkbook.isAdviserOnly(workbook)) {
+            var onlyAdvisers = AdviserWorkbook.parse(workbook);
+            var adviserPreview = await getService().previewAnnualRoster([], onlyAdvisers, [], true);
+            pendingAnnualRoster = {records: [], academicYear: adviserPreview.academicYear, advisers: onlyAdvisers, advisersPresent: true};
+            renderAnnualRosterPreview(adviserPreview);
+            AdviserWorkbook.describe(onlyAdvisers, 'annualRosterDetails', adviserPreview.adviserOmissions);
+            actionButton.disabled = false;
+            actionButton.textContent = 'Confirm & Apply Roster';
+            actionButton.className = 'btn btn-danger';
+            return;
+        }
+        var studentSheetName = workbook.SheetNames.find(function(name) { return ['students', 'student numbers'].includes(name.trim().toLowerCase()); });
+        var ws = workbook.Sheets[studentSheetName || workbook.SheetNames[0]];
         var jsonData = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
         if (jsonData.length < 2) { throw new Error('File needs at least a header row and one data row.'); }
@@ -407,6 +409,8 @@ async function processXLSXImport() {
         var instIdx      = col(['institute','institutename']);
         var progIdx      = col(['programcode','program','course']);
         var ysIdx        = col(['yearsection','section','yearsec']);
+        var academicYearIdx = col(['academicyear','schoolyear']);
+        var isActiveIdx   = col(['isactive','active','status']);
 
         var missingRequiredHeaders = [];
         if (idIdx === -1)   missingRequiredHeaders.push('studentId');
@@ -430,18 +434,28 @@ async function processXLSXImport() {
             var institute   = instIdx  !== -1 ? String(row[instIdx]  || '').trim() : '';
             var programCode = progIdx  !== -1 ? String(row[progIdx]  || '').trim() : '';
             var yearSection = ysIdx !== -1 ? String(row[ysIdx] || '').trim() : '';
-            if (!studentId || !studentName || !institute || !programCode || !yearSection) {
+            if (!studentId || !studentName) {
                 invalidRows++;
                 continue;
             }
 
-            records.push({
+            var record = {
                 studentId: studentId,
                 studentName: studentName,
                 institute:   institute,
                 programCode: programCode,
                 yearSection: yearSection
-            });
+            };
+            if (academicYearIdx !== -1) {
+                record.academicYear = String(row[academicYearIdx] || '').trim();
+            }
+            if (isActiveIdx !== -1) {
+                var activeValue = String(row[isActiveIdx] == null ? '' : row[isActiveIdx]).trim().toLowerCase();
+                if (['true', '1', 'yes', 'active'].indexOf(activeValue) !== -1) record.isActive = true;
+                else if (['false', '0', 'no', 'inactive'].indexOf(activeValue) !== -1) record.isActive = false;
+                else throw new Error('Row ' + (i + 1) + ' has an invalid isActive value.');
+            }
+            records.push(record);
         }
 
         if (records.length === 0) {
@@ -452,9 +466,12 @@ async function processXLSXImport() {
             throw new Error(invalidRows + ' row(s) have missing required values. No changes were made.');
         }
 
-        var result = await getService().previewAnnualRoster(records);
-        pendingAnnualRoster = { records: records, academicYear: result.academicYear };
+        var adviserRecords = AdviserWorkbook.parse(workbook);
+        var advisersPresent = AdviserWorkbook.hasSheet(workbook);
+        var result = await getService().previewAnnualRoster(records, adviserRecords, [], advisersPresent);
+        pendingAnnualRoster = { records: records, academicYear: result.academicYear, advisers: adviserRecords, advisersPresent: advisersPresent };
         renderAnnualRosterPreview(result);
+        if (advisersPresent) AdviserWorkbook.describe(adviserRecords, 'annualRosterDetails', result.adviserOmissions);
         actionButton.disabled = false;
         actionButton.textContent = 'Confirm & Apply Roster';
         actionButton.className = 'btn btn-danger';
@@ -489,7 +506,6 @@ function formatStudentNumberWorksheetAsText(worksheet) {
 // -- Export XLSX --
 async function exportStudentNumbers() {
     await loadStudentNumbers();
-    if (studentNumbers.length === 0) { showToast('Warning', 'No data to export.', 'warning'); return; }
     try {
         var exportData = studentNumbers.map(function(s) {
             return {
@@ -498,16 +514,18 @@ async function exportStudentNumbers() {
                 institute:   s.institute   || '',
                 programCode: s.programCode || '',
                 yearSection: s.yearSection || '',
-                email:       s.email       || '',
-                phone:       s.phone       || ''
+                academicYear: s.academicYear || '',
+                isActive:     s.isActive !== false ? 'true' : 'false'
             };
         });
-        var ws = XLSX.utils.json_to_sheet(exportData);
+        var ws = XLSX.utils.json_to_sheet(exportData, {header: ['studentId', 'studentName', 'institute', 'programCode', 'yearSection', 'academicYear', 'isActive']});
         formatStudentNumberWorksheetAsText(ws);
-        ws['!cols'] = [14,30,40,12,14,30,16].map(function(w) { return { wch: w }; });
+        ws['!cols'] = [14,30,40,12,14,14,10].map(function(w) { return { wch: w }; });
         var wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Student Numbers');
-        XLSX.writeFile(wb, 'student_numbers_' + new Date().toISOString().slice(0,10) + '.xlsx', { cellStyles: true });
+        XLSX.utils.book_append_sheet(wb, ws, 'Students');
+        await AdviserWorkbook.appendSheet(wb);
+        AdviserWorkbook.stamp(wb, 'users');
+        XLSX.writeFile(wb, 'users_' + new Date().toISOString().slice(0,10) + '.xlsx', { cellStyles: true });
         showToast('Exported', 'Download started.', 'success');
     } catch (err) {
         showToast('Error', 'Export failed: ' + err.message, 'error');
@@ -580,7 +598,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     setupEventListeners();
     updateStudentNumbersTable();
     updateTotalCount();
-    ensureNewPhonePrefix();
 
     var query = new URLSearchParams(window.location.search);
     if (query.get('import') === 'annual') {

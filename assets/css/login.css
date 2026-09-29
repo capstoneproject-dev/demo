@@ -1125,8 +1125,6 @@ svg {
 .org-registration-details,
 .org-registration-inline-picks,
 .position-list,
-.otp-input-group,
-.otp-actions,
 #dashboardChoiceActions[hidden],
 #officerOrganizationChoice[hidden] {
   display: none;

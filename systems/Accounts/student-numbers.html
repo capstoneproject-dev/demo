@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <script src="../../assets/js/app-dialog.js?v=20260807-security-1"></script>
+    <script src="../../assets/js/app-dialog.js?v=20260927-roster-password-1"></script>
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="../../assets/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -39,9 +39,15 @@
         <!-- Student Numbers Management Section -->
         <div class="card">
             <div class="card-header">
-                <h2 class="h5 mb-0">Student Numbers Database</h2>
+                <h2 class="h5 mb-0">Users</h2>
             </div>
             <div class="card-body">
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" id="users-students-tab" data-bs-toggle="tab" data-bs-target="#usersStudentsPanel" type="button" role="tab">Students <span id="studentsTotalBadge" class="badge bg-secondary">0</span></button></li>
+                    <li class="nav-item"><button class="nav-link" id="users-advisers-tab" data-bs-toggle="tab" data-bs-target="#usersAdvisersPanel" type="button" role="tab">Advisers <span id="advisersTotalBadge" class="badge bg-secondary">0</span></button></li>
+                </ul>
+                <div class="tab-content">
+                <div class="tab-pane fade show active" id="usersStudentsPanel" role="tabpanel" aria-labelledby="users-students-tab">
                 <div class="row mb-3">
                     <div class="col-md-3">
                         <select id="instituteFilter" class="form-select">
@@ -82,6 +88,15 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+                </div>
+                <div class="tab-pane fade" id="usersAdvisersPanel" role="tabpanel" aria-labelledby="users-advisers-tab">
+                    <input id="adviserSearch" class="form-control mb-3" placeholder="Search advisers by employee number, name, email, or organization" aria-label="Search advisers">
+                    <div class="table-responsive"><table class="table table-hover">
+                        <thead><tr><th>Employee #</th><th>Name</th><th>Email</th><th>Phone</th><th>Organization</th><th>Joined</th><th>Account status</th><th>Membership status</th></tr></thead>
+                        <tbody id="adviserRecords"><tr><td colspan="8">Loading advisers…</td></tr></tbody>
+                    </table></div>
+                </div>
                 </div>
             </div>
         </div>
@@ -184,14 +199,6 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="editEmail" class="form-label">Email Address</label>
-                            <input type="email" class="form-control" id="editEmail" autocomplete="off">
-                        </div>
-                        <div class="mb-3">
-                            <label for="editPhone" class="form-label">Phone Number</label>
-                            <input type="tel" class="form-control" id="editPhone" autocomplete="off">
-                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -218,7 +225,10 @@
                     <div class="alert alert-info">
                         <strong>XLSX Format (first row = headers):</strong><br>
                         <code>studentId | studentName | institute | programCode | yearSection</code><br>
-                        This must be the complete official enrollment roster. All five columns are required.
+                        This updates student-number eligibility records only; students register their own accounts. It must be the complete official enrollment roster. All five columns must be present;
+                        only studentId and studentName require values. Exports also include academicYear and
+                        isActive so importing an unchanged export preserves each record's current state.
+                        <br>Advisers use a separate <strong>Advisers</strong> sheet with employeeNumber, firstName, lastName, email, phone, isActive, orgCode, joinedAt, and membershipActive. Use one row per organization. Adviser-only files are also accepted.
                     </div>
                     <div id="annualRosterPreview" class="d-none">
                         <div id="annualRosterWarning" class="alert alert-warning d-none"></div>
@@ -226,7 +236,7 @@
                         <div id="annualRosterSummary" class="row g-2 mb-3"></div>
                         <div id="annualRosterDetails" class="small"></div>
                         <div class="alert alert-danger mt-3 mb-0">
-                            Confirming will deactivate students absent from this complete roster and disable their portal accounts.
+                            Confirming will deactivate student-number eligibility records absent from this complete roster. Registered accounts on Account Management will not change.
                         </div>
                     </div>
                 </div>
@@ -244,8 +254,9 @@
     <script src="lib/xlsx.full.min.js"></script>
     <script src="lib/bootstrap.bundle.min.js"></script>
     <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
-    <script src="accounts-api.js?v=20260718e"></script>
-    <script src="student-numbers.js?v=20260820-profile-contacts-1"></script>
+    <script src="accounts-api.js?v=20260929-account-split-1"></script>
+    <script src="advisers.js?v=20260929-adviser-export-1"></script>
+    <script src="student-numbers.js?v=20260929-students-badge-1"></script>
 </body>
 
 </html>
