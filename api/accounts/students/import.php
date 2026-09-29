@@ -64,6 +64,9 @@ try {
     jsonError($e->getMessage(), 422);
 } catch (PDOException $e) {
     error_log('[student-account-import] ' . $e->getMessage());
+    if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+        jsonError('An account email or identifier changed after preview. Export a fresh workbook and preview again.', 409);
+    }
     jsonError('The account roster could not be applied. No account changes were saved.', 500);
 } catch (Throwable $e) {
     error_log('[student-account-import] ' . $e->getMessage());

@@ -9,11 +9,13 @@ function accountRosterValidateRecords(PDO $pdo, array $rows): array
     $findAccount = $pdo->prepare("SELECT u.user_id, u.student_number, u.first_name, u.last_name,
         u.program_id, u.institute_id, u.year_section, u.email, u.phone, u.is_active
         FROM users u WHERE u.student_number = ? AND u.account_type = 'student'");
+    $findEmailOwner = $pdo->prepare('SELECT user_id FROM users WHERE email = ? AND user_id <> ? LIMIT 1');
     $findProgram = $pdo->prepare('SELECT program_id, institute_id FROM academic_programs WHERE UPPER(program_code) = UPPER(?) LIMIT 1');
     $findInstitute = $pdo->prepare('SELECT institute_id FROM institutes WHERE UPPER(institute_name) = UPPER(?) LIMIT 1');
     $records = [];
     $errors = [];
     $seen = [];
+    $seenEmails = [];
 
     foreach (array_values($rows) as $index => $row) {
         $line = $index + 2;
@@ -80,6 +82,17 @@ function accountRosterValidateRecords(PDO $pdo, array $rows): array
         if ($email === '') $email = (string)$old['email'];
         if (strlen($email) > 255 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors[] = "Row $line: email is invalid.";
+            continue;
+        }
+        $emailKey = strtolower($email);
+        if (isset($seenEmails[$emailKey])) {
+            $errors[] = "Row $line: email '$email' is also used on row {$seenEmails[$emailKey]}.";
+            continue;
+        }
+        $seenEmails[$emailKey] = $line;
+        $findEmailOwner->execute([$email, (int)$old['user_id']]);
+        if ($findEmailOwner->fetchColumn()) {
+            $errors[] = "Row $line: email '$email' already belongs to another account.";
             continue;
         }
         $phone = array_key_exists('phone', $row) ? trim((string)$row['phone']) : (string)($old['phone'] ?? '');

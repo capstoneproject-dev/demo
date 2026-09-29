@@ -100,7 +100,10 @@ try {
             ':orig'   => $origId,
         ]);
         if ($stmt->rowCount() === 0) {
-            jsonError('Student number not found.', 404);
+            // MySQL reports changed rows, not matched rows: an unchanged edit is still valid.
+            $exists = $pdo->prepare('SELECT 1 FROM student_numbers WHERE student_number = :sn LIMIT 1');
+            $exists->execute([':sn' => $origId]);
+            if (!$exists->fetchColumn()) jsonError('Student number not found.', 404);
         }
         jsonOk(['msg' => 'Student number updated.']);
     }

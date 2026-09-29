@@ -19,6 +19,7 @@ CREATE TABLE users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,
     student_number VARCHAR(20) NULL UNIQUE,
     program_id INT NULL,
+    institute_id INT NULL,
     year_section VARCHAR(50) NULL,
     employee_number VARCHAR(20) NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,

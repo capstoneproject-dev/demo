@@ -17,7 +17,8 @@ $pdo->exec("INSERT INTO institutes VALUES (1, 'Institute One')");
 $pdo->exec("INSERT INTO academic_programs VALUES (1, 'BSIT', 1)");
 $pdo->exec("INSERT INTO users VALUES
     (1, 'S1', 'Registered', 'Student', 1, 1, '2-1', 's1@example.test', NULL, 1, 'student'),
-    (2, 'S2', 'Another', 'Student', 1, 1, '2-1', 's2@example.test', NULL, 1, 'student')");
+    (2, 'S2', 'Another', 'Student', 1, 1, '2-1', 's2@example.test', NULL, 1, 'student'),
+    (3, NULL, 'Osa', 'Staff', NULL, NULL, NULL, 'osa@example.test', NULL, 1, 'osa_staff')");
 $pdo->exec("INSERT INTO student_numbers VALUES
     ('S1', 'Registered Student', '2-1', 1),
     ('S2', 'Another Student', '2-1', 1),
@@ -28,6 +29,21 @@ $base = ['studentId' => 'S1', 'studentName' => 'Registered Student', 'programCod
 $unknown = accountRosterValidateRecords($pdo, [array_replace($base, ['studentId' => 'S3', 'studentName' => 'Roster Only'])]);
 if (!$unknown['errors'] || count($unknown['records']) !== 0 || !str_contains($unknown['errors'][0], 'must register themselves')) {
     throw new RuntimeException('An unregistered roster-only student was accepted.');
+}
+$otherAccountEmail = accountRosterValidateRecords($pdo, [array_replace($base, ['email' => 's2@example.test'])]);
+if (!$otherAccountEmail['errors'] || !str_contains($otherAccountEmail['errors'][0], 'another account')) {
+    throw new RuntimeException('An email owned by another student account was accepted.');
+}
+$staffEmail = accountRosterValidateRecords($pdo, [array_replace($base, ['email' => 'osa@example.test'])]);
+if (!$staffEmail['errors'] || !str_contains($staffEmail['errors'][0], 'another account')) {
+    throw new RuntimeException('An email owned by a staff account was accepted.');
+}
+$duplicateEmail = accountRosterValidateRecords($pdo, [
+    array_replace($base, ['email' => 'shared@example.test']),
+    array_replace($base, ['studentId' => 'S2', 'studentName' => 'Another Student', 'email' => 'SHARED@example.test']),
+]);
+if (!$duplicateEmail['errors'] || !str_contains($duplicateEmail['errors'][0], 'also used on row 2')) {
+    throw new RuntimeException('Duplicate workbook emails were accepted.');
 }
 $valid = accountRosterValidateRecords($pdo, [$base]);
 if ($valid['errors']) throw new RuntimeException(implode('; ', $valid['errors']));

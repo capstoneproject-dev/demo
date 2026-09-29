@@ -2,6 +2,7 @@
 -- year-section for every student, even when users.year_section was nonblank.
 -- Copy that displayed value once; future account and roster edits stay separate.
 ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS institute_id INT NULL,
     ADD COLUMN IF NOT EXISTS year_section VARCHAR(50) NULL;
 
 -- The application also creates this settings table on first use. Ensure it
