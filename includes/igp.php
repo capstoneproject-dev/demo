@@ -731,7 +731,7 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
     $hasRentalNotes = igpColumnExists($pdo, 'rentals', 'notes');
 
     if ($hasUsersYearSection && $hasStudentNumbersYearSection) {
-        $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), NULLIF(ru.year_section, ''), '')";
+        $renterSectionExpr = "COALESCE(NULLIF(ru.year_section, ''), '')";
     } elseif ($hasStudentNumbersYearSection) {
         $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), '')";
     } elseif ($hasUsersYearSection) {
@@ -1785,7 +1785,7 @@ function igpGetRentalFinancialRows(PDO $pdo, int $orgId): array
     $hasStudentNumbersYearSection = igpColumnExists($pdo, 'student_numbers', 'year_section');
 
     if ($hasUsersYearSection && $hasStudentNumbersYearSection) {
-        $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), NULLIF(ru.year_section, ''), '')";
+        $renterSectionExpr = "COALESCE(NULLIF(ru.year_section, ''), '')";
     } elseif ($hasStudentNumbersYearSection) {
         $renterSectionExpr = "COALESCE(NULLIF(sn.year_section, ''), '')";
     } elseif ($hasUsersYearSection) {

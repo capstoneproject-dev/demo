@@ -28,9 +28,8 @@ if (($session['login_role'] ?? '') === 'org') {
     $session = getPhpSession();
 }
 
-// Student enrollment details can change during the annual OSA roster import.
-// Refresh database-backed profile fields on every session check so browser
-// localStorage never remains the source of truth for year/section or program.
+// Refresh registered-account profile fields on every session check so browser
+// localStorage and the separate eligibility roster cannot override them.
 if (($session['account_type'] ?? '') === 'student') {
     $user = getUserById((int)$_SESSION['user_id']);
     if (!$user) {
@@ -49,7 +48,7 @@ if (($session['account_type'] ?? '') === 'student') {
     $session['student_number'] = $user['student_number'] ?? null;
     $session['program_id'] = isset($user['program_id']) ? (int)$user['program_id'] : null;
     $session['program_code'] = $user['program_code'] ?? null;
-    $session['section'] = $user['student_numbers_year_section'] ?? null;
+    $session['section'] = $user['year_section'] ?? null;
     $session['mapped_org_id'] = isset($mappedOrg['org_id']) ? (int)$mappedOrg['org_id'] : null;
     $session['mapped_org_name'] = $mappedOrg['org_name'] ?? null;
     startUserSession($session);

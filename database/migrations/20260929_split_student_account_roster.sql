@@ -1,9 +1,17 @@
 -- Before these pages were separated, Account Management displayed the roster's
 -- year-section for every student, even when users.year_section was nonblank.
 -- Copy that displayed value once; future account and roster edits stay separate.
--- Run after the application has initialized its existing system_settings table.
 ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS year_section VARCHAR(50) NULL AFTER institute_id;
+    ADD COLUMN IF NOT EXISTS year_section VARCHAR(50) NULL;
+
+-- The application also creates this settings table on first use. Ensure it
+-- exists when migrations run before any application request on a fresh setup.
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value VARCHAR(255) NOT NULL,
+    updated_by_user_id INT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 START TRANSACTION;
 

@@ -360,6 +360,18 @@ video {
     overflow: hidden;
 }
 
+.modal-content > form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: inherit;
+}
+
+.modal-content > form > .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
 .modal-body {
     min-width: 0;
     overflow-y: auto;

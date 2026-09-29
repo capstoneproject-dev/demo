@@ -33,7 +33,7 @@ try {
             'student_number' => (string)($user['student_number'] ?? ''),
             'full_name'      => trim((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? '')),
             'course'         => (string)($user['program_code'] ?? ''),
-            'section'        => (string)($user['student_numbers_year_section'] ?? ''),
+            'section'        => (string)($user['year_section'] ?? ''),
             'email'          => (string)($user['email'] ?? ''),
             'phone'          => (string)($user['phone'] ?? ''),
         ],

@@ -238,8 +238,8 @@ function offlineRegisterStudentEvent(PDO $pdo, int $userId, array $payload): arr
     if (!$event->fetch()) throw new OfflineSyncValidationException('This event is no longer available for student registration.');
 
     $profile = $pdo->prepare(
-        "SELECT u.student_number, CONCAT(u.first_name, ' ', u.last_name) AS full_name, sn.year_section AS section
-         FROM users u LEFT JOIN student_numbers sn ON sn.student_number = u.student_number
+        "SELECT u.student_number, CONCAT(u.first_name, ' ', u.last_name) AS full_name, u.year_section AS section
+         FROM users u
          WHERE u.user_id = :user_id AND u.account_type = 'student' AND u.is_active = 1 LIMIT 1"
     );
     $profile->execute([':user_id' => $userId]);
