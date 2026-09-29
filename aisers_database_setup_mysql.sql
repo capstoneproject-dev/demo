@@ -794,6 +794,13 @@ SET program_id = CASE student_number
 END
 WHERE student_number IN ('2023-10001', '2023-10002', '2023-10003');
 
+-- Keep the account institute in step with each seeded student's program.
+UPDATE users u
+JOIN academic_programs ap ON ap.program_id = u.program_id
+SET u.institute_id = ap.institute_id
+WHERE u.account_type = 'student'
+  AND u.institute_id IS NULL;
+
 -- BSAIT(1) → ELITECH(2), BSAIS(2) → AISERS(1)
 -- Other programs (BSAET, BSAT, BSAMT, BSAEE, BAT-AET → AETSO/AERO-ATSO/AMTSO)
 -- and AVCOMM/AVLOG/AVSSM/AVTOUR → ILASSO will be added once those orgs are seeded.

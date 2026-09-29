@@ -16,6 +16,24 @@ CREATE TABLE IF NOT EXISTS system_settings (
 
 START TRANSACTION;
 
+-- Older databases already know each student's program, but did not store the
+-- institute on the account. Keep any institute that was set independently.
+UPDATE users u
+JOIN academic_programs ap ON ap.program_id = u.program_id
+LEFT JOIN system_settings ss
+    ON ss.setting_key = 'student_account_institute_backfilled'
+SET u.institute_id = ap.institute_id
+WHERE u.account_type = 'student'
+  AND ss.setting_key IS NULL
+  AND u.institute_id IS NULL;
+
+INSERT INTO system_settings (setting_key, setting_value)
+SELECT 'student_account_institute_backfilled', '1'
+WHERE NOT EXISTS (
+    SELECT 1 FROM system_settings
+    WHERE setting_key = 'student_account_institute_backfilled'
+);
+
 UPDATE users u
 JOIN student_numbers sn ON sn.student_number = u.student_number
 LEFT JOIN system_settings ss
