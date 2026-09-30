@@ -841,6 +841,7 @@ CREATE TABLE `rentals` (
   `updated_at` datetime NOT NULL DEFAULT current_timestamp(),
   `service_kind` varchar(20) NOT NULL DEFAULT 'rental',
   `locker_period_type` varchar(32) DEFAULT NULL,
+  `locker_period_quantity` smallint(5) unsigned DEFAULT NULL,
   `locker_notice_sent_at` datetime DEFAULT NULL,
   `locker_notice_message` text DEFAULT NULL,
   `locker_notice_sent_by_user_id` int(11) DEFAULT NULL,

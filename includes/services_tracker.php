@@ -135,6 +135,7 @@ function stEnsureSchema(PDO $pdo): void
         "ALTER TABLE rentals
          ADD COLUMN IF NOT EXISTS service_kind VARCHAR(20) NOT NULL DEFAULT 'rental',
          ADD COLUMN IF NOT EXISTS locker_period_type VARCHAR(32) NULL DEFAULT NULL,
+         ADD COLUMN IF NOT EXISTS locker_period_quantity SMALLINT UNSIGNED NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS locker_notice_sent_at DATETIME NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS locker_notice_message TEXT NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS locker_notice_sent_by_user_id INT NULL DEFAULT NULL,
@@ -1684,8 +1685,12 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
 
     $monthsPerPeriod = $periodType === 'semester' ? 5 : 1;
     $maximumQuantity = $periodType === 'semester' ? 8 : 24;
+    $savedQuantity = (int)($rental['locker_period_quantity'] ?? 0);
+    if ($savedQuantity >= 1 && $savedQuantity <= $maximumQuantity) {
+        return $savedQuantity;
+    }
+
     $dateQuantity = null;
-    $dateQuantityWasExact = false;
     try {
         $start = new DateTimeImmutable((string)($rental['rent_time'] ?? ''));
         $end = new DateTimeImmutable((string)($rental['expected_return_time'] ?? ''));
@@ -1700,7 +1705,6 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
                 $candidateEnd = $start->modify('+' . ($monthsPerPeriod * $quantity) . ' month');
                 if ($candidateEnd->format('Y-m-d') === $expectedEndDate) {
                     $dateQuantity = $quantity;
-                    $dateQuantityWasExact = true;
                     break;
                 }
             }
@@ -1717,7 +1721,6 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
         }
     } catch (Throwable $e) {
         $dateQuantity = null;
-        $dateQuantityWasExact = false;
     }
 
     $rateColumn = $periodType === 'semester' ? 'locker_semester_rate' : 'locker_monthly_rate';
@@ -1736,21 +1739,18 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
 
     // Older locker rentals stored the full calculated price in both unit_rate
     // and total_cost. Identify that snapshot independently of the date-derived
-    // quantity: a supported custom semester end date may not land on the
-    // generated five-month boundary. Exact generated boundaries take priority;
-    // otherwise recover the quantity from the configured per-period rate.
+    // quantity. Prefer the immutable saved dates because current inventory
+    // rates may have changed since the request was made. The configured rate is
+    // only a last resort when no usable date interval remains.
     $isLegacyFullTotalSnapshot = $storedRate > 0
         && $total > 0
         && abs($storedRate - $total) < 0.01;
     if ($isLegacyFullTotalSnapshot) {
-        if ($dateQuantityWasExact && $dateQuantity !== null) {
+        if ($dateQuantity !== null) {
             return $dateQuantity;
         }
         if ($configuredQuantity !== null) {
             return $configuredQuantity;
-        }
-        if ($dateQuantity !== null) {
-            return $dateQuantity;
         }
     }
 
@@ -1945,9 +1945,9 @@ function stRequestLocker(PDO $pdo, int $userId, int $itemId, array $data = []): 
 
         $insertRental = $pdo->prepare(
             "INSERT INTO rentals
-                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id)
+                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_period_quantity, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id)
              VALUES
-                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, NULL, NULL, NULL)"
+                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, :locker_period_quantity, NULL, NULL, NULL)"
         );
         $insertRental->execute([
             ':org_id' => $orgId,
@@ -1959,6 +1959,7 @@ function stRequestLocker(PDO $pdo, int $userId, int $itemId, array $data = []): 
             ':status' => ST_LOCKER_PENDING,
             ':service_kind' => ST_LOCKER_SERVICE_KIND,
             ':locker_period_type' => $computed['period_type'],
+            ':locker_period_quantity' => $computed['period_quantity'],
         ]);
         $rentalId = (int)$pdo->lastInsertId();
 
@@ -2125,9 +2126,9 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
         $computed = stComputeLockerDatesAndPrice($item, $data);
         $insertRental = $pdo->prepare(
             "INSERT INTO rentals
-                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id, locker_upcoming_notice_sent_at, locker_upcoming_notice_message, locker_upcoming_notice_sent_by_user_id)
+                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_period_quantity, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id, locker_upcoming_notice_sent_at, locker_upcoming_notice_message, locker_upcoming_notice_sent_by_user_id)
              VALUES
-                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, NULL, NULL, NULL, NULL, NULL, NULL)"
+                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, :locker_period_quantity, NULL, NULL, NULL, NULL, NULL, NULL)"
         );
         $insertRental->execute([
             ':org_id' => $orgId,
@@ -2139,6 +2140,7 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
             ':status' => ST_LOCKER_ACTIVE,
             ':service_kind' => ST_LOCKER_SERVICE_KIND,
             ':locker_period_type' => $computed['period_type'],
+            ':locker_period_quantity' => $computed['period_quantity'],
         ]);
         $rentalId = (int)$pdo->lastInsertId();
 
@@ -2224,6 +2226,7 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
                  total_cost = :total_cost,
                  status = :status,
                  locker_period_type = :locker_period_type,
+                 locker_period_quantity = :locker_period_quantity,
                  locker_notice_sent_at = NULL,
                  locker_notice_message = NULL,
                  locker_notice_sent_by_user_id = NULL,
@@ -2240,6 +2243,7 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
             ':total_cost' => $computed['price'],
             ':status' => ST_LOCKER_ACTIVE,
             ':locker_period_type' => $computed['period_type'],
+            ':locker_period_quantity' => $computed['period_quantity'],
             ':rental_id' => $rentalId,
             ':expected_status' => ST_LOCKER_PENDING,
         ]);
