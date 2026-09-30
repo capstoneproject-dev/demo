@@ -4327,7 +4327,22 @@ function getLockerNoticePreset(type) {
 }
 
 function getAvailableLockerNoticeTypes(currentRequest = selectedLockerTile?.current_request || null) {
-    return currentRequest ? ['upcoming', 'overdue'] : [];
+    if (!currentRequest) return [];
+
+    const status = String(currentRequest.status || '').toLowerCase();
+    if (status === 'locker_overdue') {
+        return ['overdue'];
+    }
+
+    if (status === 'locker_active') {
+        const serverAllowsUpcoming = currentRequest.can_send_upcoming_notice === true
+            || Number(currentRequest.can_send_upcoming_notice) === 1;
+        if (serverAllowsUpcoming || isLockerDueWithinSevenDays(currentRequest)) {
+            return ['upcoming'];
+        }
+    }
+
+    return [];
 }
 
 function syncLockerNoticeComposer(preferredType = '') {
@@ -4352,13 +4367,13 @@ function syncLockerNoticeComposer(preferredType = '') {
             : (allowedTypes.includes(typeSelect.value) ? typeSelect.value : ''));
     typeSelect.value = nextType;
 
-    const isAvailable = !!currentRequest;
+    const isAvailable = allowedTypes.length > 0;
     composer.style.display = isAvailable ? '' : 'none';
     sendBtn.disabled = !isAvailable;
 
     if (!isAvailable) {
         messageEl.value = '';
-        messageEl.placeholder = 'No manual notices are available for this locker right now.';
+        messageEl.placeholder = 'Notices become available within 7 days of the end date or when the rental is overdue.';
         return;
     }
 

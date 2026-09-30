@@ -1673,25 +1673,47 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
         return 1;
     }
 
-    $rateColumn = $periodType === 'semester' ? 'locker_semester_rate' : 'locker_monthly_rate';
-    $rate = (float)($rental['unit_rate'] ?? 0);
-    if ($rate <= 0) {
-        $rate = (float)($item[$rateColumn] ?? 0);
-    }
-    $total = (float)($rental['total_cost'] ?? 0);
-    if ($rate > 0 && $total >= 0) {
-        return max(1, (int)round($total / $rate));
-    }
-
+    $dateQuantity = null;
     try {
         $start = new DateTimeImmutable((string)($rental['rent_time'] ?? ''));
         $end = new DateTimeImmutable((string)($rental['expected_return_time'] ?? ''));
-        $months = max(1, ((int)$end->format('Y') - (int)$start->format('Y')) * 12
-            + ((int)$end->format('n') - (int)$start->format('n')));
-        return $periodType === 'semester' ? max(1, (int)round($months / 5)) : $months;
+        if ($end > $start) {
+            $months = max(1, ((int)$end->format('Y') - (int)$start->format('Y')) * 12
+                + ((int)$end->format('n') - (int)$start->format('n')));
+            $dateQuantity = $periodType === 'semester'
+                ? max(1, (int)round($months / 5))
+                : $months;
+        }
     } catch (Throwable $e) {
-        return 1;
+        $dateQuantity = null;
     }
+
+    $rateColumn = $periodType === 'semester' ? 'locker_semester_rate' : 'locker_monthly_rate';
+    $storedRate = (float)($rental['unit_rate'] ?? 0);
+    $total = (float)($rental['total_cost'] ?? 0);
+
+    // Older locker rentals stored the full calculated price in both unit_rate
+    // and total_cost. For a multi-period rental that makes total / unit_rate
+    // incorrectly equal one, so use the saved rental dates for those records.
+    $isLegacyFullTotalSnapshot = $dateQuantity !== null
+        && $dateQuantity > 1
+        && $storedRate > 0
+        && $total > 0
+        && abs($storedRate - $total) < 0.01;
+    if ($isLegacyFullTotalSnapshot) {
+        return $dateQuantity;
+    }
+
+    if ($storedRate > 0 && $total >= 0) {
+        return max(1, (int)round($total / $storedRate));
+    }
+
+    $configuredRate = (float)($item[$rateColumn] ?? 0);
+    if ($configuredRate > 0 && $total > 0) {
+        return max(1, (int)round($total / $configuredRate));
+    }
+
+    return $dateQuantity ?? 1;
 }
 
 function stListLockerBoard(PDO $pdo, int $orgId): array
@@ -2387,8 +2409,12 @@ function stSendLockerNotice(PDO $pdo, int $orgId, int $officerUserId, int $renta
 
     $updateSql = '';
     if ($normalizedType === 'upcoming') {
-        if ((string)$locker['status'] !== ST_LOCKER_ACTIVE) {
-            throw new ServiceTrackerValidationException('Ending soon notices can only be sent for active locker rentals.');
+        if (!stIsLockerUpcomingNoticeAllowed($locker)) {
+            throw new ServiceTrackerValidationException(
+                'Ending soon notices can only be sent within '
+                . ST_LOCKER_UPCOMING_NOTICE_WINDOW_DAYS
+                . ' days before the locker rental end date.'
+            );
         }
         $updateSql = "UPDATE rentals
                       SET locker_upcoming_notice_sent_at = NOW(),
