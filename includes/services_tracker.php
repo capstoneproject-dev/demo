@@ -1638,13 +1638,22 @@ function stIsLockerUpcomingNoticeAllowed(array $rental): bool
         return false;
     }
 
-    $expectedReturn = strtotime((string)($rental['expected_return_time'] ?? ''));
-    if (!$expectedReturn) {
+    $expectedReturnRaw = trim((string)($rental['expected_return_time'] ?? ''));
+    if ($expectedReturnRaw === '') {
         return false;
     }
 
-    $now = time();
-    $windowEnd = strtotime('+' . ST_LOCKER_UPCOMING_NOTICE_WINDOW_DAYS . ' days', $now);
+    try {
+        // Locker dates are stored as Manila wall-clock values without a UTC
+        // offset, so they must not be interpreted using the PHP host timezone.
+        $timezone = new DateTimeZone('Asia/Manila');
+        $expectedReturn = new DateTimeImmutable($expectedReturnRaw, $timezone);
+        $now = new DateTimeImmutable('now', $timezone);
+        $windowEnd = $now->modify('+' . ST_LOCKER_UPCOMING_NOTICE_WINDOW_DAYS . ' days');
+    } catch (Throwable $e) {
+        return false;
+    }
+
     return $expectedReturn >= $now && $expectedReturn <= $windowEnd;
 }
 
@@ -1673,13 +1682,14 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
         return 1;
     }
 
+    $monthsPerPeriod = $periodType === 'semester' ? 5 : 1;
+    $maximumQuantity = $periodType === 'semester' ? 8 : 24;
     $dateQuantity = null;
+    $dateQuantityWasExact = false;
     try {
         $start = new DateTimeImmutable((string)($rental['rent_time'] ?? ''));
         $end = new DateTimeImmutable((string)($rental['expected_return_time'] ?? ''));
         if ($end > $start) {
-            $monthsPerPeriod = $periodType === 'semester' ? 5 : 1;
-            $maximumQuantity = $periodType === 'semester' ? 8 : 24;
             $expectedEndDate = $end->format('Y-m-d');
 
             // Replay the same date-addition rule used by
@@ -1690,6 +1700,7 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
                 $candidateEnd = $start->modify('+' . ($monthsPerPeriod * $quantity) . ' month');
                 if ($candidateEnd->format('Y-m-d') === $expectedEndDate) {
                     $dateQuantity = $quantity;
+                    $dateQuantityWasExact = true;
                     break;
                 }
             }
@@ -1706,31 +1717,49 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
         }
     } catch (Throwable $e) {
         $dateQuantity = null;
+        $dateQuantityWasExact = false;
     }
 
     $rateColumn = $periodType === 'semester' ? 'locker_semester_rate' : 'locker_monthly_rate';
     $storedRate = (float)($rental['unit_rate'] ?? 0);
     $total = (float)($rental['total_cost'] ?? 0);
+    $configuredRate = (float)($item[$rateColumn] ?? 0);
+    $configuredQuantity = null;
+    if ($configuredRate > 0 && $total > 0) {
+        $roundedQuantity = (int)round($total / $configuredRate);
+        if ($roundedQuantity >= 1
+            && $roundedQuantity <= $maximumQuantity
+            && abs($total - ($configuredRate * $roundedQuantity)) < 0.01) {
+            $configuredQuantity = $roundedQuantity;
+        }
+    }
 
     // Older locker rentals stored the full calculated price in both unit_rate
-    // and total_cost. For a multi-period rental that makes total / unit_rate
-    // incorrectly equal one, so use the saved rental dates for those records.
-    $isLegacyFullTotalSnapshot = $dateQuantity !== null
-        && $dateQuantity > 1
-        && $storedRate > 0
+    // and total_cost. Identify that snapshot independently of the date-derived
+    // quantity: a supported custom semester end date may not land on the
+    // generated five-month boundary. Exact generated boundaries take priority;
+    // otherwise recover the quantity from the configured per-period rate.
+    $isLegacyFullTotalSnapshot = $storedRate > 0
         && $total > 0
         && abs($storedRate - $total) < 0.01;
     if ($isLegacyFullTotalSnapshot) {
-        return $dateQuantity;
+        if ($dateQuantityWasExact && $dateQuantity !== null) {
+            return $dateQuantity;
+        }
+        if ($configuredQuantity !== null) {
+            return $configuredQuantity;
+        }
+        if ($dateQuantity !== null) {
+            return $dateQuantity;
+        }
     }
 
     if ($storedRate > 0 && $total >= 0) {
         return max(1, (int)round($total / $storedRate));
     }
 
-    $configuredRate = (float)($item[$rateColumn] ?? 0);
-    if ($configuredRate > 0 && $total > 0) {
-        return max(1, (int)round($total / $configuredRate));
+    if ($configuredQuantity !== null) {
+        return $configuredQuantity;
     }
 
     return $dateQuantity ?? 1;
