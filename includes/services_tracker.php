@@ -1678,11 +1678,31 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
         $start = new DateTimeImmutable((string)($rental['rent_time'] ?? ''));
         $end = new DateTimeImmutable((string)($rental['expected_return_time'] ?? ''));
         if ($end > $start) {
-            $months = max(1, ((int)$end->format('Y') - (int)$start->format('Y')) * 12
-                + ((int)$end->format('n') - (int)$start->format('n')));
-            $dateQuantity = $periodType === 'semester'
-                ? max(1, (int)round($months / 5))
-                : $months;
+            $monthsPerPeriod = $periodType === 'semester' ? 5 : 1;
+            $maximumQuantity = $periodType === 'semester' ? 8 : 24;
+            $expectedEndDate = $end->format('Y-m-d');
+
+            // Replay the same date-addition rule used by
+            // stComputeLockerDatesAndPrice(). Calendar-month subtraction is
+            // not its inverse around month-end dates (Jan 31 + 1 month is
+            // Mar 3), and can otherwise turn one requested period into two.
+            for ($quantity = 1; $quantity <= $maximumQuantity; $quantity++) {
+                $candidateEnd = $start->modify('+' . ($monthsPerPeriod * $quantity) . ' month');
+                if ($candidateEnd->format('Y-m-d') === $expectedEndDate) {
+                    $dateQuantity = $quantity;
+                    break;
+                }
+            }
+
+            // Semester requests may have a custom end date, so retain a
+            // best-effort fallback when no generated boundary matches.
+            if ($dateQuantity === null) {
+                $calendarMonths = max(1, ((int)$end->format('Y') - (int)$start->format('Y')) * 12
+                    + ((int)$end->format('n') - (int)$start->format('n')));
+                $dateQuantity = $periodType === 'semester'
+                    ? max(1, (int)round($calendarMonths / $monthsPerPeriod))
+                    : $calendarMonths;
+            }
         }
     } catch (Throwable $e) {
         $dateQuantity = null;
@@ -2344,7 +2364,7 @@ function stRejectLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $re
         );
         $updateRental->execute([
             ':processed_by_user_id' => $officerUserId,
-            ':status' => ST_LOCKER_RELEASED,
+            ':status' => ST_LOCKER_REJECTED,
             ':rental_id' => $rentalId,
             ':expected_status' => ST_LOCKER_PENDING,
         ]);
