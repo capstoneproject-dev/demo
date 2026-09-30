@@ -13,11 +13,13 @@ try {
     }
 
     $pdo = getPdo();
-    $result = stRequestLocker($pdo, (int)$context['user_id'], $itemId);
+    $result = stRequestLocker($pdo, (int)$context['user_id'], $itemId, $payload);
     jsonOk($result);
 } catch (PDOException $e) {
     error_log('[api/lockers/student/request] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
+} catch (ServiceTrackerConflictException $e) {
+    jsonError($e->getMessage(), 409, ['error_code' => 'LOCKER_CONFLICT']);
 } catch (Throwable $e) {
     jsonError($e->getMessage(), 400);
 }

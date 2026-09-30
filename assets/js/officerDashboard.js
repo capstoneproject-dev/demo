@@ -4657,7 +4657,9 @@ function openLockerDetail(lockerCode) {
     };
 
     setText('lockerDetailTitle', `Locker ${locker.locker_code}`);
-    setText('lockerDetailSubtitle', currentRequest ? 'Review the current locker request or assignment details.' : 'This locker is currently available for assignment.');
+    setText('lockerDetailSubtitle', locker.state === 'pending'
+        ? 'Review the student-requested rental period, dates, and estimated price before approval.'
+        : (currentRequest ? 'Review the current locker assignment details.' : 'This locker is currently available for assignment.'));
     const badge = document.getElementById('lockerDetailStateBadge');
     if (badge) {
         badge.className = `locker-state-pill ${stateClass}`;
