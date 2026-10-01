@@ -6132,6 +6132,20 @@ function getNormalizedLockerActivityStatus(status, rental = null) {
     return normalized;
 }
 
+function isStudentLockerActive(locker) {
+    const status = getNormalizedLockerActivityStatus(locker?.status, locker);
+    return ['locker_pending', 'locker_active', 'locker_overdue'].includes(status);
+}
+
+function getStudentLockerPeriodLabel(locker) {
+    const periodType = String(locker?.locker_period_type || '').toLowerCase();
+    const quantity = Math.max(1, Number(locker?.locker_period_quantity || 1));
+    if (periodType === 'monthly') return `${quantity} month${quantity === 1 ? '' : 's'}`;
+    if (periodType === 'semester') return `${quantity} semester${quantity === 1 ? '' : 's'}`;
+    if (periodType === 'school_year') return 'Whole school year';
+    return 'Not specified';
+}
+
 function getLockerActivityStatusLabel(status, rental = null) {
     const normalized = getNormalizedLockerActivityStatus(status, rental);
     if (normalized === 'locker_pending') return 'Pending Approval';
@@ -6202,6 +6216,7 @@ function renderStudentLockerBoard() {
     const section = document.getElementById('studentLockerSection');
     const board = document.getElementById('studentLockerBoard');
     const badge = document.getElementById('studentLockerCurrentBadge');
+    const panelTitle = document.getElementById('studentLockerPanelTitle');
     const currentCard = document.getElementById('studentLockerCurrentCard');
     const openButton = document.querySelector('.student-locker-open-btn');
     if (!section || !board || !currentCard) return;
@@ -6209,13 +6224,18 @@ function renderStudentLockerBoard() {
     section.style.display = 'block';
     const lockers = Array.isArray(studentLockerState.lockers) ? studentLockerState.lockers : [];
     const currentLocker = studentLockerState.current_locker || null;
+    const hasActiveLocker = isStudentLockerActive(currentLocker);
+
+    if (panelTitle) {
+        panelTitle.textContent = currentLocker && !hasActiveLocker ? 'Released Locker Notice' : 'Current Locker';
+    }
 
     if (openButton) {
         openButton.disabled = !studentLockerState.enabled;
     }
 
     if (badge) {
-        if (currentLocker?.locker_code) {
+        if (hasActiveLocker && currentLocker?.locker_code) {
             badge.style.display = 'inline-flex';
             badge.textContent = `Current Locker: ${currentLocker.locker_code}`;
         } else {
@@ -6255,7 +6275,7 @@ function renderStudentLockerBoard() {
                 <div class="student-locker-column-header">Locker ${columnKey}</div>
                 <div class="student-locker-column-grid">
                     ${columnLockers.map((locker) => {
-                        const isCurrentStudentLocker = !!currentLocker?.locker_code
+                        const isCurrentStudentLocker = hasActiveLocker && !!currentLocker?.locker_code
                             && String(locker.locker_code || '').trim().toUpperCase() === String(currentLocker.locker_code || '').trim().toUpperCase();
                         const rawState = String(locker.state || 'available').toLowerCase();
                         const state = isCurrentStudentLocker ? 'your-locker' : rawState;
@@ -6288,6 +6308,7 @@ function renderStudentLockerBoard() {
         const noticeEntries = getStudentLockerNoticeEntries(currentLocker);
         const currentAlert = noticeEntries.find((entry) => entry.type === 'overdue') || noticeEntries[noticeEntries.length - 1] || null;
         const paymentStatus = String(currentLocker.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid';
+        const periodLabel = getStudentLockerPeriodLabel(currentLocker);
         currentCard.innerHTML = `
             <div class="student-locker-current-top">
                 <div class="student-locker-current-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
@@ -6296,6 +6317,10 @@ function renderStudentLockerBoard() {
             ${normalizedStatus === 'locker_pending' ? `
                 <div class="student-locker-current-meta">
                     <span><strong>For Approval</strong></span>
+                    <span><i class="fa-solid fa-calendar-days"></i> Period: ${escapeStudentHtml(periodLabel)}</span>
+                    <span><i class="fa-solid fa-calendar-check"></i> Requested start: ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
+                    <span><i class="fa-solid fa-calendar-xmark"></i> Requested end: ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
+                    <span><i class="fa-solid fa-money-bill-wave"></i> Estimated price: ₱${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
                 </div>
             ` : `
                 <div class="student-locker-current-meta">
@@ -6344,6 +6369,80 @@ function closeStudentLockerModal() {
     document.body.classList.remove('modal-open');
 }
 
+function formatStudentLockerInputDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function syncStudentLockerRequestPreview(changedField = '') {
+    const selectedLocker = studentLockerState.lockers.find(
+        locker => Number(locker.item_id) === Number(pendingStudentLockerSelection?.itemId || 0)
+    );
+    const periodInput = document.getElementById('studentLockerPeriodType');
+    const quantityField = document.getElementById('studentLockerQuantityField');
+    const quantityLabel = document.getElementById('studentLockerQuantityLabel');
+    const quantityInput = document.getElementById('studentLockerPeriodQuantity');
+    const startInput = document.getElementById('studentLockerStartDate');
+    const endInput = document.getElementById('studentLockerEndDate');
+    const priceInput = document.getElementById('studentLockerEstimatedPrice');
+    const help = document.getElementById('studentLockerPeriodHelp');
+    if (!selectedLocker || !periodInput || !quantityInput || !startInput || !endInput || !priceInput) return;
+
+    const periodType = String(periodInput.value || 'monthly');
+    const usesQuantity = periodType === 'monthly' || periodType === 'semester';
+    if (quantityField) quantityField.style.display = usesQuantity ? '' : 'none';
+    if (quantityLabel) quantityLabel.textContent = periodType === 'semester' ? 'Number of Semesters' : 'Number of Months';
+    quantityInput.max = periodType === 'semester' ? '8' : '24';
+
+    const maximum = periodType === 'semester' ? 8 : 24;
+    let quantity = periodType === 'school_year' ? 1 : Math.trunc(Number(quantityInput.value || 1));
+    quantity = Math.min(maximum, Math.max(1, Number.isFinite(quantity) ? quantity : 1));
+    quantityInput.value = String(quantity);
+
+    const today = new Date();
+    const todayValue = formatStudentLockerInputDate(today);
+    startInput.min = todayValue;
+    if (!startInput.value) startInput.value = todayValue;
+
+    const allowsCustomEndDate = periodType === 'semester' || periodType === 'school_year';
+    endInput.readOnly = !allowsCustomEndDate;
+    if (help) {
+        help.textContent = allowsCustomEndDate
+            ? 'A suggested date is provided; adjust it if your academic schedule differs.'
+            : 'Calculated automatically from the selected number of months.';
+    }
+
+    const startDate = new Date(`${startInput.value}T00:00:00`);
+    if (Number.isNaN(startDate.getTime())) {
+        endInput.value = '';
+        priceInput.value = '';
+        return;
+    }
+
+    const monthsPerPeriod = { monthly: 1, semester: 5, school_year: 10 };
+    const shouldResetEndDate = !allowsCustomEndDate
+        || ['period', 'start', 'quantity'].includes(changedField)
+        || !endInput.value;
+    if (shouldResetEndDate) {
+        const endDate = new Date(startDate.getTime());
+        endDate.setMonth(endDate.getMonth() + monthsPerPeriod[periodType] * quantity);
+        endInput.value = formatStudentLockerInputDate(endDate);
+    }
+
+    endInput.min = formatStudentLockerInputDate(new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + 1));
+    const selectedEndDate = new Date(`${endInput.value}T00:00:00`);
+    const invalidStartDate = startInput.value < todayValue;
+    const invalidEndDate = Number.isNaN(selectedEndDate.getTime()) || selectedEndDate <= startDate;
+    startInput.setCustomValidity(invalidStartDate ? 'Start date cannot be before today.' : '');
+    endInput.setCustomValidity(invalidEndDate ? 'End date must be after the start date.' : '');
+
+    const rateByPeriod = {
+        monthly: Number(selectedLocker.locker_monthly_rate || 0),
+        semester: Number(selectedLocker.locker_semester_rate || 0),
+        school_year: Number(selectedLocker.locker_school_year_rate || 0)
+    };
+    priceInput.value = invalidEndDate ? '' : (rateByPeriod[periodType] * quantity).toFixed(2);
+}
+
 function openStudentLockerRequestModal(itemId, lockerCode) {
     const modal = document.getElementById('studentLockerConfirmModal');
     const codeEl = document.getElementById('studentLockerConfirmCode');
@@ -6361,6 +6460,16 @@ function openStudentLockerRequestModal(itemId, lockerCode) {
     if (confirmBtn) {
         confirmBtn.disabled = false;
     }
+
+    const periodInput = document.getElementById('studentLockerPeriodType');
+    const quantityInput = document.getElementById('studentLockerPeriodQuantity');
+    const startInput = document.getElementById('studentLockerStartDate');
+    const endInput = document.getElementById('studentLockerEndDate');
+    if (periodInput) periodInput.value = 'monthly';
+    if (quantityInput) quantityInput.value = '1';
+    if (startInput) startInput.value = formatStudentLockerInputDate(new Date());
+    if (endInput) endInput.value = '';
+    syncStudentLockerRequestPreview('period');
 
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
@@ -6386,12 +6495,68 @@ async function confirmStudentLockerRequest() {
         return;
     }
 
+    syncStudentLockerRequestPreview('confirm');
+    const periodInput = document.getElementById('studentLockerPeriodType');
+    const quantityInput = document.getElementById('studentLockerPeriodQuantity');
+    const startInput = document.getElementById('studentLockerStartDate');
+    const endInput = document.getElementById('studentLockerEndDate');
+    const controls = [periodInput, quantityInput, startInput, endInput].filter(Boolean);
+    const invalidControl = controls.find(control => !control.checkValidity());
+    if (invalidControl) {
+        invalidControl.reportValidity();
+        return;
+    }
+
+    const requestDetails = {
+        period_type: periodInput?.value || '',
+        period_quantity: Number(quantityInput?.value || 1),
+        start_date: startInput?.value || '',
+        end_date: endInput?.value || ''
+    };
+
+    if (!beginStudentLockerTransaction(
+        'Submitting locker request',
+        'Sending your request to SSC and updating locker availability...'
+    )) return;
+
     const confirmBtn = document.getElementById('studentLockerConfirmBtn');
     if (confirmBtn) {
         confirmBtn.disabled = true;
     }
 
-    await requestStudentLocker(pendingStudentLockerSelection.itemId);
+    try {
+        await requestStudentLocker(pendingStudentLockerSelection.itemId, requestDetails);
+    } finally {
+        await finishStudentLockerTransaction();
+    }
+}
+
+let studentLockerTransactionBusy = false;
+let studentLockerTransactionStartedAt = 0;
+
+function beginStudentLockerTransaction(title, message) {
+    if (studentLockerTransactionBusy) return false;
+    studentLockerTransactionBusy = true;
+    studentLockerTransactionStartedAt = performance.now();
+    const overlay = document.getElementById('studentLockerTransactionLoading');
+    const titleNode = document.getElementById('studentLockerTransactionLoadingTitle');
+    const messageNode = document.getElementById('studentLockerTransactionLoadingMessage');
+    if (titleNode) titleNode.textContent = title || 'Processing locker transaction';
+    if (messageNode) messageNode.textContent = message || 'Please wait while your request is safely processed.';
+    overlay?.classList.add('is-active');
+    overlay?.setAttribute('aria-hidden', 'false');
+    return true;
+}
+
+async function finishStudentLockerTransaction() {
+    const elapsed = performance.now() - studentLockerTransactionStartedAt;
+    if (elapsed < 350) {
+        await new Promise(resolve => window.setTimeout(resolve, 350 - elapsed));
+    }
+    const overlay = document.getElementById('studentLockerTransactionLoading');
+    overlay?.classList.remove('is-active');
+    overlay?.setAttribute('aria-hidden', 'true');
+    studentLockerTransactionBusy = false;
 }
 
 function renderStudentLockerProfile() {
@@ -6411,6 +6576,7 @@ function renderStudentLockerProfile() {
     const noticeEntries = getStudentLockerNoticeEntries(currentLocker);
     const latestNotice = noticeEntries.find((entry) => entry.type === 'overdue') || noticeEntries[noticeEntries.length - 1] || null;
     const paymentStatus = String(currentLocker.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid';
+    const periodLabel = getStudentLockerPeriodLabel(currentLocker);
     content.innerHTML = `
         <div class="profile-locker-card">
             <div class="profile-locker-main">
@@ -6418,6 +6584,10 @@ function renderStudentLockerProfile() {
                 ${normalizedStatus === 'locker_pending' ? `
                     <div class="profile-locker-details">
                         <span><strong>Status:</strong> For Approval</span>
+                        <span><strong>Period:</strong> ${escapeStudentHtml(periodLabel)}</span>
+                        <span><strong>Requested start:</strong> ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
+                        <span><strong>Requested end:</strong> ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
+                        <span><strong>Estimated price:</strong> ₱${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
                     </div>
                 ` : `
                     <div class="profile-locker-details">
@@ -6482,13 +6652,13 @@ async function loadStudentLockers(force = false) {
     }
 }
 
-async function requestStudentLocker(itemId) {
+async function requestStudentLocker(itemId, requestDetails = {}) {
     try {
         const response = await fetch('../api/lockers/student/request.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({ item_id: itemId })
+            body: JSON.stringify({ item_id: itemId, ...requestDetails })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) {

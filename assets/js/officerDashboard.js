@@ -4327,7 +4327,22 @@ function getLockerNoticePreset(type) {
 }
 
 function getAvailableLockerNoticeTypes(currentRequest = selectedLockerTile?.current_request || null) {
-    return currentRequest ? ['upcoming', 'overdue'] : [];
+    if (!currentRequest) return [];
+
+    const status = String(currentRequest.status || '').toLowerCase();
+    if (status === 'locker_overdue') {
+        return ['overdue'];
+    }
+
+    if (status === 'locker_active') {
+        const serverAllowsUpcoming = currentRequest.can_send_upcoming_notice === true
+            || Number(currentRequest.can_send_upcoming_notice) === 1;
+        if (serverAllowsUpcoming || isLockerDueWithinSevenDays(currentRequest)) {
+            return ['upcoming'];
+        }
+    }
+
+    return [];
 }
 
 function syncLockerNoticeComposer(preferredType = '') {
@@ -4352,13 +4367,13 @@ function syncLockerNoticeComposer(preferredType = '') {
             : (allowedTypes.includes(typeSelect.value) ? typeSelect.value : ''));
     typeSelect.value = nextType;
 
-    const isAvailable = !!currentRequest;
+    const isAvailable = allowedTypes.length > 0;
     composer.style.display = isAvailable ? '' : 'none';
     sendBtn.disabled = !isAvailable;
 
     if (!isAvailable) {
         messageEl.value = '';
-        messageEl.placeholder = 'No manual notices are available for this locker right now.';
+        messageEl.placeholder = 'Notices become available within 7 days of the end date or when the rental is overdue.';
         return;
     }
 
@@ -4657,7 +4672,9 @@ function openLockerDetail(lockerCode) {
     };
 
     setText('lockerDetailTitle', `Locker ${locker.locker_code}`);
-    setText('lockerDetailSubtitle', currentRequest ? 'Review the current locker request or assignment details.' : 'This locker is currently available for assignment.');
+    setText('lockerDetailSubtitle', locker.state === 'pending'
+        ? 'Review the student-requested rental period, dates, and estimated price before approval.'
+        : (currentRequest ? 'Review the current locker assignment details.' : 'This locker is currently available for assignment.'));
     const badge = document.getElementById('lockerDetailStateBadge');
     if (badge) {
         badge.className = `locker-state-pill ${stateClass}`;
@@ -5174,6 +5191,21 @@ async function saveLockerPricing() {
 
 async function approveLockerAssignment() {
     if (!selectedLockerTile?.current_request?.rental_id) return;
+    const currentRequest = selectedLockerTile.current_request;
+    const requiresLegacyQuantityConfirmation = currentRequest.locker_period_quantity_requires_confirmation === true
+        || Number(currentRequest.locker_period_quantity_requires_confirmation) === 1;
+    if (requiresLegacyQuantityConfirmation) {
+        const quantity = Number(document.getElementById('lockerDetailPeriodQuantity')?.value || 0);
+        if (!Number.isInteger(quantity) || quantity < 1 || quantity > 8) {
+            alert('Enter a semester quantity between 1 and 8 before approving this legacy request.');
+            document.getElementById('lockerDetailPeriodQuantity')?.focus();
+            return;
+        }
+        const confirmed = window.confirm(
+            `This legacy request did not save its original semester quantity. Verify that ${quantity} semester${quantity === 1 ? '' : 's'} is correct before approval. Continue?`
+        );
+        if (!confirmed) return;
+    }
     if (!beginLockerTransaction('Approving locker request', 'Confirming the assignment, rental period, and student notification...')) return;
     try {
         const response = await fetch('../api/lockers/officer/approve.php', {
@@ -5182,6 +5214,7 @@ async function approveLockerAssignment() {
             credentials: 'same-origin',
             body: JSON.stringify({
                 rental_id: selectedLockerTile.current_request.rental_id,
+                legacy_period_quantity_confirmed: requiresLegacyQuantityConfirmation,
                 period_type: document.getElementById('lockerDetailPeriodType')?.value || '',
                 period_quantity: document.getElementById('lockerDetailPeriodQuantity')?.value || 1,
                 start_date: document.getElementById('lockerDetailStartDate')?.value || '',
@@ -5773,17 +5806,6 @@ function openOfficerDocumentReviewModal(submissionId, decision) {
         submissionId: Number(submissionId) || 0,
         decision: normalizedDecision,
     };
-    const rejectCopy = document.getElementById('officer-document-reject-copy');
-    if (rejectCopy) {
-        rejectCopy.textContent = isOrganizationAdviserDocumentReviewer()
-            ? 'A rejection comment is required so the officer can prepare a corrected revision.'
-            : 'You can add an optional reviewer note before rejecting.';
-    }
-    if (normalizedDecision === 'rejected') {
-        textarea.placeholder = isOrganizationAdviserDocumentReviewer()
-            ? 'Required rejection explanation...'
-            : 'Optional comments...';
-    }
     if (!pendingOfficerDocumentReview.submissionId) return;
     textarea.value = '';
     modal.classList.add('show');
@@ -5811,11 +5833,6 @@ async function confirmOfficerDocumentReview() {
         ? 'officer-document-approve-confirm'
         : 'officer-document-reject-confirm';
     const notes = (document.getElementById(textareaId)?.value || '').trim();
-    if (decision === 'rejected' && isOrganizationAdviserDocumentReviewer() && !notes) {
-        showToast('A rejection comment is required.', 'error');
-        document.getElementById(textareaId)?.focus();
-        return;
-    }
     const confirmButton = document.getElementById(buttonId);
     if (confirmButton) confirmButton.disabled = true;
 

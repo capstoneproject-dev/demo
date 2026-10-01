@@ -25,6 +25,8 @@ try {
     $serviceKindSelectExpr = $hasServiceKind ? "r.service_kind" : "'rental' AS service_kind";
     $hasLockerPeriodType = igpColumnExists($pdo, 'rentals', 'locker_period_type');
     $lockerPeriodTypeSelectExpr = $hasLockerPeriodType ? "r.locker_period_type" : "NULL AS locker_period_type";
+    $hasLockerPeriodQuantity = igpColumnExists($pdo, 'rentals', 'locker_period_quantity');
+    $lockerPeriodQuantitySelectExpr = $hasLockerPeriodQuantity ? "r.locker_period_quantity" : "NULL AS locker_period_quantity";
     $hasLockerNoticeSentAt = igpColumnExists($pdo, 'rentals', 'locker_notice_sent_at');
     $lockerNoticeSentAtSelectExpr = $hasLockerNoticeSentAt ? "r.locker_notice_sent_at" : "NULL AS locker_notice_sent_at";
     $hasLockerNoticeMessage = igpColumnExists($pdo, 'rentals', 'locker_notice_message');
@@ -62,6 +64,7 @@ try {
              r.status,
              {$serviceKindSelectExpr},
              {$lockerPeriodTypeSelectExpr},
+             {$lockerPeriodQuantitySelectExpr},
              {$lockerNoticeSentAtSelectExpr},
              {$lockerNoticeMessageSelectExpr},
              {$notesSelectExpr},

@@ -21,7 +21,7 @@
     <link rel="stylesheet" href="../assets/vendor/fontawesome/css/all.min.css?v=20260927-complete-ui-1">
 
     <!-- STYLESHEET REFERENCE -->
-    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260927-complete-ui-1">
+    <link rel="stylesheet" href="../assets/css/studentDashboard.css?v=20260930-locker-request-schedule-1">
     <link rel="stylesheet" href="../assets/css/organizationColorThemes.css?v=20260927-complete-ui-1">
 </head>
 
@@ -446,7 +446,7 @@
                 </div>
                 <div class="student-locker-layout compact">
                     <div class="student-locker-panel-card">
-                        <h3>Current Locker</h3>
+                        <h3 id="studentLockerPanelTitle">Current Locker</h3>
                         <div id="studentLockerCurrentCard" class="student-locker-current-card">
                             <div class="student-locker-empty">
                                 <i class="fa-solid fa-door-closed"></i>
@@ -1055,15 +1055,55 @@
                     <span class="student-locker-confirm-label">Selected Locker</span>
                     <strong id="studentLockerConfirmCode" class="student-locker-confirm-code">-</strong>
                 </div>
+                <div class="student-locker-request-grid">
+                    <label class="student-locker-request-field">
+                        <span>Rental Period</span>
+                        <select id="studentLockerPeriodType" required onchange="syncStudentLockerRequestPreview('period')">
+                            <option value="monthly">Monthly</option>
+                            <option value="semester">Per Semester</option>
+                            <option value="school_year">Whole School Year</option>
+                        </select>
+                    </label>
+                    <label id="studentLockerQuantityField" class="student-locker-request-field">
+                        <span id="studentLockerQuantityLabel">Number of Months</span>
+                        <input id="studentLockerPeriodQuantity" type="number" min="1" max="24" step="1" value="1" required oninput="syncStudentLockerRequestPreview('quantity')">
+                    </label>
+                    <label class="student-locker-request-field">
+                        <span>Preferred Start Date</span>
+                        <input id="studentLockerStartDate" type="date" required onchange="syncStudentLockerRequestPreview('start')">
+                    </label>
+                    <label class="student-locker-request-field">
+                        <span>Requested End Date</span>
+                        <input id="studentLockerEndDate" type="date" required readonly onchange="syncStudentLockerRequestPreview('end')" aria-describedby="studentLockerPeriodHelp">
+                        <small id="studentLockerPeriodHelp">Calculated from the selected rental period.</small>
+                    </label>
+                    <label class="student-locker-request-field student-locker-request-price">
+                        <span>Estimated Price</span>
+                        <div class="student-locker-price-input">
+                            <span aria-hidden="true">₱</span>
+                            <input id="studentLockerEstimatedPrice" type="number" min="0" step="0.01" value="0.00" readonly>
+                        </div>
+                    </label>
+                </div>
                 <div class="student-locker-confirm-note">
                     <i class="fa-solid fa-circle-info"></i>
-                    <p>Proceed to the SSC office to process the rental after submitting this locker request.</p>
+                    <p>SSC will review your requested schedule and may adjust it before approval. Proceed to the SSC office to complete the rental.</p>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn-cancel" onclick="closeStudentLockerConfirmModal()">Cancel</button>
-                <button type="button" class="btn-submit" id="studentLockerConfirmBtn" onclick="confirmStudentLockerRequest()">Confirm Request</button>
+                <button type="button" class="btn-submit" id="studentLockerConfirmBtn" onclick="confirmStudentLockerRequest()">Submit Request</button>
             </div>
+        </div>
+    </div>
+
+    <div id="studentLockerTransactionLoading" class="locker-transaction-loading" role="status" aria-live="assertive" aria-hidden="true">
+        <div class="locker-transaction-loading-card">
+            <div class="locker-transaction-spinner" aria-hidden="true">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <strong id="studentLockerTransactionLoadingTitle">Submitting locker request</strong>
+            <span id="studentLockerTransactionLoadingMessage">Sending your request to SSC and updating locker availability...</span>
         </div>
     </div>
 
@@ -1176,7 +1216,7 @@
     <!-- Org-specific data config — must load before studentDashboard.js -->
     <script src="../data/orgData.js?v=20260927-complete-ui-1"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260927-complete-ui-1"></script>
-    <script src="../assets/js/studentDashboard.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/studentDashboard.js?v=20260930-locker-request-schedule-1"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">

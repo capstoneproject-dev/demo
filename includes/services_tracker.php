@@ -11,6 +11,7 @@ require_once __DIR__ . '/notification_email_delivery.php';
 
 class ServiceTrackerValidationException extends RuntimeException {}
 class ServiceTrackerAuthorizationException extends RuntimeException {}
+class ServiceTrackerConflictException extends RuntimeException {}
 
 const ST_DEFAULT_SERVICES = [
     [
@@ -134,6 +135,7 @@ function stEnsureSchema(PDO $pdo): void
         "ALTER TABLE rentals
          ADD COLUMN IF NOT EXISTS service_kind VARCHAR(20) NOT NULL DEFAULT 'rental',
          ADD COLUMN IF NOT EXISTS locker_period_type VARCHAR(32) NULL DEFAULT NULL,
+         ADD COLUMN IF NOT EXISTS locker_period_quantity SMALLINT UNSIGNED NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS locker_notice_sent_at DATETIME NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS locker_notice_message TEXT NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS locker_notice_sent_by_user_id INT NULL DEFAULT NULL,
@@ -1370,83 +1372,102 @@ function stGetLockerPeriodOptions(): array
 function stSyncLockerStatuses(PDO $pdo, int $orgId): void
 {
     stEnsureLockerInventory($pdo, $orgId);
-
-    $updateOverdue = $pdo->prepare(
-        "UPDATE rentals
-         SET status = :overdue_status
-         WHERE org_id = :org_id
-           AND service_kind = :service_kind
-           AND status = :active_status
-           AND expected_return_time < NOW()"
-    );
-    $updateOverdue->execute([
-        ':overdue_status' => ST_LOCKER_OVERDUE,
-        ':org_id' => $orgId,
-        ':service_kind' => ST_LOCKER_SERVICE_KIND,
-        ':active_status' => ST_LOCKER_ACTIVE,
-    ]);
-
     $categoryId = stGetOrCreateLockerCategoryId($pdo, $orgId);
-    $itemsStmt = $pdo->prepare(
-        "SELECT item_id
-         FROM inventory_items
-         WHERE org_id = :org_id
-           AND category_id = :category_id"
-    );
-    $itemsStmt->execute([
-        ':org_id' => $orgId,
-        ':category_id' => $categoryId,
-    ]);
-    $itemIds = array_map(static fn(array $row): int => (int)$row['item_id'], $itemsStmt->fetchAll());
-    if (!$itemIds) {
-        return;
+    $ownsTransaction = !$pdo->inTransaction();
+    if ($ownsTransaction) {
+        $pdo->beginTransaction();
     }
 
-    $activeStmt = $pdo->prepare(
-        "SELECT ri.item_id, r.status
-         FROM rentals r
-         JOIN rental_items ri ON ri.rental_id = r.rental_id
-         WHERE r.org_id = :org_id
-           AND r.service_kind = :service_kind
-           AND r.status IN (:pending_status, :active_status, :overdue_status)"
-    );
-    $activeStmt->execute([
-        ':org_id' => $orgId,
-        ':service_kind' => ST_LOCKER_SERVICE_KIND,
-        ':pending_status' => ST_LOCKER_PENDING,
-        ':active_status' => ST_LOCKER_ACTIVE,
-        ':overdue_status' => ST_LOCKER_OVERDUE,
-    ]);
-
-    $statusMap = [];
-    foreach ($activeStmt->fetchAll() as $row) {
-        $itemId = (int)$row['item_id'];
-        $status = (string)$row['status'];
-        if (!isset($statusMap[$itemId])) {
-            $statusMap[$itemId] = $status;
-        }
-    }
-
-    $updateItem = $pdo->prepare(
-        "UPDATE inventory_items
-         SET status = :status
-         WHERE item_id = :item_id"
-    );
-    foreach ($itemIds as $itemId) {
-        $lockerStatus = $statusMap[$itemId] ?? 'available';
-        if ($lockerStatus === ST_LOCKER_PENDING) {
-            $itemStatus = ST_LOCKER_PENDING;
-        } elseif ($lockerStatus === ST_LOCKER_OVERDUE) {
-            $itemStatus = ST_LOCKER_OVERDUE;
-        } elseif ($lockerStatus === ST_LOCKER_ACTIVE) {
-            $itemStatus = 'locker_occupied';
-        } else {
-            $itemStatus = 'available';
-        }
-        $updateItem->execute([
-            ':status' => $itemStatus,
-            ':item_id' => $itemId,
+    try {
+        $updateOverdue = $pdo->prepare(
+            "UPDATE rentals
+             SET status = :overdue_status
+             WHERE org_id = :org_id
+               AND service_kind = :service_kind
+               AND status = :active_status
+               AND expected_return_time < NOW()"
+        );
+        $updateOverdue->execute([
+            ':overdue_status' => ST_LOCKER_OVERDUE,
+            ':org_id' => $orgId,
+            ':service_kind' => ST_LOCKER_SERVICE_KIND,
+            ':active_status' => ST_LOCKER_ACTIVE,
         ]);
+
+        // Locker inventory rows are the mutex for assignment changes. Lock all of
+        // them before deriving statuses so a concurrent request cannot be
+        // overwritten by a stale status snapshot.
+        $itemsStmt = $pdo->prepare(
+            "SELECT item_id
+             FROM inventory_items
+             WHERE org_id = :org_id
+               AND category_id = :category_id
+             ORDER BY item_id
+             FOR UPDATE"
+        );
+        $itemsStmt->execute([
+            ':org_id' => $orgId,
+            ':category_id' => $categoryId,
+        ]);
+        $itemIds = array_map(static fn(array $row): int => (int)$row['item_id'], $itemsStmt->fetchAll());
+
+        if ($itemIds) {
+            $activeStmt = $pdo->prepare(
+                "SELECT ri.item_id, r.status
+                 FROM rentals r
+                 JOIN rental_items ri ON ri.rental_id = r.rental_id
+                 WHERE r.org_id = :org_id
+                   AND r.service_kind = :service_kind
+                   AND r.status IN (:pending_status, :active_status, :overdue_status)"
+            );
+            $activeStmt->execute([
+                ':org_id' => $orgId,
+                ':service_kind' => ST_LOCKER_SERVICE_KIND,
+                ':pending_status' => ST_LOCKER_PENDING,
+                ':active_status' => ST_LOCKER_ACTIVE,
+                ':overdue_status' => ST_LOCKER_OVERDUE,
+            ]);
+
+            $statusMap = [];
+            foreach ($activeStmt->fetchAll() as $row) {
+                $itemId = (int)$row['item_id'];
+                $status = (string)$row['status'];
+                if (!isset($statusMap[$itemId])) {
+                    $statusMap[$itemId] = $status;
+                }
+            }
+
+            $updateItem = $pdo->prepare(
+                "UPDATE inventory_items
+                 SET status = :status
+                 WHERE item_id = :item_id"
+            );
+            foreach ($itemIds as $itemId) {
+                $lockerStatus = $statusMap[$itemId] ?? 'available';
+                if ($lockerStatus === ST_LOCKER_PENDING) {
+                    $itemStatus = ST_LOCKER_PENDING;
+                } elseif ($lockerStatus === ST_LOCKER_OVERDUE) {
+                    $itemStatus = ST_LOCKER_OVERDUE;
+                } elseif ($lockerStatus === ST_LOCKER_ACTIVE) {
+                    $itemStatus = 'locker_occupied';
+                } else {
+                    $itemStatus = 'available';
+                }
+                $updateItem->execute([
+                    ':status' => $itemStatus,
+                    ':item_id' => $itemId,
+                ]);
+            }
+        }
+
+        if ($ownsTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
     }
 }
 
@@ -1470,6 +1491,8 @@ function stGetActiveLockerRentalByItem(PDO $pdo, int $itemId): ?array
     $stmt = $pdo->prepare(
         "SELECT r.*,
                 ri.item_id,
+                ri.unit_rate,
+                ri.item_cost,
                 CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS student_name,
                 u.student_number,
                 {$sectionSelect}
@@ -1510,6 +1533,8 @@ function stGetActiveLockerRentalByStudent(PDO $pdo, int $userId): ?array
     $stmt = $pdo->prepare(
         "SELECT r.*,
                 ri.item_id,
+                ri.unit_rate,
+                ri.item_cost,
                 i.item_name AS locker_code,
                 o.org_name,
                 o.org_code,
@@ -1542,6 +1567,8 @@ function stGetLatestLockerRentalByStudent(PDO $pdo, int $userId): ?array
     $stmt = $pdo->prepare(
         "SELECT r.*,
                 ri.item_id,
+                ri.unit_rate,
+                ri.item_cost,
                 i.item_name AS locker_code,
                 o.org_name,
                 o.org_code,
@@ -1612,13 +1639,22 @@ function stIsLockerUpcomingNoticeAllowed(array $rental): bool
         return false;
     }
 
-    $expectedReturn = strtotime((string)($rental['expected_return_time'] ?? ''));
-    if (!$expectedReturn) {
+    $expectedReturnRaw = trim((string)($rental['expected_return_time'] ?? ''));
+    if ($expectedReturnRaw === '') {
         return false;
     }
 
-    $now = time();
-    $windowEnd = strtotime('+' . ST_LOCKER_UPCOMING_NOTICE_WINDOW_DAYS . ' days', $now);
+    try {
+        // Locker dates are stored as Manila wall-clock values without a UTC
+        // offset, so they must not be interpreted using the PHP host timezone.
+        $timezone = new DateTimeZone('Asia/Manila');
+        $expectedReturn = new DateTimeImmutable($expectedReturnRaw, $timezone);
+        $now = new DateTimeImmutable('now', $timezone);
+        $windowEnd = $now->modify('+' . ST_LOCKER_UPCOMING_NOTICE_WINDOW_DAYS . ' days');
+    } catch (Throwable $e) {
+        return false;
+    }
+
     return $expectedReturn >= $now && $expectedReturn <= $windowEnd;
 }
 
@@ -1638,6 +1674,114 @@ function stFormatLockerStateFromRental(?array $rental): string
         return 'occupied';
     }
     return 'available';
+}
+
+function stInferLockerPeriodQuantity(array $rental, array $item): int
+{
+    $periodType = strtolower((string)($rental['locker_period_type'] ?? ''));
+    if ($periodType === 'school_year') {
+        return 1;
+    }
+
+    $monthsPerPeriod = $periodType === 'semester' ? 5 : 1;
+    $maximumQuantity = $periodType === 'semester' ? 8 : 24;
+    $savedQuantity = (int)($rental['locker_period_quantity'] ?? 0);
+    if ($savedQuantity >= 1 && $savedQuantity <= $maximumQuantity) {
+        return $savedQuantity;
+    }
+
+    $dateQuantity = null;
+    try {
+        $start = new DateTimeImmutable((string)($rental['rent_time'] ?? ''));
+        $end = new DateTimeImmutable((string)($rental['expected_return_time'] ?? ''));
+        if ($end > $start) {
+            $expectedEndDate = $end->format('Y-m-d');
+
+            // Replay the same date-addition rule used by
+            // stComputeLockerDatesAndPrice(). Calendar-month subtraction is
+            // not its inverse around month-end dates (Jan 31 + 1 month is
+            // Mar 3), and can otherwise turn one requested period into two.
+            for ($quantity = 1; $quantity <= $maximumQuantity; $quantity++) {
+                $candidateEnd = $start->modify('+' . ($monthsPerPeriod * $quantity) . ' month');
+                if ($candidateEnd->format('Y-m-d') === $expectedEndDate) {
+                    $dateQuantity = $quantity;
+                    break;
+                }
+            }
+
+            // Semester requests may have a custom end date, so retain a
+            // best-effort fallback when no generated boundary matches.
+            if ($dateQuantity === null) {
+                $calendarMonths = max(1, ((int)$end->format('Y') - (int)$start->format('Y')) * 12
+                    + ((int)$end->format('n') - (int)$start->format('n')));
+                $dateQuantity = $periodType === 'semester'
+                    ? max(1, (int)round($calendarMonths / $monthsPerPeriod))
+                    : $calendarMonths;
+            }
+        }
+    } catch (Throwable $e) {
+        $dateQuantity = null;
+    }
+
+    $rateColumn = $periodType === 'semester' ? 'locker_semester_rate' : 'locker_monthly_rate';
+    $storedRate = (float)($rental['unit_rate'] ?? 0);
+    $total = (float)($rental['total_cost'] ?? 0);
+    $configuredRate = (float)($item[$rateColumn] ?? 0);
+    $configuredQuantity = null;
+    if ($configuredRate > 0 && $total > 0) {
+        $roundedQuantity = (int)round($total / $configuredRate);
+        if ($roundedQuantity >= 1
+            && $roundedQuantity <= $maximumQuantity
+            && abs($total - ($configuredRate * $roundedQuantity)) < 0.01) {
+            $configuredQuantity = $roundedQuantity;
+        }
+    }
+
+    // Older locker rentals stored the full calculated price in both unit_rate
+    // and total_cost. Identify that snapshot independently of the date-derived
+    // quantity. Prefer the immutable saved dates because current inventory
+    // rates may have changed since the request was made. The configured rate is
+    // only a last resort when no usable date interval remains.
+    $isLegacyFullTotalSnapshot = $storedRate > 0
+        && $total > 0
+        && abs($storedRate - $total) < 0.01;
+    if ($isLegacyFullTotalSnapshot) {
+        if ($dateQuantity !== null) {
+            return $dateQuantity;
+        }
+        if ($configuredQuantity !== null) {
+            return $configuredQuantity;
+        }
+    }
+
+    if ($storedRate > 0 && $total >= 0) {
+        return max(1, (int)round($total / $storedRate));
+    }
+
+    if ($configuredQuantity !== null) {
+        return $configuredQuantity;
+    }
+
+    return $dateQuantity ?? 1;
+}
+
+function stLockerPeriodQuantityRequiresConfirmation(array $rental): bool
+{
+    if (strtolower((string)($rental['locker_period_type'] ?? '')) !== 'semester') {
+        return false;
+    }
+
+    $savedQuantity = (int)($rental['locker_period_quantity'] ?? 0);
+    if ($savedQuantity >= 1 && $savedQuantity <= 8) {
+        return false;
+    }
+
+    $storedRate = (float)($rental['unit_rate'] ?? 0);
+    $total = (float)($rental['total_cost'] ?? 0);
+    // When both values are the same, legacy storage cannot distinguish a
+    // one-semester rate from a multi-semester full total. This remains
+    // ambiguous even for zero-priced or standard-boundary rentals.
+    return abs($storedRate - $total) < 0.01;
 }
 
 function stListLockerBoard(PDO $pdo, int $orgId): array
@@ -1684,6 +1828,8 @@ function stListLockerBoard(PDO $pdo, int $orgId): array
                 'expected_return_time' => (string)($currentRental['expected_return_time'] ?? ''),
                 'total_cost' => (float)($currentRental['total_cost'] ?? 0),
                 'locker_period_type' => (string)($currentRental['locker_period_type'] ?? ''),
+                'locker_period_quantity' => stInferLockerPeriodQuantity($currentRental, $row),
+                'locker_period_quantity_requires_confirmation' => stLockerPeriodQuantityRequiresConfirmation($currentRental),
                 'can_send_upcoming_notice' => stIsLockerUpcomingNoticeAllowed($currentRental),
             ] + stMapLockerNoticePayload($currentRental) : null,
         ];
@@ -1701,16 +1847,20 @@ function stListStudentLockers(PDO $pdo, int $userId): array
 
     $orgId = (int)$sscOrg['org_id'];
     $board = stListLockerBoard($pdo, $orgId);
-    $currentLocker = stGetActiveLockerRentalByStudent($pdo, $userId);
-    if (!$currentLocker) {
+    $activeLocker = stGetActiveLockerRentalByStudent($pdo, $userId);
+    $currentLocker = $activeLocker;
+    if (!$activeLocker) {
         $latestLocker = stGetLatestLockerRentalByStudent($pdo, $userId);
         if ($latestLocker && stIsReleasedLockerNoticeVisible($latestLocker)) {
             $currentLocker = $latestLocker;
         }
     }
-    $currentLockerCode = $currentLocker ? (string)$currentLocker['locker_code'] : '';
+    // A recently released locker remains in current_locker only so its pull-out
+    // notice stays visible. It must not block a new request or be marked as the
+    // student's current locker on the availability board.
+    $activeLockerCode = $activeLocker ? (string)$activeLocker['locker_code'] : '';
 
-    $lockers = array_map(static function (array $locker) use ($currentLockerCode): array {
+    $lockers = array_map(static function (array $locker) use ($activeLockerCode): array {
         return [
             'item_id' => (int)$locker['item_id'],
             'locker_code' => (string)$locker['locker_code'],
@@ -1720,7 +1870,7 @@ function stListStudentLockers(PDO $pdo, int $userId): array
             'locker_monthly_rate' => (float)($locker['locker_monthly_rate'] ?? 0),
             'locker_semester_rate' => (float)($locker['locker_semester_rate'] ?? 0),
             'locker_school_year_rate' => (float)($locker['locker_school_year_rate'] ?? 0),
-            'request_allowed' => $locker['state'] === 'available' && $currentLockerCode === '',
+            'request_allowed' => $locker['state'] === 'available' && $activeLockerCode === '',
         ];
     }, $board['lockers']);
 
@@ -1739,13 +1889,14 @@ function stListStudentLockers(PDO $pdo, int $userId): array
             'expected_return_time' => (string)$currentLocker['expected_return_time'],
             'total_cost' => (float)($currentLocker['total_cost'] ?? 0),
             'locker_period_type' => (string)($currentLocker['locker_period_type'] ?? ''),
+            'locker_period_quantity' => stInferLockerPeriodQuantity($currentLocker, $currentLocker),
             'org_name' => (string)($currentLocker['org_name'] ?? ''),
             'org_code' => (string)($currentLocker['org_code'] ?? ''),
         ] + stMapLockerNoticePayload($currentLocker) : null,
     ];
 }
 
-function stRequestLocker(PDO $pdo, int $userId, int $itemId): array
+function stRequestLocker(PDO $pdo, int $userId, int $itemId, array $data = []): array
 {
     $sscOrg = stResolveSscOrg($pdo);
     if (!$sscOrg) {
@@ -1757,50 +1908,78 @@ function stRequestLocker(PDO $pdo, int $userId, int $itemId): array
     }
 
     stSyncLockerStatuses($pdo, $orgId);
-    $existingLocker = stGetActiveLockerRentalByStudent($pdo, $userId);
-    if ($existingLocker) {
-        throw new ServiceTrackerValidationException('You already have a pending or active locker assignment.');
-    }
-
-    $itemStmt = $pdo->prepare(
-        "SELECT i.item_id, i.item_name, i.org_id, i.locker_monthly_rate, i.locker_semester_rate, i.locker_school_year_rate
-         FROM inventory_items i
-         JOIN inventory_categories c ON c.category_id = i.category_id
-         WHERE i.item_id = :item_id
-           AND i.org_id = :org_id
-           AND LOWER(TRIM(c.category_name)) = 'locker'
-         LIMIT 1"
-    );
-    $itemStmt->execute([
-        ':item_id' => $itemId,
-        ':org_id' => $orgId,
-    ]);
-    $item = $itemStmt->fetch();
-    if (!$item) {
-        throw new ServiceTrackerValidationException('Selected locker was not found.');
-    }
-
-    if (stGetActiveLockerRentalByItem($pdo, $itemId)) {
-        throw new ServiceTrackerValidationException('That locker is no longer available.');
-    }
-
-    $now = date('Y-m-d H:i:s');
+    $categoryId = stGetOrCreateLockerCategoryId($pdo, $orgId);
     $pdo->beginTransaction();
     try {
+        // The student row prevents the same student from claiming different
+        // lockers through simultaneous requests.
+        $studentStmt = $pdo->prepare(
+            "SELECT user_id
+             FROM users
+             WHERE user_id = :user_id
+               AND account_type = 'student'
+               AND is_active = 1
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $studentStmt->execute([':user_id' => $userId]);
+        if (!$studentStmt->fetch()) {
+            throw new ServiceTrackerValidationException('Student account not found or inactive.');
+        }
+
+        // The inventory row is the mutex for this physical locker. Every
+        // locker creation path locks the student first and the item second.
+        $itemStmt = $pdo->prepare(
+            "SELECT i.item_id, i.item_name, i.org_id, i.status,
+                    i.locker_monthly_rate, i.locker_semester_rate, i.locker_school_year_rate
+             FROM inventory_items i
+             WHERE i.item_id = :item_id
+               AND i.org_id = :org_id
+               AND i.category_id = :category_id
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $itemStmt->execute([
+            ':item_id' => $itemId,
+            ':org_id' => $orgId,
+            ':category_id' => $categoryId,
+        ]);
+        $item = $itemStmt->fetch();
+        if (!$item) {
+            throw new ServiceTrackerValidationException('Selected locker was not found.');
+        }
+
+        if (stGetActiveLockerRentalByStudent($pdo, $userId)) {
+            throw new ServiceTrackerConflictException('You already have a pending or active locker assignment.');
+        }
+        if ((string)$item['status'] !== 'available' || stGetActiveLockerRentalByItem($pdo, $itemId)) {
+            throw new ServiceTrackerConflictException('That locker was just taken by another user. Refresh and select another locker.');
+        }
+
+        $computed = stComputeLockerDatesAndPrice($item, $data);
+        $requestedStart = new DateTimeImmutable($computed['start_at'], new DateTimeZone('Asia/Manila'));
+        $today = new DateTimeImmutable('today', new DateTimeZone('Asia/Manila'));
+        if ($requestedStart < $today) {
+            throw new ServiceTrackerValidationException('Locker requests cannot start before today.');
+        }
+
         $insertRental = $pdo->prepare(
             "INSERT INTO rentals
-                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id)
+                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_period_quantity, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id)
              VALUES
-                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, 0.00, 'unpaid', NULL, :status, :service_kind, 'pending', NULL, NULL, NULL)"
+                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, :locker_period_quantity, NULL, NULL, NULL)"
         );
         $insertRental->execute([
             ':org_id' => $orgId,
             ':user_id' => $userId,
             ':processed_by_user_id' => $userId,
-            ':rent_time' => $now,
-            ':expected_return_time' => $now,
+            ':rent_time' => $computed['start_at'],
+            ':expected_return_time' => $computed['end_at'],
+            ':total_cost' => $computed['price'],
             ':status' => ST_LOCKER_PENDING,
             ':service_kind' => ST_LOCKER_SERVICE_KIND,
+            ':locker_period_type' => $computed['period_type'],
+            ':locker_period_quantity' => $computed['period_quantity'],
         ]);
         $rentalId = (int)$pdo->lastInsertId();
 
@@ -1808,22 +1987,30 @@ function stRequestLocker(PDO $pdo, int $userId, int $itemId): array
             "INSERT INTO rental_items
                 (rental_id, item_id, quantity, unit_rate, item_cost, overtime_interval_minutes, overtime_rate_per_block)
              VALUES
-                (:rental_id, :item_id, 1, 0.00, 0.00, NULL, NULL)"
+                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)"
         );
         $insertRentalItem->execute([
             ':rental_id' => $rentalId,
             ':item_id' => $itemId,
+            ':unit_rate' => $computed['unit_rate'],
+            ':item_cost' => $computed['price'],
         ]);
 
         $updateItem = $pdo->prepare(
             "UPDATE inventory_items
              SET status = :status
-             WHERE item_id = :item_id"
+             WHERE item_id = :item_id
+               AND org_id = :org_id
+               AND status = 'available'"
         );
         $updateItem->execute([
             ':status' => ST_LOCKER_PENDING,
             ':item_id' => $itemId,
+            ':org_id' => $orgId,
         ]);
+        if ($updateItem->rowCount() !== 1) {
+            throw new ServiceTrackerConflictException('That locker was just taken by another user. Refresh and select another locker.');
+        }
 
         $pdo->commit();
     } catch (Throwable $e) {
@@ -1849,27 +2036,41 @@ function stComputeLockerDatesAndPrice(array $item, array $data): array
     if ($startDateRaw === '') {
         throw new ServiceTrackerValidationException('A locker start date is required.');
     }
-    $startDate = new DateTime($startDateRaw . ' 00:00:00');
+    $tz = new DateTimeZone('Asia/Manila');
+    $startDate = DateTimeImmutable::createFromFormat('!Y-m-d', $startDateRaw, $tz);
+    $startErrors = DateTimeImmutable::getLastErrors();
+    if (!$startDate || ($startErrors !== false && ($startErrors['warning_count'] > 0 || $startErrors['error_count'] > 0)) || $startDate->format('Y-m-d') !== $startDateRaw) {
+        throw new ServiceTrackerValidationException('A valid locker start date is required.');
+    }
 
     $quantity = $periodType === 'school_year' ? 1 : (int)($data['period_quantity'] ?? 1);
-    if ($quantity < 1 || $quantity > 24) {
-        throw new ServiceTrackerValidationException('Locker period quantity must be between 1 and 24.');
+    $maximumQuantity = $periodType === 'semester' ? 8 : 24;
+    if ($quantity < 1 || $quantity > $maximumQuantity) {
+        throw new ServiceTrackerValidationException(
+            $periodType === 'semester'
+                ? 'Locker semester quantity must be between 1 and 8.'
+                : 'Locker period quantity must be between 1 and 24.'
+        );
     }
 
     $months = (int)$periods[$periodType]['months'] * $quantity;
-    $endDate = clone $startDate;
-    $endDate->modify('+' . $months . ' month');
+    $endDate = $startDate->modify('+' . $months . ' month');
     $customEndDateRaw = trim((string)($data['end_date'] ?? ''));
     if (in_array($periodType, ['semester', 'school_year'], true) && $customEndDateRaw !== '') {
-        $customEndDate = new DateTime($customEndDateRaw . ' 23:59:59');
+        $customEndDate = DateTimeImmutable::createFromFormat('!Y-m-d', $customEndDateRaw, $tz);
+        $endErrors = DateTimeImmutable::getLastErrors();
+        if (!$customEndDate || ($endErrors !== false && ($endErrors['warning_count'] > 0 || $endErrors['error_count'] > 0)) || $customEndDate->format('Y-m-d') !== $customEndDateRaw) {
+            throw new ServiceTrackerValidationException('A valid locker end date is required.');
+        }
         if ($customEndDate <= $startDate) {
             throw new ServiceTrackerValidationException('Locker end date must be after the start date.');
         }
         $endDate = $customEndDate;
     }
-    $endDate->setTime(23, 59, 59);
+    $endDate = $endDate->setTime(23, 59, 59);
     $rateColumn = (string)$periods[$periodType]['rate_column'];
-    $price = (float)($item[$rateColumn] ?? 0) * $quantity;
+    $unitRate = (float)($item[$rateColumn] ?? 0);
+    $price = $unitRate * $quantity;
 
     if ($price < 0) {
         throw new ServiceTrackerValidationException('Locker price cannot be negative.');
@@ -1878,6 +2079,7 @@ function stComputeLockerDatesAndPrice(array $item, array $data): array
     return [
         'period_type' => $periodType,
         'period_quantity' => $quantity,
+        'unit_rate' => round($unitRate, 2),
         'start_at' => $startDate->format('Y-m-d H:i:s'),
         'end_at' => $endDate->format('Y-m-d H:i:s'),
         'price' => round($price, 2),
@@ -1896,55 +2098,57 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
         throw new ServiceTrackerValidationException('A student selection is required.');
     }
 
-    $itemStmt = $pdo->prepare(
-        "SELECT i.item_id, i.item_name, i.status, i.locker_monthly_rate, i.locker_semester_rate, i.locker_school_year_rate
-         FROM inventory_items i
-         JOIN inventory_categories c ON c.category_id = i.category_id
-         WHERE i.item_id = :item_id
-           AND i.org_id = :org_id
-           AND LOWER(TRIM(c.category_name)) = 'locker'
-         LIMIT 1"
-    );
-    $itemStmt->execute([
-        ':item_id' => $itemId,
-        ':org_id' => $orgId,
-    ]);
-    $item = $itemStmt->fetch();
-    if (!$item) {
-        throw new ServiceTrackerValidationException('Selected locker was not found.');
-    }
-
-    if (stGetActiveLockerRentalByItem($pdo, $itemId)) {
-        throw new ServiceTrackerValidationException('That locker is no longer available.');
-    }
-
-    $studentStmt = $pdo->prepare(
-        "SELECT user_id, student_number
-         FROM users
-         WHERE user_id = :user_id
-           AND account_type = 'student'
-           AND is_active = 1
-         LIMIT 1"
-    );
-    $studentStmt->execute([':user_id' => $studentUserId]);
-    $student = $studentStmt->fetch();
-    if (!$student) {
-        throw new ServiceTrackerValidationException('Selected student was not found.');
-    }
-
-    if (stGetActiveLockerRentalByStudent($pdo, $studentUserId)) {
-        throw new ServiceTrackerValidationException('That student already has an active locker assignment.');
-    }
-
-    $computed = stComputeLockerDatesAndPrice($item, $data);
-
+    $categoryId = stGetOrCreateLockerCategoryId($pdo, $orgId);
     $pdo->beginTransaction();
     try {
+        $studentStmt = $pdo->prepare(
+            "SELECT user_id, student_number
+             FROM users
+             WHERE user_id = :user_id
+               AND account_type = 'student'
+               AND is_active = 1
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $studentStmt->execute([':user_id' => $studentUserId]);
+        $student = $studentStmt->fetch();
+        if (!$student) {
+            throw new ServiceTrackerValidationException('Selected student was not found.');
+        }
+
+        $itemStmt = $pdo->prepare(
+            "SELECT i.item_id, i.item_name, i.status,
+                    i.locker_monthly_rate, i.locker_semester_rate, i.locker_school_year_rate
+             FROM inventory_items i
+             WHERE i.item_id = :item_id
+               AND i.org_id = :org_id
+               AND i.category_id = :category_id
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $itemStmt->execute([
+            ':item_id' => $itemId,
+            ':org_id' => $orgId,
+            ':category_id' => $categoryId,
+        ]);
+        $item = $itemStmt->fetch();
+        if (!$item) {
+            throw new ServiceTrackerValidationException('Selected locker was not found.');
+        }
+
+        if (stGetActiveLockerRentalByStudent($pdo, $studentUserId)) {
+            throw new ServiceTrackerConflictException('That student already has a pending or active locker assignment.');
+        }
+        if ((string)$item['status'] !== 'available' || stGetActiveLockerRentalByItem($pdo, $itemId)) {
+            throw new ServiceTrackerConflictException('That locker was just taken by another user. Refresh and select another locker.');
+        }
+
+        $computed = stComputeLockerDatesAndPrice($item, $data);
         $insertRental = $pdo->prepare(
             "INSERT INTO rentals
-                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id, locker_upcoming_notice_sent_at, locker_upcoming_notice_message, locker_upcoming_notice_sent_by_user_id)
+                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_period_quantity, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id, locker_upcoming_notice_sent_at, locker_upcoming_notice_message, locker_upcoming_notice_sent_by_user_id)
              VALUES
-                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, NULL, NULL, NULL, NULL, NULL, NULL)"
+                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, :locker_period_quantity, NULL, NULL, NULL, NULL, NULL, NULL)"
         );
         $insertRental->execute([
             ':org_id' => $orgId,
@@ -1956,6 +2160,7 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
             ':status' => ST_LOCKER_ACTIVE,
             ':service_kind' => ST_LOCKER_SERVICE_KIND,
             ':locker_period_type' => $computed['period_type'],
+            ':locker_period_quantity' => $computed['period_quantity'],
         ]);
         $rentalId = (int)$pdo->lastInsertId();
 
@@ -1968,16 +2173,24 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
         $insertRentalItem->execute([
             ':rental_id' => $rentalId,
             ':item_id' => $itemId,
-            ':unit_rate' => $computed['price'],
+            ':unit_rate' => $computed['unit_rate'],
             ':item_cost' => $computed['price'],
         ]);
 
         $updateItem = $pdo->prepare(
             "UPDATE inventory_items
              SET status = 'locker_occupied'
-             WHERE item_id = :item_id"
+             WHERE item_id = :item_id
+               AND org_id = :org_id
+               AND status = 'available'"
         );
-        $updateItem->execute([':item_id' => $itemId]);
+        $updateItem->execute([
+            ':item_id' => $itemId,
+            ':org_id' => $orgId,
+        ]);
+        if ($updateItem->rowCount() !== 1) {
+            throw new ServiceTrackerConflictException('That locker was just taken by another user. Refresh and select another locker.');
+        }
 
         $pdo->commit();
     } catch (Throwable $e) {
@@ -1997,33 +2210,41 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
     stRequireLockerOfficerContext($pdo);
     stSyncLockerStatuses($pdo, $orgId);
 
-    $stmt = $pdo->prepare(
-        "SELECT r.*, ri.item_id, i.item_name, i.locker_monthly_rate, i.locker_semester_rate, i.locker_school_year_rate
-         FROM rentals r
-         JOIN rental_items ri ON ri.rental_id = r.rental_id
-         JOIN inventory_items i ON i.item_id = ri.item_id
-         WHERE r.rental_id = :rental_id
-           AND r.org_id = :org_id
-           AND r.service_kind = :service_kind
-         LIMIT 1"
-    );
-    $stmt->execute([
-        ':rental_id' => $rentalId,
-        ':org_id' => $orgId,
-        ':service_kind' => ST_LOCKER_SERVICE_KIND,
-    ]);
-    $locker = $stmt->fetch();
-    if (!$locker) {
-        throw new ServiceTrackerValidationException('Locker request not found.');
-    }
-    if ((string)$locker['status'] !== ST_LOCKER_PENDING) {
-        throw new ServiceTrackerValidationException('Only pending locker requests can be approved.');
-    }
-
-    $computed = stComputeLockerDatesAndPrice($locker, $data);
-
     $pdo->beginTransaction();
     try {
+        $stmt = $pdo->prepare(
+            "SELECT r.*, ri.item_id, ri.unit_rate, i.item_name,
+                    i.locker_monthly_rate, i.locker_semester_rate, i.locker_school_year_rate
+             FROM rentals r
+             JOIN rental_items ri ON ri.rental_id = r.rental_id
+             JOIN inventory_items i ON i.item_id = ri.item_id
+             WHERE r.rental_id = :rental_id
+               AND r.org_id = :org_id
+               AND r.service_kind = :service_kind
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $stmt->execute([
+            ':rental_id' => $rentalId,
+            ':org_id' => $orgId,
+            ':service_kind' => ST_LOCKER_SERVICE_KIND,
+        ]);
+        $locker = $stmt->fetch();
+        if (!$locker) {
+            throw new ServiceTrackerValidationException('Locker request not found.');
+        }
+        if ((string)$locker['status'] !== ST_LOCKER_PENDING) {
+            throw new ServiceTrackerConflictException('This locker request was already processed. Refresh the locker list.');
+        }
+
+        if (stLockerPeriodQuantityRequiresConfirmation($locker)
+            && filter_var($data['legacy_period_quantity_confirmed'] ?? false, FILTER_VALIDATE_BOOLEAN) !== true) {
+            throw new ServiceTrackerValidationException(
+                'This legacy custom-semester request has no saved quantity. Verify the semester quantity and confirm it before approval.'
+            );
+        }
+
+        $computed = stComputeLockerDatesAndPrice($locker, $data);
         $updateRental = $pdo->prepare(
             "UPDATE rentals
              SET processed_by_user_id = :processed_by_user_id,
@@ -2032,13 +2253,15 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
                  total_cost = :total_cost,
                  status = :status,
                  locker_period_type = :locker_period_type,
+                 locker_period_quantity = :locker_period_quantity,
                  locker_notice_sent_at = NULL,
                  locker_notice_message = NULL,
                  locker_notice_sent_by_user_id = NULL,
                  locker_upcoming_notice_sent_at = NULL,
                  locker_upcoming_notice_message = NULL,
                  locker_upcoming_notice_sent_by_user_id = NULL
-             WHERE rental_id = :rental_id"
+             WHERE rental_id = :rental_id
+               AND status = :expected_status"
         );
         $updateRental->execute([
             ':processed_by_user_id' => $officerUserId,
@@ -2047,8 +2270,13 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
             ':total_cost' => $computed['price'],
             ':status' => ST_LOCKER_ACTIVE,
             ':locker_period_type' => $computed['period_type'],
+            ':locker_period_quantity' => $computed['period_quantity'],
             ':rental_id' => $rentalId,
+            ':expected_status' => ST_LOCKER_PENDING,
         ]);
+        if ($updateRental->rowCount() !== 1) {
+            throw new ServiceTrackerConflictException('This locker request was already processed. Refresh the locker list.');
+        }
 
         $updateRentalItem = $pdo->prepare(
             "UPDATE rental_items
@@ -2057,7 +2285,7 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
              WHERE rental_id = :rental_id"
         );
         $updateRentalItem->execute([
-            ':unit_rate' => $computed['price'],
+            ':unit_rate' => $computed['unit_rate'],
             ':item_cost' => $computed['price'],
             ':rental_id' => $rentalId,
         ]);
@@ -2065,9 +2293,13 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
         $updateItem = $pdo->prepare(
             "UPDATE inventory_items
              SET status = 'locker_occupied'
-             WHERE item_id = :item_id"
+             WHERE item_id = :item_id
+               AND org_id = :org_id"
         );
-        $updateItem->execute([':item_id' => (int)$locker['item_id']]);
+        $updateItem->execute([
+            ':item_id' => (int)$locker['item_id'],
+            ':org_id' => $orgId,
+        ]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -2085,30 +2317,30 @@ function stReleaseLocker(PDO $pdo, int $orgId, int $officerUserId, int $rentalId
 {
     stRequireLockerOfficerContext($pdo);
     $releaseNotice = 'Locker has been pulled out. If you left any items inside the locker, you may claim them at the SSC office. This notice will remain visible for 2 weeks or until you rent another locker.';
-    $stmt = $pdo->prepare(
-        "SELECT r.rental_id, ri.item_id
-         FROM rentals r
-         JOIN rental_items ri ON ri.rental_id = r.rental_id
-         WHERE r.rental_id = :rental_id
-           AND r.org_id = :org_id
-           AND r.service_kind = :service_kind
-           AND r.status IN (:active_status, :overdue_status)
-         LIMIT 1"
-    );
-    $stmt->execute([
-        ':rental_id' => $rentalId,
-        ':org_id' => $orgId,
-        ':service_kind' => ST_LOCKER_SERVICE_KIND,
-        ':active_status' => ST_LOCKER_ACTIVE,
-        ':overdue_status' => ST_LOCKER_OVERDUE,
-    ]);
-    $locker = $stmt->fetch();
-    if (!$locker) {
-        throw new ServiceTrackerValidationException('Active locker assignment not found.');
-    }
 
     $pdo->beginTransaction();
     try {
+        $stmt = $pdo->prepare(
+            "SELECT r.rental_id, r.status, ri.item_id
+             FROM rentals r
+             JOIN rental_items ri ON ri.rental_id = r.rental_id
+             JOIN inventory_items i ON i.item_id = ri.item_id
+             WHERE r.rental_id = :rental_id
+               AND r.org_id = :org_id
+               AND r.service_kind = :service_kind
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $stmt->execute([
+            ':rental_id' => $rentalId,
+            ':org_id' => $orgId,
+            ':service_kind' => ST_LOCKER_SERVICE_KIND,
+        ]);
+        $locker = $stmt->fetch();
+        if (!$locker || !in_array((string)$locker['status'], [ST_LOCKER_ACTIVE, ST_LOCKER_OVERDUE], true)) {
+            throw new ServiceTrackerConflictException('This locker assignment is no longer active. Refresh the locker list.');
+        }
+
         $updateRental = $pdo->prepare(
             "UPDATE rentals
              SET processed_by_user_id = :processed_by_user_id,
@@ -2117,7 +2349,8 @@ function stReleaseLocker(PDO $pdo, int $orgId, int $officerUserId, int $rentalId
                  locker_notice_sent_at = NOW(),
                  locker_notice_message = :locker_notice_message,
                  locker_notice_sent_by_user_id = :locker_notice_sent_by_user_id
-             WHERE rental_id = :rental_id"
+             WHERE rental_id = :rental_id
+               AND status IN (:active_status, :overdue_status)"
         );
         $updateRental->execute([
             ':processed_by_user_id' => $officerUserId,
@@ -2125,14 +2358,23 @@ function stReleaseLocker(PDO $pdo, int $orgId, int $officerUserId, int $rentalId
             ':locker_notice_message' => $releaseNotice,
             ':locker_notice_sent_by_user_id' => $officerUserId,
             ':rental_id' => $rentalId,
+            ':active_status' => ST_LOCKER_ACTIVE,
+            ':overdue_status' => ST_LOCKER_OVERDUE,
         ]);
+        if ($updateRental->rowCount() !== 1) {
+            throw new ServiceTrackerConflictException('This locker assignment was already updated. Refresh the locker list.');
+        }
 
         $updateItem = $pdo->prepare(
             "UPDATE inventory_items
              SET status = 'available'
-             WHERE item_id = :item_id"
+             WHERE item_id = :item_id
+               AND org_id = :org_id"
         );
-        $updateItem->execute([':item_id' => (int)$locker['item_id']]);
+        $updateItem->execute([
+            ':item_id' => (int)$locker['item_id'],
+            ':org_id' => $orgId,
+        ]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -2148,48 +2390,58 @@ function stReleaseLocker(PDO $pdo, int $orgId, int $officerUserId, int $rentalId
 function stRejectLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $rentalId): array
 {
     stRequireLockerOfficerContext($pdo);
-    $stmt = $pdo->prepare(
-        "SELECT r.rental_id, ri.item_id
-         FROM rentals r
-         JOIN rental_items ri ON ri.rental_id = r.rental_id
-         WHERE r.rental_id = :rental_id
-           AND r.org_id = :org_id
-           AND r.service_kind = :service_kind
-           AND r.status = :pending_status
-         LIMIT 1"
-    );
-    $stmt->execute([
-        ':rental_id' => $rentalId,
-        ':org_id' => $orgId,
-        ':service_kind' => ST_LOCKER_SERVICE_KIND,
-        ':pending_status' => ST_LOCKER_PENDING,
-    ]);
-    $locker = $stmt->fetch();
-    if (!$locker) {
-        throw new ServiceTrackerValidationException('Pending locker request not found.');
-    }
 
     $pdo->beginTransaction();
     try {
+        $stmt = $pdo->prepare(
+            "SELECT r.rental_id, r.status, ri.item_id
+             FROM rentals r
+             JOIN rental_items ri ON ri.rental_id = r.rental_id
+             JOIN inventory_items i ON i.item_id = ri.item_id
+             WHERE r.rental_id = :rental_id
+               AND r.org_id = :org_id
+               AND r.service_kind = :service_kind
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $stmt->execute([
+            ':rental_id' => $rentalId,
+            ':org_id' => $orgId,
+            ':service_kind' => ST_LOCKER_SERVICE_KIND,
+        ]);
+        $locker = $stmt->fetch();
+        if (!$locker || (string)$locker['status'] !== ST_LOCKER_PENDING) {
+            throw new ServiceTrackerConflictException('This locker request was already processed. Refresh the locker list.');
+        }
+
         $updateRental = $pdo->prepare(
             "UPDATE rentals
              SET processed_by_user_id = :processed_by_user_id,
                  actual_return_time = NOW(),
                  status = :status
-             WHERE rental_id = :rental_id"
+             WHERE rental_id = :rental_id
+               AND status = :expected_status"
         );
         $updateRental->execute([
             ':processed_by_user_id' => $officerUserId,
-            ':status' => ST_LOCKER_RELEASED,
+            ':status' => ST_LOCKER_REJECTED,
             ':rental_id' => $rentalId,
+            ':expected_status' => ST_LOCKER_PENDING,
         ]);
+        if ($updateRental->rowCount() !== 1) {
+            throw new ServiceTrackerConflictException('This locker request was already processed. Refresh the locker list.');
+        }
 
         $updateItem = $pdo->prepare(
             "UPDATE inventory_items
              SET status = 'available'
-             WHERE item_id = :item_id"
+             WHERE item_id = :item_id
+               AND org_id = :org_id"
         );
-        $updateItem->execute([':item_id' => (int)$locker['item_id']]);
+        $updateItem->execute([
+            ':item_id' => (int)$locker['item_id'],
+            ':org_id' => $orgId,
+        ]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -2237,8 +2489,12 @@ function stSendLockerNotice(PDO $pdo, int $orgId, int $officerUserId, int $renta
 
     $updateSql = '';
     if ($normalizedType === 'upcoming') {
-        if ((string)$locker['status'] !== ST_LOCKER_ACTIVE) {
-            throw new ServiceTrackerValidationException('Ending soon notices can only be sent for active locker rentals.');
+        if (!stIsLockerUpcomingNoticeAllowed($locker)) {
+            throw new ServiceTrackerValidationException(
+                'Ending soon notices can only be sent within '
+                . ST_LOCKER_UPCOMING_NOTICE_WINDOW_DAYS
+                . ' days before the locker rental end date.'
+            );
         }
         $updateSql = "UPDATE rentals
                       SET locker_upcoming_notice_sent_at = NOW(),
