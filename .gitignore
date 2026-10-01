@@ -12,6 +12,10 @@ composer-setup.php
 /storage/private/**
 !/storage/private/**/
 !/storage/private/**/.gitkeep
+/storage/sess_*
+
+# Local concurrency test artifacts are not part of production deployment.
+/tests/concurrency/
 
 # Runtime uploads belong to persistent server storage/backups, not source control.
 /uploads/**
