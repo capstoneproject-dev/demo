@@ -364,7 +364,8 @@ function offlineDeleteIgpOfficer(PDO $pdo, int $orgId, array $payload): array
 
 function offlineSaveInventory(PDO $pdo, int $orgId, array $payload): array
 {
-    $pdo->beginTransaction();
+    igpEnsureInventoryBarcodeScope($pdo);
+    igpBeginTransaction($pdo);
     try {
         $itemId = igpSaveInventoryItem($pdo, $orgId, $payload);
         if ((int)($payload['apply_pricing_to_group'] ?? 0) === 1) igpApplyInventoryGroupPricing($pdo, $orgId, $itemId);

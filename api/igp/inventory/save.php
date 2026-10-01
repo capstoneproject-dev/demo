@@ -41,7 +41,8 @@ try {
     }
 
     $pdo = getPdo();
-    $pdo->beginTransaction();
+    igpEnsureInventoryBarcodeScope($pdo);
+    igpBeginTransaction($pdo);
     try {
         $itemId = igpSaveInventoryItem($pdo, $ctx['org_id'], $body);
         if ((int)($body['apply_pricing_to_group'] ?? 0) === 1) {
@@ -57,7 +58,12 @@ try {
     jsonOk(['item_id' => $itemId]);
 } catch (IgpAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
+} catch (IgpConflictException $e) {
+    jsonError($e->getMessage(), 409, ['code' => 'RENTAL_CONFLICT']);
 } catch (PDOException $e) {
+    if (igpIsConcurrencyError($e)) {
+        jsonError('Another rental operation is in progress. Refresh and try again.', 409, ['code' => 'RENTAL_CONFLICT']);
+    }
     error_log('[api/igp/inventory/save] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {

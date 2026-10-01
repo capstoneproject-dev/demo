@@ -18,7 +18,12 @@ try {
     jsonOk($summary);
 } catch (IgpAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
+} catch (IgpConflictException $e) {
+    jsonError($e->getMessage(), 409, ['code' => 'RENTAL_CONFLICT']);
 } catch (PDOException $e) {
+    if (igpIsConcurrencyError($e)) {
+        jsonError('Another rental operation is in progress. Refresh and try again.', 409, ['code' => 'RENTAL_CONFLICT']);
+    }
     error_log('[api/igp/reports/financial-summary] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {

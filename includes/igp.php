@@ -10,6 +10,95 @@ require_once __DIR__ . '/services_tracker.php';
 
 class IgpValidationException extends RuntimeException {}
 class IgpAuthorizationException extends RuntimeException {}
+class IgpConflictException extends RuntimeException {}
+
+/** Scoped isolation avoids next-key gaps when checking newly added equipment. */
+function igpBeginTransaction(PDO $pdo): void
+{
+    $pdo->exec('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+    $pdo->beginTransaction();
+}
+
+function igpLockRenter(PDO $pdo, int $userId): array
+{
+    $stmt = $pdo->prepare('SELECT user_id, is_active, has_unpaid_debt FROM users WHERE user_id = :uid FOR UPDATE');
+    $stmt->execute([':uid' => $userId]);
+    $user = $stmt->fetch();
+    if (!$user) throw new IgpValidationException('Renter not found.');
+    return $user;
+}
+
+function igpLockRentalRenter(PDO $pdo, int $rentalId, ?int $orgId = null, ?int $renterId = null): void
+{
+    $renterSql = 'SELECT renter_user_id FROM rentals WHERE rental_id = :rid';
+    $renterParams = [':rid' => $rentalId];
+    if ($orgId !== null) {
+        $renterSql .= ' AND org_id = :org';
+        $renterParams[':org'] = $orgId;
+    }
+    if ($renterId !== null) {
+        $renterSql .= ' AND renter_user_id = :uid';
+        $renterParams[':uid'] = $renterId;
+    }
+    $renter = $pdo->prepare($renterSql);
+    $renter->execute($renterParams);
+    $userId = $renter->fetchColumn();
+    if ($userId !== false) igpLockRenter($pdo, (int)$userId);
+}
+
+/** Debt-affecting operations lock renter, then inventory, then rental rows. */
+function igpLockRentalInventory(PDO $pdo, int $rentalId, ?int $orgId = null, ?int $renterId = null): void
+{
+    igpLockRentalRenter($pdo, $rentalId, $orgId, $renterId);
+    $sql = 'SELECT ri.item_id, r.org_id FROM rental_items ri JOIN rentals r ON r.rental_id = ri.rental_id
+            WHERE r.rental_id = :rid';
+    $params = [':rid' => $rentalId];
+    if ($orgId !== null) {
+        $sql .= ' AND r.org_id = :org';
+        $params[':org'] = $orgId;
+    }
+    if ($renterId !== null) {
+        $sql .= ' AND r.renter_user_id = :uid';
+        $params[':uid'] = $renterId;
+    }
+    $stmt = $pdo->prepare($sql . ' ORDER BY ri.item_id');
+    $stmt->execute($params);
+    $lock = $pdo->prepare('SELECT item_id FROM inventory_items WHERE item_id = :id AND org_id = :org FOR UPDATE');
+    foreach ($stmt->fetchAll() as $item) {
+        $lock->execute([':id' => $item['item_id'], ':org' => $item['org_id']]);
+        if (!$lock->fetch()) throw new IgpConflictException('Rental inventory changed. Refresh and try again.');
+    }
+}
+
+/** Use a current locking read, even if an earlier query established a snapshot. */
+function igpAssertItemHasNoOpenRental(PDO $pdo, int $itemId, int $exceptRentalId = 0): void
+{
+    if (igpItemHasOpenRental($pdo, $itemId, $exceptRentalId)) {
+        throw new IgpConflictException('This item has an open rental. Refresh and try again.');
+    }
+}
+
+function igpItemHasOpenRental(PDO $pdo, int $itemId, int $exceptRentalId = 0): bool
+{
+    $stmt = $pdo->prepare("SELECT r.rental_id FROM rental_items ri JOIN rentals r ON r.rental_id = ri.rental_id
+        WHERE ri.item_id = :item AND r.rental_id <> :except_rental AND (r.status IN ('reserved', 'active')
+        OR (r.status = 'overdue' AND r.actual_return_time IS NULL)) LIMIT 1 FOR UPDATE");
+    $stmt->execute([':item' => $itemId, ':except_rental' => $exceptRentalId]);
+    return (bool)$stmt->fetch();
+}
+
+function igpVerifyTransition(PDOStatement $stmt): void
+{
+    if ($stmt->rowCount() !== 1) {
+        throw new IgpConflictException('The rental or inventory status changed. Refresh and try again.');
+    }
+}
+
+function igpIsConcurrencyError(PDOException $error): bool
+{
+    return $error->getCode() === '40001'
+        || in_array((int)($error->errorInfo[1] ?? 0), [1205, 1213], true);
+}
 
 function igpColumnExists(PDO $pdo, string $table, string $column): bool
 {
@@ -421,8 +510,21 @@ function igpGetInventory(PDO $pdo, int $orgId, array $filters = []): array
 
 function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
 {
-    igpEnsureInventoryBarcodeScope($pdo);
+    if (!$pdo->inTransaction()) igpEnsureInventoryBarcodeScope($pdo);
+    $ownsTransaction = !$pdo->inTransaction();
+    if ($ownsTransaction) igpBeginTransaction($pdo);
+    try {
+        $id = igpSaveInventoryItemInTransaction($pdo, $orgId, $data);
+        if ($ownsTransaction) $pdo->commit();
+        return $id;
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
 
+function igpSaveInventoryItemInTransaction(PDO $pdo, int $orgId, array $data): int
+{
     $hasImagePath = igpColumnExists($pdo, 'inventory_items', 'image_path');
     $itemId = isset($data['item_id']) ? (int)$data['item_id'] : 0;
     $itemName = trim((string)($data['item_name'] ?? ''));
@@ -490,12 +592,15 @@ function igpSaveInventoryItem(PDO $pdo, int $orgId, array $data): int
     }
 
     if ($itemId > 0) {
-        $selectCols = $hasImagePath ? 'item_id, image_path, category_id' : 'item_id, category_id';
-        $check = $pdo->prepare("SELECT {$selectCols} FROM inventory_items WHERE item_id = :id AND org_id = :org LIMIT 1");
+        $selectCols = $hasImagePath ? 'item_id, image_path, category_id, status' : 'item_id, category_id, status';
+        $check = $pdo->prepare("SELECT {$selectCols} FROM inventory_items WHERE item_id = :id AND org_id = :org LIMIT 1 FOR UPDATE");
         $check->execute([':id' => $itemId, ':org' => $orgId]);
         $existing = $check->fetch();
         if (!$existing) {
             throw new IgpValidationException('Item not found for this organization.');
+        }
+        if ($status !== 'maintenance' && ($status !== $existing['status'] || $status === 'available')) {
+            igpAssertItemHasNoOpenRental($pdo, $itemId);
         }
         $previousCategoryId = (int)($existing['category_id'] ?? 0);
         if ($hasImagePath && $imagePath === '') {
@@ -657,29 +762,21 @@ function igpDeleteInventoryItem(PDO $pdo, int $orgId, int $itemId): void
         throw new IgpValidationException('Invalid item_id.');
     }
 
-    $check = $pdo->prepare(
-        "SELECT 1
-         FROM rental_items ri
-         JOIN rentals r ON r.rental_id = ri.rental_id
-         WHERE ri.item_id = :item AND r.org_id = :org AND r.status IN ('reserved', 'active')
-         LIMIT 1"
-    );
-    $check->execute([':item' => $itemId, ':org' => $orgId]);
-    if ($check->fetch()) {
-        throw new IgpValidationException('Cannot delete item with open rentals.');
-    }
-
-    $categoryStmt = $pdo->prepare("SELECT category_id FROM inventory_items WHERE item_id = :id AND org_id = :org LIMIT 1");
-    $categoryStmt->execute([':id' => $itemId, ':org' => $orgId]);
-    $categoryId = (int)$categoryStmt->fetchColumn();
-
-    $del = $pdo->prepare("DELETE FROM inventory_items WHERE item_id = :id AND org_id = :org");
-    $del->execute([':id' => $itemId, ':org' => $orgId]);
-    if ($del->rowCount() === 0) {
-        throw new IgpValidationException('Item not found for this organization.');
-    }
-    if ($categoryId > 0) {
-        igpDeleteUnusedCategory($pdo, $orgId, $categoryId);
+    igpBeginTransaction($pdo);
+    try {
+        $stmt = $pdo->prepare('SELECT category_id FROM inventory_items WHERE item_id = :id AND org_id = :org FOR UPDATE');
+        $stmt->execute([':id' => $itemId, ':org' => $orgId]);
+        $item = $stmt->fetch();
+        if (!$item) throw new IgpValidationException('Item not found for this organization.');
+        igpAssertItemHasNoOpenRental($pdo, $itemId);
+        $del = $pdo->prepare('DELETE FROM inventory_items WHERE item_id = :id AND org_id = :org');
+        $del->execute([':id' => $itemId, ':org' => $orgId]);
+        igpVerifyTransition($del);
+        igpDeleteUnusedCategory($pdo, $orgId, (int)$item['category_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
 }
 
@@ -702,25 +799,52 @@ function igpExpireUnfulfilledReservations(PDO $pdo, ?int $orgId = null, ?int $re
         $params[':expired_renter'] = $renterUserId;
     }
 
-    $set = [
-        "r.status = 'cancelled'",
-        "r.payment_status = 'waived'",
-        'r.total_cost = 0',
-        "i.status = 'available'",
-    ];
-    if (igpColumnExists($pdo, 'rentals', 'notes')) {
-        $set[] = "r.notes = CONCAT_WS(CHAR(10), NULLIF(r.notes, ''), 'Automatically expired without charge: item was not provided before the scheduled end time.')";
+    $find = $pdo->prepare('SELECT r.rental_id, r.org_id FROM rentals r WHERE ' . implode(' AND ', $where) . ' ORDER BY r.rental_id');
+    $find->execute($params);
+    $expired = 0;
+    $hasNotes = igpColumnExists($pdo, 'rentals', 'notes');
+    foreach ($find->fetchAll() as $candidate) {
+        igpBeginTransaction($pdo);
+        try {
+            $rid = (int)$candidate['rental_id'];
+            $oid = (int)$candidate['org_id'];
+            igpLockRentalInventory($pdo, $rid, $oid);
+            $lock = $pdo->prepare("SELECT rental_id FROM rentals WHERE rental_id = :rid AND status = 'reserved'
+                AND expected_return_time <= :now FOR UPDATE");
+            $lock->execute([':rid' => $rid, ':now' => $now]);
+            if (!$lock->fetch()) {
+                $pdo->rollBack();
+                continue;
+            }
+            $notes = $hasNotes ? ", notes = CONCAT_WS(CHAR(10), NULLIF(notes, ''), 'Automatically expired without charge: item was not provided before the scheduled end time.')" : '';
+            $update = $pdo->prepare("UPDATE rentals SET status = 'cancelled', payment_status = 'waived', total_cost = 0" . $notes . "
+                WHERE rental_id = :rid AND status = 'reserved'");
+            $update->execute([':rid' => $rid]);
+            igpVerifyTransition($update);
+            $items = $pdo->prepare('SELECT item_id FROM rental_items WHERE rental_id = :rid ORDER BY item_id');
+            $items->execute([':rid' => $rid]);
+            $release = $pdo->prepare("UPDATE inventory_items SET status = 'available'
+                WHERE item_id = :item AND org_id = :org AND status = 'reserved'");
+            foreach ($items->fetchAll() as $item) {
+                if (igpItemHasOpenRental($pdo, (int)$item['item_id'])) continue;
+                $release->execute([':item' => $item['item_id'], ':org' => $oid]);
+                // Already available or under maintenance: preserve its current status.
+            }
+            $user = $pdo->prepare('SELECT renter_user_id FROM rentals WHERE rental_id = :rid');
+            $user->execute([':rid' => $rid]);
+            igpRefreshUserDebtFlag($pdo, (int)$user->fetchColumn());
+            $pdo->commit();
+            $expired++;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($e instanceof IgpConflictException || ($e instanceof PDOException && igpIsConcurrencyError($e))) {
+                error_log('[igp/reservation-expiry] rental ' . $candidate['rental_id'] . ': ' . $e->getMessage());
+                continue;
+            }
+            throw $e;
+        }
     }
-
-    $stmt = $pdo->prepare(
-        "UPDATE rentals r
-         JOIN rental_items ri ON ri.rental_id = r.rental_id
-         JOIN inventory_items i ON i.item_id = ri.item_id AND i.org_id = r.org_id
-         SET " . implode(', ', $set) . "
-         WHERE " . implode(' AND ', $where)
-    );
-    $stmt->execute($params);
-    return $stmt->rowCount();
+    return $expired;
 }
 
 function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
@@ -935,17 +1059,27 @@ function igpFindStudentRentalInventoryItem(PDO $pdo, int $orgId, string $itemNam
                 AND is_active = 1
                 AND LOWER(TRIM(category_name)) <> 'locker'
           )
-          AND (" . implode(' OR ', $conditions) . ")
-        ORDER BY item_id ASC
-        LIMIT 1";
+          AND (" . implode(' OR ', $conditions) . ")";
 
-    if ($forUpdate) {
-        $sql .= " FOR UPDATE";
+    if (!$forUpdate) {
+        $stmt = $pdo->prepare($sql . ' ORDER BY item_id ASC LIMIT 1');
+        $stmt->execute($params);
+        return $stmt->fetch() ?: null;
     }
 
-    $stmt = $pdo->prepare($sql);
+    // Discover candidates without locking the status index. Lock each candidate
+    // through its primary key, just like officer creation and inventory updates.
+    // The locking read rechecks availability against the latest committed state.
+    $stmt = $pdo->prepare($sql . ' ORDER BY item_id ASC');
     $stmt->execute($params);
-    return $stmt->fetch() ?: null;
+    $candidates = $stmt->fetchAll();
+    $lock = $pdo->prepare($sql . ' AND item_id = :selected_item FOR UPDATE');
+    foreach ($candidates as $candidate) {
+        $lock->execute($params + [':selected_item' => (int)$candidate['item_id']]);
+        $item = $lock->fetch();
+        if ($item && !igpItemHasOpenRental($pdo, (int)$item['item_id'])) return $item;
+    }
+    return null;
 }
 
 function igpGetStudentRentalQuote(PDO $pdo, string $orgRef, string $itemName, float $hours = 0): array
@@ -1159,8 +1293,12 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
         throw new IgpValidationException('Valid processor officer is required.');
     }
 
-    $pdo->beginTransaction();
+    igpBeginTransaction($pdo);
     try {
+        $currentRenter = igpLockRenter($pdo, (int)$renter['user_id']);
+        if (!(int)$currentRenter['is_active'] || (int)$currentRenter['has_unpaid_debt']) {
+            throw new IgpValidationException('Renter is inactive or has unpaid debt.');
+        }
         $itemStmt = $pdo->prepare(
             "SELECT item_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block, status
              FROM inventory_items
@@ -1173,8 +1311,10 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
             throw new IgpValidationException('Item not found for this organization.');
         }
         if ($item['status'] !== 'available') {
-            throw new IgpValidationException('Item is not currently available for rent.');
+            throw new IgpConflictException('This item is no longer available. Refresh and select another item.');
         }
+
+        igpAssertItemHasNoOpenRental($pdo, $itemId);
 
         $tz = new DateTimeZone('Asia/Manila');
         $rentTime = new DateTimeImmutable('now', $tz);
@@ -1214,9 +1354,10 @@ function igpCreateRental(PDO $pdo, int $orgId, array $data): int
         ]);
 
         $updItem = $pdo->prepare(
-            "UPDATE inventory_items SET status = 'rented' WHERE item_id = :id AND org_id = :org"
+            "UPDATE inventory_items SET status = 'rented' WHERE item_id = :id AND org_id = :org AND status = 'available'"
         );
         $updItem->execute([':id' => $itemId, ':org' => $orgId]);
+        igpVerifyTransition($updItem);
 
         $pdo->commit();
         return $rentalId;
@@ -1264,14 +1405,20 @@ function igpCreateStudentRental(PDO $pdo, int $renterUserId, string $orgRef, str
         throw new IgpValidationException('You have unpaid returned rentals for this organization.');
     }
 
-    $pdo->beginTransaction();
+    igpBeginTransaction($pdo);
     try {
+        $currentRenter = igpLockRenter($pdo, $renterUserId);
+        if (!(int)$currentRenter['is_active'] || (int)$currentRenter['has_unpaid_debt']) {
+            throw new IgpValidationException('Renter is inactive or has unpaid debt.');
+        }
         $hasRentalNotes = igpColumnExists($pdo, 'rentals', 'notes');
 
         $item = igpFindStudentRentalInventoryItem($pdo, $orgId, $itemName, true);
         if (!$item) {
-            throw new IgpValidationException('No available inventory item was found for that service.');
+            throw new IgpConflictException('No available item remains for this service. Refresh and try again.');
         }
+
+        igpAssertItemHasNoOpenRental($pdo, (int)$item['item_id']);
 
         $tz = new DateTimeZone('Asia/Manila');
         $rentTime = new DateTimeImmutable($scheduledStart, $tz);
@@ -1347,13 +1494,14 @@ function igpCreateStudentRental(PDO $pdo, int $renterUserId, string $orgRef, str
         $updItem = $pdo->prepare(
             "UPDATE inventory_items
              SET status = 'reserved'
-             WHERE item_id = :id AND org_id = :org"
+             WHERE item_id = :id AND org_id = :org AND status = 'available'"
         );
         $updItem->execute([
             ':id' => (int)$item['item_id'],
             ':org' => $orgId,
         ]);
 
+        igpVerifyTransition($updItem);
         $pdo->commit();
         return $rentalId;
     } catch (Throwable $e) {
@@ -1374,7 +1522,7 @@ function igpRefreshUserDebtFlag(PDO $pdo, int $userId): void
          WHERE renter_user_id = :uid
            AND payment_status = 'unpaid'
            AND status IN ('returned', 'overdue', 'cancelled')
-         LIMIT 1"
+         LIMIT 1 FOR UPDATE"
     );
     $check->execute([':uid' => $userId]);
     $hasDebt = $check->fetch() ? 1 : 0;
@@ -1396,8 +1544,9 @@ function igpStartReservedRental(PDO $pdo, int $orgId, int $rentalId): void
         throw new IgpValidationException('Invalid rental_id.');
     }
 
-    $pdo->beginTransaction();
+    igpBeginTransaction($pdo);
     try {
+        igpLockRentalInventory($pdo, $rentalId, $orgId);
         $stmt = $pdo->prepare(
             "SELECT rental_id, renter_user_id, rent_time, expected_return_time, status
              FROM rentals
@@ -1410,13 +1559,14 @@ function igpStartReservedRental(PDO $pdo, int $orgId, int $rentalId): void
             throw new IgpValidationException('Rental not found for this organization.');
         }
         if ($rental['status'] !== 'reserved') {
-            throw new IgpValidationException('Only reserved rentals can be started.');
+            throw new IgpConflictException('Only reserved rentals can be started.');
         }
 
         $itemsStmt = $pdo->prepare(
             "SELECT ri.item_id
              FROM rental_items ri
              WHERE ri.rental_id = :rid
+             ORDER BY ri.item_id
              FOR UPDATE"
         );
         $itemsStmt->execute([':rid' => $rentalId]);
@@ -1445,23 +1595,27 @@ function igpStartReservedRental(PDO $pdo, int $orgId, int $rentalId): void
         $updRental = $pdo->prepare(
             "UPDATE rentals
              SET status = 'active'
-             WHERE rental_id = :rid AND org_id = :org"
+             WHERE rental_id = :rid AND org_id = :org AND status = 'reserved'"
         );
         $updRental->execute([
             ':rid' => $rentalId,
             ':org' => $orgId,
         ]);
 
+        igpVerifyTransition($updRental);
+
         $updItem = $pdo->prepare(
             "UPDATE inventory_items
              SET status = 'rented'
-             WHERE item_id = :id AND org_id = :org"
+             WHERE item_id = :id AND org_id = :org AND status = 'reserved'"
         );
         foreach ($items as $item) {
+            igpAssertItemHasNoOpenRental($pdo, (int)$item['item_id'], $rentalId);
             $updItem->execute([
                 ':id' => (int)$item['item_id'],
                 ':org' => $orgId,
             ]);
+            igpVerifyTransition($updItem);
         }
 
         $pdo->commit();
@@ -1479,8 +1633,9 @@ function igpCancelStudentReservation(PDO $pdo, int $renterUserId, int $rentalId)
         throw new IgpValidationException('Invalid reservation request.');
     }
 
-    $pdo->beginTransaction();
+    igpBeginTransaction($pdo);
     try {
+        igpLockRentalInventory($pdo, $rentalId, null, $renterUserId);
         $stmt = $pdo->prepare(
             "SELECT rental_id, org_id, renter_user_id, rent_time, status
              FROM rentals
@@ -1496,7 +1651,7 @@ function igpCancelStudentReservation(PDO $pdo, int $renterUserId, int $rentalId)
             throw new IgpValidationException('Reservation not found.');
         }
         if ((string)$rental['status'] !== 'reserved') {
-            throw new IgpValidationException('Only reserved rentals can be cancelled.');
+            throw new IgpConflictException('Only reserved rentals can be cancelled.');
         }
 
         $tz = new DateTimeZone('Asia/Manila');
@@ -1528,7 +1683,13 @@ function igpCancelStudentReservation(PDO $pdo, int $renterUserId, int $rentalId)
             ':uid' => $renterUserId,
         ]);
         if ($updateRental->rowCount() !== 1) {
-            throw new IgpValidationException('The reservation status changed before it could be cancelled. Please refresh and try again.');
+            throw new IgpConflictException('The reservation status changed before it could be cancelled. Please refresh and try again.');
+        }
+
+        $items = $pdo->prepare('SELECT item_id FROM rental_items WHERE rental_id = :rid ORDER BY item_id');
+        $items->execute([':rid' => $rentalId]);
+        foreach ($items->fetchAll() as $item) {
+            igpAssertItemHasNoOpenRental($pdo, (int)$item['item_id']);
         }
 
         $releaseItems = $pdo->prepare(
@@ -1536,7 +1697,7 @@ function igpCancelStudentReservation(PDO $pdo, int $renterUserId, int $rentalId)
              JOIN rental_items ri ON ri.item_id = i.item_id
              SET i.status = 'available'
              WHERE ri.rental_id = :rid
-               AND i.org_id = :org"
+               AND i.org_id = :org AND i.status = 'reserved'"
         );
         $releaseItems->execute([
             ':rid' => $rentalId,
@@ -1546,9 +1707,7 @@ function igpCancelStudentReservation(PDO $pdo, int $renterUserId, int $rentalId)
         igpRefreshUserDebtFlag($pdo, $renterUserId);
         $pdo->commit();
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
+        if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
 }
@@ -1559,8 +1718,9 @@ function igpMarkReservationNoShow(PDO $pdo, int $orgId, int $rentalId): void
         throw new IgpValidationException('Invalid rental_id.');
     }
 
-    $pdo->beginTransaction();
+    igpBeginTransaction($pdo);
     try {
+        igpLockRentalInventory($pdo, $rentalId, $orgId);
         $stmt = $pdo->prepare(
             "SELECT rental_id, renter_user_id, status, payment_status
              FROM rentals
@@ -1573,7 +1733,7 @@ function igpMarkReservationNoShow(PDO $pdo, int $orgId, int $rentalId): void
             throw new IgpValidationException('Rental not found for this organization.');
         }
         if ($rental['status'] !== 'reserved') {
-            throw new IgpValidationException('Only reserved rentals can be marked as no-show.');
+            throw new IgpConflictException('Only reserved rentals can be marked as no-show.');
         }
 
         $itemsStmt = $pdo->prepare(
@@ -1581,6 +1741,7 @@ function igpMarkReservationNoShow(PDO $pdo, int $orgId, int $rentalId): void
              FROM rental_items ri
              JOIN inventory_items i ON i.item_id = ri.item_id
              WHERE ri.rental_id = :rid
+             ORDER BY ri.item_id
              FOR UPDATE"
         );
         $itemsStmt->execute([':rid' => $rentalId]);
@@ -1591,25 +1752,28 @@ function igpMarkReservationNoShow(PDO $pdo, int $orgId, int $rentalId): void
 
         $updRental = $pdo->prepare(
             "UPDATE rentals
-             SET status = 'cancelled',
-                 payment_status = 'unpaid'
-             WHERE rental_id = :rid AND org_id = :org"
+             SET status = 'cancelled'
+             WHERE rental_id = :rid AND org_id = :org AND status = 'reserved'"
         );
         $updRental->execute([
             ':rid' => $rentalId,
             ':org' => $orgId,
         ]);
 
+        igpVerifyTransition($updRental);
+
         $updItem = $pdo->prepare(
             "UPDATE inventory_items
              SET status = 'available'
-             WHERE item_id = :id AND org_id = :org"
+             WHERE item_id = :id AND org_id = :org AND status = 'reserved'"
         );
         foreach ($items as $item) {
+            igpAssertItemHasNoOpenRental($pdo, (int)$item['item_id']);
             $updItem->execute([
                 ':id' => (int)$item['item_id'],
                 ':org' => $orgId,
             ]);
+            // Preserve maintenance or an already available item.
         }
 
         igpRefreshUserDebtFlag($pdo, (int)$rental['renter_user_id']);
@@ -1629,10 +1793,11 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
         throw new IgpValidationException('rental_id is required.');
     }
 
-    $pdo->beginTransaction();
+    igpBeginTransaction($pdo);
     try {
+        igpLockRentalInventory($pdo, $rentalId, $orgId);
         $stmt = $pdo->prepare(
-            "SELECT rental_id, rent_time, expected_return_time, status, payment_status
+            "SELECT rental_id, renter_user_id, rent_time, expected_return_time, status, payment_status
              FROM rentals
              WHERE rental_id = :rid AND org_id = :org
              FOR UPDATE"
@@ -1640,7 +1805,7 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
         $stmt->execute([':rid' => $rentalId, ':org' => $orgId]);
         $rental = $stmt->fetch();
         if (!$rental) throw new IgpValidationException('Rental not found for this organization.');
-        if ($rental['status'] !== 'active') throw new IgpValidationException('Only active rentals can be returned.');
+        if ($rental['status'] !== 'active') throw new IgpConflictException('Only active rentals can be returned.');
 
         $itemsStmt = $pdo->prepare(
             "SELECT ri.rental_item_id, ri.item_id, ri.quantity, ri.unit_rate, ri.item_cost, ri.overtime_interval_minutes, ri.overtime_rate_per_block,
@@ -1648,6 +1813,7 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
              FROM rental_items ri
              JOIN inventory_items i ON i.item_id = ri.item_id
              WHERE ri.rental_id = :rid
+             ORDER BY ri.item_id
              FOR UPDATE"
         );
         $itemsStmt->execute([':rid' => $rentalId]);
@@ -1683,7 +1849,7 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
              SET actual_return_time = :actual,
                  total_cost = :total,
                  status = :status
-             WHERE rental_id = :rid AND org_id = :org"
+             WHERE rental_id = :rid AND org_id = :org AND status = 'active'"
         );
         $updRental->execute([
             ':actual' => $actual->format('Y-m-d H:i:s'),
@@ -1693,18 +1859,26 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
             ':org' => $orgId,
         ]);
 
+        igpVerifyTransition($updRental);
+
         foreach ($items as $it) {
+            if (!in_array($it['item_status'], ['rented', 'maintenance', 'available'], true)) {
+                throw new IgpConflictException('Rental inventory changed. Refresh and try again.');
+            }
+            igpAssertItemHasNoOpenRental($pdo, (int)$it['item_id']);
             $newItemStatus = ($it['item_status'] === 'maintenance') ? 'maintenance' : 'available';
             $updItem = $pdo->prepare(
-                "UPDATE inventory_items SET status = :status WHERE item_id = :iid AND org_id = :org"
+                "UPDATE inventory_items SET status = :status WHERE item_id = :iid AND org_id = :org AND status IN ('rented', 'maintenance', 'available')"
             );
             $updItem->execute([
                 ':status' => $newItemStatus,
                 ':iid' => (int)$it['item_id'],
                 ':org' => $orgId,
             ]);
+            if ($newItemStatus !== $it['item_status']) igpVerifyTransition($updItem);
         }
 
+        igpRefreshUserDebtFlag($pdo, (int)$rental['renter_user_id']);
         $pdo->commit();
         return [
             'rental_id' => $rentalId,
@@ -1739,29 +1913,24 @@ function igpMarkRentalPaid(PDO $pdo, int $orgId, int $rentalId, string $officerI
         throw new IgpValidationException('Unknown officer ID. Scan a valid officer barcode.');
     }
 
-    $upd = $pdo->prepare(
-        "UPDATE rentals
-         SET payment_status = 'paid',
-             paid_at = CURRENT_TIMESTAMP
-         WHERE rental_id = :rid
-           AND org_id = :org
-           AND payment_status = 'unpaid'"
-    );
-    $upd->execute([':rid' => $rentalId, ':org' => $orgId]);
-    if ($upd->rowCount() === 0) {
-        throw new IgpValidationException('Rental is not eligible for mark-paid.');
-    }
-
-    $userStmt = $pdo->prepare(
-        "SELECT renter_user_id
-         FROM rentals
-         WHERE rental_id = :rid AND org_id = :org
-         LIMIT 1"
-    );
-    $userStmt->execute([':rid' => $rentalId, ':org' => $orgId]);
-    $userId = (int)$userStmt->fetchColumn();
-    if ($userId > 0) {
-        igpRefreshUserDebtFlag($pdo, $userId);
+    igpBeginTransaction($pdo);
+    try {
+        igpLockRentalRenter($pdo, $rentalId, $orgId);
+        $lock = $pdo->prepare('SELECT renter_user_id FROM rentals WHERE rental_id = :rid AND org_id = :org FOR UPDATE');
+        $lock->execute([':rid' => $rentalId, ':org' => $orgId]);
+        $rental = $lock->fetch();
+        if (!$rental) throw new IgpValidationException('Rental not found for this organization.');
+        $upd = $pdo->prepare(
+            "UPDATE rentals SET payment_status = 'paid', paid_at = CURRENT_TIMESTAMP
+             WHERE rental_id = :rid AND org_id = :org AND payment_status = 'unpaid'"
+        );
+        $upd->execute([':rid' => $rentalId, ':org' => $orgId]);
+        igpVerifyTransition($upd);
+        igpRefreshUserDebtFlag($pdo, (int)$rental['renter_user_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
     notificationEmailDispatchLockerEventBestEffort($pdo, $rentalId, 'paid');
 }
@@ -2067,23 +2236,25 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
                 continue;
             }
 
-            $itemStmt = $pdo->prepare(
-                "SELECT item_id, hourly_rate, overtime_interval_minutes, overtime_rate_per_block
-                 FROM inventory_items
-                 WHERE org_id = :org AND barcode = :barcode LIMIT 1"
-            );
-            $itemStmt->execute([':org' => $orgId, ':barcode' => $itemBarcode]);
-            $item = $itemStmt->fetch();
-            if (!$item) {
-                $result['rentals']['skipped']++;
-                $result['errors'][] = 'rental[' . $idx . ']: item barcode not found (' . $itemBarcode . ')';
-                continue;
-            }
-
             $renter = igpFindUserByIdentifier($pdo, $renterId);
             if (!$renter) {
                 $result['rentals']['skipped']++;
                 $result['errors'][] = 'rental[' . $idx . ']: renter not found (' . $renterId . ')';
+                continue;
+            }
+            igpBeginTransaction($pdo);
+            igpLockRenter($pdo, (int)$renter['user_id']);
+            $itemStmt = $pdo->prepare(
+                "SELECT item_id, status, hourly_rate, overtime_interval_minutes, overtime_rate_per_block
+                 FROM inventory_items
+                 WHERE org_id = :org AND barcode = :barcode LIMIT 1 FOR UPDATE"
+            );
+            $itemStmt->execute([':org' => $orgId, ':barcode' => $itemBarcode]);
+            $item = $itemStmt->fetch();
+            if (!$item) {
+                $pdo->rollBack();
+                $result['rentals']['skipped']++;
+                $result['errors'][] = 'rental[' . $idx . ']: item barcode not found (' . $itemBarcode . ')';
                 continue;
             }
 
@@ -2104,6 +2275,7 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
                 ':item' => (int)$item['item_id'],
             ]);
             if ($findDup->fetch()) {
+                $pdo->rollBack();
                 $result['rentals']['skipped']++;
                 continue;
             }
@@ -2121,7 +2293,6 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
                 $processorId = $context['user_id'];
             }
 
-            $pdo->beginTransaction();
             if ($hasRentalNotes) {
                 $insR = $pdo->prepare(
                     "INSERT INTO rentals
@@ -2155,6 +2326,16 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
             if ($hasRentalNotes) {
                 $params[':notes'] = 'Imported from legacy localStorage';
             }
+            if (in_array($params[':status'], ['reserved', 'active'], true) && $params[':actual'] !== null) {
+                throw new IgpValidationException('An open rental cannot have an actual return time.');
+            }
+            if (in_array($params[':status'], ['reserved', 'active'], true)
+                || ($params[':status'] === 'overdue' && $params[':actual'] === null)) {
+                igpAssertItemHasNoOpenRental($pdo, (int)$item['item_id']);
+                if ($item['status'] === 'maintenance') throw new IgpConflictException('Item is under maintenance.');
+                $claim = $pdo->prepare('UPDATE inventory_items SET status = :status WHERE item_id = :id AND org_id = :org');
+                $claim->execute([':status' => $params[':status'] === 'reserved' ? 'reserved' : 'rented', ':id' => $item['item_id'], ':org' => $orgId]);
+            }
             $insR->execute($params);
             $rentalId = (int)$pdo->lastInsertId();
 
@@ -2173,6 +2354,7 @@ function igpImportLegacyPayload(PDO $pdo, int $orgId, array $payload): array
                 ':ot_rate' => $item['overtime_rate_per_block'] !== null ? (float)$item['overtime_rate_per_block'] : null,
             ]);
 
+            igpRefreshUserDebtFlag($pdo, (int)$renter['user_id']);
             $pdo->commit();
             $result['rentals']['inserted']++;
         } catch (Throwable $e) {
