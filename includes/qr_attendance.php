@@ -742,61 +742,6 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
     $times = qrAttendanceCaptureTimes($pdo, $data);
     $now = $times['captured'];
 
-    $check = $pdo->prepare(
-        "SELECT record_id, time_in, time_out
-         FROM attendance_records
-         WHERE event_id = :event_id
-           AND student_number = :student_number
-         ORDER BY record_id DESC
-         LIMIT 1"
-    );
-    $check->execute([
-        ':event_id' => $eventId,
-        ':student_number' => $studentNumber,
-    ]);
-    $existing = $check->fetch();
-    if ($existing) {
-        if (empty($existing['time_in'])) {
-            $claimRegistration = $pdo->prepare(
-                "UPDATE attendance_records
-                 SET time_in = :time_in,
-                     check_in_received_at = :received_at
-                 WHERE record_id = :record_id
-                   AND time_in IS NULL"
-            );
-            $claimRegistration->execute([
-                ':time_in' => $now->format('Y-m-d H:i:s'),
-                ':received_at' => $times['received']->format('Y-m-d H:i:s'),
-                ':record_id' => (int)$existing['record_id'],
-            ]);
-            if ($claimRegistration->rowCount() === 1) {
-                return [
-                    'record_id' => (int)$existing['record_id'],
-                    'event_id' => $eventId,
-                    'already_checked_in' => false,
-                    'already_checked_out' => false,
-                    'time_in' => $now->format(DateTimeInterface::ATOM),
-                    'time_out' => null,
-                ];
-            }
-
-            // Another request checked in this registration concurrently.
-            $check->execute([
-                ':event_id' => $eventId,
-                ':student_number' => $studentNumber,
-            ]);
-            $existing = $check->fetch();
-        }
-        return [
-            'record_id' => (int)$existing['record_id'],
-            'event_id' => $eventId,
-            'already_checked_in' => true,
-            'already_checked_out' => !empty($existing['time_out']),
-            'time_in' => $existing['time_in'],
-            'time_out' => $existing['time_out'],
-        ];
-    }
-
     if ($studentName === '') {
         $lookup = $pdo->prepare(
             "SELECT CONCAT(first_name, ' ', last_name) AS full_name
@@ -813,38 +758,59 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
 
     $studentUserId = qrFindUserIdByStudentNumber($pdo, $studentNumber);
 
+    // The event/student unique key arbitrates simultaneous scans and races
+    // with pre-registration. Only the first check-in may set time_in.
     $ins = $pdo->prepare(
         "INSERT INTO attendance_records
             (event_id, user_id, student_number, student_name, section, time_in, check_in_received_at)
          VALUES
             (:event_id, :user_id, :student_number, :student_name, :section, :time_in, :received_at)"
     );
+    $insertParams = [
+        ':event_id' => $eventId,
+        ':user_id' => $studentUserId,
+        ':student_number' => $studentNumber,
+        ':student_name' => $studentName,
+        ':section' => $section !== '' ? $section : null,
+        ':time_in' => $now->format('Y-m-d H:i:s'),
+        ':received_at' => $times['received']->format('Y-m-d H:i:s'),
+    ];
     try {
-        $ins->execute([
-            ':event_id' => $eventId,
-            ':user_id' => $studentUserId,
-            ':student_number' => $studentNumber,
-            ':student_name' => $studentName,
-            ':section' => $section !== '' ? $section : null,
-            ':time_in' => $now->format('Y-m-d H:i:s'),
-            ':received_at' => $times['received']->format('Y-m-d H:i:s'),
-        ]);
+        $ins->execute($insertParams);
+        $claimed = true;
     } catch (PDOException $e) {
-        if ((int)($e->errorInfo[1] ?? 0) === 1062) {
-            // Registration/check-in raced with this request. Reuse the row
-            // protected by uq_attendance_event_student instead of duplicating it.
-            return qrCheckIn($pdo, $orgId, $userId, $data);
-        }
-        throw $e;
+        if ((int)($e->errorInfo[1] ?? 0) !== 1062) throw $e;
+        // Claim a pre-registration once. A repeat scan matches no rows, so
+        // the updated_at trigger cannot make it look like a new check-in.
+        $claim = $pdo->prepare(
+            "UPDATE attendance_records
+             SET time_in = :time_in, check_in_received_at = :received_at
+             WHERE event_id = :event_id AND student_number = :student_number
+               AND time_in IS NULL"
+        );
+        $claim->execute([
+            ':time_in' => $insertParams[':time_in'],
+            ':received_at' => $insertParams[':received_at'],
+            ':event_id' => $eventId,
+            ':student_number' => $studentNumber,
+        ]);
+        $claimed = $claim->rowCount() === 1;
     }
+    $check = $pdo->prepare(
+        "SELECT record_id, time_in, time_out FROM attendance_records
+         WHERE event_id = :event_id AND student_number = :student_number LIMIT 1 FOR UPDATE"
+    );
+    $check->execute([':event_id' => $eventId, ':student_number' => $studentNumber]);
+    $existing = $check->fetch();
+    if (!$existing) throw new RuntimeException('Attendance record could not be found after check-in.');
 
     return [
-        'record_id' => (int)$pdo->lastInsertId(),
+        'record_id' => (int)$existing['record_id'],
         'event_id' => $eventId,
-        'already_checked_in' => false,
-        'already_checked_out' => false,
-        'time_in' => $now->format(DateTimeInterface::ATOM),
-        'time_out' => null,
+        'already_checked_in' => !$claimed,
+        'already_checked_out' => !empty($existing['time_out']),
+        'time_in' => $claimed ? $now->format(DateTimeInterface::ATOM) : $existing['time_in'],
+        'time_out' => $existing['time_out'],
     ];
 }
 
@@ -912,7 +878,8 @@ function qrCheckOut(PDO $pdo, int $orgId, int $userId, array $data): array
              ar.check_out_received_at = :received_at
          WHERE ar.record_id = :record_id
            AND e.org_id = :org
-           AND e.archived_at IS NULL"
+           AND e.archived_at IS NULL
+           AND ar.time_out IS NULL"
     );
     $upd->execute([
         ':time_out' => $now->format('Y-m-d H:i:s'),
@@ -920,6 +887,22 @@ function qrCheckOut(PDO $pdo, int $orgId, int $userId, array $data): array
         ':record_id' => (int)$row['record_id'],
         ':org' => $orgId,
     ]);
+    if ($upd->rowCount() === 0) {
+        $current = $pdo->prepare(
+            "SELECT time_out FROM attendance_records WHERE record_id = :record_id LIMIT 1 FOR UPDATE"
+        );
+        $current->execute([':record_id' => (int)$row['record_id']]);
+        $latest = $current->fetch();
+        if ($latest && !empty($latest['time_out'])) {
+            return [
+                'record_id' => (int)$row['record_id'],
+                'event_id' => (int)$row['event_id'],
+                'already_checked_out' => true,
+                'time_out' => $latest['time_out'],
+            ];
+        }
+        throw new QrAttendanceValidationException('Attendance could not be checked out. Refresh and try again.');
+    }
 
     return [
         'record_id' => (int)$row['record_id'],
@@ -985,7 +968,7 @@ function qrListStudents(PDO $pdo, int $orgId, array $filters = []): array
     $sectionExpr = $hasYearSection ? "COALESCE(u.year_section, '')" : "''";
 
     $where = ["u.account_type = 'student'", "u.is_active = 1"];
-    $params = [':org' => $orgId];
+    $params = [':membership_org' => $orgId, ':attendance_org' => $orgId];
 
     $q = trim((string)($filters['q'] ?? ''));
     if ($q !== '') {
@@ -1007,7 +990,7 @@ function qrListStudents(PDO $pdo, int $orgId, array $filters = []): array
         FROM users u
         LEFT JOIN organization_members om
                ON om.user_id = u.user_id
-              AND om.org_id = :org
+              AND om.org_id = :membership_org
               AND om.is_active = 1
         WHERE " . implode(' AND ', $where) . "
           AND (
@@ -1016,7 +999,7 @@ function qrListStudents(PDO $pdo, int $orgId, array $filters = []): array
                     SELECT 1
                     FROM attendance_records ar
                     JOIN events e ON e.event_id = ar.event_id
-                    WHERE e.org_id = :org
+                    WHERE e.org_id = :attendance_org
                       AND ar.student_number = u.student_number
                 )
           )
