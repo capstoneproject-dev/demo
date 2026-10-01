@@ -340,11 +340,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                             r.date === today &&
                             r.event === currentEvent
                         );
-                        if (!existingRec) {
-                            showToast('Student Found', `${foundStudent.studentName} (${foundStudent.studentId})`, 'success');
-                        } else if (existingRec && existingRec.timeOut) {
-                            showToast('Duplicate', `${foundStudent.studentName} (${foundStudent.studentId}) already timed out`, 'warning');
-                        } else if (existingRec && !existingRec.timeOut) {
+                        if (existingRec && !existingRec.timeOut) {
                             const nowMs = Date.now();
                             const checkInMs = existingRec.checkInMs || 0;
                             if (nowMs - checkInMs < 5000) {
@@ -909,6 +905,24 @@ async function markAttendance(student) {
     const currentEventId = getCurrentEventId();
     if (!currentEvent) return;
 
+    const showDuplicateNotice = () => {
+        const message = 'This student has already checked out of this event. Duplicate attendance is not allowed.';
+        showToast('Attendance already recorded', message, 'warning');
+        const result = document.getElementById('scanResult');
+        if (result) {
+            const notice = document.createElement('span');
+            notice.className = 'error';
+            notice.textContent = message;
+            result.replaceChildren(notice);
+        }
+    };
+    if (!navigator.onLine && attendanceRecords.some(record =>
+        record.studentId === student.studentId && record.event === currentEvent && record.timeOut
+    )) {
+        showDuplicateNotice();
+        return;
+    }
+
     // Check if there are any records for the current event before adding
     let eventRecordsBefore = attendanceRecords.filter(r => r.event === currentEvent);
     const wasEventEmpty = eventRecordsBefore.length === 0;
@@ -944,6 +958,21 @@ async function markAttendance(student) {
                     section: student.section || ''
                 })
             });
+
+            if (checkinResult.already_checked_out) {
+                showDuplicateNotice();
+                try {
+                    await loadAttendanceFromApi();
+                    updateAttendanceTable();
+                    updateSectionDropdownAndStudentList();
+                } catch (_refreshError) {
+                    showToast('Attendance list could not refresh', 'Attendance is already recorded. Refresh the page to see the latest records.', 'warning');
+                }
+                return;
+            }
+            if (!checkinResult.already_checked_in) {
+                showToast('Student Found', `${student.studentName} (${student.studentId})`, 'success');
+            }
 
             if (checkinResult.already_checked_in && !checkinResult.already_checked_out) {
                 await qrAttendanceApiRequest('/attendance/checkout.php', {
