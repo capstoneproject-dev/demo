@@ -1752,7 +1752,7 @@ function igpMarkReservationNoShow(PDO $pdo, int $orgId, int $rentalId): void
 
         $updRental = $pdo->prepare(
             "UPDATE rentals
-             SET status = 'cancelled'
+             SET status = 'cancelled', payment_status = 'unpaid', paid_at = NULL
              WHERE rental_id = :rid AND org_id = :org AND status = 'reserved'"
         );
         $updRental->execute([

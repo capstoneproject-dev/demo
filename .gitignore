@@ -26,4 +26,8 @@ composer-setup.php
 !/uploads/**/.gitkeep
 !/uploads/documents/.htaccess
 !/uploads/documents/web.config
+/tests/*
+!/tests/concurrency/
+/tests/concurrency/*
+!/tests/concurrency/equipment-rentals.php
 /tests

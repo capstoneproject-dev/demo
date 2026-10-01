@@ -217,6 +217,28 @@ function offlineFinish(PDO $pdo, int $userId, string $operationId, string $statu
     ]);
 }
 
+/** Finalize equipment conflicts consistently for JSON and image-upload sync. */
+function offlineRejectIgpConflict(PDO $pdo, int $userId, ?array $envelope, bool $claimed, Throwable $error): ?array
+{
+    if (!$envelope || !in_array($envelope['operation_type'], [
+        'student.rental.create', 'inventory.save', 'inventory.delete',
+        'rental.return', 'rental.mark_paid', 'rental.no_show',
+    ], true)) {
+        return null;
+    }
+    $databaseConflict = $error instanceof PDOException && igpIsConcurrencyError($error);
+    if (!($error instanceof IgpConflictException) && !$databaseConflict) return null;
+
+    // The business transaction must be rolled back before recording its rejection.
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    $message = $databaseConflict
+        ? 'Another rental operation is in progress. Refresh and try again.'
+        : $error->getMessage();
+    $result = ['ok' => false, 'error' => $message, 'error_code' => 'OFFLINE_CONFLICT'];
+    if ($claimed) offlineFinish($pdo, $userId, $envelope['operation_id'], 'rejected', 409, $result);
+    return $result;
+}
+
 function offlineRequireStudentContext(): array
 {
     $session = getPhpSession();

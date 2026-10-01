@@ -15,6 +15,7 @@ $session = getPhpSession();
 $userId = (int)($session['user_id'] ?? 0);
 $envelope = null;
 $claimed = false;
+$dispatchCompleted = false;
 
 try {
     $payload = json_decode((string)($_POST['payload'] ?? '{}'), true, 64, JSON_THROW_ON_ERROR);
@@ -55,6 +56,7 @@ try {
     }
     $claimed = true;
     $result = ['ok' => true, 'operation_id' => $envelope['operation_id']] + offlineDispatchUpload($pdo, $envelope, $files);
+    $dispatchCompleted = true;
     offlineFinish($pdo, $userId, $envelope['operation_id'], 'completed', 200, $result);
     jsonOk($result);
 } catch (JsonException|OfflineSyncValidationException|DocumentValidationException|UploadValidationException|IgpValidationException|ServiceTrackerValidationException $e) {
@@ -70,6 +72,10 @@ try {
     if ($envelope && $claimed) offlineFinish($pdo, $userId, $envelope['operation_id'], 'rejected', 403, $result);
     jsonError($e->getMessage(), 403, ['error_code' => 'OFFLINE_PERMISSION_CHANGED']);
 } catch (Throwable $e) {
+    $conflict = !$dispatchCompleted ? offlineRejectIgpConflict($pdo, $userId, $envelope, $claimed, $e) : null;
+    if ($conflict !== null) {
+        jsonError($conflict['error'], 409, ['error_code' => $conflict['error_code']]);
+    }
     error_log('[api/offline/sync-upload] ' . $e->getMessage());
     jsonError('The offline upload could not be synchronized yet.', 500);
 }
