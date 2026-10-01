@@ -961,7 +961,13 @@ async function markAttendance(student) {
 
             if (checkinResult.already_checked_out) {
                 showDuplicateNotice();
-                await loadAttendanceFromApi();
+                try {
+                    await loadAttendanceFromApi();
+                    updateAttendanceTable();
+                    updateSectionDropdownAndStudentList();
+                } catch (_refreshError) {
+                    showToast('Attendance list could not refresh', 'Attendance is already recorded. Refresh the page to see the latest records.', 'warning');
+                }
                 return;
             }
             if (!checkinResult.already_checked_in) {
