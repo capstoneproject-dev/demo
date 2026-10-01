@@ -138,37 +138,96 @@ function docEnsureTermColumns(PDO $pdo): void
 {
     static $ensured = false;
     if ($ensured) return;
-    // Schema changes during a request implicitly commit MySQL transactions.
-    // Document schema changes belong in migrations, including offline reviews
-    // that call this helper from inside an existing transaction.
-    $columns = $pdo->query(
-        "SELECT COUNT(*) FROM information_schema.columns
-         WHERE table_schema = DATABASE() AND (
-             (table_name = 'document_submissions' AND column_name IN
-                 ('grading_period', 'custom_document_type', 'forwarded_at', 'forwarded_by_user_id', 'cancelled_at', 'cancelled_by_user_id'))
-             OR (table_name = 'documents_approved' AND column_name IN ('grading_period', 'custom_document_type'))
-             OR (table_name = 'document_decisions' AND column_name = 'review_stage')
-         )"
+
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS grading_period ENUM('prelim','midterm','finals') DEFAULT NULL AFTER academic_year");
+    $pdo->exec("ALTER TABLE documents_approved ADD COLUMN IF NOT EXISTS grading_period ENUM('prelim','midterm','finals') DEFAULT NULL AFTER academic_year");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS custom_document_type VARCHAR(100) DEFAULT NULL AFTER document_type");
+    $pdo->exec("ALTER TABLE documents_approved ADD COLUMN IF NOT EXISTS custom_document_type VARCHAR(100) DEFAULT NULL AFTER document_type");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS forwarded_at DATETIME DEFAULT NULL AFTER reviewed_at");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS forwarded_by_user_id INT DEFAULT NULL AFTER forwarded_at");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS cancelled_at DATETIME DEFAULT NULL AFTER forwarded_by_user_id");
+    $pdo->exec("ALTER TABLE document_submissions ADD COLUMN IF NOT EXISTS cancelled_by_user_id INT DEFAULT NULL AFTER cancelled_at");
+    $pdo->exec("ALTER TABLE document_decisions ADD COLUMN IF NOT EXISTS review_stage ENUM('ADVISER','SSC','OSA') NOT NULL DEFAULT 'OSA' AFTER submission_id");
+
+    $reviewStageTypeStmt = $pdo->query(
+        "SELECT COLUMN_TYPE FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = 'document_decisions'
+           AND column_name = 'review_stage' LIMIT 1"
     );
-    $decisionSchema = $pdo->query(
-        "SELECT
-             (SELECT column_type FROM information_schema.columns
-              WHERE table_schema = DATABASE() AND table_name = 'document_decisions'
-                AND column_name = 'review_stage' LIMIT 1) AS stage_type,
-             (SELECT COUNT(*) FROM information_schema.statistics
-              WHERE table_schema = DATABASE() AND table_name = 'document_decisions'
-                AND index_name = 'uq_document_decisions_submission_stage' AND non_unique = 0) AS stage_key_columns,
-             (SELECT COUNT(*) FROM information_schema.statistics
-              WHERE table_schema = DATABASE() AND table_name = 'document_decisions'
-                AND index_name = 'uq_document_decisions_submission') AS legacy_key_columns"
-    );
-    $decisionSchema = $decisionSchema->fetch();
-    if ((int)$columns->fetchColumn() !== 9
-        || (int)$decisionSchema['stage_key_columns'] !== 2
-        || (int)$decisionSchema['legacy_key_columns'] !== 0
-        || stripos((string)$decisionSchema['stage_type'], 'ADVISER') === false) {
-        throw new RuntimeException('Document schema is outdated. Apply the document review migration.');
+    $reviewStageType = (string)$reviewStageTypeStmt->fetchColumn();
+    if (stripos($reviewStageType, 'ADVISER') === false) {
+        $pdo->exec("ALTER TABLE document_decisions MODIFY COLUMN review_stage ENUM('ADVISER','SSC','OSA') NOT NULL DEFAULT 'OSA'");
     }
+
+    $schema = (string)$pdo->query('SELECT DATABASE()')->fetchColumn();
+    $indexStmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM information_schema.statistics
+         WHERE table_schema = :schema AND table_name = :table_name AND index_name = :index_name"
+    );
+    $indexExists = static function (string $table, string $index) use ($indexStmt, $schema): bool {
+        $indexStmt->execute([':schema' => $schema, ':table_name' => $table, ':index_name' => $index]);
+        return (int)$indexStmt->fetchColumn() > 0;
+    };
+    $hasLegacyDecisionIndex = $indexExists('document_decisions', 'uq_document_decisions_submission');
+    if ($hasLegacyDecisionIndex) {
+        // The legacy table allowed only one decision. Its recipient identifies
+        // whether that immutable historical decision belonged to SSC or OSA.
+        $pdo->exec("DROP TRIGGER IF EXISTS trg_document_decisions_immutable_update");
+        $pdo->exec(
+            "UPDATE document_decisions dd
+             JOIN document_submissions ds ON ds.submission_id = dd.submission_id
+             SET dd.review_stage = 'SSC'
+             WHERE dd.review_stage = 'OSA' AND UPPER(TRIM(ds.recipient)) = 'SSC'"
+        );
+        $pdo->exec(
+            "CREATE TRIGGER trg_document_decisions_immutable_update
+             BEFORE UPDATE ON document_decisions
+             FOR EACH ROW
+             SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Document decisions are append-only'"
+        );
+    }
+    if (!$indexExists('document_decisions', 'uq_document_decisions_submission_stage')) {
+        $pdo->exec("ALTER TABLE document_decisions ADD UNIQUE KEY uq_document_decisions_submission_stage (submission_id, review_stage)");
+    }
+    if ($hasLegacyDecisionIndex) {
+        $pdo->exec("ALTER TABLE document_decisions DROP INDEX uq_document_decisions_submission");
+    }
+    if (!$indexExists('document_submissions', 'idx_document_workflow_queue')) {
+        $pdo->exec("ALTER TABLE document_submissions ADD KEY idx_document_workflow_queue (recipient, status, submitted_at)");
+    }
+    $checkStmt = $pdo->prepare(
+        "SELECT check_clause FROM information_schema.check_constraints
+         WHERE constraint_schema = :schema AND constraint_name = 'chk_doc_status'
+         LIMIT 1"
+    );
+    $checkStmt->execute([':schema' => $schema]);
+    $statusCheck = $checkStmt->fetchColumn();
+    if (is_string($statusCheck)
+        && (stripos($statusCheck, 'cancelled') === false || stripos($statusCheck, 'adviser_pending') === false)) {
+        $pdo->exec("ALTER TABLE document_submissions DROP CONSTRAINT chk_doc_status");
+        $pdo->exec(
+            "ALTER TABLE document_submissions ADD CONSTRAINT chk_doc_status
+             CHECK (status IN ('adviser_pending','adviser_approved','pending','sent_to_osa','ssc_approved','approved','rejected','cancelled'))"
+        );
+    }
+    $pdo->exec("
+        UPDATE document_submissions
+        SET grading_period = CASE
+            WHEN MONTH(submitted_at) IN (6, 7, 12, 1) THEN 'prelim'
+            WHEN MONTH(submitted_at) IN (8, 9, 2, 3) THEN 'midterm'
+            ELSE 'finals'
+        END
+        WHERE grading_period IS NULL
+    ");
+    $pdo->exec("
+        UPDATE documents_approved
+        SET grading_period = CASE
+            WHEN MONTH(approved_at) IN (6, 7, 12, 1) THEN 'prelim'
+            WHEN MONTH(approved_at) IN (8, 9, 2, 3) THEN 'midterm'
+            ELSE 'finals'
+        END
+        WHERE grading_period IS NULL
+    ");
     $ensured = true;
 }
 
@@ -541,9 +600,6 @@ function docReviewSubmission(
         if ($disallowedReviewerOrgId !== null && (int)$before['org_id'] === $disallowedReviewerOrgId) {
             throw new DocumentAuthorizationException('An organization cannot review its own document.');
         }
-        if (strtoupper(trim((string)$before['recipient'])) !== $stage) {
-            throw new DocumentValidationException('This submission is no longer assigned to this review stage. Refresh and try again.');
-        }
         $currentStatus = strtolower((string)$before['status']);
         $allowedStatuses = match ($stage) {
             'ADVISER' => ['adviser_pending'],
@@ -551,15 +607,7 @@ function docReviewSubmission(
             default => ['pending', 'sent_to_osa'],
         };
         if (!in_array($currentStatus, $allowedStatuses, true)) {
-            throw new DocumentValidationException('This submission is no longer awaiting ' . $stage . ' review. Refresh and try again.');
-        }
-        $existingDecision = $pdo->prepare(
-            "SELECT 1 FROM document_decisions
-             WHERE submission_id = :id AND review_stage = :stage LIMIT 1"
-        );
-        $existingDecision->execute([':id' => $submissionId, ':stage' => $stage]);
-        if ($existingDecision->fetchColumn()) {
-            throw new DocumentValidationException('This submission was already reviewed at this stage. Refresh and try again.');
+            throw new DocumentValidationException('This submission is not awaiting ' . $stage . ' review.');
         }
 
         $reviewerStmt = $pdo->prepare(
@@ -570,6 +618,9 @@ function docReviewSubmission(
         $reviewer = $reviewerStmt->fetch();
         if (!$reviewer) throw new DocumentValidationException('Reviewer account not found.');
 
+        if ($stage === 'ADVISER' && $decision === 'rejected' && ($notes === null || $notes === '')) {
+            throw new DocumentValidationException('A rejection comment is required.');
+        }
         $nextStatus = match (true) {
             $stage === 'ADVISER' && $decision === 'approved' => 'adviser_approved',
             $stage === 'SSC' && $decision === 'approved' => 'ssc_approved',
@@ -583,9 +634,9 @@ function docReviewSubmission(
                  reviewed_by_user_id = ?,
                  reviewed_at = CURRENT_TIMESTAMP,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE submission_id = ? AND recipient = ? AND status IN ({$statusPlaceholders})"
+             WHERE submission_id = ? AND status IN ({$statusPlaceholders})"
         );
-        $stmt->execute(array_merge([$nextStatus, $notes, $reviewerId, $submissionId, $stage], $allowedStatuses));
+        $stmt->execute(array_merge([$nextStatus, $notes, $reviewerId, $submissionId], $allowedStatuses));
         if ($stmt->rowCount() !== 1) {
             throw new DocumentValidationException('This submission was already reviewed. Refresh and try again.');
         }
