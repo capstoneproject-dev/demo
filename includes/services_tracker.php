@@ -1765,6 +1765,25 @@ function stInferLockerPeriodQuantity(array $rental, array $item): int
     return $dateQuantity ?? 1;
 }
 
+function stLockerPeriodQuantityRequiresConfirmation(array $rental): bool
+{
+    if (strtolower((string)($rental['locker_period_type'] ?? '')) !== 'semester') {
+        return false;
+    }
+
+    $savedQuantity = (int)($rental['locker_period_quantity'] ?? 0);
+    if ($savedQuantity >= 1 && $savedQuantity <= 8) {
+        return false;
+    }
+
+    $storedRate = (float)($rental['unit_rate'] ?? 0);
+    $total = (float)($rental['total_cost'] ?? 0);
+    // When both values are the same, legacy storage cannot distinguish a
+    // one-semester rate from a multi-semester full total. This remains
+    // ambiguous even for zero-priced or standard-boundary rentals.
+    return abs($storedRate - $total) < 0.01;
+}
+
 function stListLockerBoard(PDO $pdo, int $orgId): array
 {
     if (!stIsSscOrg($pdo, $orgId)) {
@@ -1810,6 +1829,7 @@ function stListLockerBoard(PDO $pdo, int $orgId): array
                 'total_cost' => (float)($currentRental['total_cost'] ?? 0),
                 'locker_period_type' => (string)($currentRental['locker_period_type'] ?? ''),
                 'locker_period_quantity' => stInferLockerPeriodQuantity($currentRental, $row),
+                'locker_period_quantity_requires_confirmation' => stLockerPeriodQuantityRequiresConfirmation($currentRental),
                 'can_send_upcoming_notice' => stIsLockerUpcomingNoticeAllowed($currentRental),
             ] + stMapLockerNoticePayload($currentRental) : null,
         ];
@@ -2193,7 +2213,7 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
     $pdo->beginTransaction();
     try {
         $stmt = $pdo->prepare(
-            "SELECT r.*, ri.item_id, i.item_name,
+            "SELECT r.*, ri.item_id, ri.unit_rate, i.item_name,
                     i.locker_monthly_rate, i.locker_semester_rate, i.locker_school_year_rate
              FROM rentals r
              JOIN rental_items ri ON ri.rental_id = r.rental_id
@@ -2215,6 +2235,13 @@ function stApproveLockerRequest(PDO $pdo, int $orgId, int $officerUserId, int $r
         }
         if ((string)$locker['status'] !== ST_LOCKER_PENDING) {
             throw new ServiceTrackerConflictException('This locker request was already processed. Refresh the locker list.');
+        }
+
+        if (stLockerPeriodQuantityRequiresConfirmation($locker)
+            && filter_var($data['legacy_period_quantity_confirmed'] ?? false, FILTER_VALIDATE_BOOLEAN) !== true) {
+            throw new ServiceTrackerValidationException(
+                'This legacy custom-semester request has no saved quantity. Verify the semester quantity and confirm it before approval.'
+            );
         }
 
         $computed = stComputeLockerDatesAndPrice($locker, $data);
