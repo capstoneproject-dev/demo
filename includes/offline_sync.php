@@ -220,7 +220,8 @@ function offlineFinish(PDO $pdo, int $userId, string $operationId, string $statu
 /** Finalize equipment conflicts consistently for JSON and image-upload sync. */
 function offlineRejectIgpConflict(PDO $pdo, int $userId, ?array $envelope, bool $claimed, Throwable $error): ?array
 {
-    if (!$envelope || !in_array($envelope['operation_type'], [
+    // Claim/setup failures have not started a business action and must stay retryable.
+    if (!$claimed || !$envelope || !in_array($envelope['operation_type'], [
         'student.rental.create', 'inventory.save', 'inventory.delete',
         'rental.return', 'rental.mark_paid', 'rental.no_show',
     ], true)) {
