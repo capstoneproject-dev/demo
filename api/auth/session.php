@@ -24,7 +24,7 @@ authEnforceSessionLifetime();
 
 $session = getPhpSession();
 if (($session['login_role'] ?? '') === 'org') {
-    apiGuard();
+    apiGuard(true); // This request writes session data after authentication.
     $session = getPhpSession();
 }
 
@@ -72,6 +72,8 @@ if (($session['account_type'] ?? '') === 'student') {
     $session['login_role'] = 'osa';
     startUserSession($session);
 }
+
+authReleaseSessionLock();
 
 echo json_encode([
     'authenticated' => true,

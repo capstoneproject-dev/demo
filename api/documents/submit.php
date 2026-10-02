@@ -4,7 +4,7 @@ require_once __DIR__ . '/../../includes/documents.php';
 require_once __DIR__ . '/../../includes/private_pdf_storage.php';
 
 header('Content-Type: application/json');
-apiGuard();
+apiGuard(true); // This request writes session data after authentication.
 apiRequireOrgManageAccess();
 requirePost();
 
