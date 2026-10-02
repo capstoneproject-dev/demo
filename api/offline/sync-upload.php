@@ -59,6 +59,19 @@ try {
     $dispatchCompleted = true;
     offlineFinish($pdo, $userId, $envelope['operation_id'], 'completed', 200, $result);
     jsonOk($result);
+} catch (OfflinePrintingPartialException $e) {
+    // Completed means the batch must not be dispatched again; HTTP 409 requests attention.
+    $result = $e->result + ['operation_id' => $envelope['operation_id']];
+    try {
+        offlineFinish($pdo, $userId, $envelope['operation_id'], 'completed', 409, $result);
+    } catch (Throwable $receiptError) {
+        // Still return the committed items; never invite an automatic full-batch retry.
+        error_log('[api/offline/sync-upload/partial-receipt] ' . $receiptError->getMessage());
+        $result['receipt_saved'] = false;
+        $result['error'] .= ' The sync receipt could not be saved. Review your printing requests before submitting anything again.';
+    }
+    http_response_code(409);
+    echo json_encode($result);
 } catch (JsonException|OfflineSyncValidationException|DocumentValidationException|UploadValidationException|IgpValidationException|ServiceTrackerValidationException $e) {
     $result = ['ok' => false, 'error' => $e->getMessage(), 'error_code' => 'OFFLINE_VALIDATION'];
     if ($envelope && $claimed) offlineFinish($pdo, $userId, $envelope['operation_id'], 'rejected', 422, $result);

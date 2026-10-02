@@ -354,11 +354,15 @@
                             throw error;
                         }
                         const permanent = [400, 403, 404, 409, 413, 415, 422].includes(result.response.status);
+                        const printingPartial = row.type === 'student.printing.submit'
+                            && result.data.error_code === 'PRINTING_PARTIAL_SUCCESS'
+                            && result.data.partial === true;
+                        if (printingPartial) completedCount += 1;
                         const attempts = Number(row.attempts || 0) + 1;
                         await Store.updateOutbox(row.operationId, permanent
                             ? { status: 'attention', attempts, lastError: result.data.error || 'The server rejected this operation.' }
                             : { status: 'pending', attempts, lastError: result.data.error || 'Server error.', nextAttemptAt: Date.now() + Math.min(300000, 1000 * (2 ** attempts)) });
-                        if (permanent) await Store.recordSyncFailure(row, result.data, result.response.status === 409 ? 'conflicted' : 'rejected');
+                        if (permanent) await Store.recordSyncFailure(row, result.data, printingPartial ? 'partial' : (result.response.status === 409 ? 'conflicted' : 'rejected'));
                         failed.push({ operationId: row.operationId, message: result.data.error || `Sync failed (${result.response.status}).` });
                     } catch (error) {
                         if (error.sessionExpired) throw error;
