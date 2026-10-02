@@ -9,6 +9,7 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/upload_security.php';
 
 class AnnouncementValidationException extends RuntimeException {}
+class AnnouncementConflictException extends RuntimeException {}
 class AnnouncementAuthorizationException extends RuntimeException {}
 
 function annEnsureManagementColumns(PDO $pdo): void
@@ -95,6 +96,10 @@ function annNormalizeProgramIds(array $values): array
 function annAttachProgramTargets(PDO $pdo, array &$rows): void
 {
     if (!$rows) return;
+    foreach ($rows as &$photoRow) {
+        $photoRow['photo_state'] = annPhotoState($photoRow['announcement_photo'] ?? null);
+    }
+    unset($photoRow);
     annEnsureProgramTargetsTable($pdo);
 
     $ids = array_values(array_filter(array_map(
@@ -126,6 +131,7 @@ function annAttachProgramTargets(PDO $pdo, array &$rows): void
 
     foreach ($rows as &$row) {
         $row['target_programs'] = $targetsByAnnouncement[(int)$row['announcement_id']] ?? [];
+        $row['edit_state'] = annEditState($row);
     }
 }
 
@@ -163,24 +169,36 @@ function annSaveAnnouncementPhotoFromData(string $photoValue): string
     }
 }
 
-function annSaveAnnouncementPhotoValue(array $data): string
+function annSaveAnnouncementPhotoValue(array $data, array &$createdPaths = []): string
 {
-    $photos = $data['announcement_photos'] ?? $data['photos'] ?? null;
-    if (is_array($photos)) {
-        $paths = [];
-        foreach ($photos as $photo) {
-            $path = annSaveAnnouncementPhotoFromData((string)$photo);
-            if ($path !== '') {
-                $paths[] = $path;
+    $createdPaths = [];
+    $save = static function (string $photo) use (&$createdPaths): string {
+        $path = annSaveAnnouncementPhotoFromData($photo);
+        if ($path !== '' && str_starts_with(trim($photo), 'data:')) $createdPaths[] = $path;
+        return $path;
+    };
+    try {
+        $photos = $data['announcement_photos'] ?? $data['photos'] ?? null;
+        if (is_array($photos)) {
+            $paths = [];
+            foreach ($photos as $photo) {
+                $path = $save((string)$photo);
+                if ($path !== '') {
+                    $paths[] = $path;
+                }
+            }
+            if ($paths) {
+                return json_encode($paths, JSON_UNESCAPED_SLASHES);
             }
         }
-        if ($paths) {
-            return json_encode($paths, JSON_UNESCAPED_SLASHES);
-        }
-    }
 
-    $photoDataUrl = trim((string)($data['announcement_photo'] ?? ''));
-    return $photoDataUrl !== '' ? annSaveAnnouncementPhotoFromData($photoDataUrl) : '';
+        $photoDataUrl = trim((string)($data['announcement_photo'] ?? ''));
+        return $photoDataUrl !== '' ? $save($photoDataUrl) : '';
+    } catch (Throwable $e) {
+        foreach ($createdPaths as $path) annDeleteLocalPhoto($path);
+        $createdPaths = [];
+        throw $e;
+    }
 }
 
 function annRequireOfficerOrgContext(): array
@@ -462,8 +480,43 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
     return $page['items'];
 }
 
+function annPhotoState(?string $value): string
+{
+    return hash('sha256', (string)$value);
+}
+
+function annEditState(array $row): string
+{
+    $programIds = annNormalizeProgramIds(array_column($row['target_programs'] ?? [], 'program_id'));
+    sort($programIds, SORT_NUMERIC);
+    return hash('sha256', json_encode([
+        (string)($row['title'] ?? ''),
+        (string)($row['content'] ?? ''),
+        (string)($row['announcement_photo'] ?? ''),
+        (string)($row['audience_type'] ?? 'all_students'),
+        $programIds,
+    ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+}
+
+/** Once COMMIT has been sent, preserve files regardless of subsequent rollback results. */
+function annRecoverPhotoWrite(PDO $pdo, array $paths, bool $commitAttempted): void
+{
+    $safeToDelete = !$commitAttempted;
+    try {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+    } catch (Throwable $rollbackError) {
+        error_log('[announcements] Rollback failed: ' . $rollbackError->getMessage());
+    }
+    if ($safeToDelete) {
+        foreach ($paths as $path) annDeleteLocalPhoto($path);
+    } elseif ($paths) {
+        error_log('[announcements] Commit outcome uncertain; preserving uploaded photos: ' . json_encode($paths));
+    }
+}
+
 function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): array
 {
+    if ($pdo->inTransaction()) throw new RuntimeException('Announcement creation requires its own transaction.');
     annEnsureProgramTargetsTable($pdo);
     $title   = trim((string)($data['title'] ?? ''));
     $content = trim((string)($data['content'] ?? ''));
@@ -506,39 +559,50 @@ function annCreateAnnouncement(PDO $pdo, int $orgId, int $userId, array $data): 
         }
     }
 
-    $announcementPhoto = annSaveAnnouncementPhotoValue($data);
-    $publishedAt = $publish
-        ? (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s')
-        : null;
+    // Own the transaction so failed writes can safely remove only this request's files.
+    $createdPaths = [];
+    $announcementPhoto = annSaveAnnouncementPhotoValue($data, $createdPaths);
+    $commitAttempted = false;
+    try {
+        $publishedAt = $publish
+            ? (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s')
+            : null;
 
-    $insert = $pdo->prepare(
-        "INSERT INTO announcements (org_id, created_by_user_id, title, content, announcement_photo, audience_type, is_published, published_at)
-         VALUES (:org, :uid, :title, :content, :announcement_photo, :audience, :published, :published_at)"
-    );
-    $insert->execute([
-        ':org'          => $orgId,
-        ':uid'          => $userId,
-        ':title'        => $title,
-        ':content'      => $content,
-        ':announcement_photo' => $announcementPhoto !== '' ? $announcementPhoto : null,
-        ':audience'     => $audience,
-        ':published'    => $publish ? 1 : 0,
-        ':published_at' => $publishedAt,
-    ]);
-
-    $id = (int)$pdo->lastInsertId();
-    if ($validProgramIds) {
-        annEnsureProgramTargetsTable($pdo);
-        $targetInsert = $pdo->prepare(
-            "INSERT IGNORE INTO announcement_program_targets (announcement_id, program_id)
-             VALUES (:announcement_id, :program_id)"
+        $pdo->beginTransaction();
+        $insert = $pdo->prepare(
+            "INSERT INTO announcements (org_id, created_by_user_id, title, content, announcement_photo, audience_type, is_published, published_at)
+             VALUES (:org, :uid, :title, :content, :announcement_photo, :audience, :published, :published_at)"
         );
-        foreach ($validProgramIds as $programId) {
-            $targetInsert->execute([
-                ':announcement_id' => $id,
-                ':program_id' => $programId,
-            ]);
+        $insert->execute([
+            ':org'          => $orgId,
+            ':uid'          => $userId,
+            ':title'        => $title,
+            ':content'      => $content,
+            ':announcement_photo' => $announcementPhoto !== '' ? $announcementPhoto : null,
+            ':audience'     => $audience,
+            ':published'    => $publish ? 1 : 0,
+            ':published_at' => $publishedAt,
+        ]);
+
+        $id = (int)$pdo->lastInsertId();
+        if ($validProgramIds) {
+            $targetInsert = $pdo->prepare(
+                "INSERT IGNORE INTO announcement_program_targets (announcement_id, program_id)
+                 VALUES (:announcement_id, :program_id)"
+            );
+            foreach ($validProgramIds as $programId) {
+                $targetInsert->execute([
+                    ':announcement_id' => $id,
+                    ':program_id' => $programId,
+                ]);
+            }
         }
+
+        $commitAttempted = true;
+        $pdo->commit();
+    } catch (Throwable $e) {
+        annRecoverPhotoWrite($pdo, $createdPaths, $commitAttempted);
+        throw $e;
     }
 
     $fetch = $pdo->prepare(
@@ -847,7 +911,22 @@ function annDeleteLocalPhoto(string $path): void
 
 function annUpdateAnnouncement(PDO $pdo, int $orgId, int $announcementId, array $data): array
 {
+    if ($pdo->inTransaction()) throw new RuntimeException('Announcement update requires its own transaction.');
     $current = annFetchAnnouncementForOrg($pdo, $orgId, $announcementId);
+    $expectedEditState = $data['expected_edit_state'] ?? null;
+    if (!is_string($expectedEditState) || !preg_match('/\A[a-f0-9]{64}\z/', $expectedEditState)) {
+        throw new AnnouncementValidationException('Reload the announcement before editing.');
+    }
+    if (!hash_equals(annEditState($current), $expectedEditState)) {
+        throw new AnnouncementConflictException('Announcement title, text, photos or audience changed. Review the current version before saving.');
+    }
+    $expectedPhotoState = $data['expected_photo_state'] ?? null;
+    if (!is_string($expectedPhotoState) || !preg_match('/\A[a-f0-9]{64}\z/', $expectedPhotoState)) {
+        throw new AnnouncementValidationException('Reload the announcement before editing its photos.');
+    }
+    if (!hash_equals(annPhotoState($current['announcement_photo'] ?? null), $expectedPhotoState)) {
+        throw new AnnouncementConflictException('Announcement photos changed. Refresh and try again.');
+    }
     $title = trim((string)($data['title'] ?? ''));
     $content = trim((string)($data['content'] ?? ''));
     $audience = trim((string)($data['audience_type'] ?? 'all_students'));
@@ -866,8 +945,13 @@ function annUpdateAnnouncement(PDO $pdo, int $orgId, int $announcementId, array 
         }
     }
     $newPaths = [];
+    $commitAttempted = false;
     try {
         foreach ((array)($data['announcement_photos'] ?? []) as $photo) {
+            // Existing attachments must pass the retained-photo ownership check above.
+            if (!str_starts_with(trim((string)$photo), 'data:')) {
+                throw new AnnouncementValidationException('New announcement photos must contain image data.');
+            }
             $path = annSaveAnnouncementPhotoFromData((string)$photo);
             if ($path !== '') $newPaths[] = $path;
         }
@@ -875,6 +959,17 @@ function annUpdateAnnouncement(PDO $pdo, int $orgId, int $announcementId, array 
         $photoValue = $allPaths ? json_encode($allPaths, JSON_UNESCAPED_SLASHES) : null;
 
         $pdo->beginTransaction();
+        $lock = $pdo->prepare('SELECT title, content, announcement_photo, audience_type FROM announcements WHERE announcement_id = ? AND org_id = ? FOR UPDATE');
+        $lock->execute([$announcementId, $orgId]);
+        $locked = $lock->fetch(PDO::FETCH_ASSOC);
+        if ($locked) {
+            $targetLock = $pdo->prepare('SELECT program_id FROM announcement_program_targets WHERE announcement_id = ? ORDER BY program_id FOR UPDATE');
+            $targetLock->execute([$announcementId]);
+            $locked['target_programs'] = $targetLock->fetchAll(PDO::FETCH_ASSOC);
+        }
+        if (!$locked || !hash_equals(annEditState($locked), $expectedEditState)) {
+            throw new AnnouncementConflictException('Announcement title, text, photos or audience changed. Review the current version before saving.');
+        }
         $update = $pdo->prepare(
             "UPDATE announcements
              SET title = :title,
@@ -906,10 +1001,10 @@ function annUpdateAnnouncement(PDO $pdo, int $orgId, int $announcementId, array 
                 ]);
             }
         }
+        $commitAttempted = true;
         $pdo->commit();
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        foreach ($newPaths as $path) annDeleteLocalPhoto($path);
+        annRecoverPhotoWrite($pdo, $newPaths, $commitAttempted);
         throw $e;
     }
     foreach (array_diff($existingPaths, $retained) as $path) annDeleteLocalPhoto($path);
