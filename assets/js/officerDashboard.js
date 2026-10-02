@@ -6563,7 +6563,11 @@ const announcementFeedState = {
     loading: false,
     editingId: null,
     editingPhotoState: null,
+    editingState: null,
+    editingText: { title: '', content: '' },
+    editingTargeting: '',
     editingPhotoPaths: [],
+    editingGeneration: 0,
     counts: { active: 0, archived: 0 },
     queuedCount: 0
 };
@@ -7048,14 +7052,18 @@ function openAnnouncementComposer(announcementId = null) {
     form.reset();
     clearAnnouncementPhotoPreview();
     announcementFeedState.editingId = announcementId ? Number(announcementId) : null;
+    announcementFeedState.editingGeneration++;
     const editing = announcementFeedState.editingId
         ? getOfficerScopedAnnouncements().find(item => Number(item.id || item.announcement_id) === announcementFeedState.editingId)
         : null;
     if (announcementFeedState.editingId && !editing) {
-        showToast('That announcement is not loaded in the current feed.', 'error');
+        alert('That announcement is not loaded in the current feed.');
         return;
     }
     announcementFeedState.editingPhotoState = editing?.photo_state || null;
+    announcementFeedState.editingState = editing?.edit_state || null;
+    announcementFeedState.editingText = { title: editing?.title || '', content: editing?.content || '' };
+    announcementFeedState.editingTargeting = announcementTargetingState(editing?.audience_type || 'all_students', (editing?.target_programs || []).map(target => target.program_id));
     announcementFeedState.editingPhotoPaths = annRawPhotoPaths(editing?.announcement_photo);
 
     const title = document.getElementById('announcement-composer-title');
@@ -7092,6 +7100,7 @@ function closeAnnouncementComposer() {
     if (modal) modal.classList.remove('show');
     document.body.style.overflow = '';
     announcementFeedState.editingId = null;
+    announcementFeedState.editingGeneration++;
     document.getElementById('announcement-form')?.reset();
     clearAnnouncementPhotoPreview();
     toggleAnnouncementCourseTargets();
@@ -7101,7 +7110,7 @@ function closeAnnouncementComposer() {
 function openOfficerAnnouncementPreviewFromUrl() {
     const announcement = getOfficerAnnouncementPreviewPayload();
     if (!announcement) {
-        showToast('Announcement preview is no longer available. Please open it again from OSA.', 'error');
+        alert('Announcement preview is no longer available. Please open it again from OSA.');
         return;
     }
 
@@ -7444,7 +7453,7 @@ async function fetchAnnouncementsFromApi({ append = false } = {}) {
         if (!append && feed) {
             feed.innerHTML = `<div class="announcement-feed-empty"><i class="fa-solid fa-triangle-exclamation"></i><h3>Could not load announcements</h3><p>${escapeHtml(err.message || 'Please try again.')}</p><button class="btn btn-outline btn-sm" onclick="fetchAnnouncementsFromApi()">Retry</button></div>`;
         } else {
-            showToast(err.message || 'Could not load more announcements.', 'error');
+            alert(err.message || 'Could not load more announcements.');
         }
     } finally {
         announcementFeedState.loading = false;
@@ -7486,6 +7495,13 @@ function updateAnnouncementFeedControls() {
     const archivedCount = document.getElementById('announcement-archived-count');
     if (activeCount) activeCount.textContent = String((announcementFeedState.counts.active || 0) + (announcementFeedState.queuedCount || 0));
     if (archivedCount) archivedCount.textContent = String(announcementFeedState.counts.archived || 0);
+}
+
+function announcementTargetingState(audience, programIds) {
+    const ids = audience === 'specific_courses'
+        ? [...new Set(programIds.map(Number).filter(id => Number.isInteger(id) && id > 0))].sort((a, b) => a - b)
+        : [];
+    return JSON.stringify([audience, ids]);
 }
 
 function resetAnnouncementFeed() {
@@ -7724,6 +7740,7 @@ async function postAnnouncement(e) {
     const audience = document.getElementById('ann-audience') ? document.getElementById('ann-audience').value : 'all_students';
     const targetProgramIds = audience === 'specific_courses' ? getSelectedAnnouncementProgramIds() : [];
     const editingId = announcementFeedState.editingId;
+    const editingGeneration = announcementFeedState.editingGeneration;
     const syncEvent = !editingId && document.getElementById('sync-event').checked;
     const eventDate = document.getElementById('event-date')?.value || '';
     const eventTimeStart = (document.getElementById('event-time-start')?.value || '').trim();
@@ -7773,12 +7790,14 @@ async function postAnnouncement(e) {
         if (editingId) {
             payload.announcement_id = editingId;
             payload.expected_photo_state = announcementFeedState.editingPhotoState;
+            payload.expected_edit_state = announcementFeedState.editingState;
             payload.retained_photo_paths = announcementPhotoPreviewState.retainedPaths.filter(Boolean);
         } else {
             payload.publish = true;
         }
         const submitButton = document.getElementById('announcement-submit-btn');
         if (submitButton) submitButton.disabled = true;
+        if (announcementFeedState.editingGeneration !== editingGeneration) return;
         const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7786,14 +7805,45 @@ async function postAnnouncement(e) {
             body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));
-        if (res.status === 409 && data.error_code === 'ANNOUNCEMENT_PHOTO_CONFLICT') {
+        if (announcementFeedState.editingGeneration !== editingGeneration) return;
+        if (res.status === 409 && ['ANNOUNCEMENT_EDIT_CONFLICT', 'ANNOUNCEMENT_PHOTO_CONFLICT'].includes(data.error_code)) {
             // Keep text, course selections and locally selected files. Reconcile
             // existing attachments explicitly before allowing another save.
             const refresh = await fetch(`../api/announcements/list.php?announcement_id=${encodeURIComponent(editingId)}`, { credentials: 'same-origin' });
             const refreshed = await refresh.json().catch(() => ({}));
-            if (announcementFeedState.editingId !== editingId) return;
+            if (announcementFeedState.editingId !== editingId || announcementFeedState.editingGeneration !== editingGeneration) return;
             const latest = refresh.ok && refreshed.ok ? refreshed.item : null;
-            if (latest?.photo_state && window.confirm('Another officer changed the attached photos. Load their current photos while keeping your text and new files?')) {
+            const base = announcementFeedState.editingText;
+            const titleInput = document.getElementById('ann-title');
+            const contentInput = document.getElementById('ann-content');
+            const titleChanged = (titleInput?.value || '').trim() !== base.title.trim();
+            const contentChanged = (contentInput?.value || '').trim() !== base.content.trim();
+            const audienceInput = document.getElementById('ann-audience');
+            const courseInputs = [...document.querySelectorAll('#ann-course-target-list input[type="checkbox"]')];
+            const localTargeting = announcementTargetingState(audienceInput?.value || 'all_students', courseInputs.filter(input => input.checked).map(input => input.value));
+            const latestTargeting = announcementTargetingState(latest?.audience_type || 'all_students', (latest?.target_programs || []).map(target => target.program_id));
+            const targetingChanged = localTargeting !== announcementFeedState.editingTargeting;
+            const overlaps = [];
+            if (latest && titleChanged && latest.title !== base.title && (titleInput?.value || '').trim() !== latest.title) overlaps.push('title');
+            if (latest && contentChanged && latest.content !== base.content && (contentInput?.value || '').trim() !== latest.content) overlaps.push('text');
+            if (latest && targetingChanged && latestTargeting !== announcementFeedState.editingTargeting && localTargeting !== latestTargeting) overlaps.push('audience or courses');
+            const reviewMessage = overlaps.length
+                ? `Another officer changed the ${overlaps.join(' and ')} you also edited.\n\nCurrent title: ${latest.title}\n\nCurrent text: ${latest.content}\n\nCurrent audience: ${latest.audience_type === 'specific_courses' ? 'Specific courses: ' + (latest.target_programs || []).map(target => target.program_code || target.program_id).join(', ') : 'All students'}\n\nKeep your draft for those fields and load the current photos? Saving again will replace those fields with your draft. Cancel to keep reviewing without changing the saved announcement.`
+                : 'Another officer changed this announcement. Load the current version, keeping your edited fields and new files?';
+            if (latest?.photo_state && latest?.edit_state && window.confirm(reviewMessage)) {
+                if (!targetingChanged) {
+                    const selected = new Set((latest.target_programs || []).map(target => Number(target.program_id)));
+                    const available = new Set(courseInputs.map(input => Number(input.value)));
+                    if (latest.audience_type === 'specific_courses' && [...selected].some(id => !available.has(id))) {
+                        throw new Error('The current course selection is not available in this editor. Reload the page before saving.');
+                    }
+                    if (audienceInput) audienceInput.value = latest.audience_type || 'all_students';
+                    courseInputs.forEach(input => { input.checked = latest.audience_type === 'specific_courses' && selected.has(Number(input.value)); });
+                    toggleAnnouncementCourseTargets();
+                    updateAnnouncementCourseToggleLabel();
+                }
+                if (!titleChanged && titleInput) titleInput.value = latest.title || '';
+                if (!contentChanged && contentInput) contentInput.value = latest.content || '';
                 const oldPaths = new Set(announcementPhotoPreviewState.retainedPaths.filter(Boolean));
                 const removedPaths = announcementFeedState.editingPhotoPaths.filter(path => !oldPaths.has(path));
                 const localFiles = announcementPhotoPreviewState.files.filter(Boolean);
@@ -7801,10 +7851,12 @@ async function postAnnouncement(e) {
                 setExistingAnnouncementPhotos(JSON.stringify(latestPaths));
                 addAnnouncementPhotoFiles(localFiles);
                 announcementFeedState.editingPhotoState = latest.photo_state;
+                announcementFeedState.editingState = latest.edit_state;
+                announcementFeedState.editingText = { title: latest.title || '', content: latest.content || '' };
+                announcementFeedState.editingTargeting = latestTargeting;
                 announcementFeedState.editingPhotoPaths = annRawPhotoPaths(latest.announcement_photo);
                 const position = announcementsData.findIndex(item => Number(item.id || item.announcement_id) === Number(editingId));
                 if (position >= 0) announcementsData[position] = mapOfficerAnnouncement(latest);
-                showToast('Current photos loaded. Review the attachments, then save again.', 'info');
                 return;
             }
             throw new Error(data.error || 'Announcement photos changed. Refresh and try again.');
@@ -7827,9 +7879,8 @@ async function postAnnouncement(e) {
             const sendToEventsFrame = () => {
                 try {
                     eventsFrame.contentWindow.postMessage(payload, '*');
-                    showToast(`Announcement published and event "${title}" created.`, 'success');
                 } catch (_err) {
-                    showToast('Announcement published, but the Events tab could not be reached.', 'error');
+                    alert('Announcement published, but the Events tab could not be reached.');
                 }
             };
 
@@ -7843,17 +7894,15 @@ async function postAnnouncement(e) {
                     }
                 }
             } else {
-                showToast('Announcement published, but the Events tab is unavailable.', 'error');
+                alert('Announcement published, but the Events tab is unavailable.');
             }
-        } else if (!data.queued) {
-            showToast(editingId ? 'Announcement updated.' : 'Announcement published.', 'success');
         }
         closeAnnouncementComposer();
         if (data.queued) {
             await mergeQueuedOfficerAnnouncements();
             updateAnnouncementFeedControls();
             renderAnnouncements();
-            showToast('Announcement saved on this device and queued for sync.', 'info');
+            alert('Announcement saved on this device and queued for sync.');
         } else {
             resetAnnouncementFeed();
         }
@@ -7955,10 +8004,8 @@ async function setAnnouncementArchivedState(announcementId, archived) {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || `Could not ${archived ? 'archive' : 'restore'} announcement.`);
         }
-        showToast(data.queued
-            ? `Announcement ${archived ? 'archive' : 'restore'} queued.`
-            : `Announcement ${archived ? 'archived' : 'restored'}.`, data.queued ? 'info' : 'success');
         if (data.queued) {
+            alert(`Announcement ${archived ? 'archive' : 'restore'} queued.`);
             if (!archived) {
                 announcementFeedState.status = 'active';
                 announcementsData = announcementsData.filter(item => Number(item.id || item.announcement_id || 0) !== Number(announcementId));
@@ -7973,7 +8020,7 @@ async function setAnnouncementArchivedState(announcementId, archived) {
         }
     } catch (error) {
         console.error('[setAnnouncementArchivedState]', error);
-        showToast(error.message || 'Could not update announcement.', 'error');
+        alert(error.message || 'Could not update announcement.');
     }
 }
 

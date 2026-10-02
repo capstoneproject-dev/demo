@@ -7,6 +7,11 @@ apiGuard();
 
 try {
     $ctx     = annRequireOfficerOrgContext();
+    if (isset($_GET['announcement_id'])) {
+        $announcementId = filter_var($_GET['announcement_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($announcementId === false) jsonError('Invalid announcement.', 422);
+        jsonOk(['item' => annFetchAnnouncementForOrg(getPdo(), $ctx['org_id'], $announcementId)]);
+    }
     $filters = [
         'published' => isset($_GET['published']) ? (int)$_GET['published'] : null,
         'q'         => trim((string)($_GET['q'] ?? '')),
