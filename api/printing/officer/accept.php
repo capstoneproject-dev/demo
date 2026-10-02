@@ -22,7 +22,14 @@ try {
     $item = stAcceptPendingPrintJob($pdo, (int)$ctx['org_id'], $printJobId, (int)$ctx['user_id']);
     notificationEmailDispatchPrintingJobsBestEffort($pdo, [$printJobId]);
     jsonOk(['item' => $item]);
+} catch (ServiceTrackerConflictException $e) {
+    jsonError($e->getMessage(), 409, ['code' => 'PRINTING_CONFLICT']);
+} catch (ServiceTrackerAuthorizationException $e) {
+    jsonError($e->getMessage(), 403);
 } catch (PDOException $e) {
+    if (stIsPrintingConcurrencyError($e)) {
+        jsonError('The printing queue is busy. Refresh and try again.', 409, ['code' => 'PRINTING_CONFLICT']);
+    }
     error_log('[api/printing/officer/accept] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (ServiceTrackerValidationException $e) {

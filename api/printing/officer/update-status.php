@@ -31,6 +31,9 @@ try {
 } catch (ServiceTrackerAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
 } catch (PDOException $e) {
+    if (stIsPrintingConcurrencyError($e)) {
+        jsonError('The printing queue is busy. Refresh and try again.', 409, ['code' => 'PRINTING_CONFLICT']);
+    }
     error_log('[api/printing/officer/update-status] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {
