@@ -72,6 +72,10 @@ try {
     if ($envelope && $claimed) offlineFinish($pdo, $userId, $envelope['operation_id'], 'rejected', 403, $result);
     jsonError($e->getMessage(), 403, ['error_code' => 'OFFLINE_PERMISSION_CHANGED']);
 } catch (Throwable $e) {
+    $printingConflict = !$dispatchCompleted ? offlineRejectPrintingConflict($pdo, $userId, $envelope, $claimed, $e) : null;
+    if ($printingConflict !== null) {
+        jsonError($printingConflict['error'], 409, ['error_code' => $printingConflict['error_code']]);
+    }
     $conflict = !$dispatchCompleted ? offlineRejectIgpConflict($pdo, $userId, $envelope, $claimed, $e) : null;
     if ($conflict !== null) {
         jsonError($conflict['error'], 409, ['error_code' => $conflict['error_code']]);

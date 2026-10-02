@@ -217,6 +217,26 @@ function offlineFinish(PDO $pdo, int $userId, string $operationId, string $statu
     ]);
 }
 
+/** Finalize printing conflicts only after a claimed business action fails. */
+function offlineRejectPrintingConflict(PDO $pdo, int $userId, ?array $envelope, bool $claimed, Throwable $error): ?array
+{
+    if (!$claimed || !$envelope || !in_array($envelope['operation_type'], [
+        'printing.accept', 'printing.update_status', 'student.printing.submit',
+    ], true)) {
+        return null;
+    }
+    $databaseConflict = $error instanceof PDOException && stIsPrintingConcurrencyError($error);
+    if (!($error instanceof ServiceTrackerConflictException) && !$databaseConflict) return null;
+
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    $message = $databaseConflict
+        ? 'The printing queue is busy. Refresh your requests before trying again.'
+        : $error->getMessage();
+    $result = ['ok' => false, 'error' => $message, 'error_code' => 'OFFLINE_CONFLICT'];
+    offlineFinish($pdo, $userId, $envelope['operation_id'], 'rejected', 409, $result);
+    return $result;
+}
+
 /** Finalize equipment conflicts consistently for JSON and image-upload sync. */
 function offlineRejectIgpConflict(PDO $pdo, int $userId, ?array $envelope, bool $claimed, Throwable $error): ?array
 {
