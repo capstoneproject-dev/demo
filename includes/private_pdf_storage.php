@@ -39,7 +39,7 @@ function privatePdfEnsureDirectory(string $category): string
         throw new RuntimeException('Invalid private PDF category.');
     }
     $directory = privatePdfStorageRoot() . DIRECTORY_SEPARATOR . $category;
-    if (!is_dir($directory) && !mkdir($directory, 0750, true) && !is_dir($directory)) {
+    if (!is_dir($directory) && !@mkdir($directory, 0750, true) && !is_dir($directory)) {
         throw new RuntimeException('Could not prepare private PDF storage.');
     }
     @chmod(privatePdfStorageRoot(), 0750);
@@ -167,13 +167,11 @@ function privatePdfStoreUploadedFile(
     $details = privateFileInspect($temporaryPath, $extension);
     $safeBase = preg_replace('/[^A-Za-z0-9_-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
     $safeBase = substr(trim((string)$safeBase, '_-') ?: 'document', 0, 80);
-    $filename = date('Ymd_His') . '_' . bin2hex(random_bytes(8)) . '_' . $safeBase . '.' . $details['extension'];
     $directory = privatePdfEnsureDirectory($category);
-    $target = $directory . DIRECTORY_SEPARATOR . $filename;
-    if (!move_uploaded_file($temporaryPath, $target)) {
-        throw new RuntimeException('Could not store the uploaded file.');
-    }
-    @chmod($target, 0640);
+    $stored = uploadStoreUniqueStream($directory, $safeBase, $details['extension'], $temporaryPath, $maxBytes, 0640);
+    $filename = $stored['filename'];
+    $target = $stored['absolute_path'];
+    $size = $stored['size'];
     return [
         'original_name' => $originalName,
         'storage_key' => $category . '/' . $filename,

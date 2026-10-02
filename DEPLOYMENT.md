@@ -49,6 +49,9 @@ For Nginx, include equivalent protection:
 ```nginx
 location ^~ /uploads/ {
     autoindex off;
+    location ~ /\.upload-stage- {
+        deny all;
+    }
     location ~* \.(php[0-9]*|phtml|phar|cgi|pl|py|sh|bash|cmd|bat|exe|com)$ {
         deny all;
     }
@@ -59,6 +62,23 @@ location ^~ /uploads/ {
 Uploads must be on persistent disk. If the application is deployed in a
 container, mount `uploads/` as a persistent volume so a redeploy does not erase
 user files.
+
+Upload storage must support same-directory hard links. Completed files are published
+without replacing existing files; unsupported storage fails safely instead of using
+an overwrite-capable fallback. Keep the staging deny rule when the application is
+served beneath a URL prefix, adjusting the outer location to that prefix.
+
+To find files abandoned after publication or an uncertain database commit, run
+`php deployment/reconcile-uploads.php`. This reports only generated announcement
+images and document PDFs at least 48 hours old and checks existing database file
+references before identifying candidates. It makes no changes by default.
+
+For deletion, first put the site in maintenance mode so uploads, pending document
+submissions, and other file-reference writes are blocked, and drain active requests.
+Then run `php deployment/reconcile-uploads.php --delete --uploads-paused`.
+The flag acknowledges that maintenance is already enforced; the script does not
+pause the application itself. Keep upload/database backups before cleanup. Do not
+run deletion while users can submit or attach files. The script creates no tables.
 
 ## Application base path
 

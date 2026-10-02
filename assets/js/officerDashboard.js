@@ -6564,6 +6564,7 @@ const announcementFeedState = {
     editingId: null,
     editingPhotoState: null,
     editingPhotoPaths: [],
+    editingGeneration: 0,
     counts: { active: 0, archived: 0 },
     queuedCount: 0
 };
@@ -7048,6 +7049,7 @@ function openAnnouncementComposer(announcementId = null) {
     form.reset();
     clearAnnouncementPhotoPreview();
     announcementFeedState.editingId = announcementId ? Number(announcementId) : null;
+    announcementFeedState.editingGeneration++;
     const editing = announcementFeedState.editingId
         ? getOfficerScopedAnnouncements().find(item => Number(item.id || item.announcement_id) === announcementFeedState.editingId)
         : null;
@@ -7092,6 +7094,7 @@ function closeAnnouncementComposer() {
     if (modal) modal.classList.remove('show');
     document.body.style.overflow = '';
     announcementFeedState.editingId = null;
+    announcementFeedState.editingGeneration++;
     document.getElementById('announcement-form')?.reset();
     clearAnnouncementPhotoPreview();
     toggleAnnouncementCourseTargets();
@@ -7724,6 +7727,7 @@ async function postAnnouncement(e) {
     const audience = document.getElementById('ann-audience') ? document.getElementById('ann-audience').value : 'all_students';
     const targetProgramIds = audience === 'specific_courses' ? getSelectedAnnouncementProgramIds() : [];
     const editingId = announcementFeedState.editingId;
+    const editingGeneration = announcementFeedState.editingGeneration;
     const syncEvent = !editingId && document.getElementById('sync-event').checked;
     const eventDate = document.getElementById('event-date')?.value || '';
     const eventTimeStart = (document.getElementById('event-time-start')?.value || '').trim();
@@ -7779,6 +7783,7 @@ async function postAnnouncement(e) {
         }
         const submitButton = document.getElementById('announcement-submit-btn');
         if (submitButton) submitButton.disabled = true;
+        if (announcementFeedState.editingGeneration !== editingGeneration) return;
         const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7786,12 +7791,13 @@ async function postAnnouncement(e) {
             body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));
+        if (announcementFeedState.editingGeneration !== editingGeneration) return;
         if (res.status === 409 && data.error_code === 'ANNOUNCEMENT_PHOTO_CONFLICT') {
             // Keep text, course selections and locally selected files. Reconcile
             // existing attachments explicitly before allowing another save.
             const refresh = await fetch(`../api/announcements/list.php?announcement_id=${encodeURIComponent(editingId)}`, { credentials: 'same-origin' });
             const refreshed = await refresh.json().catch(() => ({}));
-            if (announcementFeedState.editingId !== editingId) return;
+            if (announcementFeedState.editingId !== editingId || announcementFeedState.editingGeneration !== editingGeneration) return;
             const latest = refresh.ok && refreshed.ok ? refreshed.item : null;
             if (latest?.photo_state && window.confirm('Another officer changed the attached photos. Load their current photos while keeping your text and new files?')) {
                 const oldPaths = new Set(announcementPhotoPreviewState.retainedPaths.filter(Boolean));
