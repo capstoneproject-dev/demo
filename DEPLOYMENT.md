@@ -25,6 +25,12 @@ inside the ZIP before opening the deployed site.
   directory, or equivalent Nginx/IIS rules
 - HTTPS in production
 
+PHP session files must use a private, persistent directory outside the public web
+root. Configure `session.save_handler=files` and an absolute `session.save_path`
+owned by the PHP service account before accepting users. See
+[session deployment instructions](docs/SESSION_SECURITY_DEPLOYMENT.md) for storage
+permissions, expiry cleanup, session-lock behavior, and multi-server requirements.
+
 ## Local file storage
 
 Uploaded files remain under `uploads/` and database rows store compatible

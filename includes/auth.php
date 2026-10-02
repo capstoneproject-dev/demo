@@ -58,13 +58,11 @@ if (session_status() === PHP_SESSION_NONE) {
     ]);
     session_start();
 
-    // Normalize session cookie scope so both /api/* and /pages/* routes
-    // share the same PHP session (important for iframe-authenticated pages).
+    // session_start()/session_regenerate_id() issue root-scoped cookies when
+    // needed. Do not reissue an existing ID: a slow parallel response could
+    // overwrite the newer cookie from a concurrent login/reauthentication.
     if (session_id() !== '') {
         $name = session_name();
-        $sid  = session_id();
-        setcookie($name, $sid, authSessionCookieOptions());
-
         // Best-effort cleanup of older narrow-path cookies that can shadow
         // the root cookie in some browsers.
         setcookie($name, '', time() - 3600, '/CAPSTONE/demo/api');
@@ -77,6 +75,37 @@ require_once __DIR__ . '/../config/db.php';
 // ---------------------------------------------------------------------------
 // Session read / write
 // ---------------------------------------------------------------------------
+
+/** Never reopen a stale session snapshot after another request may log out. */
+function authRequireWritableSession(): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        throw new LogicException('Session changes require an active lock. Use apiGuard(true) before authentication.');
+    }
+}
+
+/** Save authentication updates, then allow same-session requests to proceed. */
+function authReleaseSessionLock(): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) return;
+    // Read-only handlers may still return the token after releasing the lock.
+    authCsrfToken();
+    // PHP can return true even when the handler's write fails with a warning.
+    $writeWarning = null;
+    set_error_handler(static function (int $severity, string $message) use (&$writeWarning): bool {
+        $writeWarning = $message;
+        return true;
+    }, E_WARNING);
+    try {
+        $saved = session_write_close();
+    } finally {
+        restore_error_handler();
+    }
+    if (!$saved || $writeWarning !== null) {
+        if ($writeWarning !== null) error_log('[auth/session-save] ' . $writeWarning);
+        throw new RuntimeException('Could not save the authenticated session.');
+    }
+}
 
 function isLoggedIn(): bool
 {
@@ -96,6 +125,7 @@ function getPhpSession(): array
  */
 function startUserSession(array $payload, bool $establishAuthentication = false): void
 {
+    authRequireWritableSession();
     if ($establishAuthentication) {
         session_regenerate_id(true);
         $now = time();
@@ -122,6 +152,7 @@ function updateActiveOrg(
     bool $canReviewOrgDocuments = false
 ): void
 {
+    authRequireWritableSession();
     $_SESSION['naap_session']['active_org_id']   = $orgId;
     $_SESSION['naap_session']['active_org_name'] = $orgName;
     $_SESSION['naap_session']['active_role_name']= $roleName;
@@ -225,6 +256,7 @@ function apiRequireOrgManageOrDocumentReviewAccess(): array
 
 function destroySession(): void
 {
+    authRequireWritableSession();
     authClearPresence();
     $_SESSION = [];
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -304,6 +336,7 @@ function authClearUserPresence(): bool
 
 function authRotateCsrfToken(): string
 {
+    authRequireWritableSession();
     $token = bin2hex(random_bytes(32));
     $_SESSION['capstone_csrf_token'] = $token;
     return $token;
@@ -321,6 +354,7 @@ function authUpgradeExistingSession(): void
     if (!isLoggedIn()) return;
     $security = $_SESSION['capstone_security'] ?? [];
     if ((int)($security['version'] ?? 0) >= CAPSTONE_SESSION_SECURITY_VERSION) return;
+    authRequireWritableSession();
     session_regenerate_id(true);
     $now = time();
     $_SESSION['capstone_security'] = [
@@ -363,6 +397,7 @@ function authEnforceSessionLifetime(): void
         ]);
     }
     if (authHasRecentUserActivityHeader()) {
+        authRequireWritableSession();
         $_SESSION['capstone_security']['last_activity_at'] = time();
         authRecordPresence();
     }
@@ -370,6 +405,7 @@ function authEnforceSessionLifetime(): void
 
 function authMarkReauthenticated(bool $regenerateSession = true): string
 {
+    authRequireWritableSession();
     if ($regenerateSession) session_regenerate_id(true);
     $_SESSION['capstone_security']['reauthenticated_at'] = time();
     return authRotateCsrfToken();
@@ -402,8 +438,9 @@ function apiRequireRecentReauthentication(): void
  *
  * @param string $redirectTo Relative path to login page.
  */
-function guardSession(string $redirectTo = '../pages/login.html'): array
+function guardSession(string $redirectTo = '../pages/login.html', bool $keepSessionOpen = false): array
 {
+    authRequireWritableSession();
     if (!isLoggedIn()) {
         header("Location: $redirectTo");
         exit;
@@ -416,18 +453,31 @@ function guardSession(string $redirectTo = '../pages/login.html'): array
     // A protected PHP page navigation is itself a genuine user action; unlike
     // dashboard API polling, it may safely extend the idle deadline.
     $_SESSION['capstone_security']['last_activity_at'] = time();
+    if (!$keepSessionOpen) authReleaseSessionLock();
     return getPhpSession();
 }
 
 /**
  * API-level auth guard (returns JSON 401 instead of redirecting).
  * Use this in REST endpoints instead of guardSession().
+ * Session writers must pass true on their FIRST guard call. This keeps the
+ * lock through nested permission guards; all other handlers use a snapshot.
  */
-function apiGuard(): void
+function apiGuard(bool $keepSessionOpen = false): void
 {
+    static $validated = false;
+    static $writeRequired = false;
+    if ($keepSessionOpen) {
+        authRequireWritableSession();
+        $writeRequired = true;
+    }
+    // Nested guards reuse this request's authenticated snapshot. Never reopen
+    // and write it over a concurrent logout or organization switch.
     if (!isLoggedIn()) {
         jsonError('Not authenticated.', 401, ['error_code' => 'AUTHENTICATION_REQUIRED']);
     }
+    if ($validated && session_status() !== PHP_SESSION_ACTIVE) return;
+    authRequireWritableSession();
     authEnforceSessionLifetime();
 
     $session = getPhpSession();
@@ -496,6 +546,8 @@ function apiGuard(): void
             (int)($membership['can_review_org_documents'] ?? 0) === 1;
         $_SESSION['naap_session']['is_read_only'] = !$canManage;
     }
+    $validated = true;
+    if (!$writeRequired) authReleaseSessionLock();
 }
 
 /**

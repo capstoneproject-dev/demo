@@ -3,7 +3,7 @@
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/private_pdf_storage.php';
 
-apiGuard();
+apiGuard(true); // This request writes session data after authentication.
 if ((getPhpSession()['login_role'] ?? '') === 'org') apiRequireOrgManageAccess();
 
 $printJobId = (int)($_GET['print_job_id'] ?? 0);
@@ -41,6 +41,7 @@ try {
     auditProtectedFileAccessOnce('print_job', $printJobId, [
         'disposition' => isset($_GET['download']) ? 'download' : 'inline',
     ]);
+    authReleaseSessionLock(); // Save audit deduplication before streaming the file.
     privatePdfStream($path, (string)$job['file_name'], isset($_GET['download']));
 } catch (Throwable $e) {
     error_log('[api/printing/file] ' . $e->getMessage());

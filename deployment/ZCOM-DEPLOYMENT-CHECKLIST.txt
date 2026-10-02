@@ -11,6 +11,13 @@ Git history, tests, analytics caches, or existing user-uploaded files.
 - Enable PDO MySQL, cURL, Fileinfo, GD, Mbstring, OpenSSL, Intl, and Phar.
 - Set upload_max_filesize to at least 20M and post_max_size to at least 24M.
 - Enable the free SSL certificate and use HTTPS before real users sign in.
+- Create /home/CPANEL_ACCOUNT/capstone-sessions outside public_html, writable
+  only by PHP (0700 where supported). In MultiPHP INI Editor set
+  session.save_handler=files, session.save_path to this absolute directory,
+  and session.gc_maxlifetime=28800 (matching the application's absolute limit).
+- Confirm these settings in the web PHP runtime and enable expired-session
+  cleanup. Remove temporary diagnostics. A save-path change signs users out.
+- Use shared session storage with locking before adding another web server.
 
 2. DATABASE
 -----------

@@ -51,5 +51,4 @@ composer-setup.php
 /tests/concurrency/*
 !/tests/concurrency/file-uploads.php
 !/tests/concurrency/announcement-photo-conflicts.js
-
-!/tests/concurrency/database-connection.php
+!/tests/concurrency/auth-sessions.php

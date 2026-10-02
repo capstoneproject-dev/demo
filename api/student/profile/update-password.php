@@ -5,7 +5,7 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 header('Content-Type: application/json');
 
-apiGuard();
+apiGuard(true); // This request writes session data after authentication.
 requirePost();
 
 $userId = (int)($_SESSION['user_id'] ?? 0);
