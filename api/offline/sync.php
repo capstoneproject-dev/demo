@@ -34,6 +34,7 @@ try {
         exit;
     }
     $claimed = true;
+    offlineValidateNewClaim($envelope);
     $result = ['ok' => true, 'operation_id' => $envelope['operation_id']] + offlineDispatchJson($pdo, $envelope);
     $dispatchCompleted = true;
     offlineFinish($pdo, $userId, $envelope['operation_id'], 'completed', 200, $result);

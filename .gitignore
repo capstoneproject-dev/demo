@@ -33,4 +33,6 @@ composer-setup.php
 !/tests/
 !/tests/concurrency/printing-queue.php
 !/tests/concurrency/file-uploads.php
-/tests/concurrency
+!/tests/concurrency/
+/tests/concurrency/*
+!/tests/concurrency/offline-sync.php
