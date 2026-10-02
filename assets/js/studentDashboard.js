@@ -6808,16 +6808,15 @@ async function mergeQueuedStudentPrintJobs() {
     studentPrintingJobs = studentPrintingJobs.filter(item => !item.pendingSync);
     if (!window.NAAPOffline?.listQueuedOperations) return;
     const queued = await window.NAAPOffline.listQueuedOperations('student.printing.submit');
-    const optimistic = queued.map(operation => {
+    const optimistic = queued.flatMap(operation => (operation.files?.length ? operation.files : [{}]).map((file, index) => {
         const payload = operation.payload || {};
-        const file = operation.files?.[0];
         return {
             print_job_id: 0,
             file_name: file?.name || 'Queued printing file',
             file_url: '',
             org_name: payload.provider_name || 'Selected printing provider',
             org_code: '',
-            notes: Array.isArray(payload.notes) ? payload.notes.join(', ') : (payload.notes || ''),
+            notes: Array.isArray(payload.notes) ? (payload.notes[index] || '') : (payload.notes || ''),
             status: 'queued_offline',
             submitted_at: operation.createdAt,
             payment_status: 'unpaid',
@@ -6827,7 +6826,7 @@ async function mergeQueuedStudentPrintJobs() {
             offlineOperationId: operation.operationId,
             offlineError: operation.lastError || ''
         };
-    });
+    }));
     studentPrintingJobs = [...optimistic, ...studentPrintingJobs];
 }
 

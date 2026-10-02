@@ -357,7 +357,12 @@
                         const printingPartial = row.type === 'student.printing.submit'
                             && result.data.error_code === 'PRINTING_PARTIAL_SUCCESS'
                             && result.data.partial === true;
-                        if (printingPartial) completedCount += 1;
+                        if (printingPartial) {
+                            await Store.replacePartialPrintingOperation(row, result.data);
+                            completedCount += 1;
+                            failed.push({ operationId: row.operationId, message: result.data.error });
+                            continue;
+                        }
                         const attempts = Number(row.attempts || 0) + 1;
                         await Store.updateOutbox(row.operationId, permanent
                             ? { status: 'attention', attempts, lastError: result.data.error || 'The server rejected this operation.' }

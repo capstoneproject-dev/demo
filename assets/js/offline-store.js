@@ -373,6 +373,68 @@
         db.close();
     }
 
+    async function replacePartialPrintingOperation(row, result) {
+        const files = row.value?.files || [];
+        const remaining = result.remaining_files;
+        if (row.type !== 'student.printing.submit' || !Array.isArray(remaining) || !remaining.length) {
+            throw new Error('The partial printing response has no remaining files. Refresh your printing requests.');
+        }
+        const indices = remaining.map((file) => file.index);
+        if (new Set(indices).size !== indices.length || indices.some((index) => !Number.isInteger(index)
+            || index < 0 || index >= files.length || !(files[index].blob instanceof Blob))) {
+            throw new Error('The partial printing response has invalid file positions. Refresh your printing requests.');
+        }
+        const account = await getAccount(row.accountKey);
+        if (!account?.cryptoKey || account.locked) throw new Error('Offline work is locked. Sign in to continue.');
+        const operationId = crypto.randomUUID();
+        const createdAt = new Date().toISOString();
+        const payload = { ...(row.value.payload || {}) };
+        const notes = Array.isArray(payload.notes) ? payload.notes : [payload.notes || ''];
+        payload.notes = indices.map((index) => notes[index] || '');
+        const value = { type: row.type, endpoint: row.endpoint, payload, createdAt };
+        const encrypted = await encryptValue(account, value, `${row.accountKey}:outbox:${operationId}`);
+        const encryptedFiles = [];
+        let sizeBytes = approximateBytes(value);
+        for (const sourceIndex of indices) {
+            const file = files[sourceIndex];
+            const index = encryptedFiles.length;
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const cipher = await crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv, additionalData: encoder.encode(`${row.accountKey}:file:${operationId}:${index}`) },
+                account.cryptoKey, await file.blob.arrayBuffer()
+            );
+            encryptedFiles.push({ iv, cipher, index, name: file.name, type: file.type, field: file.field });
+            sizeBytes += file.blob.size;
+        }
+        const receipt = await encryptValue(account, result, `${row.accountKey}:result:${row.operationId}`);
+        const replacement = {
+            ...row, operationId, createdAt, updatedAt: createdAt, encrypted, encryptedFiles,
+            fileCount: encryptedFiles.length, sizeBytes, status: 'pending', attempts: 0, nextAttemptAt: 0,
+            lastError: result.error || 'Only the remaining printing files need submission.',
+        };
+        // Decrypted values must never be persisted in the encrypted outbox.
+        delete replacement.value;
+        const db = await openDatabase();
+        try {
+            const tx = db.transaction(['outbox', 'sync_results'], 'readwrite');
+            const done = transactionDone(tx);
+            const store = tx.objectStore('outbox');
+            const existing = await requestResult(store.get(row.operationId));
+            if (existing) {
+                store.delete(row.operationId);
+                store.add(replacement);
+                tx.objectStore('sync_results').put({
+                    operationId: row.operationId, accountKey: row.accountKey, type: row.type,
+                    status: 'partial', completedAt: createdAt, encrypted: receipt,
+                });
+            }
+            await done;
+        } finally {
+            db.close();
+        }
+        broadcast({ type: 'outbox-changed', accountKey: row.accountKey });
+    }
+
     async function completeOperation(row, result) {
         const account = await getAccount(row.accountKey);
         const encrypted = account?.cryptoKey
@@ -567,6 +629,7 @@
         updateOutbox,
         discardOperation,
         recordSyncFailure,
+        replacePartialPrintingOperation,
         completeOperation,
         saveSnapshot,
         readSnapshot,
