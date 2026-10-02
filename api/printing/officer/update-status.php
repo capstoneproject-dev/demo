@@ -24,10 +24,13 @@ try {
             'total_cost' => $body['total_cost'] ?? null,
             'payment_status' => $body['payment_status'] ?? 'unpaid',
             'officer_identifier' => $body['officer_identifier'] ?? '',
+            'expected_version' => $body['expected_version'] ?? null,
         ]
     );
     notificationEmailDispatchPrintingJobsBestEffort($pdo, [$printJobId]);
     jsonOk(['item' => $item]);
+} catch (ServiceTrackerConflictException $e) {
+    jsonError($e->getMessage(), 409, ['code' => 'PRINTING_CONFLICT']);
 } catch (ServiceTrackerAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
 } catch (PDOException $e) {

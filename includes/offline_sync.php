@@ -582,6 +582,7 @@ function offlineDispatchJson(PDO $pdo, array $envelope): array
                 'total_cost' => $payload['total_cost'] ?? null,
                 'payment_status' => $payload['payment_status'] ?? 'unpaid',
                 'officer_identifier' => $payload['officer_identifier'] ?? '',
+                'expected_version' => $payload['expected_version'] ?? null,
             ]);
             notificationEmailDispatchPrintingJobsBestEffort($pdo, [$printJobId]);
             return ['item' => $item];
@@ -683,7 +684,8 @@ function offlineDispatchUpload(PDO $pdo, array $envelope, array $files): array
     if ($envelope['operation_type'] === 'student.printing.submit') {
         $ctx = stRequireStudentContext();
         if (!$files) throw new OfflineSyncValidationException('At least one printing file is required.');
-        $notes = $envelope['payload']['notes'] ?? [];
+        // Older offline clients persisted the literal multipart field name.
+        $notes = $envelope['payload']['notes'] ?? ($envelope['payload']['notes[]'] ?? []);
         if (!is_array($notes)) $notes = [$notes];
         try {
             $items = offlineSubmitPrintingBatch($files, static function (array $file, int $index) use ($pdo, $ctx, $envelope, $notes): array {

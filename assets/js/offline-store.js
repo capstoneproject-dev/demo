@@ -389,8 +389,10 @@
         const operationId = crypto.randomUUID();
         const createdAt = new Date().toISOString();
         const payload = { ...(row.value.payload || {}) };
-        const notes = Array.isArray(payload.notes) ? payload.notes : [payload.notes || ''];
+        const originalNotes = payload.notes ?? payload['notes[]'] ?? '';
+        const notes = Array.isArray(originalNotes) ? originalNotes : [originalNotes];
         payload.notes = indices.map((index) => notes[index] || '');
+        delete payload['notes[]'];
         const value = { type: row.type, endpoint: row.endpoint, payload, createdAt };
         const encrypted = await encryptValue(account, value, `${row.accountKey}:outbox:${operationId}`);
         const encryptedFiles = [];

@@ -734,6 +734,17 @@ function stFetchPrintJob(PDO $pdo, int $printJobId): array
     return $rows[0];
 }
 
+function stPrintingJobStateVersion(array $row): string
+{
+    $state = [];
+    foreach (['print_job_id', 'org_id', 'status', 'provider_auto_assigned', 'provider_accepted_at',
+        'processing_started_at', 'ready_at', 'claimed_at', 'queue_order', 'total_cost',
+        'payment_status', 'paid_at', 'paid_by_user_id', 'last_updated_by_user_id', 'updated_at'] as $field) {
+        $state[$field] = isset($row[$field]) ? (string)$row[$field] : null;
+    }
+    return hash('sha256', json_encode($state, JSON_THROW_ON_ERROR));
+}
+
 function stAttachQueuePositions(PDO $pdo, array $rows): array
 {
     $queuedOrgIds = [];
@@ -767,6 +778,7 @@ function stAttachQueuePositions(PDO $pdo, array $rows): array
     }
 
     foreach ($rows as &$row) {
+        $row['state_version'] = stPrintingJobStateVersion($row);
         $row['print_job_id'] = (int)$row['print_job_id'];
         $row['org_id'] = (int)$row['org_id'];
         $row['user_id'] = (int)$row['user_id'];
@@ -1142,7 +1154,7 @@ function stUpdatePrintJobStatus(
     try {
         stLockPrintingQueues($pdo, [$orgId]);
         $lock = $pdo->prepare(
-            "SELECT print_job_id, org_id, status
+            "SELECT *
              FROM print_jobs
              WHERE print_job_id = :print_job_id
              FOR UPDATE"
@@ -1154,6 +1166,14 @@ function stUpdatePrintJobStatus(
         }
         if ((int)$current['org_id'] !== $orgId) {
             throw new ServiceTrackerAuthorizationException('You are not allowed to update this print job.');
+        }
+
+        if ($status === 'cancelled') {
+            $expectedVersion = $paymentData['expected_version'] ?? null;
+            if (!is_string($expectedVersion) || !preg_match('/^[a-f0-9]{64}$/D', $expectedVersion)
+                || !hash_equals(stPrintingJobStateVersion($current), $expectedVersion)) {
+                throw new ServiceTrackerConflictException('This print job changed or needs to be refreshed. Review the updated job before cancelling it.');
+            }
         }
 
         $currentStatus = strtolower((string)$current['status']);

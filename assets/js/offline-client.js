@@ -176,6 +176,13 @@
             throw new Error('Updating an event is online-only. Connect to the internet and try again.');
         }
         if (type === 'student.printing.submit') {
+            // FormData uses PHP-style array names; JSON sync needs a canonical key.
+            if (!Object.prototype.hasOwnProperty.call(parsed.payload, 'notes')
+                && Object.prototype.hasOwnProperty.call(parsed.payload, 'notes[]')) {
+                const notes = parsed.payload['notes[]'];
+                parsed.payload.notes = Array.isArray(notes) ? notes : [notes];
+            }
+            delete parsed.payload['notes[]'];
             const maxPrintingFileBytes = 20 * 1024 * 1024;
             const oversizedFile = parsed.files.find(file => Number(file.blob?.size || 0) > maxPrintingFileBytes);
             if (oversizedFile) {
@@ -573,7 +580,9 @@
                 createdAt: row.createdAt,
                 updatedAt: row.updatedAt,
                 lastError: row.lastError || '',
-                payload: row.value?.payload || {},
+                payload: row.type === 'student.printing.submit'
+                    ? { ...(row.value?.payload || {}), notes: row.value?.payload?.notes ?? row.value?.payload?.['notes[]'] ?? [] }
+                    : (row.value?.payload || {}),
                 files: row.value?.files || [],
             }));
     }
