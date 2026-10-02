@@ -217,6 +217,29 @@ function offlineFinish(PDO $pdo, int $userId, string $operationId, string $statu
     ]);
 }
 
+/** Finalize equipment conflicts consistently for JSON and image-upload sync. */
+function offlineRejectIgpConflict(PDO $pdo, int $userId, ?array $envelope, bool $claimed, Throwable $error): ?array
+{
+    // Claim/setup failures have not started a business action and must stay retryable.
+    if (!$claimed || !$envelope || !in_array($envelope['operation_type'], [
+        'student.rental.create', 'inventory.save', 'inventory.delete',
+        'rental.return', 'rental.mark_paid', 'rental.no_show',
+    ], true)) {
+        return null;
+    }
+    $databaseConflict = $error instanceof PDOException && igpIsConcurrencyError($error);
+    if (!($error instanceof IgpConflictException) && !$databaseConflict) return null;
+
+    // The business transaction must be rolled back before recording its rejection.
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    $message = $databaseConflict
+        ? 'Another rental operation is in progress. Refresh and try again.'
+        : $error->getMessage();
+    $result = ['ok' => false, 'error' => $message, 'error_code' => 'OFFLINE_CONFLICT'];
+    if ($claimed) offlineFinish($pdo, $userId, $envelope['operation_id'], 'rejected', 409, $result);
+    return $result;
+}
+
 function offlineRequireStudentContext(): array
 {
     $session = getPhpSession();
@@ -364,7 +387,8 @@ function offlineDeleteIgpOfficer(PDO $pdo, int $orgId, array $payload): array
 
 function offlineSaveInventory(PDO $pdo, int $orgId, array $payload): array
 {
-    $pdo->beginTransaction();
+    igpEnsureInventoryBarcodeScope($pdo);
+    igpBeginTransaction($pdo);
     try {
         $itemId = igpSaveInventoryItem($pdo, $orgId, $payload);
         if ((int)($payload['apply_pricing_to_group'] ?? 0) === 1) igpApplyInventoryGroupPricing($pdo, $orgId, $itemId);

@@ -21,7 +21,12 @@ try {
 
     $rentalId = igpCreateStudentRental(getPdo(), $userId, $organization, $itemName, $hours, $scheduledStart);
     jsonOk(['rental_id' => $rentalId]);
+} catch (IgpConflictException $e) {
+    jsonError($e->getMessage(), 409, ['code' => 'RENTAL_CONFLICT']);
 } catch (PDOException $e) {
+    if (igpIsConcurrencyError($e)) {
+        jsonError('Another rental operation is in progress. Refresh and try again.', 409, ['code' => 'RENTAL_CONFLICT']);
+    }
     error_log('[api/student/rentals/create] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {
