@@ -98,6 +98,7 @@ function annAttachProgramTargets(PDO $pdo, array &$rows): void
     if (!$rows) return;
     foreach ($rows as &$photoRow) {
         $photoRow['photo_state'] = annPhotoState($photoRow['announcement_photo'] ?? null);
+        $photoRow['edit_state'] = annEditState($photoRow);
     }
     unset($photoRow);
     annEnsureProgramTargetsTable($pdo);
@@ -482,6 +483,15 @@ function annListPublishedAnnouncementsForStudents(PDO $pdo, array $filters = [])
 function annPhotoState(?string $value): string
 {
     return hash('sha256', (string)$value);
+}
+
+function annEditState(array $row): string
+{
+    return hash('sha256', json_encode([
+        (string)($row['title'] ?? ''),
+        (string)($row['content'] ?? ''),
+        (string)($row['announcement_photo'] ?? ''),
+    ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 }
 
 /** Once COMMIT has been sent, preserve files regardless of subsequent rollback results. */
@@ -899,6 +909,13 @@ function annUpdateAnnouncement(PDO $pdo, int $orgId, int $announcementId, array 
 {
     if ($pdo->inTransaction()) throw new RuntimeException('Announcement update requires its own transaction.');
     $current = annFetchAnnouncementForOrg($pdo, $orgId, $announcementId);
+    $expectedEditState = $data['expected_edit_state'] ?? null;
+    if (!is_string($expectedEditState) || !preg_match('/\A[a-f0-9]{64}\z/', $expectedEditState)) {
+        throw new AnnouncementValidationException('Reload the announcement before editing.');
+    }
+    if (!hash_equals(annEditState($current), $expectedEditState)) {
+        throw new AnnouncementConflictException('Announcement title, text or photos changed. Review the current version before saving.');
+    }
     $expectedPhotoState = $data['expected_photo_state'] ?? null;
     if (!is_string($expectedPhotoState) || !preg_match('/\A[a-f0-9]{64}\z/', $expectedPhotoState)) {
         throw new AnnouncementValidationException('Reload the announcement before editing its photos.');
@@ -938,11 +955,11 @@ function annUpdateAnnouncement(PDO $pdo, int $orgId, int $announcementId, array 
         $photoValue = $allPaths ? json_encode($allPaths, JSON_UNESCAPED_SLASHES) : null;
 
         $pdo->beginTransaction();
-        $lock = $pdo->prepare('SELECT announcement_photo FROM announcements WHERE announcement_id = ? AND org_id = ? FOR UPDATE');
+        $lock = $pdo->prepare('SELECT title, content, announcement_photo FROM announcements WHERE announcement_id = ? AND org_id = ? FOR UPDATE');
         $lock->execute([$announcementId, $orgId]);
         $locked = $lock->fetch(PDO::FETCH_ASSOC);
-        if (!$locked || !hash_equals(annPhotoState($locked['announcement_photo'] ?? null), $expectedPhotoState)) {
-            throw new AnnouncementConflictException('Announcement photos changed. Refresh and try again.');
+        if (!$locked || !hash_equals(annEditState($locked), $expectedEditState)) {
+            throw new AnnouncementConflictException('Announcement title, text or photos changed. Review the current version before saving.');
         }
         $update = $pdo->prepare(
             "UPDATE announcements

@@ -6563,6 +6563,8 @@ const announcementFeedState = {
     loading: false,
     editingId: null,
     editingPhotoState: null,
+    editingState: null,
+    editingText: { title: '', content: '' },
     editingPhotoPaths: [],
     editingGeneration: 0,
     counts: { active: 0, archived: 0 },
@@ -7058,6 +7060,8 @@ function openAnnouncementComposer(announcementId = null) {
         return;
     }
     announcementFeedState.editingPhotoState = editing?.photo_state || null;
+    announcementFeedState.editingState = editing?.edit_state || null;
+    announcementFeedState.editingText = { title: editing?.title || '', content: editing?.content || '' };
     announcementFeedState.editingPhotoPaths = annRawPhotoPaths(editing?.announcement_photo);
 
     const title = document.getElementById('announcement-composer-title');
@@ -7777,6 +7781,7 @@ async function postAnnouncement(e) {
         if (editingId) {
             payload.announcement_id = editingId;
             payload.expected_photo_state = announcementFeedState.editingPhotoState;
+            payload.expected_edit_state = announcementFeedState.editingState;
             payload.retained_photo_paths = announcementPhotoPreviewState.retainedPaths.filter(Boolean);
         } else {
             payload.publish = true;
@@ -7792,14 +7797,27 @@ async function postAnnouncement(e) {
         });
         const data = await res.json().catch(() => ({}));
         if (announcementFeedState.editingGeneration !== editingGeneration) return;
-        if (res.status === 409 && data.error_code === 'ANNOUNCEMENT_PHOTO_CONFLICT') {
+        if (res.status === 409 && ['ANNOUNCEMENT_EDIT_CONFLICT', 'ANNOUNCEMENT_PHOTO_CONFLICT'].includes(data.error_code)) {
             // Keep text, course selections and locally selected files. Reconcile
             // existing attachments explicitly before allowing another save.
             const refresh = await fetch(`../api/announcements/list.php?announcement_id=${encodeURIComponent(editingId)}`, { credentials: 'same-origin' });
             const refreshed = await refresh.json().catch(() => ({}));
             if (announcementFeedState.editingId !== editingId || announcementFeedState.editingGeneration !== editingGeneration) return;
             const latest = refresh.ok && refreshed.ok ? refreshed.item : null;
-            if (latest?.photo_state && window.confirm('Another officer changed the attached photos. Load their current photos while keeping your text and new files?')) {
+            const base = announcementFeedState.editingText;
+            const titleInput = document.getElementById('ann-title');
+            const contentInput = document.getElementById('ann-content');
+            const titleChanged = (titleInput?.value || '').trim() !== base.title.trim();
+            const contentChanged = (contentInput?.value || '').trim() !== base.content.trim();
+            const overlaps = [];
+            if (latest && titleChanged && latest.title !== base.title && (titleInput?.value || '').trim() !== latest.title) overlaps.push('title');
+            if (latest && contentChanged && latest.content !== base.content && (contentInput?.value || '').trim() !== latest.content) overlaps.push('text');
+            const reviewMessage = overlaps.length
+                ? `Another officer changed the ${overlaps.join(' and ')} you also edited.\n\nCurrent title: ${latest.title}\n\nCurrent text: ${latest.content}\n\nKeep your draft for those fields and load the current photos? Saving again will replace those fields with your draft. Cancel to keep reviewing without changing the saved announcement.`
+                : 'Another officer changed this announcement. Load the current version, keeping your edited fields and new files?';
+            if (latest?.photo_state && latest?.edit_state && window.confirm(reviewMessage)) {
+                if (!titleChanged && titleInput) titleInput.value = latest.title || '';
+                if (!contentChanged && contentInput) contentInput.value = latest.content || '';
                 const oldPaths = new Set(announcementPhotoPreviewState.retainedPaths.filter(Boolean));
                 const removedPaths = announcementFeedState.editingPhotoPaths.filter(path => !oldPaths.has(path));
                 const localFiles = announcementPhotoPreviewState.files.filter(Boolean);
@@ -7807,10 +7825,11 @@ async function postAnnouncement(e) {
                 setExistingAnnouncementPhotos(JSON.stringify(latestPaths));
                 addAnnouncementPhotoFiles(localFiles);
                 announcementFeedState.editingPhotoState = latest.photo_state;
+                announcementFeedState.editingState = latest.edit_state;
+                announcementFeedState.editingText = { title: latest.title || '', content: latest.content || '' };
                 announcementFeedState.editingPhotoPaths = annRawPhotoPaths(latest.announcement_photo);
                 const position = announcementsData.findIndex(item => Number(item.id || item.announcement_id) === Number(editingId));
                 if (position >= 0) announcementsData[position] = mapOfficerAnnouncement(latest);
-                showToast('Current photos loaded. Review the attachments, then save again.', 'info');
                 return;
             }
             throw new Error(data.error || 'Announcement photos changed. Refresh and try again.');

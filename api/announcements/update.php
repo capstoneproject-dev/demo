@@ -17,7 +17,7 @@ try {
     $item = annUpdateAnnouncement(getPdo(), $ctx['org_id'], $announcementId, $body);
     jsonOk(['item' => $item]);
 } catch (AnnouncementConflictException $e) {
-    jsonError($e->getMessage(), 409, ['error_code' => 'ANNOUNCEMENT_PHOTO_CONFLICT']);
+    jsonError($e->getMessage(), 409, ['error_code' => 'ANNOUNCEMENT_EDIT_CONFLICT']);
 } catch (AnnouncementAuthorizationException $e) {
     jsonError($e->getMessage(), 403);
 } catch (AnnouncementValidationException $e) {

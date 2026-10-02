@@ -39,3 +39,10 @@ composer-setup.php
 !/tests/concurrency/file-uploads.php
 !/tests/concurrency/announcement-photo-conflicts.js
 /tests
+!/tests/
+/tests/*
+!/tests/concurrency/
+/tests/concurrency/*
+!/tests/concurrency/file-uploads.php
+!/tests/concurrency/announcement-photo-conflicts.js
+/tests/concurrency
