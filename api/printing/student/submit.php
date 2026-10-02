@@ -7,6 +7,8 @@ header('Content-Type: application/json');
 apiGuard();
 requirePost();
 
+$jobs = [];
+
 function normalizeUploadedFiles(array $files): array
 {
     if (isset($files['name']) && !is_array($files['name'])) {
@@ -65,6 +67,12 @@ try {
         'count' => count($jobs),
     ]);
 } catch (PDOException $e) {
+    if (stIsPrintingConcurrencyError($e)) {
+        $message = $jobs
+            ? 'Some files were submitted before the queue became busy. Refresh your requests and submit only the missing files.'
+            : 'The printing queue is busy. Refresh your requests before trying again.';
+        jsonError($message, 409, ['code' => 'PRINTING_CONFLICT', 'items' => $jobs, 'count' => count($jobs)]);
+    }
     error_log('[api/printing/student/submit] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {

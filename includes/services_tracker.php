@@ -618,26 +618,74 @@ function stStoreUploadedPrintFile(array $file): array
     ];
 }
 
+function stRequirePrintingTransactionOwner(PDO $pdo): void
+{
+    if ($pdo->inTransaction()) {
+        throw new LogicException('Printing operations require their own transaction.');
+    }
+}
+
+/** All printing queue writers lock organizations first, in ascending ID order. */
+function stBeginPrintingTransaction(PDO $pdo): void
+{
+    stRequirePrintingTransactionOwner($pdo);
+    // Avoid locking index gaps between independent providers' empty queues.
+    $pdo->exec('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+    $pdo->beginTransaction();
+}
+
+function stLockPrintingQueues(PDO $pdo, array $orgIds): void
+{
+    if (!$pdo->inTransaction()) {
+        throw new LogicException('Printing queue locks require a transaction.');
+    }
+    $orgIds = array_unique(array_map('intval', $orgIds));
+    sort($orgIds, SORT_NUMERIC);
+    $lock = $pdo->prepare('SELECT org_id FROM organizations WHERE org_id = ? FOR UPDATE');
+    foreach ($orgIds as $orgId) {
+        $lock->execute([$orgId]);
+        if (!$lock->fetchColumn()) {
+            throw new ServiceTrackerValidationException('Printing provider not found.');
+        }
+    }
+}
+
+function stIsPrintingConcurrencyError(PDOException $e): bool
+{
+    return (string)$e->getCode() === '40001'
+        || in_array((int)($e->errorInfo[1] ?? 0), [1205, 1213], true);
+}
+
 function stGetNextQueueOrder(PDO $pdo, int $orgId): int
 {
+    stLockPrintingQueues($pdo, [$orgId]);
+    // A locking read sees the latest committed queue even under REPEATABLE READ.
     $stmt = $pdo->prepare(
-        "SELECT COALESCE(MAX(queue_order), 0) + 1
+        "SELECT queue_order
          FROM print_jobs
          WHERE org_id = :org_id
-           AND status = 'queued'"
+           AND status = 'queued'
+         ORDER BY queue_order DESC, submitted_at DESC, print_job_id DESC
+         LIMIT 1 FOR UPDATE"
     );
     $stmt->execute([':org_id' => $orgId]);
-    return max(1, (int)$stmt->fetchColumn());
+    $lastOrder = (int)$stmt->fetchColumn();
+    if ($lastOrder >= 2147483647) {
+        throw new ServiceTrackerValidationException('The printing queue has reached its supported limit.');
+    }
+    return max(1, $lastOrder + 1);
 }
 
 function stNormalizeQueuedOrders(PDO $pdo, int $orgId): void
 {
+    stLockPrintingQueues($pdo, [$orgId]);
     $stmt = $pdo->prepare(
         "SELECT print_job_id
          FROM print_jobs
          WHERE org_id = :org_id
            AND status = 'queued'
-         ORDER BY queue_order ASC, submitted_at ASC, print_job_id ASC"
+         ORDER BY queue_order ASC, submitted_at ASC, print_job_id ASC
+         FOR UPDATE"
     );
     $stmt->execute([':org_id' => $orgId]);
     $jobs = $stmt->fetchAll();
@@ -686,6 +734,17 @@ function stFetchPrintJob(PDO $pdo, int $printJobId): array
     return $rows[0];
 }
 
+function stPrintingJobStateVersion(array $row): string
+{
+    $state = [];
+    foreach (['print_job_id', 'org_id', 'status', 'provider_auto_assigned', 'provider_accepted_at',
+        'processing_started_at', 'ready_at', 'claimed_at', 'queue_order', 'total_cost',
+        'payment_status', 'paid_at', 'paid_by_user_id', 'last_updated_by_user_id', 'updated_at'] as $field) {
+        $state[$field] = isset($row[$field]) ? (string)$row[$field] : null;
+    }
+    return hash('sha256', json_encode($state, JSON_THROW_ON_ERROR));
+}
+
 function stAttachQueuePositions(PDO $pdo, array $rows): array
 {
     $queuedOrgIds = [];
@@ -719,6 +778,7 @@ function stAttachQueuePositions(PDO $pdo, array $rows): array
     }
 
     foreach ($rows as &$row) {
+        $row['state_version'] = stPrintingJobStateVersion($row);
         $row['print_job_id'] = (int)$row['print_job_id'];
         $row['org_id'] = (int)$row['org_id'];
         $row['user_id'] = (int)$row['user_id'];
@@ -738,6 +798,7 @@ function stAttachQueuePositions(PDO $pdo, array $rows): array
 
 function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): array
 {
+    stRequirePrintingTransactionOwner($pdo);
     stEnsureSchema($pdo);
     if ($userId <= 0) {
         throw new ServiceTrackerValidationException('Invalid student account.');
@@ -788,8 +849,8 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
 
     $storedFile = stStoreUploadedPrintFile($file);
 
-    $pdo->beginTransaction();
     try {
+        stBeginPrintingTransaction($pdo);
         $queueOrder = stGetNextQueueOrder($pdo, $orgId);
         $insert = $pdo->prepare(
             "INSERT INTO print_jobs
@@ -808,8 +869,9 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
             ':updated_by' => $userId,
         ]);
         $printJobId = (int)$pdo->lastInsertId();
+        // Read the result before committing: read failures must roll back the insert.
+        $result = stFetchPrintJob($pdo, $printJobId);
         $pdo->commit();
-        return stFetchPrintJob($pdo, $printJobId);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -817,6 +879,7 @@ function stSubmitPrintJob(PDO $pdo, int $userId, array $data, array $file): arra
         privatePdfDeleteStorageKey((string)$storedFile['file_url']);
         throw $e;
     }
+    return $result;
 }
 
 function stHasUnpaidPrintingBalance(PDO $pdo, int $userId, int $orgId): bool
@@ -988,6 +1051,7 @@ function stListPendingPrintJobs(PDO $pdo): array
 
 function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $updatedByUserId): array
 {
+    stRequirePrintingTransactionOwner($pdo);
     stEnsureSchema($pdo);
     if ($orgId <= 0) {
         throw new ServiceTrackerValidationException('A valid organization is required.');
@@ -1000,10 +1064,18 @@ function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $upd
         throw new ServiceTrackerAuthorizationException('Your organization is not authorized for printing services.');
     }
 
-    $pdo->beginTransaction();
+    // Discover the source without taking a job lock ahead of the queue locks.
+    $sourceQuery = $pdo->prepare('SELECT org_id FROM print_jobs WHERE print_job_id = ?');
+    $sourceQuery->execute([$printJobId]);
+    $source = $sourceQuery->fetch();
+    if (!$source) {
+        throw new ServiceTrackerValidationException('Print job not found.');
+    }
+    stBeginPrintingTransaction($pdo);
     try {
+        stLockPrintingQueues($pdo, [(int)$source['org_id'], $orgId]);
         $lock = $pdo->prepare(
-            "SELECT provider_auto_assigned, status, user_id
+            "SELECT org_id, provider_auto_assigned, status, user_id
              FROM print_jobs
              WHERE print_job_id = :print_job_id
              FOR UPDATE"
@@ -1014,8 +1086,10 @@ function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $upd
             throw new ServiceTrackerValidationException('Print job not found.');
         }
 
-        if ((int)($current['provider_auto_assigned'] ?? 0) !== 1 || strtolower((string)($current['status'] ?? '')) !== 'queued') {
-            throw new ServiceTrackerValidationException('This print request has already been accepted by another organization.');
+        if ((int)$current['org_id'] !== (int)$source['org_id']
+            || (int)($current['provider_auto_assigned'] ?? 0) !== 1
+            || strtolower((string)($current['status'] ?? '')) !== 'queued') {
+            throw new ServiceTrackerConflictException('This print request changed or was already accepted. Refresh the queue and try again.');
         }
         if (stHasUnpaidPrintingBalance($pdo, (int)$current['user_id'], $orgId)) {
             throw new ServiceTrackerValidationException('This student has an unpaid printing balance with your organization and cannot submit another request here.');
@@ -1030,7 +1104,8 @@ function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $upd
                  queue_order = :queue_order,
                  last_updated_by_user_id = :updated_by
              WHERE print_job_id = :print_job_id
-               AND COALESCE(provider_auto_assigned, 0) = 1"
+               AND COALESCE(provider_auto_assigned, 0) = 1
+               AND status = 'queued'"
         );
         $update->execute([
             ':org_id' => $orgId,
@@ -1040,11 +1115,16 @@ function stAcceptPendingPrintJob(PDO $pdo, int $orgId, int $printJobId, int $upd
         ]);
 
         if ($update->rowCount() === 0) {
-            throw new ServiceTrackerValidationException('This print request has already been accepted by another organization.');
+            throw new ServiceTrackerConflictException('This print request changed or was already accepted. Refresh the queue and try again.');
         }
 
+        stNormalizeQueuedOrders($pdo, (int)$source['org_id']);
+        if ((int)$source['org_id'] !== $orgId) {
+            stNormalizeQueuedOrders($pdo, $orgId);
+        }
+        $result = stFetchPrintJob($pdo, $printJobId);
         $pdo->commit();
-        return stFetchPrintJob($pdo, $printJobId);
+        return $result;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -1062,6 +1142,7 @@ function stUpdatePrintJobStatus(
     array $paymentData = []
 ): array
 {
+    stRequirePrintingTransactionOwner($pdo);
     stEnsureSchema($pdo);
     $status = strtolower(trim($status));
     $allowed = ['queued', 'processing', 'ready_to_claim', 'claimed', 'cancelled'];
@@ -1069,10 +1150,11 @@ function stUpdatePrintJobStatus(
         throw new ServiceTrackerValidationException('Invalid print job status.');
     }
 
-    $pdo->beginTransaction();
+    stBeginPrintingTransaction($pdo);
     try {
+        stLockPrintingQueues($pdo, [$orgId]);
         $lock = $pdo->prepare(
-            "SELECT print_job_id, org_id, status
+            "SELECT *
              FROM print_jobs
              WHERE print_job_id = :print_job_id
              FOR UPDATE"
@@ -1084,6 +1166,14 @@ function stUpdatePrintJobStatus(
         }
         if ((int)$current['org_id'] !== $orgId) {
             throw new ServiceTrackerAuthorizationException('You are not allowed to update this print job.');
+        }
+
+        if ($status === 'cancelled') {
+            $expectedVersion = $paymentData['expected_version'] ?? null;
+            if (!is_string($expectedVersion) || !preg_match('/^[a-f0-9]{64}$/D', $expectedVersion)
+                || !hash_equals(stPrintingJobStateVersion($current), $expectedVersion)) {
+                throw new ServiceTrackerConflictException('This print job changed or needs to be refreshed. Review the updated job before cancelling it.');
+            }
         }
 
         $currentStatus = strtolower((string)$current['status']);
@@ -1158,8 +1248,9 @@ function stUpdatePrintJobStatus(
             stNormalizeQueuedOrders($pdo, $orgId);
         }
 
+        $result = stFetchPrintJob($pdo, $printJobId);
         $pdo->commit();
-        return stFetchPrintJob($pdo, $printJobId);
+        return $result;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -1170,6 +1261,7 @@ function stUpdatePrintJobStatus(
 
 function stCancelStudentPrintJob(PDO $pdo, int $userId, int $printJobId): array
 {
+    stRequirePrintingTransactionOwner($pdo);
     stEnsureSchema($pdo);
     if ($userId <= 0) {
         throw new ServiceTrackerAuthorizationException('Invalid student session.');
@@ -1184,8 +1276,9 @@ function stCancelStudentPrintJob(PDO $pdo, int $userId, int $printJobId): array
         throw new ServiceTrackerValidationException('Only queued print jobs can be cancelled.');
     }
 
-    $pdo->beginTransaction();
+    stBeginPrintingTransaction($pdo);
     try {
+        stLockPrintingQueues($pdo, [(int)$current['org_id']]);
         $stmt = $pdo->prepare(
             "UPDATE print_jobs
              SET status = 'cancelled',
@@ -1193,16 +1286,25 @@ function stCancelStudentPrintJob(PDO $pdo, int $userId, int $printJobId): array
                  paid_at = NULL,
                  paid_by_user_id = NULL,
                  last_updated_by_user_id = :updated_by
-             WHERE print_job_id = :print_job_id"
+             WHERE print_job_id = :print_job_id
+               AND user_id = :user_id
+               AND org_id = :org_id
+               AND status = 'queued'"
         );
         $stmt->execute([
             ':updated_by' => $userId,
             ':print_job_id' => $printJobId,
+            ':user_id' => $userId,
+            ':org_id' => (int)$current['org_id'],
         ]);
+        if ($stmt->rowCount() !== 1) {
+            throw new ServiceTrackerConflictException('This print job changed. Refresh the queue and try again.');
+        }
 
         stNormalizeQueuedOrders($pdo, (int)$current['org_id']);
+        $result = stFetchPrintJob($pdo, $printJobId);
         $pdo->commit();
-        return stFetchPrintJob($pdo, $printJobId);
+        return $result;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -1213,36 +1315,39 @@ function stCancelStudentPrintJob(PDO $pdo, int $userId, int $printJobId): array
 
 function stReorderPrintJob(PDO $pdo, int $orgId, int $printJobId, int $newQueueOrder): array
 {
+    stRequirePrintingTransactionOwner($pdo);
     stEnsureSchema($pdo);
     if ($newQueueOrder <= 0) {
         throw new ServiceTrackerValidationException('Queue position must be greater than zero.');
     }
 
-    $stmt = $pdo->prepare(
-        "SELECT print_job_id, queue_order, status
-         FROM print_jobs
-         WHERE org_id = :org_id
-           AND status = 'queued'
-         ORDER BY queue_order ASC, submitted_at ASC, print_job_id ASC"
-    );
-    $stmt->execute([':org_id' => $orgId]);
-    $jobs = $stmt->fetchAll();
-
-    if (!$jobs) {
-        throw new ServiceTrackerValidationException('No queued print jobs found.');
-    }
-
-    $jobIds = array_map(static fn(array $row): int => (int)$row['print_job_id'], $jobs);
-    if (!in_array($printJobId, $jobIds, true)) {
-        throw new ServiceTrackerValidationException('Only queued print jobs can be reordered.');
-    }
-
-    $orderedIds = array_values(array_filter($jobIds, static fn(int $id): bool => $id !== $printJobId));
-    $targetIndex = min(max($newQueueOrder, 1), count($orderedIds) + 1) - 1;
-    array_splice($orderedIds, $targetIndex, 0, [$printJobId]);
-
-    $pdo->beginTransaction();
+    stBeginPrintingTransaction($pdo);
     try {
+        stLockPrintingQueues($pdo, [$orgId]);
+        $stmt = $pdo->prepare(
+            "SELECT print_job_id, queue_order, status
+             FROM print_jobs
+             WHERE org_id = :org_id
+               AND status = 'queued'
+             ORDER BY queue_order ASC, submitted_at ASC, print_job_id ASC
+             FOR UPDATE"
+        );
+        $stmt->execute([':org_id' => $orgId]);
+        $jobs = $stmt->fetchAll();
+
+        if (!$jobs) {
+            throw new ServiceTrackerValidationException('No queued print jobs found.');
+        }
+
+        $jobIds = array_map(static fn(array $row): int => (int)$row['print_job_id'], $jobs);
+        if (!in_array($printJobId, $jobIds, true)) {
+            throw new ServiceTrackerValidationException('Only queued print jobs can be reordered.');
+        }
+
+        $orderedIds = array_values(array_filter($jobIds, static fn(int $id): bool => $id !== $printJobId));
+        $targetIndex = min(max($newQueueOrder, 1), count($orderedIds) + 1) - 1;
+        array_splice($orderedIds, $targetIndex, 0, [$printJobId]);
+
         $update = $pdo->prepare(
             "UPDATE print_jobs
              SET queue_order = :queue_order
@@ -1256,8 +1361,9 @@ function stReorderPrintJob(PDO $pdo, int $orgId, int $printJobId, int $newQueueO
         }
 
         stNormalizeQueuedOrders($pdo, $orgId);
+        $result = stFetchPrintJob($pdo, $printJobId);
         $pdo->commit();
-        return stFetchPrintJob($pdo, $printJobId);
+        return $result;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

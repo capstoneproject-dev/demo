@@ -176,6 +176,13 @@
             throw new Error('Updating an event is online-only. Connect to the internet and try again.');
         }
         if (type === 'student.printing.submit') {
+            // FormData uses PHP-style array names; JSON sync needs a canonical key.
+            if (!Object.prototype.hasOwnProperty.call(parsed.payload, 'notes')
+                && Object.prototype.hasOwnProperty.call(parsed.payload, 'notes[]')) {
+                const notes = parsed.payload['notes[]'];
+                parsed.payload.notes = Array.isArray(notes) ? notes : [notes];
+            }
+            delete parsed.payload['notes[]'];
             const maxPrintingFileBytes = 20 * 1024 * 1024;
             const oversizedFile = parsed.files.find(file => Number(file.blob?.size || 0) > maxPrintingFileBytes);
             if (oversizedFile) {
@@ -354,11 +361,20 @@
                             throw error;
                         }
                         const permanent = [400, 403, 404, 409, 413, 415, 422].includes(result.response.status);
+                        const printingPartial = row.type === 'student.printing.submit'
+                            && result.data.error_code === 'PRINTING_PARTIAL_SUCCESS'
+                            && result.data.partial === true;
+                        if (printingPartial) {
+                            await Store.replacePartialPrintingOperation(row, result.data);
+                            completedCount += 1;
+                            failed.push({ operationId: row.operationId, message: result.data.error });
+                            continue;
+                        }
                         const attempts = Number(row.attempts || 0) + 1;
                         await Store.updateOutbox(row.operationId, permanent
                             ? { status: 'attention', attempts, lastError: result.data.error || 'The server rejected this operation.' }
                             : { status: 'pending', attempts, lastError: result.data.error || 'Server error.', nextAttemptAt: Date.now() + Math.min(300000, 1000 * (2 ** attempts)) });
-                        if (permanent) await Store.recordSyncFailure(row, result.data, result.response.status === 409 ? 'conflicted' : 'rejected');
+                        if (permanent) await Store.recordSyncFailure(row, result.data, printingPartial ? 'partial' : (result.response.status === 409 ? 'conflicted' : 'rejected'));
                         failed.push({ operationId: row.operationId, message: result.data.error || `Sync failed (${result.response.status}).` });
                     } catch (error) {
                         if (error.sessionExpired) throw error;
@@ -564,7 +580,9 @@
                 createdAt: row.createdAt,
                 updatedAt: row.updatedAt,
                 lastError: row.lastError || '',
-                payload: row.value?.payload || {},
+                payload: row.type === 'student.printing.submit'
+                    ? { ...(row.value?.payload || {}), notes: row.value?.payload?.notes ?? row.value?.payload?.['notes[]'] ?? [] }
+                    : (row.value?.payload || {}),
                 files: row.value?.files || [],
             }));
     }

@@ -3,8 +3,8 @@
 const APP_BASE = self.location.pathname.replace(/\/sw\.js$/, '');
 const appPath = (path) => `${APP_BASE}${path}`;
 
-const STATIC_CACHE = 'naap-static-v40';
-const RUNTIME_CACHE = 'naap-runtime-v40';
+const STATIC_CACHE = 'naap-static-v43';
+const RUNTIME_CACHE = 'naap-runtime-v43';
 const ASSET_REVALIDATE_MS = 5 * 60 * 1000;
 const assetLastChecked = new Map();
 const OFFLINE_PAGE = appPath('/offline.html');
@@ -32,8 +32,8 @@ const QR_OFFLINE_ASSETS = [
 const PRECACHE = [
     '/', '/index.html', '/offline.html', '/manifest.webmanifest',
     '/pages/login.html', '/pages/studentDashboard.html', '/pages/officerDashboard.html', '/pages/osaDashboard.html',
-    '/assets/js/app-dialog.js', '/assets/js/offline-store.js', '/assets/js/offline-client.js', '/assets/js/responsive-tables.js',
-    '/assets/js/login.js', '/assets/js/studentDashboard.js', '/assets/js/officerDashboard.js', '/assets/js/osaDashboard.app.js',
+    '/assets/js/app-dialog.js', '/assets/js/offline-store.js?v=20261002-printing-notes-1', '/assets/js/offline-client.js?v=20261002-printing-notes-1', '/assets/js/responsive-tables.js',
+    '/assets/js/login.js', '/assets/js/studentDashboard.js?v=20261002-printing-partial-1', '/assets/js/officerDashboard.js?v=20261002-printing-stale-cancel-1', '/assets/js/osaDashboard.app.js',
     '/assets/css/login.css', '/assets/css/studentDashboard.css', '/assets/css/officerDashboard.css', '/assets/css/osaDashboard.css',
     '/assets/css/pdfViewer.css', '/assets/css/organizationColorThemes.css', '/assets/css/responsive-tables.css',
     '/assets/vendor/chart.umd.min.js', '/assets/vendor/jspdf.umd.min.js', '/assets/vendor/jspdf.plugin.autotable.min.js',

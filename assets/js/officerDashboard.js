@@ -4189,6 +4189,8 @@ async function submitOfficerPrintMarkPaid() {
 }
 
 async function updateOfficerPrintJobStatus(printJobId, status, paymentData = {}, suppressAlert = false) {
+    const displayedJob = officerPrintingQueue.find((item) => Number(item.print_job_id) === Number(printJobId));
+    const expectedVersion = displayedJob?.state_version || null;
     const loadingCopy = {
         processing: {
             title: 'Starting print job',
@@ -4220,10 +4222,12 @@ async function updateOfficerPrintJobStatus(printJobId, status, paymentData = {},
                 print_job_id: printJobId,
                 status,
                 ...paymentData,
+                expected_version: expectedVersion,
             }),
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.ok) {
+            if (response.status === 409) await loadOfficerPrintingQueue(true);
             throw new Error(data.error || 'Could not update print job status.');
         }
         await loadOfficerPrintingQueue(true);
@@ -6558,6 +6562,8 @@ const announcementFeedState = {
     hasMore: false,
     loading: false,
     editingId: null,
+    editingPhotoState: null,
+    editingPhotoPaths: [],
     counts: { active: 0, archived: 0 },
     queuedCount: 0
 };
@@ -7049,6 +7055,8 @@ function openAnnouncementComposer(announcementId = null) {
         showToast('That announcement is not loaded in the current feed.', 'error');
         return;
     }
+    announcementFeedState.editingPhotoState = editing?.photo_state || null;
+    announcementFeedState.editingPhotoPaths = annRawPhotoPaths(editing?.announcement_photo);
 
     const title = document.getElementById('announcement-composer-title');
     const submit = document.getElementById('announcement-submit-btn');
@@ -7764,6 +7772,7 @@ async function postAnnouncement(e) {
         };
         if (editingId) {
             payload.announcement_id = editingId;
+            payload.expected_photo_state = announcementFeedState.editingPhotoState;
             payload.retained_photo_paths = announcementPhotoPreviewState.retainedPaths.filter(Boolean);
         } else {
             payload.publish = true;
@@ -7777,6 +7786,29 @@ async function postAnnouncement(e) {
             body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));
+        if (res.status === 409 && data.error_code === 'ANNOUNCEMENT_PHOTO_CONFLICT') {
+            // Keep text, course selections and locally selected files. Reconcile
+            // existing attachments explicitly before allowing another save.
+            const refresh = await fetch(`../api/announcements/list.php?announcement_id=${encodeURIComponent(editingId)}`, { credentials: 'same-origin' });
+            const refreshed = await refresh.json().catch(() => ({}));
+            if (announcementFeedState.editingId !== editingId) return;
+            const latest = refresh.ok && refreshed.ok ? refreshed.item : null;
+            if (latest?.photo_state && window.confirm('Another officer changed the attached photos. Load their current photos while keeping your text and new files?')) {
+                const oldPaths = new Set(announcementPhotoPreviewState.retainedPaths.filter(Boolean));
+                const removedPaths = announcementFeedState.editingPhotoPaths.filter(path => !oldPaths.has(path));
+                const localFiles = announcementPhotoPreviewState.files.filter(Boolean);
+                const latestPaths = annRawPhotoPaths(latest.announcement_photo).filter(path => !removedPaths.includes(path));
+                setExistingAnnouncementPhotos(JSON.stringify(latestPaths));
+                addAnnouncementPhotoFiles(localFiles);
+                announcementFeedState.editingPhotoState = latest.photo_state;
+                announcementFeedState.editingPhotoPaths = annRawPhotoPaths(latest.announcement_photo);
+                const position = announcementsData.findIndex(item => Number(item.id || item.announcement_id) === Number(editingId));
+                if (position >= 0) announcementsData[position] = mapOfficerAnnouncement(latest);
+                showToast('Current photos loaded. Review the attachments, then save again.', 'info');
+                return;
+            }
+            throw new Error(data.error || 'Announcement photos changed. Refresh and try again.');
+        }
         if (!res.ok || !data.ok) throw new Error(data.error || `Failed to ${editingId ? 'update' : 'post'} announcement`);
 
         if (syncEvent) {

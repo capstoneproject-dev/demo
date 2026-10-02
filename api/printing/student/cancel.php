@@ -15,7 +15,12 @@ try {
     $item = stCancelStudentPrintJob($pdo, (int)$ctx['user_id'], $printJobId);
     notificationEmailDispatchPrintingJobsBestEffort($pdo, [$printJobId]);
     jsonOk(['item' => $item]);
+} catch (ServiceTrackerConflictException $e) {
+    jsonError($e->getMessage(), 409, ['code' => 'PRINTING_CONFLICT']);
 } catch (PDOException $e) {
+    if (stIsPrintingConcurrencyError($e)) {
+        jsonError('The printing queue is busy. Refresh and try again.', 409, ['code' => 'PRINTING_CONFLICT']);
+    }
     error_log('[api/printing/student/cancel] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {

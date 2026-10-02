@@ -14,6 +14,42 @@ require_once __DIR__ . '/upload_security.php';
 class OfflineSyncValidationException extends RuntimeException {}
 class OfflineSyncConflictException extends RuntimeException {}
 
+class OfflinePrintingPartialException extends RuntimeException
+{
+    public function __construct(public readonly array $result, Throwable $previous)
+    {
+        parent::__construct($result['error'], 0, $previous);
+    }
+}
+
+/** Each submit commits independently; retain its receipt if a later file fails. */
+function offlineSubmitPrintingBatch(array $files, callable $submit): array
+{
+    $items = [];
+    foreach (array_values($files) as $index => $file) {
+        try {
+            $items[] = $submit($file, $index);
+        } catch (Throwable $e) {
+            if (!$items) throw $e;
+            $remaining = [];
+            foreach (array_slice(array_values($files), $index, null, true) as $fileIndex => $pending) {
+                $remaining[] = ['index' => $fileIndex, 'file_name' => (string)($pending['name'] ?? '')];
+            }
+            $names = implode(', ', array_column($remaining, 'file_name'));
+            throw new OfflinePrintingPartialException([
+                'ok' => false,
+                'partial' => true,
+                'error_code' => 'PRINTING_PARTIAL_SUCCESS',
+                'error' => count($items) . ' file(s) were submitted. Refresh your printing requests and submit only the remaining files: ' . $names,
+                'items' => $items,
+                'count' => count($items),
+                'remaining_files' => $remaining,
+            ], $e);
+        }
+    }
+    return $items;
+}
+
 const OFFLINE_SYNC_TYPES = [
     'announcement.create',
     'event.create',
@@ -215,6 +251,26 @@ function offlineFinish(PDO $pdo, int $userId, string $operationId, string $statu
         ':user_id' => $userId,
         ':operation_id' => $operationId,
     ]);
+}
+
+/** Finalize printing conflicts only after a claimed business action fails. */
+function offlineRejectPrintingConflict(PDO $pdo, int $userId, ?array $envelope, bool $claimed, Throwable $error): ?array
+{
+    if (!$claimed || !$envelope || !in_array($envelope['operation_type'], [
+        'printing.accept', 'printing.update_status', 'student.printing.submit',
+    ], true)) {
+        return null;
+    }
+    $databaseConflict = $error instanceof PDOException && stIsPrintingConcurrencyError($error);
+    if (!($error instanceof ServiceTrackerConflictException) && !$databaseConflict) return null;
+
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    $message = $databaseConflict
+        ? 'The printing queue is busy. Refresh your requests before trying again.'
+        : $error->getMessage();
+    $result = ['ok' => false, 'error' => $message, 'error_code' => 'OFFLINE_CONFLICT'];
+    offlineFinish($pdo, $userId, $envelope['operation_id'], 'rejected', 409, $result);
+    return $result;
 }
 
 /** Finalize equipment conflicts consistently for JSON and image-upload sync. */
@@ -526,6 +582,7 @@ function offlineDispatchJson(PDO $pdo, array $envelope): array
                 'total_cost' => $payload['total_cost'] ?? null,
                 'payment_status' => $payload['payment_status'] ?? 'unpaid',
                 'officer_identifier' => $payload['officer_identifier'] ?? '',
+                'expected_version' => $payload['expected_version'] ?? null,
             ]);
             notificationEmailDispatchPrintingJobsBestEffort($pdo, [$printJobId]);
             return ['item' => $item];
@@ -627,13 +684,18 @@ function offlineDispatchUpload(PDO $pdo, array $envelope, array $files): array
     if ($envelope['operation_type'] === 'student.printing.submit') {
         $ctx = stRequireStudentContext();
         if (!$files) throw new OfflineSyncValidationException('At least one printing file is required.');
-        $notes = $envelope['payload']['notes'] ?? [];
+        // Older offline clients persisted the literal multipart field name.
+        $notes = $envelope['payload']['notes'] ?? ($envelope['payload']['notes[]'] ?? []);
         if (!is_array($notes)) $notes = [$notes];
-        $items = [];
-        foreach ($files as $index => $file) {
-            $payload = $envelope['payload'];
-            $payload['notes'] = trim((string)($notes[$index] ?? ''));
-            $items[] = stSubmitPrintJob($pdo, (int)$ctx['user_id'], $payload, $file);
+        try {
+            $items = offlineSubmitPrintingBatch($files, static function (array $file, int $index) use ($pdo, $ctx, $envelope, $notes): array {
+                $payload = $envelope['payload'];
+                $payload['notes'] = trim((string)($notes[$index] ?? ''));
+                return stSubmitPrintJob($pdo, (int)$ctx['user_id'], $payload, $file);
+            });
+        } catch (OfflinePrintingPartialException $e) {
+            notificationEmailDispatchPrintingJobsBestEffort($pdo, array_column($e->result['items'], 'print_job_id'));
+            throw $e;
         }
         notificationEmailDispatchPrintingJobsBestEffort($pdo, array_column($items, 'print_job_id'));
         return ['items' => $items, 'count' => count($items)];

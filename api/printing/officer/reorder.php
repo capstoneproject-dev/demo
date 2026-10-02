@@ -15,6 +15,9 @@ try {
     $item = stReorderPrintJob(getPdo(), (int)$ctx['org_id'], $printJobId, $newQueueOrder);
     jsonOk(['item' => $item]);
 } catch (PDOException $e) {
+    if (stIsPrintingConcurrencyError($e)) {
+        jsonError('The printing queue is busy. Refresh and try again.', 409, ['code' => 'PRINTING_CONFLICT']);
+    }
     error_log('[api/printing/officer/reorder] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (Throwable $e) {
