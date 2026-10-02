@@ -7057,7 +7057,7 @@ function openAnnouncementComposer(announcementId = null) {
         ? getOfficerScopedAnnouncements().find(item => Number(item.id || item.announcement_id) === announcementFeedState.editingId)
         : null;
     if (announcementFeedState.editingId && !editing) {
-        showToast('That announcement is not loaded in the current feed.', 'error');
+        alert('That announcement is not loaded in the current feed.');
         return;
     }
     announcementFeedState.editingPhotoState = editing?.photo_state || null;
@@ -7110,7 +7110,7 @@ function closeAnnouncementComposer() {
 function openOfficerAnnouncementPreviewFromUrl() {
     const announcement = getOfficerAnnouncementPreviewPayload();
     if (!announcement) {
-        showToast('Announcement preview is no longer available. Please open it again from OSA.', 'error');
+        alert('Announcement preview is no longer available. Please open it again from OSA.');
         return;
     }
 
@@ -7453,7 +7453,7 @@ async function fetchAnnouncementsFromApi({ append = false } = {}) {
         if (!append && feed) {
             feed.innerHTML = `<div class="announcement-feed-empty"><i class="fa-solid fa-triangle-exclamation"></i><h3>Could not load announcements</h3><p>${escapeHtml(err.message || 'Please try again.')}</p><button class="btn btn-outline btn-sm" onclick="fetchAnnouncementsFromApi()">Retry</button></div>`;
         } else {
-            showToast(err.message || 'Could not load more announcements.', 'error');
+            alert(err.message || 'Could not load more announcements.');
         }
     } finally {
         announcementFeedState.loading = false;
@@ -7879,9 +7879,8 @@ async function postAnnouncement(e) {
             const sendToEventsFrame = () => {
                 try {
                     eventsFrame.contentWindow.postMessage(payload, '*');
-                    showToast(`Announcement published and event "${title}" created.`, 'success');
                 } catch (_err) {
-                    showToast('Announcement published, but the Events tab could not be reached.', 'error');
+                    alert('Announcement published, but the Events tab could not be reached.');
                 }
             };
 
@@ -7895,17 +7894,15 @@ async function postAnnouncement(e) {
                     }
                 }
             } else {
-                showToast('Announcement published, but the Events tab is unavailable.', 'error');
+                alert('Announcement published, but the Events tab is unavailable.');
             }
-        } else if (!data.queued) {
-            showToast(editingId ? 'Announcement updated.' : 'Announcement published.', 'success');
         }
         closeAnnouncementComposer();
         if (data.queued) {
             await mergeQueuedOfficerAnnouncements();
             updateAnnouncementFeedControls();
             renderAnnouncements();
-            showToast('Announcement saved on this device and queued for sync.', 'info');
+            alert('Announcement saved on this device and queued for sync.');
         } else {
             resetAnnouncementFeed();
         }
@@ -8007,10 +8004,8 @@ async function setAnnouncementArchivedState(announcementId, archived) {
         if (!response.ok || !data.ok) {
             throw new Error(data.error || `Could not ${archived ? 'archive' : 'restore'} announcement.`);
         }
-        showToast(data.queued
-            ? `Announcement ${archived ? 'archive' : 'restore'} queued.`
-            : `Announcement ${archived ? 'archived' : 'restored'}.`, data.queued ? 'info' : 'success');
         if (data.queued) {
+            alert(`Announcement ${archived ? 'archive' : 'restore'} queued.`);
             if (!archived) {
                 announcementFeedState.status = 'active';
                 announcementsData = announcementsData.filter(item => Number(item.id || item.announcement_id || 0) !== Number(announcementId));
@@ -8025,7 +8020,7 @@ async function setAnnouncementArchivedState(announcementId, archived) {
         }
     } catch (error) {
         console.error('[setAnnouncementArchivedState]', error);
-        showToast(error.message || 'Could not update announcement.', 'error');
+        alert(error.message || 'Could not update announcement.');
     }
 }
 
