@@ -6565,6 +6565,7 @@ const announcementFeedState = {
     editingPhotoState: null,
     editingState: null,
     editingText: { title: '', content: '' },
+    editingTargeting: '',
     editingPhotoPaths: [],
     editingGeneration: 0,
     counts: { active: 0, archived: 0 },
@@ -7062,6 +7063,7 @@ function openAnnouncementComposer(announcementId = null) {
     announcementFeedState.editingPhotoState = editing?.photo_state || null;
     announcementFeedState.editingState = editing?.edit_state || null;
     announcementFeedState.editingText = { title: editing?.title || '', content: editing?.content || '' };
+    announcementFeedState.editingTargeting = announcementTargetingState(editing?.audience_type || 'all_students', (editing?.target_programs || []).map(target => target.program_id));
     announcementFeedState.editingPhotoPaths = annRawPhotoPaths(editing?.announcement_photo);
 
     const title = document.getElementById('announcement-composer-title');
@@ -7495,6 +7497,13 @@ function updateAnnouncementFeedControls() {
     if (archivedCount) archivedCount.textContent = String(announcementFeedState.counts.archived || 0);
 }
 
+function announcementTargetingState(audience, programIds) {
+    const ids = audience === 'specific_courses'
+        ? [...new Set(programIds.map(Number).filter(id => Number.isInteger(id) && id > 0))].sort((a, b) => a - b)
+        : [];
+    return JSON.stringify([audience, ids]);
+}
+
 function resetAnnouncementFeed() {
     announcementFeedState.cursor = '';
     announcementFeedState.hasMore = false;
@@ -7809,13 +7818,30 @@ async function postAnnouncement(e) {
             const contentInput = document.getElementById('ann-content');
             const titleChanged = (titleInput?.value || '').trim() !== base.title.trim();
             const contentChanged = (contentInput?.value || '').trim() !== base.content.trim();
+            const audienceInput = document.getElementById('ann-audience');
+            const courseInputs = [...document.querySelectorAll('#ann-course-target-list input[type="checkbox"]')];
+            const localTargeting = announcementTargetingState(audienceInput?.value || 'all_students', courseInputs.filter(input => input.checked).map(input => input.value));
+            const latestTargeting = announcementTargetingState(latest?.audience_type || 'all_students', (latest?.target_programs || []).map(target => target.program_id));
+            const targetingChanged = localTargeting !== announcementFeedState.editingTargeting;
             const overlaps = [];
             if (latest && titleChanged && latest.title !== base.title && (titleInput?.value || '').trim() !== latest.title) overlaps.push('title');
             if (latest && contentChanged && latest.content !== base.content && (contentInput?.value || '').trim() !== latest.content) overlaps.push('text');
+            if (latest && targetingChanged && latestTargeting !== announcementFeedState.editingTargeting && localTargeting !== latestTargeting) overlaps.push('audience or courses');
             const reviewMessage = overlaps.length
-                ? `Another officer changed the ${overlaps.join(' and ')} you also edited.\n\nCurrent title: ${latest.title}\n\nCurrent text: ${latest.content}\n\nKeep your draft for those fields and load the current photos? Saving again will replace those fields with your draft. Cancel to keep reviewing without changing the saved announcement.`
+                ? `Another officer changed the ${overlaps.join(' and ')} you also edited.\n\nCurrent title: ${latest.title}\n\nCurrent text: ${latest.content}\n\nCurrent audience: ${latest.audience_type === 'specific_courses' ? 'Specific courses: ' + (latest.target_programs || []).map(target => target.program_code || target.program_id).join(', ') : 'All students'}\n\nKeep your draft for those fields and load the current photos? Saving again will replace those fields with your draft. Cancel to keep reviewing without changing the saved announcement.`
                 : 'Another officer changed this announcement. Load the current version, keeping your edited fields and new files?';
             if (latest?.photo_state && latest?.edit_state && window.confirm(reviewMessage)) {
+                if (!targetingChanged) {
+                    const selected = new Set((latest.target_programs || []).map(target => Number(target.program_id)));
+                    const available = new Set(courseInputs.map(input => Number(input.value)));
+                    if (latest.audience_type === 'specific_courses' && [...selected].some(id => !available.has(id))) {
+                        throw new Error('The current course selection is not available in this editor. Reload the page before saving.');
+                    }
+                    if (audienceInput) audienceInput.value = latest.audience_type || 'all_students';
+                    courseInputs.forEach(input => { input.checked = latest.audience_type === 'specific_courses' && selected.has(Number(input.value)); });
+                    toggleAnnouncementCourseTargets();
+                    updateAnnouncementCourseToggleLabel();
+                }
                 if (!titleChanged && titleInput) titleInput.value = latest.title || '';
                 if (!contentChanged && contentInput) contentInput.value = latest.content || '';
                 const oldPaths = new Set(announcementPhotoPreviewState.retainedPaths.filter(Boolean));
@@ -7827,6 +7853,7 @@ async function postAnnouncement(e) {
                 announcementFeedState.editingPhotoState = latest.photo_state;
                 announcementFeedState.editingState = latest.edit_state;
                 announcementFeedState.editingText = { title: latest.title || '', content: latest.content || '' };
+                announcementFeedState.editingTargeting = latestTargeting;
                 announcementFeedState.editingPhotoPaths = annRawPhotoPaths(latest.announcement_photo);
                 const position = announcementsData.findIndex(item => Number(item.id || item.announcement_id) === Number(editingId));
                 if (position >= 0) announcementsData[position] = mapOfficerAnnouncement(latest);
