@@ -189,7 +189,9 @@ function offlineValidateEnvelope(array $body): array
     if (!is_array($payload) || ($payload !== [] && array_is_list($payload))) {
         throw new OfflineSyncValidationException('payload must be a JSON object.');
     }
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/', $createdAtRaw)) {
+    // Numeric timezone offsets use hours 00-23 and minutes 00-59 (RFC 3339).
+    // PHP otherwise accepts overflowing offsets and silently shifts the instant.
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/D', $createdAtRaw)) {
         throw new OfflineSyncValidationException('created_at must be an ISO 8601 timestamp with a timezone.');
     }
     try {
