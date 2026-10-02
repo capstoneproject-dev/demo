@@ -55,6 +55,7 @@ try {
         exit;
     }
     $claimed = true;
+    offlineValidateNewClaim($envelope);
     $result = ['ok' => true, 'operation_id' => $envelope['operation_id']] + offlineDispatchUpload($pdo, $envelope, $files);
     $dispatchCompleted = true;
     offlineFinish($pdo, $userId, $envelope['operation_id'], 'completed', 200, $result);

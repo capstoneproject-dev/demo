@@ -13,6 +13,7 @@ require_once __DIR__ . '/upload_security.php';
 
 class OfflineSyncValidationException extends RuntimeException {}
 class OfflineSyncConflictException extends RuntimeException {}
+class OfflineSyncReceiptException extends RuntimeException {}
 
 class OfflinePrintingPartialException extends RuntimeException
 {
@@ -138,6 +139,26 @@ function offlineCanonicalize(mixed $value): mixed
     return $value;
 }
 
+/** Request handling must never create tables or implicitly commit caller work. */
+function offlineCheckSchema(PDO $pdo): void
+{
+    $table = $pdo->query("SHOW TABLE STATUS WHERE Name = 'offline_operations'")->fetch(PDO::FETCH_ASSOC);
+    if (!$table || strcasecmp((string)$table['Engine'], 'InnoDB') !== 0) {
+        throw new RuntimeException('Offline synchronization requires the existing InnoDB receipt table.');
+    }
+    $keys = [];
+    foreach ($pdo->query('SHOW INDEX FROM offline_operations')->fetchAll(PDO::FETCH_ASSOC) as $index) {
+        if ((int)$index['Non_unique'] !== 0) continue;
+        $keys[$index['Key_name']][(int)$index['Seq_in_index']] = $index['Sub_part'] === null ? $index['Column_name'] : null;
+    }
+    foreach ($keys as $columns) {
+        ksort($columns);
+        $columns = array_values($columns);
+        if ($columns === ['user_id', 'operation_id'] || $columns === ['operation_id', 'user_id']) return;
+    }
+    throw new RuntimeException('Offline synchronization requires a unique user-and-operation key.');
+}
+
 function offlinePayloadHash(string $type, array $payload, array $fileHashes = []): string
 {
     return hash('sha256', json_encode([
@@ -149,6 +170,11 @@ function offlinePayloadHash(string $type, array $payload, array $fileHashes = []
 
 function offlineValidateEnvelope(array $body): array
 {
+    foreach (['operation_id', 'operation_type', 'created_at'] as $field) {
+        if (!isset($body[$field]) || !is_string($body[$field]) || trim($body[$field]) === '') {
+            throw new OfflineSyncValidationException($field . ' must be a non-empty string.');
+        }
+    }
     $operationId = strtolower(trim((string)($body['operation_id'] ?? '')));
     $type = trim((string)($body['operation_type'] ?? ''));
     $createdAtRaw = trim((string)($body['created_at'] ?? ''));
@@ -160,9 +186,20 @@ function offlineValidateEnvelope(array $body): array
     if (!in_array($type, OFFLINE_SYNC_TYPES, true)) {
         throw new OfflineSyncValidationException('This operation is not available for offline synchronization.');
     }
-    if (!is_array($payload)) throw new OfflineSyncValidationException('payload must be a JSON object.');
+    if (!is_array($payload) || ($payload !== [] && array_is_list($payload))) {
+        throw new OfflineSyncValidationException('payload must be a JSON object.');
+    }
+    // This endpoint accepts numeric timezone offsets only within -14:00 to +14:00.
+    // PHP otherwise accepts overflowing offsets and silently shifts the instant.
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/D', $createdAtRaw)) {
+        throw new OfflineSyncValidationException('created_at must be an ISO 8601 timestamp with a timezone.');
+    }
     try {
         $created = new DateTimeImmutable($createdAtRaw);
+        $dateErrors = DateTimeImmutable::getLastErrors();
+        if ($dateErrors !== false && ($dateErrors['warning_count'] || $dateErrors['error_count'])) {
+            throw new RuntimeException('Invalid calendar timestamp.');
+        }
     } catch (Throwable $_) {
         throw new OfflineSyncValidationException('created_at must be a valid timestamp.');
     }
@@ -170,9 +207,6 @@ function offlineValidateEnvelope(array $body): array
     $createdUtc = $created->setTimezone(new DateTimeZone('UTC'));
     if ($createdUtc > $now->modify('+5 minutes')) {
         throw new OfflineSyncValidationException('The offline timestamp is more than five minutes in the future.');
-    }
-    if (in_array($type, ['attendance.checkin', 'attendance.checkout'], true) && $createdUtc < $now->modify('-7 days')) {
-        throw new OfflineSyncValidationException('Offline attendance records cannot be more than seven days old.');
     }
     return [
         'operation_id' => $operationId,
@@ -183,10 +217,21 @@ function offlineValidateEnvelope(array $body): array
     ];
 }
 
+/** Apply the age limit to new claims only; completed attendance remains replayable. */
+function offlineValidateNewClaim(array $envelope): void
+{
+    if (in_array($envelope['operation_type'], ['attendance.checkin', 'attendance.checkout'], true)
+        && new DateTimeImmutable($envelope['created_at_iso']) < new DateTimeImmutable('-7 days', new DateTimeZone('UTC'))) {
+        throw new OfflineSyncValidationException('Offline attendance records cannot be more than seven days old.');
+    }
+}
+
 /** Returns a prior response when this operation was already received. */
 function offlineBegin(PDO $pdo, int $userId, array $envelope, string $payloadHash): ?array
 {
-    offlineEnsureSchema($pdo);
+    if ($pdo->inTransaction()) throw new RuntimeException('Offline claims require an independent committed receipt.');
+    if ($userId <= 0) throw new OfflineSyncValidationException('An authenticated user is required.');
+    offlineCheckSchema($pdo);
     try {
         $stmt = $pdo->prepare(
             "INSERT INTO offline_operations
@@ -206,7 +251,8 @@ function offlineBegin(PDO $pdo, int $userId, array $envelope, string $payloadHas
     }
 
     $stmt = $pdo->prepare(
-        "SELECT operation_type, payload_hash, status, http_status, result_json, received_at
+        "SELECT operation_type, payload_hash, status, http_status, result_json, client_created_at,
+                (received_at >= CURRENT_TIMESTAMP - INTERVAL 10 MINUTE) AS recently_received
          FROM offline_operations WHERE user_id = :user_id AND operation_id = :operation_id LIMIT 1"
     );
     $stmt->execute([':user_id' => $userId, ':operation_id' => $envelope['operation_id']]);
@@ -215,9 +261,13 @@ function offlineBegin(PDO $pdo, int $userId, array $envelope, string $payloadHas
     if (!hash_equals((string)$row['payload_hash'], $payloadHash) || (string)$row['operation_type'] !== $envelope['operation_type']) {
         throw new OfflineSyncConflictException('This operation ID was already used with different content.');
     }
+    // captured_at affects attendance's business action, so it is part of its identity.
+    if (in_array($envelope['operation_type'], ['attendance.checkin', 'attendance.checkout'], true)
+        && (string)$row['client_created_at'] !== $envelope['created_at']) {
+        throw new OfflineSyncConflictException('This operation ID was already used with a different attendance timestamp.');
+    }
     if ($row['status'] === 'processing') {
-        $receivedAt = strtotime((string)($row['received_at'] ?? '')) ?: 0;
-        if ($receivedAt > 0 && $receivedAt >= time() - 600) {
+        if ((int)$row['recently_received'] === 1) {
             return [
                 'status' => 202,
                 'body' => [
@@ -230,27 +280,46 @@ function offlineBegin(PDO $pdo, int $userId, array $envelope, string $payloadHas
         }
         throw new OfflineSyncConflictException('A previous attempt was interrupted while processing. Review this item before retrying it.');
     }
-    $result = json_decode((string)($row['result_json'] ?? ''), true);
+    try {
+        $result = json_decode((string)($row['result_json'] ?? ''), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        throw new OfflineSyncConflictException('The saved receipt is unreadable. Review this item before submitting anything again.', 0, $e);
+    }
+    if (!is_array($result) || !isset($result['ok']) || !is_bool($result['ok'])
+        || !in_array($row['status'], ['completed', 'rejected'], true)
+        || (int)$row['http_status'] < 100 || (int)$row['http_status'] > 599) {
+        throw new OfflineSyncConflictException('The saved receipt is incomplete. Review this item before submitting anything again.');
+    }
     return [
-        'status' => (int)($row['http_status'] ?: ($row['status'] === 'completed' ? 200 : 422)),
-        'body' => is_array($result) ? $result : ['ok' => $row['status'] === 'completed'],
+        'status' => (int)$row['http_status'],
+        'body' => $result,
     ];
 }
 
 function offlineFinish(PDO $pdo, int $userId, string $operationId, string $status, int $httpStatus, array $result): void
 {
-    $stmt = $pdo->prepare(
-        "UPDATE offline_operations
-         SET status = :status, http_status = :http_status, result_json = :result_json, completed_at = CURRENT_TIMESTAMP
-         WHERE user_id = :user_id AND operation_id = :operation_id AND status = 'processing'"
-    );
-    $stmt->execute([
-        ':status' => $status,
-        ':http_status' => $httpStatus,
-        ':result_json' => json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        ':user_id' => $userId,
-        ':operation_id' => $operationId,
-    ]);
+    try {
+        if ($pdo->inTransaction()) throw new RuntimeException('Business transactions must finish before saving the offline receipt.');
+        if (!in_array($status, ['completed', 'rejected'], true) || $httpStatus < 100 || $httpStatus > 599) {
+            throw new InvalidArgumentException('Invalid offline receipt status.');
+        }
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $stmt = $pdo->prepare(
+            "UPDATE offline_operations
+             SET status = :status, http_status = :http_status, result_json = :result_json, completed_at = CURRENT_TIMESTAMP
+             WHERE user_id = :user_id AND operation_id = :operation_id AND status = 'processing'"
+        );
+        $stmt->execute([
+            ':status' => $status,
+            ':http_status' => $httpStatus,
+            ':result_json' => $encoded,
+            ':user_id' => $userId,
+            ':operation_id' => $operationId,
+        ]);
+        if ($stmt->rowCount() !== 1) throw new RuntimeException('The offline receipt is no longer processing.');
+    } catch (Throwable $e) {
+        throw new OfflineSyncReceiptException('The offline receipt could not be saved.', 0, $e);
+    }
 }
 
 /** Finalize printing conflicts only after a claimed business action fails. */
