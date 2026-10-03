@@ -35,7 +35,7 @@ function constraintsReject(callable $action): void {
 }
 function constraintsRental(PDO $pdo, int $org, int $user, int $item, string $status): int {
     $pdo->prepare("INSERT INTO rentals (org_id,renter_user_id,processed_by_user_id,rent_time,expected_return_time,status,service_kind,locker_item_id)
-        VALUES (?,?,?,NOW(),NOW(),?,'locker',?)")->execute([$org, $user, $user, $status, $item]);
+        VALUES (?,?,?,NOW(),DATE_ADD(NOW(),INTERVAL 1 MONTH),?,'locker',?)")->execute([$org, $user, $user, $status, $item]);
     return (int)$pdo->lastInsertId();
 }
 function constraintsHelperInsert(PDO $pdo, int $org, int $user, int $item): int {
@@ -122,6 +122,14 @@ try {
     constraintsCheck($legacyId > 0, 'Legacy-schema locker insertion failed.');
     $copy->rollBack();
     echo "PASS: modified locker insert supports the original schema.\n";
+    // Link reactivation relies on the original full-column pair uniqueness.
+    $copy->exec('ALTER TABLE rental_items DROP INDEX uq_rental_item');
+    [$code, , $error] = constraintsProcess(array_merge([$bin . '/mysql'], $common, [$name]), $env, $migration);
+    constraintsCheck($code !== 0 && str_contains($error, 'Required unique rental/item pair key is missing'),
+        'Preflight accepted a schema without the link upsert key.');
+    $copy->exec('DROP PROCEDURE capstone_business_constraints_preflight');
+    $copy->exec('ALTER TABLE rental_items ADD UNIQUE KEY uq_rental_item (rental_id,item_id)');
+    echo "PASS: preflight refuses a missing rental/item uniqueness prerequisite.\n";
     // A known invalid queue must fail before the first schema alteration.
     $queue = (int)$copy->query("SELECT COALESCE(MAX(queue_order),0)+1 FROM print_jobs WHERE org_id=$fixtureOrg AND status='queued'")->fetchColumn();
     $invalidIds = [];
@@ -153,12 +161,25 @@ try {
             ->execute([$item['org_id'], 'Constraint test', 'constraint-' . bin2hex(random_bytes(8)), $item['category_id']]);
         return (int)$copy->lastInsertId();
     };
-    $attach = function (int $rental, int $inventory) use ($copy): void {
-        $copy->prepare('INSERT INTO rental_items (rental_id,item_id,unit_rate,item_cost) VALUES (?,?,0,0)')->execute([$rental, $inventory]);
+    $attach = function (int $rental, int $inventory, float $rate = 0, float $cost = 0) use ($copy): void {
+        $copy->prepare('INSERT INTO rental_items (rental_id,item_id,unit_rate,item_cost) VALUES (?,?,?,?)
+            ON DUPLICATE KEY UPDATE unit_rate=VALUES(unit_rate),item_cost=VALUES(item_cost)')->execute([$rental, $inventory, $rate, $cost]);
     };
     $inventory = $newItem(); $otherItem = $newItem();
     $newRental = fn(string $status, int $locker = 0): int => constraintsRental($copy, (int)$item['org_id'], $user, $locker ?: $inventory, $status);
-    $first = $newRental('locker_pending'); $attach($first, $inventory);
+    $first = $newRental('locker_pending');
+    constraintsCheck((int)$copy->query("SELECT COUNT(*) FROM rental_items WHERE rental_id=$first AND item_id=$inventory AND quantity=1")->fetchColumn() === 1,
+        'Direct locker insert did not create its item link.');
+    constraintsCheck((int)(stGetActiveLockerRentalByStudent($copy, $user)['rental_id'] ?? 0) === $first,
+        'Direct locker insert is invisible to the student reader.');
+    constraintsCheck((int)(stGetActiveLockerRentalByItem($copy, $inventory)['rental_id'] ?? 0) === $first,
+        'Direct locker insert is invisible to the item reader.');
+    $lockerCategory = stGetOrCreateLockerCategoryId($copy, (int)$item['org_id']);
+    $copy->exec("UPDATE inventory_items SET category_id=$lockerCategory WHERE item_id=$inventory");
+    stSyncLockerStatuses($copy, (int)$item['org_id']);
+    constraintsCheck($copy->query("SELECT status FROM inventory_items WHERE item_id=$inventory")->fetchColumn() === 'locker_pending',
+        'Synchronization marked a direct pending assignment available.');
+    $attach($first, $inventory);
     constraintsDuplicate(fn() => $newRental('locker_active', $otherItem));
     $copy->exec("UPDATE rentals SET status='locker_overdue' WHERE rental_id=$first");
     constraintsDuplicate(fn() => $newRental('locker_pending', $otherItem));
@@ -172,24 +193,66 @@ try {
     $second = $newRental('locker_active'); $attach($second, $inventory);
     constraintsDuplicate(fn() => $copy->exec("UPDATE rentals SET status='locker_pending' WHERE rental_id=$first"));
     $copy->exec("UPDATE rentals SET status='locker_released' WHERE rental_id=$second");
+    $copy->exec("DELETE FROM rental_items WHERE rental_id=$second");
+    $copy->exec("UPDATE rentals SET status='locker_active' WHERE rental_id=$second");
+    constraintsCheck((int)$copy->query("SELECT COUNT(*) FROM rental_items WHERE rental_id=$second AND item_id=$inventory")->fetchColumn() === 1,
+        'Reactivation did not recreate the deleted historical link.');
+    constraintsCheck((int)(stGetActiveLockerRentalByStudent($copy, $user)['rental_id'] ?? 0) === $second,
+        'Reactivated locker is invisible to the student reader.');
+    constraintsCheck((int)(stGetActiveLockerRentalByItem($copy, $inventory)['rental_id'] ?? 0) === $second,
+        'Reactivated locker is invisible to the item reader.');
+    stSyncLockerStatuses($copy, (int)$item['org_id']);
+    constraintsCheck($copy->query("SELECT status FROM inventory_items WHERE item_id=$inventory")->fetchColumn() === 'locker_occupied',
+        'Synchronization marked a reactivated assignment available.');
+    $copy->exec("UPDATE rentals SET status='locker_released' WHERE rental_id=$second");
+    $copy->exec("UPDATE rental_items SET unit_rate=7.5,item_cost=22.5 WHERE rental_id=$second");
+    $copy->exec("UPDATE rentals SET status='locker_active' WHERE rental_id=$second");
+    $preservedPrice = $copy->query("SELECT unit_rate,item_cost FROM rental_items WHERE rental_id=$second")->fetch();
+    constraintsCheck((float)$preservedPrice['unit_rate'] === 7.5 && (float)$preservedPrice['item_cost'] === 22.5,
+        'Reactivation overwrote an existing price snapshot.');
+    $copy->exec("UPDATE rentals SET status='locker_released' WHERE rental_id=$second");
     try {
         igpDeleteInventoryItem($copy, (int)$item['org_id'], $inventory);
         throw new RuntimeException('Inventory with assignment history was deleted.');
     } catch (IgpValidationException $e) {
         constraintsCheck(str_contains($e->getMessage(), 'history'), 'Unexpected history deletion response.');
     }
+    $reader = new PDO(sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', DB_HOST, DB_PORT, $name), DB_USER, DB_PASS,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $reader->beginTransaction();
+    $reader->query("SELECT item_id FROM rental_items WHERE rental_id=$second")->fetchColumn();
+    $copy->exec("DELETE FROM rental_items WHERE rental_id=$second");
+    $reader->exec("UPDATE rentals SET status='locker_active' WHERE rental_id=$second");
+    constraintsCheck((int)$reader->query("SELECT COUNT(*) FROM rental_items WHERE rental_id=$second AND item_id=$inventory")->fetchColumn() === 1,
+        'Stale child snapshot prevented recreation of a deleted link.');
+    $reader->commit(); $reader = null;
+    $copy->exec("UPDATE rentals SET status='locker_released' WHERE rental_id=$second");
     $copy->beginTransaction();
     $helperId = constraintsHelperInsert($copy, (int)$item['org_id'], $user, $inventory);
     constraintsCheck((int)$copy->query("SELECT locker_item_id FROM rentals WHERE rental_id=$helperId")->fetchColumn() === $inventory,
         'Modified insert did not save canonical locker identity.');
-    $attach($helperId, $inventory);
+    $savedPrice = $copy->query("SELECT unit_rate,item_cost FROM rental_items WHERE rental_id=$helperId")->fetch();
+    constraintsCheck((float)$savedPrice['unit_rate'] === 50.0 && (float)$savedPrice['item_cost'] === 50.0,
+        'Automatic link did not preserve the saved rental price.');
+    $attach($helperId, $inventory, 50, 50);
+    constraintsCheck((int)$copy->query("SELECT COUNT(*) FROM rental_items WHERE rental_id=$helperId")->fetchColumn() === 1,
+        'Application item upsert duplicated the automatic link.');
     $copy->rollBack();
+    $blockedItem = $newItem();
+    $copy->exec("CREATE TRIGGER test_locker_link_failure BEFORE INSERT ON rental_items FOR EACH ROW
+        BEGIN IF NEW.item_id=$blockedItem THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Test child failure'; END IF; END");
+    constraintsReject(fn() => $newRental('locker_pending', $blockedItem));
+    constraintsCheck((int)$copy->query("SELECT COUNT(*) FROM rentals WHERE locker_item_id=$blockedItem")->fetchColumn() === 0,
+        'Child failure left an incomplete parent assignment.');
+    $copy->exec('DROP TRIGGER test_locker_link_failure');
+    $newRental('locker_released', $blockedItem);
     constraintsReject(fn() => $copy->prepare("INSERT INTO rentals (org_id,renter_user_id,processed_by_user_id,rent_time,expected_return_time,status,service_kind)
         VALUES (?,?,?,NOW(),NOW(),'locker_pending','locker')")->execute([$item['org_id'],$user,$user]));
     $differentOrg = (int)$copy->query('SELECT org_id FROM organizations WHERE org_id <> ' . (int)$item['org_id'] . ' LIMIT 1')->fetchColumn();
     constraintsCheck($differentOrg > 0, 'A second organization is required for ownership validation.');
     constraintsReject(fn() => constraintsRental($copy, $differentOrg, $user, $inventory, 'locker_pending'));
     echo "PASS: locker holder uniqueness, history, overdue, immutable identity, matching items and quantity.\n";
+    echo "PASS: direct insert/reactivation visibility and synchronization, price snapshots, item upsert and child-failure rollback.\n";
 
     $otherUser = (int)$copy->query("SELECT user_id FROM users WHERE user_id <> $user AND has_unpaid_debt=0
         AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.renter_user_id=users.user_id AND r.current_locker_student IS NOT NULL) LIMIT 1")->fetchColumn();

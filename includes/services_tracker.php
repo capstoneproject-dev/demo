@@ -2141,7 +2141,8 @@ function stRequestLocker(PDO $pdo, int $userId, int $itemId, array $data = []): 
             "INSERT INTO rental_items
                 (rental_id, item_id, quantity, unit_rate, item_cost, overtime_interval_minutes, overtime_rate_per_block)
              VALUES
-                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)"
+                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)
+             ON DUPLICATE KEY UPDATE unit_rate = VALUES(unit_rate), item_cost = VALUES(item_cost)"
         );
         $insertRentalItem->execute([
             ':rental_id' => $rentalId,
@@ -2315,7 +2316,8 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
             "INSERT INTO rental_items
                 (rental_id, item_id, quantity, unit_rate, item_cost, overtime_interval_minutes, overtime_rate_per_block)
              VALUES
-                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)"
+                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)
+             ON DUPLICATE KEY UPDATE unit_rate = VALUES(unit_rate), item_cost = VALUES(item_cost)"
         );
         $insertRentalItem->execute([
             ':rental_id' => $rentalId,

@@ -14,6 +14,12 @@ No new application tables are created.
 - A composite inventory foreign key enforces the canonical locker's organization.
   Triggers preserve that identity and require locker item links to match it with
   quantity one. A current locker link cannot be deleted or moved to another rental.
+- Parent-side triggers create the matching item link atomically with locker rental
+  insertion, and restore a deleted released/rejected link on reactivation. Existing
+  item price snapshots are preserved during reactivation. A recreated link derives
+  its rate from the saved rental total and period quantity (one when absent/zero).
+  Application locker creation upserts its calculated item prices into this link.
+  The preflight requires full-column rental/item pair uniqueness for that upsert.
 - Missing original rental-item foreign keys are restored: items must reference
   an existing rental and inventory item. Explicitly deleting a parent rental
   cascades its item links, as specified in the original schema. Inventory with
@@ -82,8 +88,32 @@ dependencies inspected only to establish the affected behavior.
 | Low | `tests/concurrency/printing-queue.php` | Legacy tie fixtures are invalid once uniqueness is installed. The suite tests tie recovery on the original schema and database rejection on the migrated schema; it also checks staging beyond INT. |
 | Low | Constraint test harness | Source dispatch bookkeeping can change during verification. The comparison reports that specific data-only change, while still rejecting source schema changes and changes to all original business tables. |
 
-No remaining correctness finding was identified in the final changed lines.
-That conclusion is limited to the review and checks below.
+## Follow-up review: missing locker-item links (2026-10-03)
+
+The earlier review missed a P2 consistency gap: a non-null canonical locker ID
+did not require a matching item link, while locker readers and synchronization
+still depend on that link. The former "no remaining finding" statement did not
+cover this case. The follow-up corrects the relationship in the database, rather
+than changing unrelated locker readers or other workflows.
+
+| Severity | File | Finding and resolution |
+| --- | --- | --- |
+| Medium (P2) | `migrations/20261003_business_constraints.sql` | Direct current-rental insertion, or reactivation after deletion of a historical link, could create an invisible assignment that still occupied unique slots. Parent triggers now create/restore the matching child atomically; current link deletion/movement remains prohibited. |
+| Medium | Migration | Locking the parent from the child guard inside a parent trigger causes MariaDB error 1442. The insert/update guards now read immutable locker identity without locking, reject invisible parents, and retain foreign-key validation. The delete guard still locks and checks the current status. |
+| Medium | Migration | Snapshot-based existence checks could skip a link deleted after the snapshot; unconditional recreation could overwrite saved prices. A unique-key upsert uses current write state and preserves existing prices. Preflight explicitly verifies the supporting pair key. |
+| Medium | `includes/services_tracker.php` | The application's existing child INSERT would collide with the automatically created link. Both student and manual assignment paths now upsert their computed price snapshots within their existing transaction. |
+| Low | `tests/concurrency/database-constraints.php` | Earlier collision fixtures could leave missing links and never checked whether the app could see them. Tests now assert automatic links, student/item reader visibility, pending/occupied synchronization, historical deletion/reactivation, stale child snapshots, price preservation and statement rollback on child failure. |
+
+No additional unresolved finding was identified in the final changed lines after
+this follow-up review. Browser HTTP and production-load checks remain outside
+the verified coverage.
+
+The final follow-up run passed all six migrated-schema regression suites plus
+the new direct-insert, synchronization, reactivation/stale-snapshot, price,
+missing-key preflight and child-failure rollback checks. Changed PHP syntax and
+diff whitespace checks passed. The disposable database and dump were removed;
+source schemas/business records matched, while dispatch runtime bookkeeping
+changed during the run. The source migration remains unapplied.
 
 ## Verification
 

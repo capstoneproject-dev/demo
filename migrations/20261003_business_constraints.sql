@@ -19,6 +19,12 @@ BEGIN
         HAVING COUNT(ri.rental_item_id) <> 1 OR MIN(ri.quantity) <> 1) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Locker rentals must each identify exactly one physical locker';
     END IF;
+    IF NOT EXISTS (SELECT index_name FROM information_schema.statistics
+        WHERE table_schema = DATABASE() AND table_name = 'rental_items' AND non_unique = 0
+        GROUP BY index_name HAVING COUNT(*) = 2 AND COUNT(sub_part) = 0
+        AND GROUP_CONCAT(column_name ORDER BY seq_in_index) IN ('rental_id,item_id','item_id,rental_id')) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Required unique rental/item pair key is missing';
+    END IF;
     IF EXISTS (SELECT ri.item_id FROM rental_items ri JOIN rentals r USING (rental_id)
         WHERE r.service_kind = 'locker' AND r.status IN ('locker_pending','locker_active','locker_overdue')
         GROUP BY ri.item_id HAVING COUNT(*) > 1) THEN
@@ -96,7 +102,12 @@ BEGIN
     DECLARE parent_service VARCHAR(20);
     DECLARE parent_item INT;
     SELECT service_kind, locker_item_id INTO parent_service, parent_item
-        FROM rentals WHERE rental_id = NEW.rental_id FOR UPDATE;
+        FROM rentals WHERE rental_id = NEW.rental_id;
+    -- Identity is immutable for locker rentals. A nonlocking read also allows
+    -- this guard to run inside the parent's link-creation trigger.
+    IF parent_service IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Rental item requires a visible parent rental';
+    END IF;
     IF parent_service = 'locker' AND (parent_item IS NULL OR parent_item <> NEW.item_id OR NEW.quantity <> 1) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Locker rental item must match its single canonical locker';
     END IF;
@@ -106,13 +117,19 @@ BEGIN
     DECLARE parent_service VARCHAR(20);
     DECLARE parent_item INT;
     IF OLD.rental_id <> NEW.rental_id THEN
-        SELECT service_kind INTO parent_service FROM rentals WHERE rental_id = OLD.rental_id FOR UPDATE;
+        SELECT service_kind INTO parent_service FROM rentals WHERE rental_id = OLD.rental_id;
+        IF parent_service IS NULL THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Rental item requires a visible original parent rental';
+        END IF;
         IF parent_service = 'locker' THEN
             SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Locker rental item cannot move to another rental';
         END IF;
     END IF;
     SELECT service_kind, locker_item_id INTO parent_service, parent_item
-        FROM rentals WHERE rental_id = NEW.rental_id FOR UPDATE;
+        FROM rentals WHERE rental_id = NEW.rental_id;
+    IF parent_service IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Rental item requires a visible parent rental';
+    END IF;
     IF parent_service = 'locker' AND (parent_item IS NULL OR parent_item <> NEW.item_id OR NEW.quantity <> 1) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Locker rental item must match its single canonical locker';
     END IF;
@@ -125,6 +142,30 @@ BEGIN
         FROM rentals WHERE rental_id = OLD.rental_id FOR UPDATE;
     IF parent_service = 'locker' AND parent_status IN ('locker_pending','locker_active','locker_overdue') THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Release or reject the current locker assignment before removing its item';
+    END IF;
+END$$
+-- Parent-side creation closes the missing-child gap. A FK from the child alone
+-- cannot require that a parent has a child. These inserts are in the same SQL
+-- statement/transaction as the rental, so a child failure rolls back the parent.
+CREATE TRIGGER trg_locker_link_insert AFTER INSERT ON rentals FOR EACH ROW
+BEGIN
+    IF NEW.service_kind = 'locker' AND NEW.locker_item_id IS NOT NULL THEN
+        INSERT INTO rental_items (rental_id, item_id, quantity, unit_rate, item_cost)
+        VALUES (NEW.rental_id, NEW.locker_item_id, 1,
+                NEW.total_cost / COALESCE(NULLIF(NEW.locker_period_quantity, 0), 1), NEW.total_cost);
+    END IF;
+END$$
+CREATE TRIGGER trg_locker_link_reactivate AFTER UPDATE ON rentals FOR EACH ROW
+BEGIN
+    IF NEW.service_kind = 'locker'
+       AND NEW.status IN ('locker_pending','locker_active','locker_overdue')
+       AND OLD.status NOT IN ('locker_pending','locker_active','locker_overdue') THEN
+        -- Always attempt the insert: a snapshot-based NOT EXISTS could miss a
+        -- concurrent deletion. The unique rental/item key uses current state.
+        INSERT INTO rental_items (rental_id, item_id, quantity, unit_rate, item_cost)
+        VALUES (NEW.rental_id, NEW.locker_item_id, 1,
+                NEW.total_cost / COALESCE(NULLIF(NEW.locker_period_quantity, 0), 1), NEW.total_cost)
+        ON DUPLICATE KEY UPDATE quantity = 1;
     END IF;
 END$$
 DELIMITER ;
