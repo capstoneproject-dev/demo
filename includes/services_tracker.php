@@ -2035,6 +2035,14 @@ function stListStudentLockers(PDO $pdo, int $userId): array
         ];
     }, $board['lockers']);
 
+    $currentLockerNotices = $currentLocker ? stMapLockerNoticePayload($currentLocker) : [];
+    // A saved notice may outlive a due-date change. Only show ending-soon
+    // notices while the current rental is inside the seven-day warning window.
+    if ($currentLocker && !stIsLockerUpcomingNoticeAllowed($currentLocker)) {
+        $currentLockerNotices['upcoming_notice_sent_at'] = '';
+        $currentLockerNotices['upcoming_notice_message'] = '';
+    }
+
     return [
         'enabled' => true,
         'org_id' => $orgId,
@@ -2053,7 +2061,7 @@ function stListStudentLockers(PDO $pdo, int $userId): array
             'locker_period_quantity' => stInferLockerPeriodQuantity($currentLocker, $currentLocker),
             'org_name' => (string)($currentLocker['org_name'] ?? ''),
             'org_code' => (string)($currentLocker['org_code'] ?? ''),
-        ] + stMapLockerNoticePayload($currentLocker) : null,
+        ] + $currentLockerNotices : null,
     ];
 }
 
