@@ -14,10 +14,6 @@ composer-setup.php
 !/storage/private/**/.gitkeep
 /storage/sess_*
 
-# Keep the equipment regression test; ignore other local concurrency artifacts.
-/tests/concurrency/*
-!/tests/concurrency/equipment-rentals.php
-
 # Runtime uploads belong to persistent server storage/backups, not source control.
 /uploads/**
 !/uploads/**/
@@ -28,27 +24,3 @@ composer-setup.php
 !/uploads/documents/web.config
 /tests/*
 !/tests/concurrency/
-/tests/concurrency/*
-!/tests/concurrency/equipment-rentals.php
-!/tests/
-!/tests/concurrency/printing-queue.php
-!/tests/concurrency/file-uploads.php
-/tests/concurrency
-!/tests/concurrency/
-/tests/concurrency/*
-!/tests/concurrency/file-uploads.php
-!/tests/concurrency/announcement-photo-conflicts.js
-/tests
-!/tests/
-/tests/*
-!/tests/concurrency/
-/tests/concurrency/*
-!/tests/concurrency/file-uploads.php
-!/tests/concurrency/announcement-photo-conflicts.js
-/tests/concurrency
-!/tests/
-!/tests/concurrency/
-/tests/concurrency/*
-!/tests/concurrency/file-uploads.php
-!/tests/concurrency/announcement-photo-conflicts.js
-!/tests/concurrency/auth-sessions.php
