@@ -16,6 +16,9 @@ try {
     $result = stRequestLocker($pdo, (int)$context['user_id'], $itemId, $payload);
     jsonOk($result);
 } catch (PDOException $e) {
+    if (stIsLockerConcurrencyError($e)) {
+        jsonError('This locker assignment changed or the locker is busy. Refresh and try again.', 409, ['error_code' => 'LOCKER_CONFLICT']);
+    }
     error_log('[api/lockers/student/request] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (ServiceTrackerConflictException $e) {

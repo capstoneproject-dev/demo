@@ -17,6 +17,9 @@ try {
     $result = stRejectLockerRequest($pdo, (int)$context['org_id'], (int)$context['user_id'], $rentalId);
     jsonOk($result);
 } catch (PDOException $e) {
+    if (stIsLockerConcurrencyError($e)) {
+        jsonError('This locker assignment changed or the locker is busy. Refresh and try again.', 409, ['error_code' => 'LOCKER_CONFLICT']);
+    }
     error_log('[api/lockers/officer/reject] ' . $e->getMessage());
     jsonError('A database error occurred. Please try again.', 500);
 } catch (ServiceTrackerConflictException $e) {

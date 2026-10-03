@@ -653,7 +653,42 @@ function stLockPrintingQueues(PDO $pdo, array $orgIds): void
 function stIsPrintingConcurrencyError(PDOException $e): bool
 {
     return (string)$e->getCode() === '40001'
-        || in_array((int)($e->errorInfo[1] ?? 0), [1205, 1213], true);
+        || in_array((int)($e->errorInfo[1] ?? 0), [1205, 1213], true)
+        || ((int)($e->errorInfo[1] ?? 0) === 1062
+            && str_contains((string)($e->errorInfo[2] ?? ''), 'uq_print_current_queue'));
+}
+
+function stIsRentalConstraintConflict(PDOException $e): bool
+{
+    return (int)($e->errorInfo[1] ?? 0) === 1062
+        && (str_contains((string)($e->errorInfo[2] ?? ''), 'uq_current_locker_student')
+            || str_contains((string)($e->errorInfo[2] ?? ''), 'uq_current_locker_item'));
+}
+
+function stIsLockerConcurrencyError(PDOException $e): bool
+{
+    return in_array((int)($e->errorInfo[1] ?? 0), [1205, 1213], true)
+        || stIsRentalConstraintConflict($e);
+}
+
+/** Retain the existing locking workflow until the deployment migration runs. */
+function stInsertLockerRental(PDO $pdo, int $itemId, array $params): int
+{
+    if (!$pdo->inTransaction()) {
+        throw new LogicException('Locker insertion requires a transaction.');
+    }
+    $hasIdentity = (bool)$pdo->query("SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'rentals' AND column_name = 'locker_item_id'")->fetchColumn();
+    $column = $hasIdentity ? ', locker_item_id' : '';
+    $value = $hasIdentity ? ', :locker_item_id' : '';
+    if ($hasIdentity) $params[':locker_item_id'] = $itemId;
+    $insert = $pdo->prepare("INSERT INTO rentals
+        (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time,
+         total_cost, payment_status, status, service_kind, locker_period_type, locker_period_quantity{$column})
+        VALUES (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time,
+         :total_cost, 'unpaid', :status, :service_kind, :locker_period_type, :locker_period_quantity{$value})");
+    $insert->execute($params);
+    return (int)$pdo->lastInsertId();
 }
 
 function stGetNextQueueOrder(PDO $pdo, int $orgId): int
@@ -694,18 +729,50 @@ function stNormalizeQueuedOrders(PDO $pdo, int $orgId): void
         return;
     }
 
-    $update = $pdo->prepare(
-        "UPDATE print_jobs
-         SET queue_order = :queue_order
-         WHERE print_job_id = :print_job_id"
-    );
+    stWriteQueuedOrders($pdo, $orgId, array_map(static fn(array $job): int => (int)$job['print_job_id'], $jobs));
+}
 
-    $position = 1;
-    foreach ($jobs as $job) {
-        $update->execute([
-            ':queue_order' => $position++,
-            ':print_job_id' => (int)$job['print_job_id'],
-        ]);
+/** Caller has locked the complete queue; stage in unused positive positions. */
+function stWriteQueuedOrders(PDO $pdo, int $orgId, array $jobIds): void
+{
+    stLockPrintingQueues($pdo, [$orgId]);
+    if (!$jobIds) return;
+    $read = $pdo->prepare("SELECT print_job_id, queue_order FROM print_jobs
+        WHERE org_id = ? AND status = 'queued' FOR UPDATE");
+    $read->execute([$orgId]);
+    $rows = $read->fetchAll();
+    $currentIds = array_map(static fn(array $row): int => (int)$row['print_job_id'], $rows);
+    $requestedIds = $jobIds;
+    sort($currentIds, SORT_NUMERIC);
+    sort($requestedIds, SORT_NUMERIC);
+    if ($currentIds !== $requestedIds) {
+        throw new ServiceTrackerConflictException('The printing queue changed. Refresh and try again.');
+    }
+    $maximum = max(count($jobIds), ...array_map(static fn(array $row): int => (int)$row['queue_order'], $rows));
+    // Leave room for every staged row without overflowing PHP or SQL BIGINT.
+    if ($maximum > PHP_INT_MAX - count($jobIds)) {
+        throw new ServiceTrackerValidationException('The printing queue has reached its supported limit.');
+    }
+    if ($maximum > 2147483647 - count($jobIds)) {
+        $type = $pdo->query("SELECT data_type FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'print_jobs' AND column_name = 'queue_order'")->fetchColumn();
+        if ($type !== 'bigint') {
+            throw new ServiceTrackerValidationException('The printing queue has reached its supported limit.');
+        }
+    }
+    $update = $pdo->prepare("UPDATE print_jobs SET queue_order = ?
+        WHERE print_job_id = ? AND org_id = ? AND status = 'queued'");
+    foreach ($jobIds as $index => $jobId) {
+        $update->execute([$maximum + $index + 1, $jobId, $orgId]);
+        if ($update->rowCount() !== 1) {
+            throw new ServiceTrackerConflictException('The printing queue changed. Refresh and try again.');
+        }
+    }
+    foreach ($jobIds as $index => $jobId) {
+        $update->execute([$index + 1, $jobId, $orgId]);
+        if ($update->rowCount() !== 1) {
+            throw new ServiceTrackerConflictException('The printing queue changed. Refresh and try again.');
+        }
     }
 }
 
@@ -1348,19 +1415,7 @@ function stReorderPrintJob(PDO $pdo, int $orgId, int $printJobId, int $newQueueO
         $targetIndex = min(max($newQueueOrder, 1), count($orderedIds) + 1) - 1;
         array_splice($orderedIds, $targetIndex, 0, [$printJobId]);
 
-        $update = $pdo->prepare(
-            "UPDATE print_jobs
-             SET queue_order = :queue_order
-             WHERE print_job_id = :print_job_id"
-        );
-        foreach ($orderedIds as $index => $jobId) {
-            $update->execute([
-                ':queue_order' => $index + 1,
-                ':print_job_id' => $jobId,
-            ]);
-        }
-
-        stNormalizeQueuedOrders($pdo, $orgId);
+        stWriteQueuedOrders($pdo, $orgId, $orderedIds);
         $result = stFetchPrintJob($pdo, $printJobId);
         $pdo->commit();
         return $result;
@@ -2069,13 +2124,7 @@ function stRequestLocker(PDO $pdo, int $userId, int $itemId, array $data = []): 
             throw new ServiceTrackerValidationException('Locker requests cannot start before today.');
         }
 
-        $insertRental = $pdo->prepare(
-            "INSERT INTO rentals
-                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_period_quantity, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id)
-             VALUES
-                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, :locker_period_quantity, NULL, NULL, NULL)"
-        );
-        $insertRental->execute([
+        $rentalId = stInsertLockerRental($pdo, $itemId, [
             ':org_id' => $orgId,
             ':user_id' => $userId,
             ':processed_by_user_id' => $userId,
@@ -2087,13 +2136,13 @@ function stRequestLocker(PDO $pdo, int $userId, int $itemId, array $data = []): 
             ':locker_period_type' => $computed['period_type'],
             ':locker_period_quantity' => $computed['period_quantity'],
         ]);
-        $rentalId = (int)$pdo->lastInsertId();
 
         $insertRentalItem = $pdo->prepare(
             "INSERT INTO rental_items
                 (rental_id, item_id, quantity, unit_rate, item_cost, overtime_interval_minutes, overtime_rate_per_block)
              VALUES
-                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)"
+                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)
+             ON DUPLICATE KEY UPDATE unit_rate = VALUES(unit_rate), item_cost = VALUES(item_cost)"
         );
         $insertRentalItem->execute([
             ':rental_id' => $rentalId,
@@ -2250,13 +2299,7 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
         }
 
         $computed = stComputeLockerDatesAndPrice($item, $data);
-        $insertRental = $pdo->prepare(
-            "INSERT INTO rentals
-                (org_id, renter_user_id, processed_by_user_id, rent_time, expected_return_time, actual_return_time, total_cost, payment_status, paid_at, status, service_kind, locker_period_type, locker_period_quantity, locker_notice_sent_at, locker_notice_message, locker_notice_sent_by_user_id, locker_upcoming_notice_sent_at, locker_upcoming_notice_message, locker_upcoming_notice_sent_by_user_id)
-             VALUES
-                (:org_id, :user_id, :processed_by_user_id, :rent_time, :expected_return_time, NULL, :total_cost, 'unpaid', NULL, :status, :service_kind, :locker_period_type, :locker_period_quantity, NULL, NULL, NULL, NULL, NULL, NULL)"
-        );
-        $insertRental->execute([
+        $rentalId = stInsertLockerRental($pdo, $itemId, [
             ':org_id' => $orgId,
             ':user_id' => $studentUserId,
             ':processed_by_user_id' => $officerUserId,
@@ -2268,13 +2311,13 @@ function stAssignLockerManually(PDO $pdo, int $orgId, int $officerUserId, int $i
             ':locker_period_type' => $computed['period_type'],
             ':locker_period_quantity' => $computed['period_quantity'],
         ]);
-        $rentalId = (int)$pdo->lastInsertId();
 
         $insertRentalItem = $pdo->prepare(
             "INSERT INTO rental_items
                 (rental_id, item_id, quantity, unit_rate, item_cost, overtime_interval_minutes, overtime_rate_per_block)
              VALUES
-                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)"
+                (:rental_id, :item_id, 1, :unit_rate, :item_cost, NULL, NULL)
+             ON DUPLICATE KEY UPDATE unit_rate = VALUES(unit_rate), item_cost = VALUES(item_cost)"
         );
         $insertRentalItem->execute([
             ':rental_id' => $rentalId,
