@@ -97,7 +97,8 @@ function igpVerifyTransition(PDOStatement $stmt): void
 function igpIsConcurrencyError(PDOException $error): bool
 {
     return $error->getCode() === '40001'
-        || in_array((int)($error->errorInfo[1] ?? 0), [1205, 1213], true);
+        || in_array((int)($error->errorInfo[1] ?? 0), [1205, 1213], true)
+        || stIsRentalConstraintConflict($error);
 }
 
 function igpColumnExists(PDO $pdo, string $table, string $column): bool
@@ -769,6 +770,20 @@ function igpDeleteInventoryItem(PDO $pdo, int $orgId, int $itemId): void
         $item = $stmt->fetch();
         if (!$item) throw new IgpValidationException('Item not found for this organization.');
         igpAssertItemHasNoOpenRental($pdo, $itemId);
+        // The migration restores foreign keys that preserve rental history.
+        // Explain this restriction before DELETE rather than exposing an FK error.
+        $history = $pdo->prepare('SELECT rental_item_id FROM rental_items WHERE item_id = ? LIMIT 1 FOR UPDATE');
+        $history->execute([$itemId]);
+        if ($history->fetchColumn()) {
+            throw new IgpValidationException('Items with rental history cannot be deleted. Set the item to maintenance instead.');
+        }
+        if (igpColumnExists($pdo, 'rentals', 'locker_item_id')) {
+            $locker = $pdo->prepare('SELECT rental_id FROM rentals WHERE org_id = ? AND locker_item_id = ? LIMIT 1 FOR UPDATE');
+            $locker->execute([$orgId, $itemId]);
+            if ($locker->fetchColumn()) {
+                throw new IgpValidationException('Items with locker assignment history cannot be deleted. Set the item to maintenance instead.');
+            }
+        }
         $del = $pdo->prepare('DELETE FROM inventory_items WHERE item_id = :id AND org_id = :org');
         $del->execute([':id' => $itemId, ':org' => $orgId]);
         igpVerifyTransition($del);

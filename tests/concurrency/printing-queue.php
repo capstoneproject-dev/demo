@@ -249,13 +249,26 @@ try {
     $allOk(printingCollision($pdo, [$orgs[0]], [$action('reorder', $orgs[0], $ids[0], 0, 3), $action('reorder', $orgs[0], $ids[2], 0, 1)]), 'Concurrent reorders');
     printingCheck(printingQueueCheck($pdo, $orgs[0]) === [$ids[2], $ids[1], $ids[0]], 'Reorder result is not serializable.');
 
-    // Legacy ties are resolved by timestamp and primary key.
-    $pdo->prepare("UPDATE print_jobs SET queue_order = 1, submitted_at = '2026-01-01 00:00:00' WHERE org_id = ?")->execute([$orgs[0]]);
-    stBeginPrintingTransaction($pdo);
-    stNormalizeQueuedOrders($pdo, $orgs[0]);
-    $pdo->commit();
-    printingCheck(printingQueueCheck($pdo, $orgs[0]) === $ids, 'Tie ordering is not deterministic.');
-    echo "Deterministic ties passed\n";
+    $hasQueueConstraint = (bool)$pdo->query("SELECT COUNT(*) FROM information_schema.statistics
+        WHERE table_schema = DATABASE() AND table_name = 'print_jobs' AND index_name = 'uq_print_current_queue'")->fetchColumn();
+    if ($hasQueueConstraint) {
+        try {
+            $pdo->prepare('UPDATE print_jobs SET queue_order = 1 WHERE org_id = ?')->execute([$orgs[0]]);
+            throw new RuntimeException('Duplicate queued positions were accepted.');
+        } catch (PDOException $e) {
+            printingCheck(stIsPrintingConcurrencyError($e), 'Queue uniqueness was not classified as a conflict.');
+        }
+        printingQueueCheck($pdo, $orgs[0]);
+        echo "Database rejects duplicate queue positions passed\n";
+    } else {
+        // Before migration, retain coverage of legacy tie normalization.
+        $pdo->prepare("UPDATE print_jobs SET queue_order = 1, submitted_at = '2026-01-01 00:00:00' WHERE org_id = ?")->execute([$orgs[0]]);
+        stBeginPrintingTransaction($pdo);
+        stNormalizeQueuedOrders($pdo, $orgs[0]);
+        $pdo->commit();
+        printingCheck(printingQueueCheck($pdo, $orgs[0]) === $ids, 'Tie ordering is not deterministic.');
+        echo "Deterministic ties passed\n";
+    }
 
     $reader = new PDO(sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', DB_HOST, DB_PORT, DB_NAME, DB_CHARSET),
         DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
@@ -277,6 +290,12 @@ try {
         throw new RuntimeException('Queue overflow was accepted.');
     } catch (ServiceTrackerValidationException $e) {
         $pdo->rollBack();
+    }
+    if ($hasQueueConstraint) {
+        $pdo->prepare('UPDATE print_jobs SET queue_order = 2147483647 WHERE print_job_id = ?')->execute([$ids[0]]);
+        stReorderPrintJob($pdo, $orgs[0], $ids[0], 1);
+        printingQueueCheck($pdo, $orgs[0]);
+        echo "Reordering stages beyond INT without overflow passed\n";
     }
     printingQueueCheck($pdo, $orgs[0]);
     try {
