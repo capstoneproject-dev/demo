@@ -24,3 +24,5 @@ composer-setup.php
 !/uploads/documents/web.config
 /tests/*
 !/tests/concurrency/
+/docs/defense-demo
+/cli

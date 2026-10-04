@@ -4980,7 +4980,6 @@ function initDashboardCarousel(force = false) {
 }
 
 function loadMockDashboardEventToday() {
-    if (!window.AppEnvironment?.isLocalDevelopment) return;
     const now = new Date();
     dashboardMockEventToday = {
         id: 'mock-dashboard-today',
@@ -5004,7 +5003,6 @@ function loadMockDashboardEventToday() {
 }
 
 function loadMockUpcomingEvent() {
-    if (!window.AppEnvironment?.isLocalDevelopment) return;
     const eventDate = new Date();
     eventDate.setDate(eventDate.getDate() + 1);
     dashboardMockUpcomingEvent = {

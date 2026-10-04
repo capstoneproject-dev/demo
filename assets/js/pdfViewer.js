@@ -428,6 +428,12 @@ const PDFViewer = {
         if (this.elements.totalPages) {
             this.elements.totalPages.textContent = this.totalPages || 0;
         }
+        const pageInfo = document.getElementById('pdf-page-info');
+        if (pageInfo) {
+            pageInfo.textContent = this.totalPages
+                ? `${this.currentPage || 1} / ${this.totalPages} pages`
+                : '0 pages';
+        }
         if (this.elements.zoomInfo) {
             this.elements.zoomInfo.textContent = `${Math.round(this.scale * 100)}%`;
         }

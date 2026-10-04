@@ -3,10 +3,6 @@
 
 <head>
     <base href="../pages/">
-    <style>
-        html:not(.local-development) [data-local-only] { display: none !important; }
-    </style>
-    <script src="../assets/js/app-environment.js?v=20261004-local-mocks-1"></script>
     <script>
         document.addEventListener('click', (event) => {
             if (event.target.closest('a[href="#"]')) event.preventDefault();
@@ -282,8 +278,8 @@
                             </p>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                            <!-- Local development preview control. -->
-                            <button id="dashboard-mock-data-btn" data-local-only class="btn btn-outline btn-sm" type="button" onclick="showOfficerDashboardMockData()">
+                            <!-- Temporary UI preview control — remove with showOfficerDashboardMockData(). -->
+                            <button id="dashboard-mock-data-btn" class="btn btn-outline btn-sm" type="button" onclick="showOfficerDashboardMockData()">
                                 <i class="fa-solid fa-flask"></i> Mock Data
                             </button>
                             <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerDashboard(true)">
@@ -1641,10 +1637,10 @@
                         <i class="fa-solid fa-sparkles"></i> Generate Insights
                     </button>
                     <span id="analyticsInsightsProviderBadge" style="display:none; font-size:0.78rem; color:var(--muted); padding:6px 10px; border:1px solid var(--border); border-radius:999px;"></span>
-                    <button id="mock-data-btn" data-local-only class="btn btn-sm" onclick="generateMockAnalyticsData()" style="background: #059669; color: white;">
+                    <button id="mock-data-btn" class="btn btn-sm" onclick="generateMockAnalyticsData()" style="background: #059669; color: white;">
                         <i class="fa-solid fa-flask"></i> Generate Mock Data
                     </button>
-                    <button id="clear-mock-btn" data-local-only class="btn btn-sm" onclick="clearMockAnalyticsData()" style="background: #dc2626; color: white; display: none;">
+                    <button id="clear-mock-btn" class="btn btn-sm" onclick="clearMockAnalyticsData()" style="background: #dc2626; color: white; display: none;">
                         <i class="fa-solid fa-trash"></i> Clear Mock
                     </button>
                     <button class="btn btn-outline btn-sm" data-readonly-allow onclick="toggleExportMenu()">
@@ -2354,11 +2350,11 @@
     <!-- Org-specific data config — must load before officerDashboard.js -->
     <script src="../data/orgData.js?v=20260927-complete-ui-1"></script>
     <script src="../assets/js/igp-api.js?v=20260927-complete-ui-1"></script>
-    <script src="../assets/js/pdfViewer.js?v=20261004-defense-page-count-1"></script>
+    <script src="../assets/js/pdfViewer.js?v=20260927-complete-ui-1"></script>
     <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js?v=20260927-complete-ui-1"></script>
-    <script src="../assets/js/officerAnalytics.js?v=20261004-local-mocks-1"></script>
+    <script src="../assets/js/officerAnalytics.js?v=20260927-complete-ui-1"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260927-complete-ui-1"></script>
-    <script src="../assets/js/officerDashboard.js?v=20261004-local-mocks-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20261002-printing-stale-cancel-1"></script>
     <script src="../assets/js/readonly-org-dashboard.js?v=20260927-complete-ui-1"></script>
 </body>
 

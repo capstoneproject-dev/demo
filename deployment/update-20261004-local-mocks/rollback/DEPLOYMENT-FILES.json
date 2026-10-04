@@ -1,0 +1,29 @@
+{
+  "sourceRevision": "24890415b23641e9faf63a073a31ebdb3551efa2",
+  "files": [
+    {
+      "path": "assets/js/officerAnalytics.js",
+      "sha256": "92fb08c09a7bd3ed815be96e2db362cde22edd34221b715b359b2bd79503dd74"
+    },
+    {
+      "path": "assets/js/officerDashboard.js",
+      "sha256": "1c9881c43cfac4c61f543da189696763b4936ddec6345359664c7866dbe918a2"
+    },
+    {
+      "path": "assets/js/studentDashboard.js",
+      "sha256": "8ede95cd9246166356fcfa4032b0a82468a979f01c6ce0dd6db314f5bbf76c24"
+    },
+    {
+      "path": "pages/officerDashboard.html",
+      "sha256": "f6c97f9374ca73b7ee34d42c9758097b41ba5db4060e716416da8a7a3e06e58c"
+    },
+    {
+      "path": "pages/studentDashboard.html",
+      "sha256": "0dfea2a8cae07377ca6deab725f3dd39e06549800602b993d082e0a483088e25"
+    },
+    {
+      "path": "sw.js",
+      "sha256": "cef845453e75f61cbd723f5e611e9e17e9d091990646c7ed9405320b053c1b8c"
+    }
+  ]
+}

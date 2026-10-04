@@ -1157,9 +1157,8 @@ function renderOfficerDashboard(data) {
 }
 
 // Temporary dashboard-only preview data. This never calls an API or writes to the database.
-// Available only on a local development server.
+// Remove this function and #dashboard-mock-data-btn when the mock preview is no longer needed.
 function showOfficerDashboardMockData() {
-    if (!window.AppEnvironment?.isLocalDevelopment) return;
     const now = new Date();
     const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
     const pick = (items) => items[randomInt(0, items.length - 1)];
@@ -5555,7 +5554,6 @@ async function loadRentalsFromApi() {
 }
 
 function loadMockActiveRentals() {
-    if (!window.AppEnvironment?.isLocalDevelopment) return;
     const orgId = Number(readAuthSession().active_org_id || 0) || getActiveOfficerOrgName();
     rentalsData = [
         {

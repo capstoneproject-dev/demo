@@ -1601,7 +1601,6 @@ function initializeOfficerAnalyticsYearOptions() {
 
 // --- MOCK DATA GENERATOR (for testing only - temporary) ---
 function generateMockAnalyticsData() {
-    if (!window.AppEnvironment?.isLocalDevelopment) return;
     const now = new Date();
     const currentYear = now.getFullYear();
     const academicYear = now.getMonth() >= 7 ? currentYear : currentYear - 1;
@@ -1888,7 +1887,6 @@ function generateMockAnalyticsData() {
 }
 
 function clearMockAnalyticsData() {
-    if (!window.AppEnvironment?.isLocalDevelopment) return;
     // Clear mock data
     officerAnalyticsState.mockData = null;
     officerAnalyticsState.mockRetentionProfile = null;

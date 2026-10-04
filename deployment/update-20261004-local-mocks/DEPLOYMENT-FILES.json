@@ -1,0 +1,30 @@
+﻿[
+    {
+        "path":  "assets/js/app-environment.js",
+        "sha256":  "C4FEC79CD34438172AABEAC1ECB1BC19B78232EDBCE96F45CE5E3B3002919CB6"
+    },
+    {
+        "path":  "assets/js/officerAnalytics.js",
+        "sha256":  "6BC8005A82D06D522A960568F25FB1107E3E1C6DEE3BFDC53E5F7679E28CFA08"
+    },
+    {
+        "path":  "assets/js/officerDashboard.js",
+        "sha256":  "C308C977BA693773E0C8AEDF9C168781253F801CDA9B5A9669022BB1146B0A25"
+    },
+    {
+        "path":  "assets/js/studentDashboard.js",
+        "sha256":  "5E2796C46B7155E40BB2F637367398FB182A74B31B30423F9B35C6C1647D6C0D"
+    },
+    {
+        "path":  "pages/officerDashboard.html",
+        "sha256":  "76D7D4AED58016668606F3FF6FBEE8E4356FAABEF37DED1F7956E35577A5A817"
+    },
+    {
+        "path":  "pages/studentDashboard.html",
+        "sha256":  "82E474C664B442C5E8BB51E601CA13019D4DA1B931611F004114637264C1EA8D"
+    },
+    {
+        "path":  "sw.js",
+        "sha256":  "14D60185512A5ECB85FAC64C93CC45FDCAE54E3F3956EAC48D0E3B1F6C3ED41C"
+    }
+]
