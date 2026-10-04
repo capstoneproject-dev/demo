@@ -1,0 +1,22 @@
+﻿[
+    {
+        "path":  "api/accounts/requests/submit.php",
+        "sha256":  "36A0A1C9CA705F1A376B326E58E65EEABF403C5B45EE0BB86CA1620668F3C180"
+    },
+    {
+        "path":  "assets/js/login.js",
+        "sha256":  "0726C1023182E0E4B5422CF6E03B352C204EDA14081DDA6297288CC57C7A8CA1"
+    },
+    {
+        "path":  "pages/login.html",
+        "sha256":  "2A31C6DF1250214D13D83DFA8A21419317211DCC697E2941EDBB32DCC0BFBE91"
+    },
+    {
+        "path":  "pages/osaDashboard.html",
+        "sha256":  "60CAC95ED700BA1903F2104E6B88675DB767417FA38EBCC34934C2130CCDE854"
+    },
+    {
+        "path":  "assets/photos/osaDashboard/798216880_1599449585301229_1061032991696592018_n.jpg",
+        "sha256":  "3ED86B78FC0028902DD356BBE865AE494A45305D2791C338AEE07D2C3DF6196D"
+    }
+]
