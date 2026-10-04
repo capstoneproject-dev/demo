@@ -1,0 +1,98 @@
+{
+  "source_commit": "f0632fe748125225c05dd8cf835623534318b58a",
+  "rollback_commit": "9f4d7f8d622aa9b4bf9952eb361e5597507ac039",
+  "date": "2026-10-04",
+  "timezone": "Asia/Manila",
+  "files": [
+    {
+      "path": "api/osa/activity-feed.php",
+      "status": "M",
+      "sha256": "81cfc51181db408e4890ce20586b94e4f9eeec17e58c6a68b266eb57cf8a5aab",
+      "bytes": 27539,
+      "rollback_sha256": "9fca8a2732a72c1b8c75dafbc099464442e173f854b57ebcfa7f0f3db199d5f1",
+      "rollback_bytes": 27529
+    },
+    {
+      "path": "assets/css/officerDashboard.css",
+      "status": "M",
+      "sha256": "015125d62e8af9383db118140ce335354abbb21a31b2abe4a371f49ecbe476c1",
+      "bytes": 147844,
+      "rollback_sha256": "3866d8af1808446e8e05740cab40074268b0ec1cd94db91eb2c6cd396ad4e834",
+      "rollback_bytes": 147820
+    },
+    {
+      "path": "assets/js/officerDashboard.js",
+      "status": "M",
+      "sha256": "f76264369bd2698d89de000f6e277130d2ef1b7951c33c9276d188f0d68f7f3c",
+      "bytes": 424064,
+      "rollback_sha256": "682f578db61c6060156d3fc20c7cf66495faa345325702eaae694d0be8fb5a73",
+      "rollback_bytes": 424099
+    },
+    {
+      "path": "assets/js/studentDashboard.js",
+      "status": "M",
+      "sha256": "c3b664f37f04d940a80e892faa5d98a1dfbcfb9e1a343639cbee838a1fcf7108",
+      "bytes": 403943,
+      "rollback_sha256": "d43ddbe05daec9caec024757a525da16098f167481f74cb744e7bc70755f37d0",
+      "rollback_bytes": 404050
+    },
+    {
+      "path": "includes/notification_email_delivery.php",
+      "status": "M",
+      "sha256": "e5c36a48bd487707d63d84c37e7ab22da57dac394654ce3cf77da1e46f362a50",
+      "bytes": 36553,
+      "rollback_sha256": "087325f301056a6b2f4eb3eeee9638fa60e256c488ca0f849982f6227c28f24a",
+      "rollback_bytes": 36440
+    },
+    {
+      "path": "includes/printing_numbers.php",
+      "status": "A",
+      "sha256": "f937d663280cac0164a7b20542c1d102a665003c7a71c7c980601e7404493858",
+      "bytes": 4536
+    },
+    {
+      "path": "includes/services_tracker.php",
+      "status": "M",
+      "sha256": "520329f0b12b016d2cb0c10ebcb2ad262be96425c570d59898a136ee8a3e3f77",
+      "bytes": 106262,
+      "rollback_sha256": "8c510b9ee7ad3014a01c22c4ff9b3d0188c0899f3a919413114c53c27ee213dc",
+      "rollback_bytes": 106116
+    },
+    {
+      "path": "includes/student_notifications.php",
+      "status": "M",
+      "sha256": "49c62d6c54b14f7f1f59a69d80cdfeabbc6a3e1a456dc109af780b4e2615e0ab",
+      "bytes": 25365,
+      "rollback_sha256": "2e2f780b342fa573ed2cdef1b284277cf0181c8be7e2e28f93493a7aeef30a98",
+      "rollback_bytes": 25134
+    },
+    {
+      "path": "pages/officerDashboard.html",
+      "status": "M",
+      "sha256": "55f246a7601e0af9a3bcaf787ccdd719a5f865936ef95c49d8ffe434aa84ab82",
+      "bytes": 142800,
+      "rollback_sha256": "f6c859ce85103bf23075fc7871bb4fc99d3796029558828cf0642e482d301b48",
+      "rollback_bytes": 142766
+    },
+    {
+      "path": "pages/studentDashboard.html",
+      "status": "M",
+      "sha256": "e6ee032a858c46c0131b37df4df4c5fec6fbd40f5bf5f48fcaae1b5990ad4c54",
+      "bytes": 70198,
+      "rollback_sha256": "8dae09b67a974297429fc22ce954495cc80b6d420026104b32c2b46d4efe927f",
+      "rollback_bytes": 70193
+    },
+    {
+      "path": "sw.js",
+      "status": "M",
+      "sha256": "5f1425619f9caa46f7037fe67accce19201938ce67c6be08602142ed8c3b1237",
+      "bytes": 8572,
+      "rollback_sha256": "64c68443abd2984e0db6faa3332a33af66502630d41a0f1969f3201d02033ef1",
+      "rollback_bytes": 8562
+    }
+  ],
+  "delete_after_rollback": [
+    "includes/printing_numbers.php"
+  ],
+  "zip_created": false
+}

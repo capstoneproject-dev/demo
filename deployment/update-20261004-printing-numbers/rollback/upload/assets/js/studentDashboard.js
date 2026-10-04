@@ -1,0 +1,9658 @@
+// Services and event previews may use ORG_DATA, but announcements are loaded only from the database API.
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Flat services list: shared/general items first, then org-specific items tagged with their org key.
+const servicesData = [
+    ...SHARED_SERVICES,
+    ...Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
+        d.services.map(s => ({ ...s, org: orgKey }))
+    )
+];
+
+const eventsData = [
+    { title: "Annual Tech Summit", date: "Oct 25", org: "AISERS", desc: "A gathering of tech enthusiasts." },
+    { title: "Sports Fest 2023", date: "Nov 02", org: "SSC", desc: "Inter-department sports league." },
+    { title: "Aero Workshop", date: "Nov 10", org: "AERO-ATSO", desc: "Drone flying basics." }
+];
+
+const transactionsData = [
+    { date: "Oct 20, 2023", item: "Locker Rental (Sem 1)", org: "SSC", status: "Completed" },
+    { date: "Oct 18, 2023", item: "Printing (5 pages)", org: "SSC", status: "Completed" },
+    { date: "Oct 15, 2023", item: "Calculator Borrowing", org: "AISERS", status: "Returned" },
+    { date: "Oct 10, 2023", item: "Membership Application", org: "ELITECH", status: "Pending" }
+];
+
+// Flattened Organization Data (Based on your provided list)
+const organizationData = [
+    // Supreme Student Council
+    { name: "Supreme Student Council", category: "Council", imgSeed: "council", color: "#002147", image: "../assets/photos/studentDashboard/Organization/SSC.png", banner: "../assets/photos/studentDashboard/Organization/banners/sscbanner.png" },
+    // ICS
+    {
+        name: "AISERS",
+        category: "ICS",
+        imgSeed: "network",
+        color: "#f59e0b",
+        image: "../assets/photos/studentDashboard/Organization/AISERS.png",
+        banner: "../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg"
+    },
+    // ILAS
+    { name: "ILASSO", category: "ILAS", imgSeed: "book", color: "#ef4444", image: "../assets/photos/studentDashboard/Organization/ILASSO.png", banner: "../assets/photos/studentDashboard/Organization/banners/ilassobanner.jpg" },
+    // INET
+    { name: "ELITECH", category: "INET", imgSeed: "electronic", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/ELITECH.png", banner: "../assets/photos/studentDashboard/Organization/banners/elitechbanner.png" },
+    { name: "AERO-ATSO", category: "INET", imgSeed: "plane", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AEROATSO.png", banner: "../assets/photos/studentDashboard/Organization/banners/aeroatsobanner.png" },
+    { name: "AETSO", category: "INET", imgSeed: "industry", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AET.png", banner: "../assets/photos/studentDashboard/Organization/banners/aetsobanner.jpg" },
+    { name: "AMTSO", category: "INET", imgSeed: "gear", color: "#6366f1", image: "../assets/photos/studentDashboard/Organization/AMT.png", banner: "../assets/photos/studentDashboard/Organization/banners/amtbanner.png" },
+    // Interest Club
+    { name: "RCYC", category: "Interest Club", imgSeed: "bicycle", color: "#059669", image: "../assets/photos/studentDashboard/Organization/RCYC.png", banner: "../assets/photos/studentDashboard/Organization/banners/rcycbanner.png" },
+    { name: "CYC", category: "Interest Club", imgSeed: "child", color: "#059669", image: "../assets/photos/studentDashboard/Organization/CYC.png", banner: "../assets/photos/studentDashboard/Organization/banners/cycbanner.png" },
+    { name: "SAGE", category: "Interest Club", imgSeed: "grad", color: "#059669", image: "../assets/photos/studentDashboard/Organization/PSG.png", banner: "../assets/photos/studentDashboard/Organization/banners/scholarsguildbanner.jpg" },
+    { name: "Aeronautica", category: "Interest Club", imgSeed: "rocket", color: "#059669", image: "../assets/photos/studentDashboard/Organization/AERONAUTICA.png", banner: "../assets/photos/studentDashboard/Organization/banners/aeronauticabanner.jpg" }
+];
+
+// Extended Events Data (for Events Tab) — built from ORG_DATA, each event tagged with its org key.
+const extendedEvents = Object.entries(ORG_DATA).flatMap(([orgKey, d]) =>
+    d.events.map((e, index) => ({ id: e.id || `${orgKey}-${index + 1}`, ...e, org: orgKey }))
+);
+const STUDENT_EVENTS_API = '../api/student/events/list.php';
+const STUDENT_ANNOUNCEMENTS_API = '../api/student/announcements/list.php';
+const STUDENT_RECENT_ACTIVITY_API = '../api/student/dashboard/recent-activity.php';
+const STUDENT_NOTIFICATIONS_API = '../api/student/notifications/list.php';
+const STUDENT_EMAIL_PREFERENCES_API = '../api/student/notifications/email-preferences.php';
+const STUDENT_RECENT_ACTIVITY_DISPLAY_LIMIT = 5;
+let databaseEvents = [];
+let databaseAnnouncements = [];
+let databaseRecentActivity = [];
+let databaseTransactionNotifications = [];
+let studentAlertItems = [];
+let studentNotificationsLoaded = false;
+let studentNotificationsFailed = false;
+let studentAlertsRequest = null;
+let studentAlertsPreviousFocus = null;
+const studentNotificationToastQueue = [];
+let activeStudentNotificationToastCount = 0;
+let studentAnnouncementCalendarDate = new Date();
+let studentAnnouncementSelectedDate = '';
+let areDashboardAnnouncementsHidden = false;
+const studentAnnouncementFeedState = {
+    items: [],
+    organizations: [],
+    query: '',
+    orgId: '',
+    type: '',
+    cursor: '',
+    hasMore: false,
+    loading: false,
+    initialized: false,
+    searchTimer: null,
+    requestId: 0
+};
+const studentAnnouncementPhotoState = {
+    photos: [],
+    index: 0,
+    title: ''
+};
+const announcementDetailCarouselState = {
+    photos: [],
+    index: 0
+};
+
+const ORG_BANNER_ASSET_VERSION = "20260527";
+const ORG_PROFILE_OVERRIDES_KEY = "naapOrgProfileOverrides";
+const ORG_PUBLIC_PROFILES_API = "../api/student/organizations/public-profiles.php";
+const ORG_PUBLIC_PROFILE_SAVE_API = "../api/officer/organizations/public-profile-save.php";
+let orgProfileOverridesFromApi = {};
+
+function versionOrgBannerUrl(url, version = ORG_BANNER_ASSET_VERSION) {
+    if (!url) return "";
+    if (/^(data|blob):/i.test(String(url))) return String(url);
+    const separator = String(url).includes("?") ? "&" : "?";
+    return `${url}${separator}v=${encodeURIComponent(version)}`;
+}
+
+function readOrgProfileOverrides() {
+    let localOverrides = {};
+    try {
+        localOverrides = JSON.parse(localStorage.getItem(ORG_PROFILE_OVERRIDES_KEY) || "{}");
+    } catch (_error) {
+        localOverrides = {};
+    }
+    return { ...localOverrides, ...orgProfileOverridesFromApi };
+}
+
+function getOrgProfileOverride(orgName) {
+    return readOrgProfileOverrides()[normalizeOrgName(orgName)] || {};
+}
+
+function saveOrgProfileOverride(orgName, data) {
+    const overrides = readOrgProfileOverrides();
+    const key = normalizeOrgName(orgName);
+    overrides[key] = {
+        ...overrides[key],
+        ...data,
+        contact: {
+            ...(overrides[key]?.contact || {}),
+            ...(data.contact || {})
+        },
+        updatedAt: new Date().toISOString()
+    };
+    localStorage.setItem(ORG_PROFILE_OVERRIDES_KEY, JSON.stringify(overrides));
+}
+
+function normalizeOrgProfileApiRow(row) {
+    const orgName = row?.org_name || row?.org_code || "";
+    const key = normalizeOrgName(orgName);
+    if (!key) return null;
+
+    return {
+        key,
+        data: {
+            banner: row.banner_url || "",
+            bannerGallery: parseOrgBannerGallery(row.banner_gallery_json, row.banner_url),
+            logo: row.logo_url || "",
+            motto: row.public_motto || "",
+            about: row.public_about || "",
+            contact: {
+                office: row.contact_office || "",
+                hours: row.contact_hours || "",
+                email: row.contact_email || "",
+                phone: row.contact_phone || "",
+                facebook: row.contact_facebook || "",
+                instagram: row.contact_instagram || "",
+                x: row.contact_x_url || "",
+                tiktok: row.contact_tiktok || "",
+                summary: row.contact_summary || ""
+            },
+            updatedAt: row.updated_at || ""
+        }
+    };
+}
+
+function parseOrgBannerGallery(value, fallbackBanner = "") {
+    let gallery = [];
+    if (Array.isArray(value)) {
+        gallery = value;
+    } else if (typeof value === "string" && value.trim()) {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) gallery = parsed;
+        } catch (_error) {
+            gallery = [];
+        }
+    }
+
+    gallery = gallery.map(item => String(item || "").trim()).filter(Boolean);
+    if (!gallery.length && fallbackBanner) {
+        gallery.push(fallbackBanner);
+    }
+    return [...new Set(gallery)];
+}
+
+function collectAnnouncementPhotos(announcement) {
+    const candidates = [
+        announcement?.img,
+        announcement?.image,
+        announcement?.photo,
+        announcement?.photo_url,
+        announcement?.image_url,
+        announcement?.banner
+    ];
+
+    let photos = candidates.map(item => String(item || "").trim()).filter(Boolean);
+    if (Array.isArray(announcement?.gallery)) {
+        photos = photos.concat(announcement.gallery.map(item => String(item || "").trim()).filter(Boolean));
+    }
+    if (Array.isArray(announcement?.photos)) {
+        photos = photos.concat(announcement.photos.map(item => String(item || "").trim()).filter(Boolean));
+    }
+
+    return photos;
+}
+
+function collectOrganizationMediaGallery(orgName, bannerGalleryImages, events = []) {
+    const normalizedOrgName = normalizeOrgName(orgName);
+    const eventImages = events
+        .filter(event => normalizeOrgName(event.org) === normalizedOrgName)
+        .flatMap(event => Array.isArray(event.gallery) && event.gallery.length ? event.gallery : [event.img])
+        .map(item => String(item || "").trim())
+        .filter(Boolean);
+
+    const announcementImages = databaseAnnouncements
+        .filter(announcement => normalizeOrgName(announcement.org) === normalizedOrgName)
+        .flatMap(collectAnnouncementPhotos)
+        .filter(Boolean);
+
+    return [...new Set([
+        ...(bannerGalleryImages || []),
+        ...eventImages,
+        ...announcementImages
+    ])];
+}
+
+function getOrganizationGalleryGroups(orgName) {
+    const org = organizationData.find(item => normalizeOrgName(item.name) === normalizeOrgName(orgName));
+    if (!org) {
+        return { featured: [], events: [], announcements: [], all: [] };
+    }
+
+    const savedProfile = getOrgProfileOverride(org.name);
+    const fallbackBanner = savedProfile.banner || org.banner || org.image;
+    const featured = parseOrgBannerGallery(savedProfile.bannerGallery, fallbackBanner);
+    const normalizedOrgName = normalizeOrgName(org.name);
+
+    const eventGroups = getAllOrganizationEvents()
+        .filter(event => normalizeOrgName(event.org) === normalizedOrgName)
+        .map(event => ({
+            title: event.title || 'Event Photos',
+            images: (Array.isArray(event.gallery) && event.gallery.length ? event.gallery : [event.img])
+                .map(item => String(item || "").trim())
+                .filter(Boolean)
+        }))
+        .filter(group => group.images.length);
+
+    const announcementGroups = databaseAnnouncements
+        .filter(announcement => normalizeOrgName(announcement.org) === normalizedOrgName)
+        .map(announcement => ({
+            title: announcement.title || 'Announcement Photos',
+            images: collectAnnouncementPhotos(announcement)
+        }))
+        .filter(group => group.images.length);
+
+    const all = [...new Set([
+        ...featured,
+        ...eventGroups.flatMap(group => group.images),
+        ...announcementGroups.flatMap(group => group.images)
+    ])];
+
+    return {
+        featured,
+        events: eventGroups,
+        announcements: announcementGroups,
+        all
+    };
+}
+
+async function loadOrganizationPublicProfiles() {
+    try {
+        const response = await fetch(ORG_PUBLIC_PROFILES_API, { credentials: "same-origin" });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Could not load organization profiles.");
+        }
+
+        orgProfileOverridesFromApi = {};
+        (data.profiles || []).forEach((row) => {
+            const normalized = normalizeOrgProfileApiRow(row);
+            if (normalized) {
+                orgProfileOverridesFromApi[normalized.key] = normalized.data;
+            }
+        });
+    } catch (error) {
+        console.warn(error);
+    }
+}
+
+function getOrganizationLogoImage(org) {
+    const savedProfile = getOrgProfileOverride(org?.name);
+    return savedProfile.logo || org?.image || "";
+}
+
+function isOrganizationPreviewModeFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "organizations" && params.get("preview") === "1";
+}
+
+function isOsaStudentPreviewModeFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "organizations"
+        && params.get("preview") === "1"
+        && params.get("viewer") === "osa";
+}
+
+function getOrganizationPreviewOrgFromUrl() {
+    if (!isOrganizationPreviewModeFromUrl()) {
+        return "";
+    }
+
+    const requestedOrg = new URLSearchParams(window.location.search).get("org");
+    const normalizedOrg = normalizeOrgName(requestedOrg);
+    const hasOrg = organizationData.some(item => normalizeOrgName(item.name) === normalizedOrg);
+    return hasOrg ? normalizedOrg : "";
+}
+
+function applyOrganizationPreviewModeChrome() {
+    if (!isOrganizationPreviewModeFromUrl()) {
+        return;
+    }
+
+    const profileNavLink = document.querySelector('.nav-link[onclick*="navigate(\'profile\'"]');
+    const profileNavItem = profileNavLink ? profileNavLink.closest('.nav-item') : null;
+    if (profileNavItem) {
+        profileNavItem.style.display = 'none';
+    }
+
+    const profileHeaderLink = document.querySelector('.user-profile[onclick*="navigate(\'profile\'"]');
+    if (profileHeaderLink) {
+        profileHeaderLink.style.display = 'none';
+    }
+
+    if (isOsaStudentPreviewModeFromUrl()) {
+        const alertsControl = document.getElementById('student-alerts');
+        if (alertsControl) {
+            alertsControl.style.display = 'none';
+        }
+
+        document.querySelectorAll('.sidebar .nav-link').forEach((link) => {
+            const isOrganizationsLink = link.getAttribute('onclick')?.includes('organizations');
+            if (!isOrganizationsLink) {
+                const item = link.closest('.nav-item') || link;
+                item.style.display = 'none';
+            }
+        });
+
+        const headerTitle = document.getElementById('page-title');
+        if (headerTitle) headerTitle.innerText = 'OSA Preview';
+    }
+}
+
+// Helper to determine event status relative to the current day.
+function getEventStatus(dateStr) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const rawValue = String(dateStr || '').trim();
+    const normalizedValue = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(rawValue)
+        ? rawValue.replace(' ', 'T')
+        : rawValue.replace('.', '');
+    const eventDate = new Date(normalizedValue);
+    if (Number.isNaN(eventDate.getTime())) return 'unknown';
+    eventDate.setHours(0, 0, 0, 0);
+
+    if (eventDate.getTime() === today.getTime()) return 'today';
+    if (eventDate < today) return 'past';
+    return 'upcoming';
+}
+
+const courseOrganizationMap = {
+    BSAIS: "AISERS",
+    BSAIT: "ELITECH",
+    BSAET: "AETSO",
+    BSAT: "AERO-ATSO",
+    BSAMT: "AMTSO",
+    BSAEE: "AETSO",
+    "BAT-AET": "AETSO",
+    AVCOMM: "ILASSO",
+    AVLOG: "ILASSO",
+    AVSSM: "ILASSO",
+    AVTOUR: "ILASSO"
+};
+
+const orgProfileConfig = {
+    "AISERS": {
+        tagline: "Association of Information Systems and Emerging Research Students",
+        about: "Builds student capability in information systems, analytics, and applied campus technology.",
+        officers: ["President: Charles M. Reyes", "Vice President: Nikki S. Lazo", "Secretary: Mara P. Lim"],
+        highlights: ["AIS Research Colloquium", "Systems Design Workshop", "Peer Tutoring for BSAIS"]
+    },
+    "ELITECH": {
+        tagline: "Engineering and Laboratory Innovation Technology Circle",
+        about: "Focuses on practical electronics and embedded systems initiatives for student engineers.",
+        officers: ["President: Jayson A. Cruz", "Vice President: Bea N. Tan", "Secretary: Ken S. Diaz"],
+        highlights: ["IoT Build Camp", "Hardware Troubleshooting Clinic", "Electronics Safety Orientation"]
+    },
+    "ILASSO": {
+        tagline: "Institute of Liberal Arts and Sciences Student Organization",
+        about: "Supports humanities and social sciences learners through student-led academic activities.",
+        officers: ["President: Monica A. Rivas", "Vice President: Gail P. Santos", "Secretary: Lance D. Prado"],
+        highlights: ["Communication Skills Forum", "Community Extension Projects", "Student Welfare Consultations"]
+    },
+    "AERO-ATSO": {
+        tagline: "Aeronautics and Air Transport Student Organization",
+        about: "Promotes aviation safety, discipline, and applied training for future aviation professionals.",
+        officers: ["President: Mark T. de Vera", "Vice President: Troy M. Fabro", "Secretary: Ella R. Cruz"],
+        highlights: ["Flight Operations Seminar", "Aviation Safety Talks", "Simulation Readiness Training"]
+    },
+    "AETSO": {
+        tagline: "Aeronautical Engineering Technology Student Organization",
+        about: "Develops competencies in engineering standards, maintenance practices, and technical leadership.",
+        officers: ["President: Paolo M. Villanueva", "Vice President: Jessa F. Lim", "Secretary: Ron N. Yumul"],
+        highlights: ["Aircraft Structures Forum", "Maintenance Procedures Review", "Engineering Skills Clinics"]
+    },
+    "AMTSO": {
+        tagline: "Aircraft Maintenance Technology Student Organization",
+        about: "Strengthens maintenance readiness and practical competencies for aircraft maintenance students.",
+        officers: ["President: Nico J. Flores", "Vice President: Reign C. Mateo", "Secretary: Ian P. Solis"],
+        highlights: ["Engine Inspection Training", "Tool Handling Certification", "Hangar Procedures Drill"]
+    },
+    "Supreme Student Council": {
+        tagline: "Central student leadership body",
+        about: "Represents the student body and leads campus-wide governance, programs, and partnerships.",
+        officers: ["President: Erica L. Santos", "Vice President: Carl B. Ramos", "Secretary: Janelle M. Cruz"],
+        highlights: ["University Week Programs", "Student Welfare Initiatives", "Leadership Development Camps"]
+    },
+    "RCYC": {
+        tagline: "Red Cross Youth Circle",
+        about: "Conducts service-oriented and humanitarian activities for campus and community support.",
+        officers: ["President: Faye M. Lazo", "Vice President: Josh R. Cruz", "Secretary: Aimee B. Reyes"],
+        highlights: ["Blood Donation Drives", "First Aid Training", "Community Assistance Campaigns"]
+    },
+    "CYC": {
+        tagline: "Campus Youth Circle",
+        about: "Builds student engagement through leadership, service, and peer development activities.",
+        officers: ["President: Den C. Martinez", "Vice President: Kira T. Solis", "Secretary: Abby D. Flores"],
+        highlights: ["Leadership Bootcamp", "Peer Engagement Sessions", "Volunteer Mobilization"]
+    },
+    "SAGE": {
+        tagline: "Academic excellence and peer support group",
+        about: "Supports scholars through mentoring, academic planning, and enrichment programs.",
+        officers: ["President: Trisha A. Ong", "Vice President: Yuri P. Lim", "Secretary: Sam J. Cruz"],
+        highlights: ["Study Group Program", "Scholar Support Desk", "Academic Mentoring Sessions"]
+    },
+    "Aeronautica": {
+        tagline: "Aviation interest and innovation club",
+        about: "Creates opportunities for aviation enthusiasts to collaborate, learn, and innovate together.",
+        officers: ["President: Vince P. Rivera", "Vice President: Kaye M. Lopez", "Secretary: Noel F. Dizon"],
+        highlights: ["Aviation Talk Series", "Simulation Meetups", "Student Innovation Showcases"]
+    }
+};
+
+const orgThemeClassMap = {
+    "AISERS": "org-theme-aisers",
+    "ELITECH": "org-theme-elitech",
+    "ILASSO": "org-theme-ilasso",
+    "AERO-ATSO": "org-theme-aero-atso",
+    "AETSO": "org-theme-aetso",
+    "AMTSO": "org-theme-amtso",
+    "Supreme Student Council": "org-theme-ssc",
+    "RCYC": "org-theme-rcyc",
+    "CYC": "org-theme-cyc",
+    "SAGE": "org-theme-scholar-guild",
+    "Aeronautica": "org-theme-aero-atso"
+};
+
+function normalizeOrgName(name) {
+    if (!name) return "";
+    const normalized = String(name).trim().toUpperCase();
+    const aliases = {
+        "AISERS": "AISERS",
+        "ELITECH": "ELITECH",
+        "ILASSO": "ILASSO",
+        "AERO-ATSO": "AERO-ATSO",
+        "AETSO": "AETSO",
+        "AMTSO": "AMTSO",
+        "RCYC": "RCYC",
+        "CYC": "CYC",
+        "SSC": "Supreme Student Council",
+        "SUPREME STUDENT COUNCIL": "Supreme Student Council",
+        "SUPREME STUDENT COUNCIL (SSC)": "Supreme Student Council",
+        "ALLIANCE IN INFORMATION SYSTEM EMPOWERED RESPONSIVE STUDENTS": "AISERS",
+        "ALLIANCE IN INFORMATION SYSTEM EMPOWERED RESPONSIVE STUDENTS ORGANIZATION": "AISERS",
+        "ELITE TECHNOLOGIST SOCIETY": "ELITECH",
+        "INSTITUTE OF LIBERAL ARTS AND SCIENCES STUDENT ORGANIZATION": "ILASSO",
+        "AERONAUTICAL ENGINEERING ORGANIZATION": "AERO-ATSO",
+        "AERONAUTICAL ENGINEERING TECHNOLOGY STUDENT ORGANIZATION": "AETSO",
+        "AVIATION MAINTENANCE TECHNOLOGY STUDENT ORGANIZATION": "AMTSO",
+        "RED CROSS YOUTH COUNCIL": "RCYC",
+        "COLLEGE YOUTH CLUB": "CYC",
+        "AERONAUTICA": "Aeronautica",
+        "ELITECH ORGANIZATION": "ELITECH",
+        "SAGE": "SAGE",
+        "SCHOLARS' AVIATION GUILD OF EXCELLENCE": "SAGE",
+        "PSG": "SAGE",
+        "SCHOLARS": "SAGE",
+        "SCHOLAR'S GUILD": "SAGE",
+        "SCHOLARS GUILD": "SAGE",
+        "SCHOLAR’S GUILD": "SAGE",
+        "SCHOLARA€™S GUILD": "SAGE",
+        "AMT": "AMTSO",
+        "AET": "AETSO"
+    };
+    return aliases[normalized] || String(name).trim();
+}
+
+const AUTH_DB_KEY = "naapAuthDB_v1";
+const AUTH_SESSION_KEY = "naapAuthSession";
+const OSA_EVENT_PREVIEW_KEY_PREFIX = "osaEventPreview_";
+let osaEventPreviewPayloadCache = undefined;
+
+/**
+ * Non-blocking PHP session check.
+ * Runs async after initial render — redirects to login if server session is gone.
+ */
+function validatePhpSession() {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        return;
+    }
+
+    const authSession = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || 'null');
+    // Only check against server if we actually have a local session
+    if (!authSession || !authSession.user_id) {
+        window.location.href = new URL('../', document.baseURI).href;
+        return;
+    }
+    fetch('../api/auth/session.php', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.authenticated) {
+                localStorage.removeItem(AUTH_SESSION_KEY);
+                window.location.href = new URL('../', document.baseURI).href;
+                return;
+            }
+            if (data.session) {
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+                updateStudentProfileView();
+            }
+        })
+        .catch(() => { /* silently ignore — XAMPP may be offline during dev */ });
+}
+
+
+function readJsonStorage(key, fallback) {
+    try {
+        return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+    } catch (_error) {
+        return fallback;
+    }
+}
+
+function readAuthSession() {
+    return readJsonStorage(AUTH_SESSION_KEY, {});
+}
+
+function getOsaEventPreviewPayloadFromUrl() {
+    if (osaEventPreviewPayloadCache !== undefined) {
+        return osaEventPreviewPayloadCache;
+    }
+
+    if (!isOsaStudentPreviewModeFromUrl()) {
+        osaEventPreviewPayloadCache = null;
+        return null;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const previewKey = params.get('preview_key') || '';
+    if (!previewKey.startsWith(OSA_EVENT_PREVIEW_KEY_PREFIX)) {
+        osaEventPreviewPayloadCache = null;
+        return null;
+    }
+
+    try {
+        const payload = JSON.parse(localStorage.getItem(previewKey) || 'null');
+        localStorage.removeItem(previewKey);
+        osaEventPreviewPayloadCache = payload;
+        return payload;
+    } catch (_error) {
+        osaEventPreviewPayloadCache = null;
+        return null;
+    }
+}
+
+const DEFAULT_STUDENT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E";
+let studentProfileEditMode = false;
+let studentProfileSnapshot = null;
+let registrationPrefill = null;
+
+function buildCurrentStudentProfile() {
+    const fallbackProfile = {
+        fullName: "Juan Dela Cruz",
+        studentNumber: "2021-12345",
+        course: "BSAIS",
+        section: "3A",
+        email: "",
+        phone: "",
+        profilePhoto: DEFAULT_STUDENT_AVATAR
+    };
+
+    const storedProfile = readJsonStorage("naapStudentProfile", {});
+    const authSession = readAuthSession();
+    const authDb = readJsonStorage(AUTH_DB_KEY, {});
+    const sessionBackedProfile = {
+        fullName: authSession.display_name || "",
+        studentNumber: authSession.student_number || "",
+        email: authSession.email || "",
+        phone: authSession.phone || "",
+        profilePhoto: authSession.profile_photo || "",
+        course: authSession.program_code || "",
+        section: authSession.section || "",
+        organization: authSession.active_org_name || authSession.mapped_org_name || ""
+    };
+
+    let authBackedProfile = {};
+    if (authSession && authSession.user_id && Array.isArray(authDb.users)) {
+        const authUser = authDb.users.find(user => Number(user.user_id) === Number(authSession.user_id));
+        const studentProfile = Array.isArray(authDb.student_profiles)
+            ? authDb.student_profiles.find(profile => Number(profile.user_id) === Number(authSession.user_id))
+            : null;
+        const program = studentProfile && Array.isArray(authDb.academic_programs)
+            ? authDb.academic_programs.find(item => Number(item.program_id) === Number(studentProfile.program_id))
+            : null;
+
+        if (authUser) {
+            const mappedOrg = studentProfile && Array.isArray(authDb.program_org_mappings) && Array.isArray(authDb.organizations)
+                ? (() => {
+                    const mapping = authDb.program_org_mappings.find(item =>
+                        Number(item.program_id) === Number(studentProfile.program_id) && Number(item.is_active) === 1
+                    );
+                    return mapping
+                        ? authDb.organizations.find(item => Number(item.org_id) === Number(mapping.org_id))
+                        : null;
+                })()
+                : null;
+
+            authBackedProfile = {
+                fullName: `${authUser.first_name || ""} ${authUser.last_name || ""}`.trim(),
+                studentNumber: authUser.student_number || "",
+                email: authUser.email || "",
+                phone: authUser.phone || "",
+                profilePhoto: authUser.profile_photo || "",
+                course: program ? program.program_code : "",
+                section: studentProfile ? studentProfile.section || "" : "",
+                organization: authSession.active_org_name || authSession.mapped_org_name || (mappedOrg ? mappedOrg.org_name : "")
+            };
+        }
+    }
+
+    const mergedProfile = {
+        ...fallbackProfile,
+        ...storedProfile,
+        ...authBackedProfile,
+        ...sessionBackedProfile
+    };
+    const normalizedCourse = String(mergedProfile.course || "").toUpperCase().trim();
+    const mappedOrg = authSession.mapped_org_name || mergedProfile.organization || courseOrganizationMap[normalizedCourse] || "Supreme Student Council";
+    const isOfficerLogin = authSession && authSession.login_role === "org";
+    const resolvedOrg = isOfficerLogin ? (mergedProfile.organization || mappedOrg) : mappedOrg;
+
+    return {
+        ...mergedProfile,
+        course: mergedProfile.course || fallbackProfile.course,
+        profilePhoto: mergedProfile.profilePhoto || DEFAULT_STUDENT_AVATAR,
+        associatedOrg: normalizeOrgName(resolvedOrg)
+    };
+}
+
+function parseOrgList(orgText) {
+    return String(orgText || "")
+        .split(",")
+        .map(item => normalizeOrgName(item))
+        .filter(Boolean);
+}
+
+const currentStudentProfile = buildCurrentStudentProfile();
+const activeStudentOrg = normalizeOrgName(currentStudentProfile.associatedOrg);
+
+function studentCanAccessOrg(orgText) {
+    const orgs = parseOrgList(orgText);
+    if (!orgs.length) return true;
+    return orgs.some(org =>
+        org === activeStudentOrg ||
+        org === "ALL" ||
+        org === "GENERAL" ||
+        org === "COMBINED"
+    );
+}
+
+function getAllOrganizationEvents() {
+    return databaseEvents;
+}
+
+function getStudentScopedExtendedEvents() {
+    return getAllOrganizationEvents().filter(event => studentCanAccessOrg(event.org));
+}
+
+function getStudentScopedAnnouncements() {
+    return databaseAnnouncements;
+}
+
+function getStudentScopedTransactions() {
+    return transactionsData.filter(item => studentCanAccessOrg(item.org));
+}
+
+function getStudentScopedServices() {
+    return servicesData;
+}
+
+function formatStudentEventDateLabel(dateValue) {
+    if (!dateValue) return '';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return '';
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const day = date.toLocaleString('en-US', { day: '2-digit' });
+    const year = date.toLocaleString('en-US', { year: 'numeric' });
+    return `${month}. ${day}, ${year}`;
+}
+
+function formatStudentEventTimeLabel(dateValue) {
+    if (!dateValue) return 'TBA';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return 'TBA';
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function formatStudentAnnouncementDateLabel(dateValue) {
+    if (!dateValue) return 'Just now';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return String(dateValue);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
+}
+
+function getOrganizationVisual(orgName) {
+    const normalizedTarget = normalizeOrgName(orgName);
+    return organizationData.find((org) => normalizeOrgName(org.name) === normalizedTarget) || null;
+}
+
+function getAnnouncementOrganizationVisual(item) {
+    const aliases = {
+        SSC: 'Supreme Student Council',
+    };
+    const candidates = [item?.org, item?.orgCode, aliases[String(item?.orgCode || '').toUpperCase()]]
+        .map(value => String(value || '').trim())
+        .filter(Boolean);
+
+    for (const candidate of candidates) {
+        const visual = getOrganizationVisual(candidate);
+        if (visual) return visual;
+    }
+
+    return null;
+}
+
+function getAnnouncementOrganizationColor(item) {
+    const orgVisual = getAnnouncementOrganizationVisual(item);
+    return orgVisual?.color || '';
+}
+
+function resolveEventPhotoPath(photoPath) {
+    const rawPath = String(photoPath || '').trim();
+    if (!rawPath) return '';
+    return /^(https?:)?\/\//i.test(rawPath) || rawPath.startsWith('/')
+        ? rawPath
+        : `../${rawPath.replace(/^\/+/, '')}`;
+}
+
+function parseEventPhotoGallery(rawPhotoValue) {
+    const rawPhoto = String(rawPhotoValue || '').trim();
+    if (!rawPhoto) return [];
+
+    try {
+        const parsed = JSON.parse(rawPhoto);
+        if (Array.isArray(parsed)) {
+            return parsed.map(resolveEventPhotoPath).filter(Boolean);
+        }
+    } catch (_error) {
+        // Older rows store a single path or blob value instead of a JSON photo list.
+    }
+
+    return [resolveEventPhotoPath(rawPhoto)].filter(Boolean);
+}
+
+function mapDatabaseEvent(item) {
+    const orgName = normalizeOrgName(item.org_name || item.org_code || '');
+    const orgVisual = getOrganizationVisual(orgName);
+    const dateValue = item.event_datetime || item.event_date || item.created_at || '';
+    const eventGallery = parseEventPhotoGallery(item.event_photo);
+    const syncedAnnouncementGallery = parseEventPhotoGallery(item.synced_announcement_photo);
+    const gallery = syncedAnnouncementGallery.length ? syncedAnnouncementGallery : eventGallery;
+    const image = gallery[0] || orgVisual?.banner || orgVisual?.image || '../assets/favicon.png';
+
+    return {
+        id: Number(item.event_id),
+        title: item.event_name || 'Untitled Event',
+        date: formatStudentEventDateLabel(dateValue),
+        dateRaw: dateValue,
+        org: orgName || 'General',
+        desc: item.description || '',
+        description: item.description || '',
+        time: formatStudentEventTimeLabel(dateValue),
+        venue: item.location || 'TBA',
+        location: item.location || 'TBA',
+        participants: Number(item.attendance_count || 0),
+        participationStatus: ['registered', 'attended'].includes(String(item.participation_status || ''))
+            ? String(item.participation_status)
+            : '',
+        img: image,
+        gallery: gallery.length ? gallery : [image],
+        isPublished: Number(item.is_published || 0) === 1
+    };
+}
+
+function mapOsaEventPreviewPayload(payload) {
+    if (!payload) return null;
+
+    const orgName = normalizeOrgName(payload.organization || payload.org || '');
+    const orgVisual = getOrganizationVisual(orgName);
+    const dateValue = payload.event_datetime || payload.date || '';
+    const gallery = parseEventPhotoGallery(payload.event_photo || payload.media || '');
+    const image = gallery[0] || orgVisual?.banner || orgVisual?.image || '../assets/favicon.png';
+
+    return {
+        id: payload.event_id || payload.id || null,
+        title: payload.event_name || payload.title || 'Untitled Event',
+        date: formatStudentEventDateLabel(dateValue) || formatStudentEventDateLabel(new Date().toISOString()),
+        dateRaw: dateValue,
+        org: orgName || 'General',
+        desc: payload.description || '',
+        description: payload.description || '',
+        time: formatStudentEventTimeLabel(dateValue),
+        venue: payload.location || 'TBA',
+        location: payload.location || 'TBA',
+        participants: Number(payload.participants || payload.attendance_count || 0),
+        img: image,
+        gallery: gallery.length ? gallery : [image],
+        isPublished: true
+    };
+}
+
+function mapDatabaseAnnouncement(item) {
+    const orgName = item.org_name || item.org_code || 'Organization';
+    const publishedAt = item.published_at || item.created_at || item.updated_at || '';
+    const gallery = parseEventPhotoGallery(item.announcement_photo);
+    return {
+        id: item.announcement_id || null,
+        org_id: Number(item.org_id || 0),
+        title: item.title || 'Untitled Announcement',
+        content: item.content || '',
+        org: orgName,
+        orgCode: item.org_code || '',
+        date: formatStudentAnnouncementDateLabel(publishedAt),
+        dateRaw: publishedAt,
+        announcement_photo: item.announcement_photo || '',
+        gallery,
+        audience_type: item.audience_type || 'all_students',
+        target_programs: Array.isArray(item.target_programs) ? item.target_programs : [],
+        event_id: Number(item.event_id || 0) || null,
+        event_description: item.event_description || '',
+        event_datetime: item.event_datetime || '',
+        event_location: item.event_location || '',
+        event_photo: item.event_photo || '',
+        event_participants: Number(item.event_participants || 0),
+        created_at: item.created_at || '',
+        updated_at: item.updated_at || '',
+        isPublished: Number(item.is_published || 0) === 1
+    };
+}
+
+async function loadStudentAnnouncementsFromApi() {
+    try {
+        const response = await fetch(`${STUDENT_ANNOUNCEMENTS_API}?limit=50`, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load announcements.');
+        }
+        databaseAnnouncements = (Array.isArray(data.items) ? data.items : []).map(mapDatabaseAnnouncement);
+        renderDashboard();
+    } catch (error) {
+        console.error('[loadStudentAnnouncementsFromApi]', error);
+        databaseAnnouncements = [];
+    }
+}
+
+function getStudentAnnouncementFeedItem(announcementId) {
+    return studentAnnouncementFeedState.items.find(
+        item => Number(item.id) === Number(announcementId)
+    ) || databaseAnnouncements.find(
+        item => Number(item.id) === Number(announcementId)
+    ) || null;
+}
+
+function getStudentAnnouncementAudienceLabel(item) {
+    return item?.audience_type === 'specific_courses' ? 'For Your Course' : 'All Students';
+}
+
+function getStudentAnnouncementOrganizationLogo(item) {
+    const savedProfile = getOrgProfileOverride(item?.org);
+    const visual = getAnnouncementOrganizationVisual(item);
+    return savedProfile.logo || visual?.image || '';
+}
+
+function getStudentAnnouncementEvent(item) {
+    if (!item?.event_id) return null;
+    const databaseEvent = getStudentScopedExtendedEvents().find(
+        event => Number(event.id) === Number(item.event_id)
+    );
+    if (databaseEvent) return databaseEvent;
+
+    const eventGallery = parseEventPhotoGallery(item.event_photo);
+    const gallery = item.gallery?.length ? item.gallery : eventGallery;
+    const image = gallery[0] || getStudentAnnouncementOrganizationLogo(item);
+    return {
+        id: item.event_id,
+        title: item.title,
+        date: formatStudentEventDateLabel(item.event_datetime),
+        dateRaw: item.event_datetime,
+        org: item.org,
+        desc: item.event_description || item.content,
+        description: item.event_description || item.content,
+        time: formatStudentEventTimeLabel(item.event_datetime),
+        venue: item.event_location || 'TBA',
+        location: item.event_location || 'TBA',
+        participants: Number(item.event_participants || 0),
+        img: image,
+        gallery: gallery.length ? gallery : [image].filter(Boolean),
+        isPublished: true
+    };
+}
+
+function renderStudentAnnouncementOrganizationFilter() {
+    const select = document.getElementById('student-announcement-organization-filter');
+    if (!select) return;
+    const currentValue = studentAnnouncementFeedState.orgId;
+    select.innerHTML = '<option value="">All organizations</option>' +
+        studentAnnouncementFeedState.organizations.map(org => {
+            const label = org.org_code
+                ? `${org.org_name} (${org.org_code})`
+                : org.org_name;
+            return `<option value="${Number(org.org_id)}">${escapeHtml(label)}</option>`;
+        }).join('');
+    select.value = currentValue;
+}
+
+function renderStudentAnnouncementFeed() {
+    const feed = document.getElementById('student-announcement-feed');
+    const loadMore = document.getElementById('student-announcement-load-more');
+    if (!feed) return;
+
+    const items = studentAnnouncementFeedState.items;
+    if (!items.length) {
+        feed.innerHTML = `
+            <div class="student-announcement-feed-state">
+                <i class="fa-regular fa-folder-open"></i>
+                <strong>No announcements found</strong>
+                <span>Try changing your search or filters.</span>
+            </div>`;
+        if (loadMore) loadMore.hidden = true;
+        return;
+    }
+
+    feed.innerHTML = items.map(item => {
+        const isEvent = Boolean(item.event_id);
+        const photos = Array.isArray(item.gallery) ? item.gallery : [];
+        const logo = getStudentAnnouncementOrganizationLogo(item);
+        const initials = String(item.orgCode || item.org || 'ORG')
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map(word => word[0])
+            .join('')
+            .toUpperCase();
+        const published = parseStudentAnnouncementDate(item.dateRaw);
+        const updated = parseStudentAnnouncementDate(item.updated_at);
+        const wasEdited = Boolean(
+            published && updated && updated.getTime() - published.getTime() > 1000
+        );
+        const participationStatus = isEvent ? getEventParticipationStatus(item.title, item.event_id) : '';
+        const registered = Boolean(participationStatus);
+        return `
+            <article class="student-announcement-card">
+                <header class="student-announcement-card-header">
+                    <div class="student-announcement-org-avatar">
+                        ${logo
+                            ? `<img src="${escapeHtml(logo)}" alt="${escapeHtml(item.org)} logo"
+                                onerror="this.hidden=true; this.nextElementSibling.hidden=false">
+                               <span hidden>${escapeHtml(initials || 'ORG')}</span>`
+                            : `<span>${escapeHtml(initials || 'ORG')}</span>`}
+                    </div>
+                    <div class="student-announcement-identity">
+                        <strong>${escapeHtml(item.org)}</strong>
+                        <span>${escapeHtml(item.date)}${wasEdited ? ' · Edited' : ''}</span>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm"
+                        onclick="openStudentAnnouncementDetail(${Number(item.id)})">
+                        <i class="fa-regular fa-eye"></i> View Details
+                    </button>
+                </header>
+                <div class="student-announcement-badges">
+                    <span class="student-announcement-type-badge ${isEvent ? 'is-event' : ''}">
+                        <i class="fa-solid ${isEvent ? 'fa-calendar-days' : 'fa-bullhorn'}"></i>
+                        ${isEvent ? 'Event' : 'Announcement'}
+                    </span>
+                    <span class="student-announcement-audience-badge">
+                        <i class="fa-solid fa-users"></i>
+                        ${escapeHtml(getStudentAnnouncementAudienceLabel(item))}
+                    </span>
+                </div>
+                <h3>${escapeHtml(item.title)}</h3>
+                <p class="student-announcement-card-content">${escapeHtml(item.content)}</p>
+                ${photos.length ? `
+                    <button type="button" class="student-announcement-feed-photo"
+                        onclick="openStudentAnnouncementPhotos(${Number(item.id)})"
+                        aria-label="View announcement photos">
+                        <img src="${escapeHtml(photos[0])}" alt="${escapeHtml(item.title)} photo">
+                        ${photos.length > 1 ? `
+                            <span><i class="fa-regular fa-images"></i> ${photos.length} photos</span>
+                        ` : ''}
+                    </button>
+                ` : ''}
+                ${isEvent ? `
+                    <div class="student-announcement-event-details">
+                        <span><i class="fa-regular fa-calendar"></i>${escapeHtml(item.event_datetime ? formatStudentAnnouncementDateLabel(item.event_datetime) : 'Date TBA')}</span>
+                        <span><i class="fa-regular fa-clock"></i>${escapeHtml(formatStudentEventTimeLabel(item.event_datetime))}</span>
+                        <span><i class="fa-solid fa-location-dot"></i>${escapeHtml(item.event_location || 'Venue TBA')}</span>
+                    </div>
+                    <div class="student-announcement-event-actions">
+                        <button type="button" class="btn btn-outline btn-sm"
+                            onclick="openStudentAnnouncementEvent(${Number(item.id)})">
+                            <i class="fa-regular fa-calendar-check"></i> View Event
+                        </button>
+                        <button type="button"
+                            class="btn btn-primary btn-sm ${registered ? 'registered' : ''}"
+                            data-registration-title="${escapeHtml(item.title)}"
+                            data-registration-event-id="${Number(item.id || 0)}"
+                            onclick="registerForStudentAnnouncementEvent(${Number(item.id)})"
+                            ${registered ? 'disabled' : ''}>
+                            ${participationStatus === 'attended'
+                                ? 'Attended <i class="fa-solid fa-check"></i>'
+                                : registered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}
+                        </button>
+                    </div>
+                ` : ''}
+            </article>`;
+    }).join('');
+
+    if (loadMore) {
+        loadMore.hidden = !studentAnnouncementFeedState.hasMore;
+        loadMore.disabled = studentAnnouncementFeedState.loading;
+    }
+}
+
+async function fetchStudentAnnouncementFeed({ append = false, silent = false, limit = 10, skipIfBusy = false } = {}) {
+    if (studentAnnouncementFeedState.loading && (append || skipIfBusy)) return;
+    const requestId = ++studentAnnouncementFeedState.requestId;
+    studentAnnouncementFeedState.loading = true;
+    const feed = document.getElementById('student-announcement-feed');
+    const loadMore = document.getElementById('student-announcement-load-more');
+    if (!append && !silent && feed) {
+        feed.innerHTML = `
+            <div class="student-announcement-feed-state">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>Loading announcements...</span>
+            </div>`;
+    }
+    if (loadMore) loadMore.disabled = true;
+
+    try {
+        const requestedLimit = Math.min(50, Math.max(10, Number(limit) || 10));
+        const params = new URLSearchParams({ limit: String(requestedLimit) });
+        if (studentAnnouncementFeedState.query) params.set('q', studentAnnouncementFeedState.query);
+        if (studentAnnouncementFeedState.orgId) params.set('org_id', studentAnnouncementFeedState.orgId);
+        if (studentAnnouncementFeedState.type) params.set('type', studentAnnouncementFeedState.type);
+        if (append && studentAnnouncementFeedState.cursor) {
+            params.set('cursor', studentAnnouncementFeedState.cursor);
+        }
+
+        const response = await fetch(`${STUDENT_ANNOUNCEMENTS_API}?${params.toString()}`, {
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load announcements.');
+        }
+        if (requestId !== studentAnnouncementFeedState.requestId) return;
+
+        const previousSignature = silent && !append
+            ? JSON.stringify({
+                items: studentAnnouncementFeedState.items,
+                organizations: studentAnnouncementFeedState.organizations,
+                cursor: studentAnnouncementFeedState.cursor,
+                hasMore: studentAnnouncementFeedState.hasMore
+            })
+            : '';
+        const incoming = (Array.isArray(data.items) ? data.items : []).map(mapDatabaseAnnouncement);
+        if (append) {
+            const existingIds = new Set(studentAnnouncementFeedState.items.map(item => Number(item.id)));
+            studentAnnouncementFeedState.items.push(
+                ...incoming.filter(item => !existingIds.has(Number(item.id)))
+            );
+        } else {
+            studentAnnouncementFeedState.items = incoming;
+        }
+        studentAnnouncementFeedState.cursor = data.next_cursor || '';
+        studentAnnouncementFeedState.hasMore = Boolean(data.has_more);
+        studentAnnouncementFeedState.organizations = Array.isArray(data.organizations)
+            ? data.organizations
+            : studentAnnouncementFeedState.organizations;
+        studentAnnouncementFeedState.initialized = true;
+        const currentSignature = silent && !append
+            ? JSON.stringify({
+                items: studentAnnouncementFeedState.items,
+                organizations: studentAnnouncementFeedState.organizations,
+                cursor: studentAnnouncementFeedState.cursor,
+                hasMore: studentAnnouncementFeedState.hasMore
+            })
+            : '';
+        if (!silent || append || previousSignature !== currentSignature) {
+            renderStudentAnnouncementOrganizationFilter();
+            renderStudentAnnouncementFeed();
+        }
+    } catch (error) {
+        if (requestId !== studentAnnouncementFeedState.requestId) return;
+        console.error('[fetchStudentAnnouncementFeed]', error);
+        if (!append && !silent && feed) {
+            feed.innerHTML = `
+                <div class="student-announcement-feed-state is-error">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <strong>Announcements could not be loaded</strong>
+                    <span>${escapeHtml(error.message || 'Please try again.')}</span>
+                    <button type="button" class="btn btn-outline btn-sm"
+                        onclick="fetchStudentAnnouncementFeed()">Try Again</button>
+                </div>`;
+        } else if (append && typeof showToast === 'function') {
+            showToast(error.message || 'Could not load more announcements.');
+        }
+    } finally {
+        if (requestId !== studentAnnouncementFeedState.requestId) return;
+        studentAnnouncementFeedState.loading = false;
+        if (loadMore) loadMore.disabled = false;
+    }
+}
+
+function resetStudentAnnouncementFeed() {
+    studentAnnouncementFeedState.cursor = '';
+    studentAnnouncementFeedState.hasMore = false;
+    fetchStudentAnnouncementFeed();
+}
+
+function loadMoreStudentAnnouncements() {
+    if (!studentAnnouncementFeedState.hasMore) return;
+    fetchStudentAnnouncementFeed({ append: true });
+}
+
+function setupStudentAnnouncementFeed() {
+    const search = document.getElementById('student-announcement-search');
+    const organizationFilter = document.getElementById('student-announcement-organization-filter');
+    const typeFilter = document.getElementById('student-announcement-type-filter');
+
+    search?.addEventListener('input', () => {
+        clearTimeout(studentAnnouncementFeedState.searchTimer);
+        studentAnnouncementFeedState.searchTimer = setTimeout(() => {
+            studentAnnouncementFeedState.query = search.value.trim();
+            resetStudentAnnouncementFeed();
+        }, 300);
+    });
+    organizationFilter?.addEventListener('change', () => {
+        studentAnnouncementFeedState.orgId = organizationFilter.value;
+        resetStudentAnnouncementFeed();
+    });
+    typeFilter?.addEventListener('change', () => {
+        studentAnnouncementFeedState.type = typeFilter.value;
+        resetStudentAnnouncementFeed();
+    });
+}
+
+function openStudentAnnouncementDetail(announcementId) {
+    const item = getStudentAnnouncementFeedItem(announcementId);
+    const modal = document.getElementById('announcementDetailModal');
+    const title = document.getElementById('announcement-detail-title');
+    const content = document.getElementById('announcement-detail-content');
+    if (!item || !modal || !title || !content) return;
+
+    const isEvent = Boolean(item.event_id);
+    const photos = Array.isArray(item.gallery) ? item.gallery : [];
+    announcementDetailCarouselState.photos = photos;
+    announcementDetailCarouselState.index = 0;
+    title.textContent = item.title;
+
+    const heroMarkup = photos.length
+        ? `<div class="announcement-detail-hero">
+                <img id="announcement-detail-hero-img" src="${escapeHtml(photos[0])}" alt="Announcement photo 1">
+                <button type="button" class="announcement-detail-arrow announcement-detail-prev"
+                    onclick="moveAnnouncementDetailPhoto(-1)" aria-label="Previous photo">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <button type="button" class="announcement-detail-arrow announcement-detail-next"
+                    onclick="moveAnnouncementDetailPhoto(1)" aria-label="Next photo">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <div class="announcement-detail-dots" id="announcement-detail-dots"></div>
+            </div>`
+        : `<div class="announcement-detail-hero announcement-detail-hero-empty">
+                <i class="fa-regular fa-image"></i>
+            </div>`;
+
+    const eventDetailsMarkup = isEvent ? `
+        <div class="announcement-detail-event">
+            <h4>Event Details</h4>
+            <div class="announcement-detail-info-grid">
+                <div class="announcement-detail-info-item">
+                    <i class="fa-regular fa-calendar"></i>
+                    <div>
+                        <span>Date</span>
+                        <strong>${escapeHtml(item.event_datetime ? formatStudentAnnouncementDateLabel(item.event_datetime) : 'TBA')}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-regular fa-clock"></i>
+                    <div>
+                        <span>Time</span>
+                        <strong>${escapeHtml(formatStudentEventTimeLabel(item.event_datetime))}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <div>
+                        <span>Venue</span>
+                        <strong>${escapeHtml(item.event_location || 'TBA')}</strong>
+                    </div>
+                </div>
+                <div class="announcement-detail-info-item">
+                    <i class="fa-solid fa-users"></i>
+                    <div>
+                        <span>Participants</span>
+                        <strong>${Number(item.event_participants || 0)} Registered</strong>
+                    </div>
+                </div>
+            </div>
+        </div>` : '';
+
+    content.innerHTML = `
+        ${heroMarkup}
+        <div class="announcement-detail-info-grid">
+            <div class="announcement-detail-info-item">
+                <i class="fa-regular fa-calendar"></i>
+                <div>
+                    <span>Published</span>
+                    <strong>${escapeHtml(item.date)}</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-solid fa-bullhorn"></i>
+                <div>
+                    <span>Status</span>
+                    <strong>Published</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-solid fa-users"></i>
+                <div>
+                    <span>Audience</span>
+                    <strong>${escapeHtml(getStudentAnnouncementAudienceLabel(item))}</strong>
+                </div>
+            </div>
+            <div class="announcement-detail-info-item">
+                <i class="fa-solid fa-sitemap"></i>
+                <div>
+                    <span>Organization</span>
+                    <strong>${escapeHtml(item.org)}</strong>
+                </div>
+            </div>
+        </div>
+        <div class="announcement-detail-about">
+            <h4>About this Announcement</h4>
+            <p>${escapeHtml(item.content)}</p>
+        </div>
+        ${eventDetailsMarkup}
+        <div class="announcement-detail-photo-summary">
+            ${photos.length ? `${photos.length} photo${photos.length === 1 ? '' : 's'} attached` : 'No photos attached'}
+        </div>`;
+    renderAnnouncementDetailCarousel();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function renderAnnouncementDetailCarousel() {
+    const modal = document.getElementById('announcementDetailModal');
+    const image = document.getElementById('announcement-detail-hero-img');
+    const dots = document.getElementById('announcement-detail-dots');
+    const prevButton = modal?.querySelector('.announcement-detail-prev');
+    const nextButton = modal?.querySelector('.announcement-detail-next');
+    const { photos, index } = announcementDetailCarouselState;
+    if (!image || !dots || !photos.length) return;
+
+    image.src = photos[index];
+    image.alt = `Announcement photo ${index + 1}`;
+    dots.innerHTML = photos.map((_, dotIndex) => `
+        <button type="button" class="${dotIndex === index ? 'active' : ''}"
+            onclick="setAnnouncementDetailPhoto(${dotIndex})"
+            aria-label="Show photo ${dotIndex + 1}"></button>
+    `).join('');
+    const hasMultiplePhotos = photos.length > 1;
+    if (prevButton) prevButton.hidden = !hasMultiplePhotos;
+    if (nextButton) nextButton.hidden = !hasMultiplePhotos;
+}
+
+function moveAnnouncementDetailPhoto(direction) {
+    const total = announcementDetailCarouselState.photos.length;
+    if (!total) return;
+    announcementDetailCarouselState.index =
+        (announcementDetailCarouselState.index + direction + total) % total;
+    renderAnnouncementDetailCarousel();
+}
+
+function setAnnouncementDetailPhoto(index) {
+    if (index < 0 || index >= announcementDetailCarouselState.photos.length) return;
+    announcementDetailCarouselState.index = index;
+    renderAnnouncementDetailCarousel();
+}
+
+function closeStudentAnnouncementDetail() {
+    const modal = document.getElementById('announcementDetailModal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    announcementDetailCarouselState.photos = [];
+    announcementDetailCarouselState.index = 0;
+    document.body.style.overflow = '';
+}
+
+function openStudentAnnouncementPhotos(announcementId, startIndex = 0) {
+    const item = getStudentAnnouncementFeedItem(announcementId);
+    const modal = document.getElementById('studentAnnouncementPhotoModal');
+    if (!item?.gallery?.length || !modal) return;
+    studentAnnouncementPhotoState.photos = item.gallery;
+    studentAnnouncementPhotoState.index = Math.max(
+        0,
+        Math.min(Number(startIndex) || 0, item.gallery.length - 1)
+    );
+    studentAnnouncementPhotoState.title = item.title;
+    renderStudentAnnouncementPhotoCarousel();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function renderStudentAnnouncementPhotoCarousel() {
+    const image = document.getElementById('student-announcement-photo-image');
+    const dots = document.getElementById('student-announcement-photo-dots');
+    const count = document.getElementById('student-announcement-photo-count');
+    const modal = document.getElementById('studentAnnouncementPhotoModal');
+    const { photos, index, title } = studentAnnouncementPhotoState;
+    if (!image || !dots || !count || !modal || !photos.length) return;
+
+    image.src = photos[index];
+    image.alt = `${title} photo ${index + 1}`;
+    count.textContent = `${index + 1} / ${photos.length}`;
+    dots.innerHTML = photos.map((_, dotIndex) => `
+        <button type="button" class="${dotIndex === index ? 'active' : ''}"
+            onclick="setStudentAnnouncementPhoto(${dotIndex})"
+            aria-label="Show photo ${dotIndex + 1}"></button>
+    `).join('');
+    modal.querySelectorAll('.student-announcement-photo-arrow').forEach(button => {
+        button.hidden = photos.length < 2;
+    });
+    dots.hidden = photos.length < 2;
+}
+
+function moveStudentAnnouncementPhoto(direction) {
+    const total = studentAnnouncementPhotoState.photos.length;
+    if (!total) return;
+    studentAnnouncementPhotoState.index =
+        (studentAnnouncementPhotoState.index + direction + total) % total;
+    renderStudentAnnouncementPhotoCarousel();
+}
+
+function setStudentAnnouncementPhoto(index) {
+    if (index < 0 || index >= studentAnnouncementPhotoState.photos.length) return;
+    studentAnnouncementPhotoState.index = index;
+    renderStudentAnnouncementPhotoCarousel();
+}
+
+function closeStudentAnnouncementPhotos() {
+    const modal = document.getElementById('studentAnnouncementPhotoModal');
+    const image = document.getElementById('student-announcement-photo-image');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    if (image) image.removeAttribute('src');
+    studentAnnouncementPhotoState.photos = [];
+    studentAnnouncementPhotoState.index = 0;
+    studentAnnouncementPhotoState.title = '';
+    document.body.style.overflow =
+        document.getElementById('announcementDetailModal')?.classList.contains('open')
+            ? 'hidden'
+            : '';
+}
+
+function openStudentAnnouncementEvent(announcementId) {
+    const event = getStudentAnnouncementEvent(getStudentAnnouncementFeedItem(announcementId));
+    if (event) openEventDetailsModal(event);
+}
+
+function registerForStudentAnnouncementEvent(announcementId) {
+    const item = getStudentAnnouncementFeedItem(announcementId);
+    if (!item?.event_id) return;
+    openRegistrationModal(item.title, item.event_id);
+}
+
+document.addEventListener('click', (event) => {
+    const detailModal = document.getElementById('announcementDetailModal');
+    const photoModal = document.getElementById('studentAnnouncementPhotoModal');
+    if (event.target === detailModal) closeStudentAnnouncementDetail();
+    if (event.target === photoModal) closeStudentAnnouncementPhotos();
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const photoModal = document.getElementById('studentAnnouncementPhotoModal');
+    const detailModal = document.getElementById('announcementDetailModal');
+    if (photoModal?.classList.contains('open')) {
+        closeStudentAnnouncementPhotos();
+    } else if (detailModal?.classList.contains('open')) {
+        closeStudentAnnouncementDetail();
+    }
+});
+
+async function loadStudentEventsFromApi() {
+    try {
+        const response = await fetch(STUDENT_EVENTS_API, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load events.');
+        }
+        databaseEvents = (Array.isArray(data.items) ? data.items : []).map(mapDatabaseEvent);
+        renderDashboard();
+        initDashboardCarousel();
+        const activeOrgTab = document.querySelector('.tab-btn.active[onclick*="switchOrgTab(\'events\'"]');
+        if (activeOrgTab) {
+            switchOrgTab('events', activeOrgTab);
+        }
+    } catch (error) {
+        console.error('[loadStudentEventsFromApi]', error);
+        databaseEvents = [];
+    }
+}
+
+async function loadStudentRecentActivity() {
+    try {
+        const response = await fetch(`${STUDENT_RECENT_ACTIVITY_API}?limit=${STUDENT_RECENT_ACTIVITY_DISPLAY_LIMIT}`, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load recent activity.');
+        }
+        databaseRecentActivity = (Array.isArray(data.items) ? data.items : [])
+            .slice(0, STUDENT_RECENT_ACTIVITY_DISPLAY_LIMIT);
+    } catch (error) {
+        console.error('[loadStudentRecentActivity]', error);
+        databaseRecentActivity = [];
+    }
+    renderStudentRecentActivity();
+    return databaseRecentActivity;
+}
+
+function formatStudentAlertStatus(status) {
+    return String(status || 'active')
+        .replace(/^locker_/, '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function renderStudentAlertSection(title, items, emptyMessage) {
+    const safeItems = Array.isArray(items) ? items : [];
+    return `
+        <section class="notif-section" aria-label="${escapeHtml(title)}">
+            <div class="notif-section-heading">
+                <h3>${escapeHtml(title)}</h3>
+                <span class="notif-section-count">${safeItems.length}</span>
+            </div>
+            ${safeItems.length ? safeItems.map((item) => `
+                <button type="button" class="notif-item" data-student-alert-id="${escapeHtml(item.id || '')}"
+                    data-severity="${escapeHtml(item.severity || 'info')}">
+                    <span class="notif-item-icon">
+                        <i class="fa-solid ${getStudentNotificationIcon(item.source_type)}"></i>
+                    </span>
+                    <span class="notif-item-copy">
+                        <strong>${escapeHtml(item.title || 'Transaction update')}</strong>
+                        <p>${escapeHtml(item.message || '')}</p>
+                        <small>${escapeHtml(formatStudentRelativeTime(item.activity_at))} &middot; ${escapeHtml(formatStudentAlertStatus(item.status))}</small>
+                    </span>
+                    <i class="fa-solid fa-chevron-right notif-item-arrow" aria-hidden="true"></i>
+                </button>
+            `).join('') : `<div class="notif-empty-section">${escapeHtml(emptyMessage)}</div>`}
+        </section>`;
+}
+
+const STUDENT_RESOLVED_ALERT_STATUSES = new Set([
+    'returned', 'returned_late', 'cancelled', 'no_show', 'released',
+    'rejected', 'claimed', 'checked_in', 'checked_out', 'registered'
+]);
+
+function isStudentAttentionUnresolved(item) {
+    return Boolean(item?.is_unresolved)
+        && !STUDENT_RESOLVED_ALERT_STATUSES.has(String(item?.status || '').trim().toLowerCase());
+}
+
+function renderStudentAlerts(items) {
+    studentAlertItems = Array.isArray(items) ? items : [];
+    const attentionItems = studentAlertItems.filter(isStudentAttentionUnresolved);
+    const recentItems = studentAlertItems.filter((item) =>
+        !item?.is_unresolved && isStudentNotificationFromToday(item)
+    );
+
+    const countEl = document.getElementById('student-notif-count');
+    if (countEl) {
+        const count = attentionItems.length;
+        countEl.textContent = count > 99 ? '99+' : String(count);
+        countEl.hidden = count === 0;
+        countEl.setAttribute('aria-label', `${count} item${count === 1 ? '' : 's'} need attention`);
+    }
+
+    const body = document.getElementById('student-notif-drawer-body');
+    if (body) {
+        body.innerHTML = [
+            renderStudentAlertSection('Needs attention', attentionItems, 'Nothing requires your attention right now.'),
+            renderStudentAlertSection('Recent activity', recentItems, 'No completed transaction updates today.'),
+        ].join('');
+    }
+
+    const updatedEl = document.getElementById('student-notif-last-updated');
+    if (updatedEl) {
+        updatedEl.textContent = `Updated ${new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit'
+        })}`;
+    }
+}
+
+async function loadStudentTransactionNotifications(showFeedback = false) {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        databaseTransactionNotifications = [];
+        studentAlertItems = [];
+        studentNotificationsLoaded = true;
+        studentNotificationsFailed = false;
+        renderDashboard();
+        return databaseTransactionNotifications;
+    }
+
+    if (studentAlertsRequest) return studentAlertsRequest;
+    studentAlertsRequest = (async () => {
+        const drawerBody = document.getElementById('student-notif-drawer-body');
+        if (showFeedback && drawerBody) {
+            drawerBody.innerHTML = `
+                <div class="notif-state">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span>Refreshing alerts...</span>
+                </div>`;
+        }
+
+        try {
+            const response = await fetch(STUDENT_NOTIFICATIONS_API, {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load transaction notifications.');
+            }
+
+            const allItems = Array.isArray(data.items) ? data.items : [];
+            databaseTransactionNotifications = allItems.filter((item) =>
+                isStudentAttentionUnresolved(item) || (!item?.is_unresolved && isStudentNotificationFromToday(item))
+            );
+            studentNotificationsFailed = false;
+            renderStudentAlerts(allItems);
+            syncStudentNotificationToasts(databaseTransactionNotifications);
+        } catch (error) {
+            console.error('[loadStudentTransactionNotifications]', error);
+            databaseTransactionNotifications = [];
+            studentNotificationsFailed = true;
+            if (drawerBody) {
+                drawerBody.innerHTML = `
+                    <div class="notif-state">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <strong>Alerts unavailable</strong>
+                        <span>${escapeHtml(error.message || 'Please try again.')}</span>
+                        <button type="button" onclick="loadStudentTransactionNotifications(true)">Try again</button>
+                    </div>`;
+            }
+            if (showFeedback) {
+                showToast(error.message || 'Could not refresh alerts.', 'error');
+            }
+        } finally {
+            studentNotificationsLoaded = true;
+            renderDashboard();
+            studentAlertsRequest = null;
+        }
+
+        return databaseTransactionNotifications;
+    })();
+
+    return studentAlertsRequest;
+}
+
+function formatStudentRelativeTime(dateValue) {
+    const date = parseStudentAnnouncementDate(dateValue);
+    if (!date) return '';
+    const difference = Math.max(0, Date.now() - date.getTime());
+    const minutes = Math.floor(difference / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getStudentManilaDateKey(dateValue) {
+    const date = dateValue instanceof Date ? dateValue : parseStudentAnnouncementDate(dateValue);
+    if (!date) return '';
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isStudentNotificationFromToday(item) {
+    return getStudentManilaDateKey(item?.activity_at) === getStudentManilaDateKey(new Date());
+}
+
+function toggleStudentAlerts(event) {
+    event?.stopPropagation();
+    const drawer = document.getElementById('student-notif-dropdown');
+    if (drawer?.classList.contains('show')) {
+        closeStudentAlerts();
+    } else {
+        openStudentAlerts();
+    }
+}
+
+function openStudentAlerts() {
+    const drawer = document.getElementById('student-notif-dropdown');
+    const backdrop = document.getElementById('student-notif-backdrop');
+    const trigger = document.getElementById('student-notif-trigger');
+    if (!drawer || !backdrop || !trigger) return;
+
+    studentAlertsPreviousFocus = document.activeElement;
+    drawer.classList.add('show');
+    drawer.setAttribute('aria-hidden', 'false');
+    trigger.classList.add('is-active');
+    trigger.setAttribute('aria-expanded', 'true');
+    backdrop.hidden = false;
+    document.body.classList.add('notif-drawer-open');
+    window.requestAnimationFrame(() => {
+        drawer.querySelector('.notif-close-btn')?.focus();
+    });
+}
+
+function closeStudentAlerts() {
+    const drawer = document.getElementById('student-notif-dropdown');
+    const backdrop = document.getElementById('student-notif-backdrop');
+    const trigger = document.getElementById('student-notif-trigger');
+    if (!drawer) return;
+
+    drawer.classList.remove('show');
+    drawer.setAttribute('aria-hidden', 'true');
+    trigger?.classList.remove('is-active');
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('notif-drawer-open');
+
+    if (studentAlertsPreviousFocus instanceof HTMLElement) {
+        studentAlertsPreviousFocus.focus();
+    }
+    studentAlertsPreviousFocus = null;
+}
+
+function focusStudentAlertTarget(target) {
+    if (!target) return false;
+    target.classList.add('student-alert-target');
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => target.classList.remove('student-alert-target'), 2600);
+    return true;
+}
+
+async function openStudentAlertTarget(item) {
+    const target = item?.target || {};
+    const entityId = Number(target.entity_id || item?.source_id || 0);
+    closeStudentAlerts();
+
+    try {
+        if (target.action === 'open_event') {
+            if (!databaseEvents.length) await loadStudentEventsFromApi();
+            const eventItem = databaseEvents.find((entry) =>
+                Number(entry.id) === entityId
+                || String(entry.title || '') === String(target.entity_name || '')
+            );
+            if (!eventItem) throw new Error('This event is no longer available.');
+            navigateToEventDetails(eventItem.title);
+            return;
+        }
+
+        if (!['open_rental', 'open_locker', 'open_printing'].includes(target.action)) return;
+        navigate('services');
+
+        const rentalsModuleButton = document.querySelector('#servicesModuleNav [data-module="rentals"]');
+        if (rentalsModuleButton) switchServiceModule('rentals', rentalsModuleButton);
+
+        const recentButton = document.querySelector('#services .tab-btn[onclick*="my-rentals"]');
+        if (recentButton) switchServiceTab('my-rentals', recentButton);
+
+        await Promise.all([
+            loadCurrentRentals(),
+            loadRentalHistory(),
+            loadStudentPrintJobs().catch(() => []),
+        ]);
+        renderRentalHistory();
+
+        const selector = target.action === 'open_printing'
+            ? `[data-print-job-id="${entityId}"]`
+            : `[data-rental-id="${entityId}"]`;
+        const matchingRecords = Array.from(document.querySelectorAll(selector));
+        const record = matchingRecords.find((element) => element.offsetParent !== null)
+            || matchingRecords[0];
+        if (!focusStudentAlertTarget(record)) {
+            throw new Error('This transaction is no longer available.');
+        }
+    } catch (error) {
+        showToast(error.message || 'Could not open this alert.', 'error');
+        loadStudentTransactionNotifications();
+    }
+}
+
+document.addEventListener('click', (event) => {
+    const alertButton = event.target.closest('[data-student-alert-id]');
+    if (!alertButton) return;
+    const item = studentAlertItems.find((entry) =>
+        String(entry.id || '') === String(alertButton.dataset.studentAlertId || '')
+    );
+    if (item) openStudentAlertTarget(item);
+});
+
+document.addEventListener('keydown', (event) => {
+    const drawer = document.getElementById('student-notif-dropdown');
+    if (!drawer?.classList.contains('show')) return;
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeStudentAlerts();
+        return;
+    }
+
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(drawer.querySelectorAll(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter((element) => !element.hidden);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+});
+
+function getStudentActivityIcon(activityType) {
+    const icons = {
+        printing: 'fa-print',
+        rental: 'fa-box-open',
+        locker: 'fa-lock',
+        event: 'fa-calendar-check',
+        membership: 'fa-user-plus'
+    };
+    return icons[String(activityType || '').toLowerCase()] || 'fa-clock-rotate-left';
+}
+
+function getStudentNotificationIcon(sourceType) {
+    const icons = {
+        rental: 'fa-box-open',
+        locker: 'fa-lock',
+        attendance: 'fa-calendar-check',
+        printing: 'fa-print'
+    };
+    return icons[String(sourceType || '').toLowerCase()] || 'fa-bell';
+}
+
+function getStudentNotificationTypeLabel(sourceType) {
+    const labels = {
+        rental: 'Equipment',
+        locker: 'Locker',
+        attendance: 'Attendance',
+        printing: 'Printing'
+    };
+    return labels[String(sourceType || '').toLowerCase()] || 'Transaction';
+}
+
+function getStudentNotificationToastStorageKey() {
+    const session = typeof readAuthSession === 'function' ? readAuthSession() : {};
+    return `naapStudentNotificationToastsSeen:${session.user_id || 'student'}`;
+}
+
+function readSeenStudentNotificationToastIds() {
+    try {
+        const value = JSON.parse(sessionStorage.getItem(getStudentNotificationToastStorageKey()) || '[]');
+        return Array.isArray(value) ? value.map(String) : [];
+    } catch (_error) {
+        return [];
+    }
+}
+
+function syncStudentNotificationToasts(items) {
+    const seenIds = new Set(readSeenStudentNotificationToastIds());
+    const unseenItems = (Array.isArray(items) ? items : [])
+        .filter((item) => item?.id && !seenIds.has(String(item.id)));
+
+    // The feed remains the complete source of truth; cap each popup burst so a
+    // student returning after several transactions is not flooded with toasts.
+    unseenItems.slice(0, 5).forEach((item) => studentNotificationToastQueue.push(item));
+    unseenItems.forEach((item) => seenIds.add(String(item.id)));
+    try {
+        sessionStorage.setItem(
+            getStudentNotificationToastStorageKey(),
+            JSON.stringify(Array.from(seenIds).slice(-100))
+        );
+    } catch (_error) {
+        // Popups still work when session storage is unavailable.
+    }
+
+    processStudentNotificationToastQueue();
+}
+
+function processStudentNotificationToastQueue() {
+    const container = document.getElementById('studentNotificationToastContainer');
+    if (!container) return;
+
+    while (studentNotificationToastQueue.length && activeStudentNotificationToastCount < 3) {
+        const item = studentNotificationToastQueue.shift();
+        showStudentNotificationToast(item);
+    }
+}
+
+function showStudentNotificationToast(item) {
+    const container = document.getElementById('studentNotificationToastContainer');
+    if (!container || !item) return;
+
+    const severity = ['danger', 'urgent', 'warning', 'info', 'success'].includes(String(item.severity || '').toLowerCase())
+        ? String(item.severity).toLowerCase()
+        : 'info';
+    const sourceType = String(item.source_type || '').toLowerCase();
+    const icon = getStudentNotificationIcon(sourceType);
+    const toast = document.createElement('article');
+    toast.className = `student-notification-toast severity-${severity}`;
+    toast.setAttribute('role', severity === 'danger' || severity === 'urgent' ? 'alert' : 'status');
+    toast.innerHTML = `
+        <div class="student-notification-toast-icon"><i class="fa-solid ${icon}"></i></div>
+        <div class="student-notification-toast-content">
+            <div class="student-notification-toast-meta">${escapeHtml(item.organization || 'Organization')} &middot; ${escapeHtml(getStudentNotificationTypeLabel(sourceType))}</div>
+            <strong>${escapeHtml(item.title || 'Transaction update')}</strong>
+            <p>${escapeHtml(item.message || '')}</p>
+        </div>
+        <button type="button" class="student-notification-toast-close" aria-label="Dismiss notification">
+            <i class="fa-solid fa-xmark"></i>
+        </button>`;
+
+    let removed = false;
+    const dismiss = () => {
+        if (removed) return;
+        removed = true;
+        toast.classList.remove('show');
+        window.setTimeout(() => {
+            toast.remove();
+            activeStudentNotificationToastCount = Math.max(0, activeStudentNotificationToastCount - 1);
+            processStudentNotificationToastQueue();
+        }, 250);
+    };
+
+    toast.querySelector('.student-notification-toast-close')?.addEventListener('click', dismiss);
+    container.appendChild(toast);
+    activeStudentNotificationToastCount += 1;
+    window.requestAnimationFrame(() => toast.classList.add('show'));
+    window.setTimeout(dismiss, severity === 'danger' || severity === 'urgent' ? 9000 : 7000);
+}
+
+function renderStudentTransactionNotifications() {
+    let body = '';
+    if (!studentNotificationsLoaded) {
+        body = `
+            <div class="transaction-notification-state">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>Loading your transaction notices...</span>
+            </div>`;
+    } else if (studentNotificationsFailed) {
+        body = `
+            <div class="transaction-notification-state is-error">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Transaction notices are temporarily unavailable.</span>
+            </div>`;
+    } else if (!databaseTransactionNotifications.length) {
+        body = `
+            <div class="transaction-notification-state">
+                <i class="fa-regular fa-circle-check"></i>
+                <span>No active or recent rental, locker, printing, or attendance notices.</span>
+            </div>`;
+    } else {
+        body = databaseTransactionNotifications.map((item) => {
+            const severity = ['danger', 'urgent', 'warning', 'info', 'success'].includes(String(item.severity || '').toLowerCase())
+                ? String(item.severity).toLowerCase()
+                : 'info';
+            const sourceType = String(item.source_type || '').toLowerCase();
+            const icon = getStudentNotificationIcon(sourceType);
+            const typeLabel = getStudentNotificationTypeLabel(sourceType);
+            const activityLabel = item.activity_at
+                ? formatStudentRelativeTime(item.activity_at)
+                : '';
+            const activityTitle = item.activity_at
+                ? formatStudentAnnouncementDateLabel(item.activity_at)
+                : '';
+
+            return `
+                <article class="list-item transaction-notification-item severity-${severity}">
+                    <div class="item-icon transaction-notification-icon"><i class="fa-solid ${icon}"></i></div>
+                    <div class="item-content">
+                        <div class="transaction-notification-meta">
+                            <span class="transaction-notification-org">${escapeHtml(item.organization || 'Organization')}</span>
+                            <span class="transaction-notification-type"><i class="fa-solid ${icon}"></i> ${escapeHtml(typeLabel)}</span>
+                        </div>
+                        <h4>${escapeHtml(item.title || 'Transaction update')}</h4>
+                        <p>${escapeHtml(item.message || '')}</p>
+                    </div>
+                    ${activityLabel ? `<span class="date-badge" title="${escapeHtml(activityTitle)}">${escapeHtml(activityLabel)}</span>` : ''}
+                </article>`;
+        }).join('');
+    }
+
+    return `
+        <section class="transaction-notification-section" aria-labelledby="student-transaction-notification-title">
+            <div class="dashboard-feed-subheading">
+                <span id="student-transaction-notification-title"><i class="fa-solid fa-bell"></i> Your Transactions</span>
+                ${databaseTransactionNotifications.length ? `<span class="transaction-notification-count">${databaseTransactionNotifications.length}</span>` : ''}
+            </div>
+            <div class="transaction-notification-list" aria-live="polite">${body}</div>
+        </section>`;
+}
+
+function renderStudentRecentActivity() {
+    const container = document.getElementById('dashboard-recent-activity');
+    if (!container) return;
+    if (!databaseRecentActivity.length) {
+        container.innerHTML = `
+            <div class="dashboard-data-empty">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>No recent activity yet.</span>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = databaseRecentActivity
+        .slice(0, STUDENT_RECENT_ACTIVITY_DISPLAY_LIMIT)
+        .map(item => `
+        <div class="list-item dashboard-activity-item">
+            <div class="item-icon"><i class="fa-solid ${getStudentActivityIcon(item.activity_type)}"></i></div>
+            <div class="item-content">
+                <h4>${escapeHtml(item.title || 'Activity')}</h4>
+                <p>${escapeHtml(item.description || '')}</p>
+            </div>
+            <span class="date-badge" title="${escapeHtml(formatStudentAnnouncementDateLabel(item.activity_at))}">${escapeHtml(formatStudentRelativeTime(item.activity_at))}</span>
+        </div>
+        `).join('');
+}
+
+function getStudentYearLevel(sectionText) {
+    const match = String(sectionText || "").match(/\d+/);
+    return match ? match[0] : "-";
+}
+
+function updateStudentProfileView() {
+    const refreshedProfile = buildCurrentStudentProfile();
+    Object.assign(currentStudentProfile, refreshedProfile);
+    const previewOrganization = getOrganizationPreviewOrgFromUrl();
+    window.OrganizationFavicon?.apply({
+        code: readAuthSession().active_org_code || '',
+        name: previewOrganization || refreshedProfile.associatedOrg
+    });
+    const rawProfilePhoto = String(refreshedProfile.profilePhoto || '');
+    const profilePhotoUrl = rawProfilePhoto && !/^(data|blob):/i.test(rawProfilePhoto)
+        ? `${rawProfilePhoto}${rawProfilePhoto.includes('?') ? '&' : '?'}v=${encodeURIComponent(rawProfilePhoto)}`
+        : rawProfilePhoto;
+
+    const courseLine = refreshedProfile.section
+        ? `${refreshedProfile.course} - ${refreshedProfile.section}`
+        : refreshedProfile.course;
+    const roleLabel = refreshedProfile.associatedOrg || "Student Organization Member";
+    const transactionsCount = getStudentScopedTransactions().length;
+
+    const userNameEl = document.getElementById("studentHeaderName") || document.querySelector(".user-info span");
+    const userCourseEl = document.getElementById("studentHeaderCourse") || document.querySelector(".user-info small");
+    const headerAvatar = document.getElementById("studentHeaderAvatar");
+    const profileAvatar = document.getElementById("studentProfileAvatar");
+    const profileName = document.getElementById("studentProfileName");
+    const profileRole = document.getElementById("studentProfileRole");
+    const yearStat = document.getElementById("studentProfileYearStat");
+    const transactionStat = document.getElementById("studentProfileTransactionStat");
+
+    if (userNameEl) userNameEl.innerText = refreshedProfile.fullName;
+    if (userCourseEl) userCourseEl.innerText = courseLine || "-";
+    if (headerAvatar) headerAvatar.src = profilePhotoUrl;
+    if (profileAvatar) profileAvatar.src = profilePhotoUrl;
+    if (profileName) profileName.innerText = refreshedProfile.fullName;
+    if (profileRole) profileRole.innerText = `Student - ${roleLabel}`;
+    if (yearStat) yearStat.innerText = getStudentYearLevel(refreshedProfile.section);
+    if (transactionStat) transactionStat.innerText = String(transactionsCount);
+
+    const profileNameInput = document.getElementById("studentProfileFullNameInput");
+    const profileStudentNumberInput = document.getElementById("studentProfileStudentNumberInput");
+    const profileEmailInput = document.getElementById("studentProfileEmailInput");
+    const profileOrganizationInput = document.getElementById("studentProfileOrganizationInput");
+    const profilePhoneInput = document.getElementById("studentProfilePhoneInput");
+    const profileCourseYearInput = document.getElementById("studentProfileCourseYearInput");
+    if (profileNameInput) profileNameInput.value = refreshedProfile.fullName;
+    if (profileStudentNumberInput) profileStudentNumberInput.value = refreshedProfile.studentNumber || "N/A";
+    if (profileEmailInput) profileEmailInput.value = refreshedProfile.email || "";
+    if (profileOrganizationInput) profileOrganizationInput.value = refreshedProfile.associatedOrg || "N/A";
+    if (profilePhoneInput) profilePhoneInput.value = refreshedProfile.phone || "N/A";
+    if (profileCourseYearInput) profileCourseYearInput.value = courseLine || "N/A";
+
+    document.title = "Student Organization Dashboard";
+}
+
+function setStudentProfileEditMode(isEditing) {
+    studentProfileEditMode = isEditing;
+    const editBtn = document.getElementById("studentProfileEditBtn");
+    const cancelBtn = document.getElementById("studentProfileCancelBtn");
+    const editableInputs = document.querySelectorAll("#profile [data-editable=\"true\"]");
+
+    editableInputs.forEach((input) => {
+        input.readOnly = !isEditing;
+    });
+
+    if (editBtn) {
+        editBtn.innerHTML = isEditing
+            ? "<i class=\"fa-solid fa-floppy-disk\"></i> Save Details"
+            : "<i class=\"fa-solid fa-pen-to-square\"></i> Edit Details";
+    }
+    if (cancelBtn) cancelBtn.hidden = !isEditing;
+}
+
+function snapshotStudentProfileValues() {
+    studentProfileSnapshot = {
+        full_name: (document.getElementById("studentProfileFullNameInput") || {}).value || "",
+        email: (document.getElementById("studentProfileEmailInput") || {}).value || "",
+        phone: (document.getElementById("studentProfilePhoneInput") || {}).value || "",
+    };
+}
+
+function restoreStudentProfileSnapshot() {
+    if (!studentProfileSnapshot) return;
+    const nameInput = document.getElementById("studentProfileFullNameInput");
+    const emailInput = document.getElementById("studentProfileEmailInput");
+    const phoneInput = document.getElementById("studentProfilePhoneInput");
+    if (nameInput) nameInput.value = studentProfileSnapshot.full_name;
+    if (emailInput) emailInput.value = studentProfileSnapshot.email;
+    if (phoneInput) phoneInput.value = studentProfileSnapshot.phone;
+}
+
+async function saveStudentProfileDetails() {
+    const fullName = (document.getElementById("studentProfileFullNameInput") || {}).value?.trim() || "";
+    const email = (document.getElementById("studentProfileEmailInput") || {}).value?.trim() || "";
+    const phone = (document.getElementById("studentProfilePhoneInput") || {}).value?.trim() || "";
+
+    if (!fullName || !email) {
+        showToast("Full name and email are required.", "error");
+        return;
+    }
+
+    const editBtn = document.getElementById("studentProfileEditBtn");
+    if (editBtn) editBtn.disabled = true;
+
+    try {
+        const resp = await fetch("../api/student/profile/update.php", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ full_name: fullName, email, phone }),
+        });
+        const data = await resp.json();
+        if (!data.ok) {
+            showToast(data.error || "Could not update profile.", "error");
+            return;
+        }
+
+        if (data.session) {
+            localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+        }
+        studentProfileSnapshot = null;
+        setStudentProfileEditMode(false);
+        updateStudentProfileView();
+        showToast("Profile updated successfully.", "success");
+    } catch (error) {
+        console.error("[saveStudentProfileDetails] error:", error);
+        showToast("Could not connect to the server.", "error");
+    } finally {
+        if (editBtn) editBtn.disabled = false;
+    }
+}
+
+function setupStudentProfileEditor() {
+    const editBtn = document.getElementById("studentProfileEditBtn");
+    const cancelBtn = document.getElementById("studentProfileCancelBtn");
+
+    if (editBtn) {
+        editBtn.addEventListener("click", async () => {
+            if (!studentProfileEditMode) {
+                snapshotStudentProfileValues();
+                setStudentProfileEditMode(true);
+                const firstEditableInput = document.querySelector("#profile [data-editable=\"true\"]");
+                if (firstEditableInput) firstEditableInput.focus();
+                return;
+            }
+            await saveStudentProfileDetails();
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener("click", () => {
+            restoreStudentProfileSnapshot();
+            setStudentProfileEditMode(false);
+        });
+    }
+
+    setStudentProfileEditMode(false);
+}
+
+function setupStudentPasswordForm() {
+    const passwordForm = document.getElementById("studentPasswordForm");
+    if (!passwordForm) return;
+
+    passwordForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const currentPassword = (document.getElementById("studentCurrentPasswordInput") || {}).value || "";
+        const newPassword = (document.getElementById("studentNewPasswordInput") || {}).value || "";
+        const confirmPassword = (document.getElementById("studentConfirmPasswordInput") || {}).value || "";
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            showToast("All password fields are required.", "error");
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showToast("New passwords do not match.", "error");
+            return;
+        }
+
+        const submitBtn = document.getElementById("studentPasswordSubmitBtn");
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+            const resp = await fetch("../api/student/profile/update-password.php", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmPassword,
+                }),
+            });
+            const data = await resp.json();
+
+            if (!data.ok) {
+                showToast(data.error || "Could not update password.", "error");
+                return;
+            }
+
+            passwordForm.reset();
+            showToast(data.message || "Password updated successfully.", "success");
+        } catch (error) {
+            console.error("[setupStudentPasswordForm] error:", error);
+            showToast("Could not connect to the server.", "error");
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    });
+}
+
+function setupStudentProfilePhotoUploader() {
+    const photoBtn = document.getElementById("studentProfilePhotoBtn");
+    const photoInput = document.getElementById("studentProfilePhotoInput");
+    if (!photoBtn || !photoInput) return;
+
+    photoBtn.addEventListener("click", () => {
+        photoInput.click();
+    });
+
+    photoInput.addEventListener("change", async () => {
+        const file = photoInput.files && photoInput.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("profile_photo", file);
+        photoBtn.disabled = true;
+
+        try {
+            const resp = await fetch("../api/student/profile/upload-photo.php", {
+                method: "POST",
+                credentials: "same-origin",
+                body: formData,
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                showToast(data.error || "Could not update profile photo.", "error");
+                return;
+            }
+
+            if (data.session) {
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(data.session));
+            } else if (data.photo_url) {
+                const session = readAuthSession();
+                session.profile_photo = data.photo_url;
+                localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+            }
+            if (data.photo_url) {
+                const authDb = readJsonStorage(AUTH_DB_KEY, {});
+                const session = data.session || readAuthSession();
+                if (Array.isArray(authDb.users) && session?.user_id) {
+                    const authUser = authDb.users.find(user => Number(user.user_id) === Number(session.user_id));
+                    if (authUser) {
+                        authUser.profile_photo = data.photo_url;
+                        localStorage.setItem(AUTH_DB_KEY, JSON.stringify(authDb));
+                    }
+                }
+            }
+
+            updateStudentProfileView();
+            showToast("Profile photo updated successfully.", "success");
+        } catch (error) {
+            console.error("[setupStudentProfilePhotoUploader] error:", error);
+            showToast("Could not connect to the server.", "error");
+        } finally {
+            photoInput.value = "";
+            photoBtn.disabled = false;
+        }
+    });
+}
+
+function syncStudentIdentity() {
+    updateStudentProfileView();
+}
+
+let activeMyOrgSection = 'home';
+let organizationBrowseContext = null;
+const myOrgOfficersState = {
+    orgName: '',
+    loading: false,
+    loaded: false,
+    error: '',
+    items: []
+};
+let currentMyOrgSearchQuery = '';
+
+function buildMyOrgSectionLabel(section) {
+    const labels = {
+        home: 'Home',
+        events: 'Events',
+        about: 'About',
+        officers: 'Officers',
+        contact: 'Contact'
+    };
+    return labels[section] || 'Home';
+}
+
+function parseOfficerEntries(officerList) {
+    return (Array.isArray(officerList) ? officerList : [])
+        .map((entry, index) => {
+            const [rolePart, ...nameParts] = String(entry || '').split(':');
+            const role = String(rolePart || '').trim() || `Officer ${index + 1}`;
+            const name = nameParts.join(':').trim() || 'TBD';
+            return { role, name };
+        });
+}
+
+function normalizeOfficerRoleName(roleName) {
+    const raw = String(roleName || '').trim();
+    if (!raw) return 'Officer';
+    return raw
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildOfficerFallbackFromProfile(profileConfig) {
+    return parseOfficerEntries(profileConfig?.officers || []).map((item, index) => ({
+        membership_id: index + 1,
+        officer_name: item.name,
+        role_name: item.role,
+        program_code: '',
+        section: '',
+        joined_at: ''
+    }));
+}
+
+function ensureMyOrgOfficersLoaded(viewModel) {
+    if (!viewModel?.organization?.name) return;
+    if (myOrgOfficersState.loading) return;
+    if (myOrgOfficersState.loaded && myOrgOfficersState.orgName === viewModel.organization.name) return;
+
+    myOrgOfficersState.orgName = viewModel.organization.name;
+    myOrgOfficersState.loading = true;
+    myOrgOfficersState.loaded = false;
+    myOrgOfficersState.error = '';
+    myOrgOfficersState.items = [];
+    const officersUrl = `../api/student/organizations/officers.php?org_name=${encodeURIComponent(viewModel.organization.name)}`;
+
+    fetch(officersUrl, { credentials: 'same-origin' })
+        .then(async (response) => {
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || `Request failed (${response.status})`);
+            }
+            myOrgOfficersState.items = Array.isArray(data.items) ? data.items : [];
+            myOrgOfficersState.loaded = true;
+        })
+        .catch((error) => {
+            console.error('load student organization officers failed', error);
+            myOrgOfficersState.error = error.message || 'Unable to load officers.';
+            myOrgOfficersState.items = [];
+            myOrgOfficersState.loaded = false;
+        })
+        .finally(() => {
+            myOrgOfficersState.loading = false;
+            const contentDiv = document.getElementById('tab-content');
+            if (contentDiv && activeMyOrgSection === 'officers') {
+                if (organizationBrowseContext?.orgName) {
+                    renderOrganizationProfileView(contentDiv, organizationBrowseContext.orgName, { browseMode: true });
+                } else {
+                    renderMyOrganizationTab(contentDiv);
+                }
+            }
+        });
+}
+
+function buildMyOrgContactProfile(orgName, organization, orgEntry) {
+    const baseSlug = String(orgName || organization?.name || 'organization')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '')
+        .replace(/^\d+|\d+$/g, '') || 'organization';
+
+    return {
+        office: 'Shared Office Blg A',
+        hours: 'Monday to Friday, 8:00 AM - 5:00 PM',
+        email: `${baseSlug}@naap.edu.ph`,
+        phone: '(02) 8123-4567',
+        facebook: `https://www.facebook.com/${baseSlug}`,
+        instagram: `https://www.instagram.com/${baseSlug}`,
+        x: `https://x.com/${baseSlug}`,
+        tiktok: `https://www.tiktok.com/@${baseSlug}`,
+        summary: orgEntry?.motto || 'Reach out for organization updates, collaborations, and student concerns.'
+    };
+}
+
+function renderMyOrgHomeSection(viewModel) {
+    const {
+        organization,
+        profileConfig,
+        heroBackgroundImage,
+        announcementEvents,
+        recentActivities,
+        relevantServices,
+        fullOrgName,
+        orgMotto,
+        formattedDate
+    } = viewModel;
+    const editPanelMarkup = viewModel.isOfficerEditMode ? renderOrgProfileEditor(viewModel) : '';
+    const heroSlidesMarkup = viewModel.bannerGalleryImages.map((image, index) => `
+        <img src="${versionOrgBannerUrl(image)}" alt="${organization.name} banner ${index + 1}" class="my-org-ref-hero-slide ${index === 0 ? 'active' : ''}">
+    `).join('');
+    const galleryButtonMarkup = viewModel.bannerGalleryImages.length > 1
+        ? `<button type="button" onclick="openOrgBannerGallery('${encodeURIComponent(organization.name)}')"><i class="fa-regular fa-images"></i> Gallery</button>`
+        : '';
+
+    const announcementMarkup = announcementEvents.map(event => `
+        <div class="my-org-ref-ann-item">
+            <img src="${viewModel.logoImage}" alt="${organization.name} logo" class="my-org-ref-ann-thumb">
+            <div>
+                <div class="my-org-ref-ann-title">Upcoming Event: ${event.title}</div>
+                <div class="my-org-ref-ann-date">${event.date}</div>
+            </div>
+            <button class="my-org-ref-pill-btn" type="button" onclick="switchMyOrgSection('events')">Read More</button>
+        </div>
+    `).join("");
+
+    const activitiesMarkup = recentActivities.length
+        ? recentActivities.map(event => `
+            <article class="my-org-ref-activity-card">
+                <img src="${event.img}" alt="${event.title}">
+                <div class="my-org-ref-activity-caption">${event.title}</div>
+            </article>
+        `).join("")
+        : `<p class="my-org-ref-empty-activities">No recent activities recorded for ${escapeHtml(organization.name)}.</p>`;
+
+    const quickFactsMarkup = `
+        <ul>
+            <li><strong>Course:</strong> ${currentStudentProfile.course}</li>
+            <li><strong>Associated Org:</strong> ${organization.name}</li>
+            <li><strong>Services:</strong> ${relevantServices.map(service => service.name).join(", ") || "No active services yet"}</li>
+            <li><strong>Core Mission:</strong> ${profileConfig.about}</li>
+        </ul>
+    `;
+
+    return `
+        <section class="my-org-ref-main">
+            <article class="my-org-ref-hero" data-org-hero-slideshow="true">
+                ${heroSlidesMarkup || `<img src="${heroBackgroundImage}" alt="${organization.name} banner" class="my-org-ref-hero-slide active">`}
+                <div class="my-org-ref-hero-overlay"></div>
+                <div class="my-org-ref-chip">${organization.category}</div>
+                <div class="my-org-ref-date">${formattedDate}</div>
+                <div class="my-org-ref-hero-content">
+                    <h2>WELCOME TO ${fullOrgName.toUpperCase()}!</h2>
+                    <p>"${orgMotto}"</p>
+                </div>
+                <div class="my-org-ref-hero-actions">
+                    ${galleryButtonMarkup}
+                    <button type="button"><i class="fa-solid fa-user-plus"></i> Join</button>
+                    <button type="button"><i class="fa-solid fa-link"></i> Share</button>
+                </div>
+            </article>
+
+            <aside class="my-org-ref-side">
+                <article class="my-org-ref-announcements">
+                    <h3>ANNOUNCEMENTS</h3>
+                    ${announcementMarkup}
+                </article>
+                <article class="my-org-ref-contact">
+                    <h3>${organization.name}</h3>
+                    <div class="my-org-ref-contact-search">
+                        <input type="text" placeholder="What are you looking for?">
+                        <button type="button"><i class="fa-solid fa-magnifying-glass"></i></button>
+                    </div>
+                    <div class="my-org-ref-socials">
+                        <a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                            <i class="fa-brands fa-facebook-f"></i>
+                        </a>
+                        <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                            <i class="fa-brands fa-instagram"></i>
+                        </a>
+                        <a href="https://x.com/" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)">
+                            <span class="x-text">X</span>
+                        </a>
+                        <a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
+                            <i class="fa-brands fa-tiktok"></i>
+                        </a>
+                    </div>
+                </article>
+            </aside>
+        </section>
+        ${editPanelMarkup}
+
+        <section class="my-org-ref-bottom">
+            <article class="my-org-ref-quickfacts">
+                <h3>QUICK FACTS</h3>
+                ${quickFactsMarkup}
+            </article>
+            <article class="my-org-ref-activities">
+                <h3>RECENT ACTIVITIES</h3>
+                <div class="my-org-ref-activities-grid">
+                    ${activitiesMarkup}
+                </div>
+            </article>
+        </section>
+    `;
+}
+
+function renderMyOrgEventsSection(viewModel) {
+    const eventsMarkup = viewModel.relevantEvents.length
+        ? viewModel.relevantEvents.map((event, index) => {
+            const participationStatus = getEventParticipationStatus(event.title, event.id);
+            const isRegistered = Boolean(participationStatus);
+            return `
+            <article class="my-org-spa-card my-org-event-card">
+                <button type="button" class="my-org-event-media" data-event-id="${escapeHtml(event.id ?? '')}" data-event-title="${escapeHtml(event.title)}" aria-label="View photos for ${escapeHtml(event.title)}">
+                    <img src="${escapeHtml(event.img)}" alt="${escapeHtml(event.title)}">
+                    <span class="my-org-event-index">Event ${String(index + 1).padStart(2, '0')}</span>
+                    <span class="my-org-event-view-chip"><i class="fa-regular fa-images"></i> View Photos</span>
+                </button>
+                <div class="my-org-event-content">
+                    <div class="my-org-event-meta">
+                        <span><i class="fa-regular fa-calendar"></i> ${event.date}</span>
+                        <span><i class="fa-regular fa-clock"></i> ${event.time || 'Time TBA'}</span>
+                        <span><i class="fa-solid fa-location-dot"></i> ${event.venue || 'Venue TBA'}</span>
+                    </div>
+                    <h3>${event.title}</h3>
+                    <p>${event.description || 'No event description available yet.'}</p>
+                    <div class="my-org-event-footer">
+                        <span class="my-org-stat-chip" style="color: #000;"><i class="fa-solid fa-users"></i> ${event.participants || 0} participants</span>
+                        <button type="button" class="my-org-ref-pill-btn ${isRegistered ? 'registered' : ''}" data-registration-title="${escapeHtml(event.title)}" data-registration-event-id="${Number(event.id || 0)}" onclick="openRegistrationModal('${escapeHtml(event.title).replace(/'/g, "\\'")}', '${escapeHtml(event.id ?? '').replace(/'/g, "\\'")}')" ${isRegistered ? 'disabled style="background: #16a34a; border-color: #16a34a; color: #fff; cursor: not-allowed;"' : ''}>${participationStatus === 'attended' ? 'Attended <i class="fa-solid fa-check"></i>' : isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Register'}</button>
+                    </div>
+                </div>
+            </article>
+        `;
+        }).join('')
+        : `
+            <div class="my-org-spa-empty">
+                <i class="fa-regular fa-calendar-xmark"></i>
+                <h3>No Events Yet</h3>
+                <p>This organization has no published events at the moment.</p>
+            </div>
+        `;
+
+    return `
+        <section class="my-org-spa-section">
+            <div class="my-org-spa-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Organization Events</p>
+                    <h2>${viewModel.organization.name} Event Lineup</h2>
+                    <p>Browse scheduled activities, venue details, and participation scope for your organization.</p>
+                </div>
+            </div>
+            <div class="my-org-events-stack">
+                ${eventsMarkup}
+            </div>
+        </section>
+    `;
+}
+
+function renderMyOrgAboutSection(viewModel) {
+    const editPanelMarkup = viewModel.isOfficerEditMode ? renderOrgProfileEditor(viewModel) : '';
+    const highlightsMarkup = (viewModel.profileConfig.highlights || []).map(item => `
+        <li><i class="fa-solid fa-check"></i><span>${item}</span></li>
+    `).join('');
+    const servicesMarkup = viewModel.relevantServices.length
+        ? viewModel.relevantServices.map(service => `
+            <div class="my-org-service-pill">
+                <i class="fa-solid ${service.icon || 'fa-circle'}"></i>
+                <span>${service.name}</span>
+            </div>
+        `).join('')
+        : '<p class="my-org-inline-empty">No active services listed yet.</p>';
+
+    return `
+        <section class="my-org-spa-section">
+            <div class="my-org-spa-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">About The Organization</p>
+                    <h2>${viewModel.fullOrgName}</h2>
+                    <p>${viewModel.orgMotto}</p>
+                </div>
+            </div>
+            ${editPanelMarkup}
+
+            <div class="my-org-about-grid">
+                <article class="my-org-spa-card my-org-about-story">
+                    <h3>Who We Are</h3>
+                    <p>${viewModel.profileConfig.about}</p>
+                    <div class="my-org-about-banner">
+                        <img src="${viewModel.logoImage}" alt="${viewModel.organization.name} logo">
+                    </div>
+                </article>
+
+                <article class="my-org-spa-card my-org-about-highlights">
+                    <h3>Signature Programs</h3>
+                    <ul class="my-org-highlight-list">
+                        ${highlightsMarkup}
+                    </ul>
+                </article>
+
+                <article class="my-org-spa-card">
+                    <h3>Student Services</h3>
+                    <div class="my-org-service-pill-list">
+                        ${servicesMarkup}
+                    </div>
+                </article>
+
+                <article class="my-org-spa-card">
+                    <h3>Membership Snapshot</h3>
+                    <div class="my-org-kpi-grid">
+                        <div class="my-org-kpi-box">
+                            <strong>${viewModel.relevantEvents.length}</strong>
+                            <span>Published Events</span>
+                        </div>
+                        <div class="my-org-kpi-box">
+                            <strong>${viewModel.relevantServices.length}</strong>
+                            <span>Active Services</span>
+                        </div>
+                        <div class="my-org-kpi-box">
+                            <strong>${viewModel.officers.length}</strong>
+                            <span>Core Officers</span>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+    `;
+}
+
+function renderMyOrgOfficersSection(viewModel) {
+    const shouldUseLiveOfficers = myOrgOfficersState.orgName === viewModel.organization.name;
+    const liveOfficers = shouldUseLiveOfficers ? myOrgOfficersState.items : [];
+    const officersToRender = liveOfficers.length
+        ? liveOfficers.map((officer, index) => ({
+            role: normalizeOfficerRoleName(officer.role_name),
+            name: officer.officer_name || 'TBD',
+            meta: [officer.program_code, officer.section].filter(Boolean).join(' • ') || `Organization leadership team member ${index + 1}`
+        }))
+        : buildOfficerFallbackFromProfile(viewModel.profileConfig).map((officer, index) => ({
+            role: normalizeOfficerRoleName(officer.role_name),
+            name: officer.officer_name || 'TBD',
+            meta: [officer.program_code, officer.section].filter(Boolean).join(' • ') || `Organization leadership team member ${index + 1}`
+        }));
+
+    if (!myOrgOfficersState.loading && !shouldUseLiveOfficers) {
+        ensureMyOrgOfficersLoaded(viewModel);
+    }
+
+    const statusMarkup = myOrgOfficersState.loading
+        ? `
+            <div class="my-org-spa-empty">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <h3>Loading Officers</h3>
+                <p>Fetching the latest officers from the organization members database.</p>
+            </div>
+        `
+        : myOrgOfficersState.error
+            ? `
+                <div class="my-org-spa-empty">
+                    <i class="fa-regular fa-circle-xmark"></i>
+                    <h3>Showing Saved Officer Profiles</h3>
+                    <p>${escapeHtml(myOrgOfficersState.error)}</p>
+                </div>
+            `
+            : '';
+
+    const officerMarkup = officersToRender.length
+        ? officersToRender.map((officer, index) => `
+            <article class="my-org-spa-card my-org-officer-card">
+                <div class="my-org-officer-avatar">${officer.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</div>
+                <div class="my-org-officer-body">
+                    <p class="my-org-officer-role">${officer.role}</p>
+                    <h3>${officer.name}</h3>
+                    <p class="my-org-officer-meta">${officer.meta}</p>
+                </div>
+            </article>
+        `).join('')
+        : `
+            <div class="my-org-spa-empty">
+                <i class="fa-regular fa-user"></i>
+                <h3>No Officers Listed</h3>
+                <p>Officer details are not available yet for this organization.</p>
+            </div>
+        `;
+
+    return `
+        <section class="my-org-spa-section">
+            <div class="my-org-spa-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Organization Officers</p>
+                    <h2>${viewModel.organization.name} Leadership Team</h2>
+                    <p>Core student leaders currently assigned in the <code>organization_members</code> table for this organization.</p>
+                </div>
+            </div>
+            ${statusMarkup}
+            <div class="my-org-officers-grid">
+                ${officerMarkup}
+            </div>
+        </section>
+    `;
+}
+
+function renderMyOrgContactSection(viewModel) {
+    const editPanelMarkup = viewModel.isOfficerEditMode ? renderOrgProfileEditor(viewModel) : '';
+
+    return `
+        <section class="my-org-spa-section">
+            <div class="my-org-spa-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Contact Directory</p>
+                    <h2>Reach ${viewModel.organization.name}</h2>
+                    <p>${viewModel.contactProfile.summary}</p>
+                </div>
+            </div>
+            ${editPanelMarkup}
+
+            <div class="my-org-contact-grid">
+                <article class="my-org-spa-card my-org-contact-card">
+                    <h3>Office Information</h3>
+                    <div class="my-org-contact-list">
+                        <div><i class="fa-solid fa-building"></i><span>${viewModel.contactProfile.office}</span></div>
+                        <div><i class="fa-regular fa-clock"></i><span>${viewModel.contactProfile.hours}</span></div>
+                        <div><i class="fa-regular fa-envelope"></i><a href="mailto:${viewModel.contactProfile.email}">${viewModel.contactProfile.email}</a></div>
+                        <div><i class="fa-solid fa-phone"></i><a href="tel:${viewModel.contactProfile.phone}">${viewModel.contactProfile.phone}</a></div>
+                    </div>
+                </article>
+
+                <article class="my-org-spa-card my-org-contact-card">
+                    <h3>Online Channels</h3>
+                    <div class="my-org-contact-links">
+                        <a href="${viewModel.contactProfile.facebook}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-facebook-f"></i><span>Facebook Page</span></a>
+                        <a href="${viewModel.contactProfile.instagram}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-instagram"></i><span>Instagram</span></a>
+                        <a href="${viewModel.contactProfile.x}" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)"><span class="my-org-contact-icon-x" aria-hidden="true">X</span><span>X (Twitter)</span></a>
+                        <a href="${viewModel.contactProfile.tiktok}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-tiktok"></i><span>TikTok</span></a>
+                    </div>
+                </article>
+            </div>
+        </section>
+    `;
+}
+
+function setStudentEmailPreferencesState(preferences, disabled = false) {
+    const fields = {
+        rental_enabled: document.getElementById('studentEmailRentalEnabled'),
+        locker_enabled: document.getElementById('studentEmailLockerEnabled'),
+        attendance_enabled: document.getElementById('studentEmailAttendanceEnabled'),
+        printing_enabled: document.getElementById('studentEmailPrintingEnabled')
+    };
+    Object.entries(fields).forEach(([key, input]) => {
+        if (!input) return;
+        if (preferences && Object.prototype.hasOwnProperty.call(preferences, key)) {
+            input.checked = Boolean(preferences[key]);
+        }
+        input.disabled = disabled;
+    });
+}
+
+function getStudentEmailPreferencesFormValue() {
+    return {
+        rental_enabled: Boolean(document.getElementById('studentEmailRentalEnabled')?.checked),
+        locker_enabled: Boolean(document.getElementById('studentEmailLockerEnabled')?.checked),
+        attendance_enabled: Boolean(document.getElementById('studentEmailAttendanceEnabled')?.checked),
+        printing_enabled: Boolean(document.getElementById('studentEmailPrintingEnabled')?.checked)
+    };
+}
+
+async function loadStudentEmailPreferences() {
+    const status = document.getElementById('studentEmailPreferencesStatus');
+    if (isOsaStudentPreviewModeFromUrl()) {
+        setStudentEmailPreferencesState({
+            rental_enabled: true,
+            locker_enabled: true,
+            attendance_enabled: true,
+            printing_enabled: true
+        }, true);
+        if (status) status.textContent = 'Email preferences are disabled in preview mode.';
+        return;
+    }
+
+    setStudentEmailPreferencesState(null, true);
+    if (status) status.textContent = 'Loading preferences...';
+    try {
+        const response = await fetch(STUDENT_EMAIL_PREFERENCES_API, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load email preferences.');
+        }
+        setStudentEmailPreferencesState(data.preferences || {}, false);
+        if (status) status.textContent = 'Changes save automatically.';
+    } catch (error) {
+        console.error('[loadStudentEmailPreferences]', error);
+        if (status) status.textContent = 'Email preferences are temporarily unavailable.';
+    }
+}
+
+async function saveStudentEmailPreferences() {
+    const status = document.getElementById('studentEmailPreferencesStatus');
+    const preferences = getStudentEmailPreferencesFormValue();
+    setStudentEmailPreferencesState(preferences, true);
+    if (status) status.textContent = 'Saving...';
+    try {
+        const response = await fetch(STUDENT_EMAIL_PREFERENCES_API, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(preferences)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not save email preferences.');
+        }
+        setStudentEmailPreferencesState(data.preferences || preferences, false);
+        if (status) status.textContent = 'Changes saved automatically.';
+        showToast('Email notification preferences updated.', 'success');
+    } catch (error) {
+        console.error('[saveStudentEmailPreferences]', error);
+        if (status) status.textContent = 'Could not save. Your previous settings are still active.';
+        showToast(error.message || 'Could not save email preferences.', 'error');
+        await loadStudentEmailPreferences();
+    }
+}
+
+function setupStudentEmailPreferences() {
+    [
+        'studentEmailRentalEnabled',
+        'studentEmailLockerEnabled',
+        'studentEmailAttendanceEnabled',
+        'studentEmailPrintingEnabled'
+    ].forEach((id) => {
+        document.getElementById(id)?.addEventListener('change', () => {
+            saveStudentEmailPreferences().catch((error) => console.error(error));
+        });
+    });
+    loadStudentEmailPreferences().catch((error) => console.error(error));
+}
+
+function renderOrgProfileEditor(viewModel) {
+    const contact = viewModel.contactProfile;
+    const galleryGroups = getOrganizationGalleryGroups(viewModel.organization.name);
+    const featuredSet = new Set(galleryGroups.featured);
+    const candidateCards = galleryGroups.all.map((image, index) => `
+        <article class="my-org-featured-card">
+            <label class="my-org-featured-check">
+                <input type="checkbox" name="featuredImages[]" value="${escapeHtml(image)}" ${featuredSet.has(image) ? 'checked' : ''}>
+                <span>${featuredSet.has(image) ? 'Featured' : 'Add to featured'}</span>
+            </label>
+            <img src="${versionOrgBannerUrl(image)}" alt="Featured option ${index + 1}">
+            ${featuredSet.has(image) ? `
+                <label class="my-org-featured-remove">
+                    <input type="checkbox" name="removeFeaturedImages[]" value="${escapeHtml(image)}">
+                    <span>Remove photo</span>
+                </label>
+            ` : ''}
+        </article>
+    `).join('');
+
+    return `
+        <form class="my-org-editor-panel" onsubmit="saveOrganizationProfileEdits(event)">
+            <div class="my-org-editor-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Officer Edit Mode</p>
+                    <h3>Update Student-Facing Information</h3>
+                </div>
+                <button type="submit" class="my-org-editor-save">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>Save Changes</span>
+                </button>
+            </div>
+            <input type="hidden" name="orgName" value="${escapeHtml(viewModel.organization.name)}">
+            <input type="hidden" name="featuredImagesTouched" value="1">
+            <div class="my-org-editor-grid">
+                <label class="my-org-banner-file-field">
+                    <span>Banner Images</span>
+                    <div class="my-org-banner-file-row">
+                        <input name="bannerFiles[]" type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="handleBannerUploadPreview(this)">
+                        <button type="button" id="bannerUploadPreviewButton" onclick="openBannerUploadPreviewModal()" hidden>Preview Selected Photos</button>
+                    </div>
+                </label>
+                <label>
+                    <span>Organization Logo</span>
+                    <input name="logoFile" type="file" accept="image/jpeg,image/png,image/webp">
+                </label>
+                <label>
+                    <span>Motto</span>
+                    <input name="motto" type="text" value="${escapeHtml(viewModel.orgMotto)}">
+                </label>
+                <label>
+                    <span>About</span>
+                    <textarea name="about" rows="4">${escapeHtml(viewModel.profileConfig.about)}</textarea>
+                </label>
+                <label>
+                    <span>Office</span>
+                    <input name="office" type="text" value="${escapeHtml(contact.office)}">
+                </label>
+                <label>
+                    <span>Office Hours</span>
+                    <input name="hours" type="text" value="${escapeHtml(contact.hours)}">
+                </label>
+                <label>
+                    <span>Email</span>
+                    <input name="email" type="email" value="${escapeHtml(contact.email)}">
+                </label>
+                <label>
+                    <span>Phone</span>
+                    <input name="phone" type="text" value="${escapeHtml(contact.phone)}">
+                </label>
+                <label>
+                    <span>Facebook</span>
+                    <input name="facebook" type="url" value="${escapeHtml(contact.facebook)}">
+                </label>
+                <label>
+                    <span>Instagram</span>
+                    <input name="instagram" type="url" value="${escapeHtml(contact.instagram)}">
+                </label>
+                <label>
+                    <span>X / Twitter</span>
+                    <input name="x" type="url" value="${escapeHtml(contact.x)}">
+                </label>
+                <label>
+                    <span>TikTok</span>
+                    <input name="tiktok" type="url" value="${escapeHtml(contact.tiktok)}">
+                </label>
+                <label class="my-org-editor-wide">
+                    <span>Contact Summary</span>
+                    <textarea name="summary" rows="3">${escapeHtml(contact.summary)}</textarea>
+                </label>
+            </div>
+            <section class="my-org-featured-manager">
+                <div class="my-org-featured-manager-header">
+                    <div>
+                        <p class="my-org-spa-eyebrow">Featured Gallery</p>
+                        <h3>Choose up to 20 slideshow photos</h3>
+                    </div>
+                    <span>${galleryGroups.featured.length} selected</span>
+                </div>
+                <p class="my-org-featured-help">New banner uploads are automatically added to Featured. You can also feature event and announcement photos here.</p>
+                <div class="my-org-featured-grid">
+                    ${candidateCards || '<div class="org-banner-gallery-empty">Upload banner images or publish event photos to start building the featured gallery.</div>'}
+                </div>
+            </section>
+        </form>
+    `;
+}
+
+let pendingBannerUploadPreviewUrls = [];
+
+function handleBannerUploadPreview(input) {
+    pendingBannerUploadPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+    pendingBannerUploadPreviewUrls = Array.from(input.files || [])
+        .filter(file => String(file.type || '').startsWith('image/'))
+        .map(file => URL.createObjectURL(file));
+
+    const button = document.getElementById('bannerUploadPreviewButton');
+    if (button) button.hidden = pendingBannerUploadPreviewUrls.length === 0;
+}
+
+function openBannerUploadPreviewModal() {
+    if (!pendingBannerUploadPreviewUrls.length) {
+        alert('Select banner images first.');
+        return;
+    }
+
+    const existing = document.getElementById('bannerUploadPreviewModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'bannerUploadPreviewModal';
+    modal.className = 'org-banner-gallery-modal';
+    modal.innerHTML = `
+        <div class="org-banner-gallery-dialog">
+            <div class="org-banner-gallery-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Upload Preview</p>
+                    <h3>Selected Banner Images</h3>
+                </div>
+                <button type="button" onclick="closeBannerUploadPreviewModal()" aria-label="Close preview">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="org-banner-gallery-grid">
+                ${pendingBannerUploadPreviewUrls.map((image, index) => `
+                    <img src="${image}" alt="Selected banner image ${index + 1}">
+                `).join('')}
+            </div>
+        </div>
+    `;
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeBannerUploadPreviewModal();
+    });
+    document.body.appendChild(modal);
+}
+
+function closeBannerUploadPreviewModal() {
+    const modal = document.getElementById('bannerUploadPreviewModal');
+    if (modal) modal.remove();
+}
+
+async function saveOrganizationProfileEdits(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const orgName = String(formData.get('orgName') || '').trim();
+    const selectedFeatured = formData.getAll('featuredImages[]');
+    const removedFeatured = new Set(formData.getAll('removeFeaturedImages[]'));
+    const effectiveFeatured = selectedFeatured.filter(image => !removedFeatured.has(image));
+    formData.delete('featuredImages[]');
+    effectiveFeatured.forEach(image => formData.append('featuredImages[]', image));
+
+    if (effectiveFeatured.length > 20) {
+        alert('Choose up to 20 featured photos.');
+        return;
+    }
+
+    try {
+        const response = await fetch(ORG_PUBLIC_PROFILE_SAVE_API, {
+            method: "POST",
+            credentials: "same-origin",
+            body: formData
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Could not save organization profile.");
+        }
+
+        const normalizedProfile = normalizeOrgProfileApiRow(data.profile);
+        if (normalizedProfile) {
+            orgProfileOverridesFromApi[normalizedProfile.key] = normalizedProfile.data;
+            saveOrgProfileOverride(orgName, normalizedProfile.data);
+        }
+        const normalizedOrg = normalizeOrgName(orgName);
+        const contentDiv = document.getElementById('tab-content');
+        if (contentDiv) {
+            if (organizationBrowseContext) {
+                organizationBrowseContext.editMode = false;
+            }
+            renderOrganizationProfileView(contentDiv, normalizedOrg, {
+                browseMode: false,
+                canEdit: true,
+                editMode: false
+            });
+        }
+        alert('Organization information saved. Students will now see the updated data.');
+    } catch (error) {
+        alert(error.message || 'Could not save organization profile.');
+    }
+}
+
+function initOrgHeroSlideshows(root = document) {
+    root.querySelectorAll('[data-org-hero-slideshow="true"]').forEach((hero) => {
+        if (hero.dataset.slideshowReady === 'true') return;
+        const slides = Array.from(hero.querySelectorAll('.my-org-ref-hero-slide'));
+        if (slides.length <= 1) return;
+
+        hero.dataset.slideshowReady = 'true';
+        let index = 0;
+        setInterval(() => {
+            slides[index].classList.remove('active');
+            index = (index + 1) % slides.length;
+            slides[index].classList.add('active');
+        }, 4000);
+    });
+}
+
+function openOrgBannerGallery(orgName) {
+    orgName = decodeURIComponent(String(orgName || ''));
+    const org = organizationData.find(item => normalizeOrgName(item.name) === normalizeOrgName(orgName));
+    if (!org) return;
+
+    const savedProfile = getOrgProfileOverride(org.name);
+    const fallbackBanner = savedProfile.banner || org.banner || org.image;
+    const galleryGroups = getOrganizationGalleryGroups(org.name);
+    if (!galleryGroups.all.length) return;
+
+    const existing = document.getElementById('orgBannerGalleryModal');
+    if (existing) existing.remove();
+
+    const renderImageGrid = (images, emptyText) => images.length
+        ? images.map((image, index) => `
+            <img src="${versionOrgBannerUrl(image)}" alt="${escapeHtml(org.name)} gallery image ${index + 1}">
+        `).join('')
+        : `<div class="org-banner-gallery-empty">${emptyText}</div>`;
+
+    const renderGroupedImages = (groups, emptyText) => groups.length
+        ? groups.map(group => `
+            <section class="org-banner-gallery-group">
+                <h4>${escapeHtml(group.title)}</h4>
+                <div class="org-banner-gallery-grid">
+                    ${renderImageGrid(group.images, 'No photos in this group.')}
+                </div>
+            </section>
+        `).join('')
+        : `<div class="org-banner-gallery-empty">${emptyText}</div>`;
+
+    const modal = document.createElement('div');
+    modal.id = 'orgBannerGalleryModal';
+    modal.className = 'org-banner-gallery-modal';
+    modal.innerHTML = `
+        <div class="org-banner-gallery-dialog">
+            <div class="org-banner-gallery-header">
+                <div>
+                    <p class="my-org-spa-eyebrow">Banner Gallery</p>
+                    <h3>${escapeHtml(org.name)}</h3>
+                </div>
+                <button type="button" onclick="closeOrgBannerGallery()" aria-label="Close gallery">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="org-banner-gallery-tabs">
+                <button type="button" class="active" onclick="switchOrgGalleryTab('featured', this)">Featured</button>
+                <button type="button" onclick="switchOrgGalleryTab('events', this)">Events</button>
+                <button type="button" onclick="switchOrgGalleryTab('announcements', this)">Announcements</button>
+                <button type="button" onclick="switchOrgGalleryTab('all', this)">All</button>
+            </div>
+            <div class="org-banner-gallery-panel active" data-gallery-panel="featured">
+                <div class="org-banner-gallery-grid">
+                    ${renderImageGrid(galleryGroups.featured, 'No featured banner images yet.')}
+                </div>
+            </div>
+            <div class="org-banner-gallery-panel" data-gallery-panel="events">
+                ${renderGroupedImages(galleryGroups.events, 'No event photos yet.')}
+            </div>
+            <div class="org-banner-gallery-panel" data-gallery-panel="announcements">
+                ${renderGroupedImages(galleryGroups.announcements, 'No announcement photos yet.')}
+            </div>
+            <div class="org-banner-gallery-panel" data-gallery-panel="all">
+                <div class="org-banner-gallery-grid">
+                    ${renderImageGrid(galleryGroups.all, 'No gallery images yet.')}
+                </div>
+            </div>
+        </div>
+    `;
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeOrgBannerGallery();
+    });
+    document.body.appendChild(modal);
+}
+
+function switchOrgGalleryTab(tabName, button) {
+    const modal = document.getElementById('orgBannerGalleryModal');
+    if (!modal) return;
+
+    modal.querySelectorAll('.org-banner-gallery-tabs button').forEach(tab => tab.classList.remove('active'));
+    if (button) button.classList.add('active');
+
+    modal.querySelectorAll('.org-banner-gallery-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.getAttribute('data-gallery-panel') === tabName);
+    });
+}
+
+function closeOrgBannerGallery() {
+    const modal = document.getElementById('orgBannerGalleryModal');
+    if (modal) modal.remove();
+}
+
+function renderMyOrgActiveSection(viewModel) {
+    if (activeMyOrgSection === 'events') return renderMyOrgEventsSection(viewModel);
+    if (activeMyOrgSection === 'about') return renderMyOrgAboutSection(viewModel);
+    if (activeMyOrgSection === 'officers') return renderMyOrgOfficersSection(viewModel);
+    if (activeMyOrgSection === 'contact') return renderMyOrgContactSection(viewModel);
+    return renderMyOrgHomeSection(viewModel);
+}
+
+function renderOrganizationProfileView(contentDiv, targetOrgName, options = {}) {
+    const organization = organizationData.find(item => normalizeOrgName(item.name) === targetOrgName);
+
+    if (!organization) {
+        contentDiv.innerHTML = `
+            <div style="text-align:center; padding: 60px 20px; color: var(--muted);">
+                <i class="fa-solid fa-users-slash" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.3;"></i>
+                <h3 style="margin-bottom: 10px; color: var(--text);">No Organization Found</h3>
+                <p style="max-width: 500px; margin: 0 auto; line-height: 1.5;">
+                    No active organization mapping was found for your program.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    const savedProfile = getOrgProfileOverride(targetOrgName);
+    const profileConfig = {
+        ...(orgProfileConfig[targetOrgName] || orgProfileConfig["Supreme Student Council"]),
+        ...(savedProfile.about ? { about: savedProfile.about } : {}),
+        ...(savedProfile.motto ? { tagline: savedProfile.motto } : {})
+    };
+    const orgThemeClass = orgThemeClassMap[targetOrgName] || "org-theme-ssc";
+    const rawHeroBackgroundImage = savedProfile.banner || (targetOrgName === "AISERS"
+        ? "../assets/photos/studentDashboard/Organizations Gallery/AISERS GROUP PHOTO.png"
+        : organization.banner);
+    const heroBackgroundImage = versionOrgBannerUrl(rawHeroBackgroundImage);
+    const logoImage = getOrganizationLogoImage(organization);
+    const allEvents = getAllOrganizationEvents();
+    const relevantEvents = allEvents.filter(event => normalizeOrgName(event.org) === targetOrgName);
+    const relevantServices = servicesData.filter(service => parseOrgList(service.org).includes(targetOrgName)).slice(0, 4);
+    const announcementEvents = (relevantEvents.length ? relevantEvents : allEvents).slice(0, 2);
+    const recentActivities = relevantEvents.slice(0, 3);
+    // fullName and motto come from ORG_DATA (data/orgData.js) — edit there, not here.
+    const orgEntry = {
+        ...((typeof ORG_DATA !== 'undefined' && ORG_DATA[targetOrgName]) || {}),
+        ...(savedProfile.motto ? { motto: savedProfile.motto } : {})
+    };
+    const fullOrgName = orgEntry.fullName || organization.name;
+    const orgMotto = orgEntry.motto || profileConfig.tagline || "";
+    const formattedDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const officers = parseOfficerEntries(profileConfig.officers);
+    const contactProfile = {
+        ...buildMyOrgContactProfile(targetOrgName, organization, orgEntry),
+        ...(savedProfile.contact || {})
+    };
+    const canEditOrganization = Boolean(options.canEdit);
+    const isOfficerEditMode = Boolean(options.editMode);
+    const bannerGalleryImages = parseOrgBannerGallery(savedProfile.bannerGallery, rawHeroBackgroundImage);
+    const viewModel = {
+        organization,
+        profileConfig,
+        orgThemeClass,
+        heroBackgroundImage,
+        rawHeroBackgroundImage,
+        bannerGalleryImages,
+        logoImage,
+        relevantEvents,
+        relevantServices,
+        announcementEvents,
+        recentActivities,
+        orgEntry,
+        fullOrgName,
+        orgMotto,
+        formattedDate,
+        officers,
+        contactProfile,
+        canEditOrganization,
+        isOfficerEditMode
+    };
+    const topbarLabel = options.browseMode ? 'Organization Directory' : 'My Organization';
+    const topbarTitle = options.browseMode ? organization.name : buildMyOrgSectionLabel(activeMyOrgSection);
+    const backButtonMarkup = options.browseMode
+        ? `<button type="button" class="my-org-browse-back-btn" onclick="returnToOrganizationsAboutGrid()"><i class="fa-solid fa-arrow-left"></i> Back to Organizations</button>`
+        : '';
+    const editModeButtonMarkup = canEditOrganization
+        ? `<button type="button" class="my-org-editor-toggle" onclick="toggleOrganizationEditMode(${isOfficerEditMode ? 'false' : 'true'})">
+                <i class="fa-solid ${isOfficerEditMode ? 'fa-eye' : 'fa-pen-to-square'}"></i>
+                ${isOfficerEditMode ? 'Preview Mode' : 'Edit Mode'}
+           </button>`
+        : '';
+
+    contentDiv.innerHTML = `
+        <div class="my-org-page ${orgThemeClass}">
+            <section class="my-org-ref-topbar">
+                <div class="my-org-ref-top-summary">
+                    <p class="my-org-ref-top-label">${topbarLabel}</p>
+                    <strong>${topbarTitle}</strong>
+                </div>
+                <div class="my-org-ref-top-actions">
+                    ${backButtonMarkup}
+                    ${editModeButtonMarkup}
+                    <div class="my-org-ref-search">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" value="${escapeHtml(currentMyOrgSearchQuery)}" placeholder="Search ${buildMyOrgSectionLabel(activeMyOrgSection)}" oninput="searchMyOrgPage(this.value)">
+                    </div>
+                    <img src="${logoImage}" alt="${organization.name} logo" class="my-org-ref-top-logo">
+                </div>
+            </section>
+
+            <section class="my-org-ref-orgbar">
+                <div class="my-org-ref-orgtitle">
+                    <img src="${logoImage}" alt="${organization.name} logo">
+                    <span>${fullOrgName}</span>
+                </div>
+                <nav class="my-org-ref-links">
+                    <button type="button" class="${activeMyOrgSection === 'home' ? 'active' : ''}" onclick="switchMyOrgSection('home')">Home</button>
+                    <button type="button" class="${activeMyOrgSection === 'events' ? 'active' : ''}" onclick="switchMyOrgSection('events')">Events</button>
+                    <button type="button" class="${activeMyOrgSection === 'about' ? 'active' : ''}" onclick="switchMyOrgSection('about')">About</button>
+                    <button type="button" class="${activeMyOrgSection === 'officers' ? 'active' : ''}" onclick="switchMyOrgSection('officers')">Officers</button>
+                    <button type="button" class="${activeMyOrgSection === 'contact' ? 'active' : ''}" onclick="switchMyOrgSection('contact')">Contact</button>
+                </nav>
+            </section>
+
+            ${renderMyOrgActiveSection(viewModel)}
+        </div>
+    `;
+    initOrgHeroSlideshows(contentDiv);
+    searchMyOrgPage(currentMyOrgSearchQuery);
+}
+
+function searchMyOrgPage(rawQuery = '') {
+    const page = document.querySelector('.my-org-page');
+    if (!page) return;
+
+    const query = String(rawQuery || '').trim().toLowerCase();
+    currentMyOrgSearchQuery = rawQuery;
+    const searchableSelectors = [
+        '.my-org-ref-ann-item',
+        '.my-org-ref-activity-card',
+        '.my-org-ref-quickfacts li',
+        '.my-org-event-card',
+        '.my-org-spa-card',
+        '.my-org-officer-card',
+        '.my-org-contact-card',
+        '.my-org-service-pill',
+        '.my-org-highlight-list li',
+        '.my-org-kpi-box'
+    ];
+    const items = Array.from(page.querySelectorAll(searchableSelectors.join(',')))
+        .filter((item, index, allItems) => !allItems.some(other => other !== item && other.contains(item)));
+
+    let visibleCount = 0;
+    items.forEach((item) => {
+        const haystack = item.textContent.toLowerCase();
+        const isMatch = !query || haystack.includes(query);
+        item.classList.toggle('my-org-search-hidden', !isMatch);
+        if (isMatch) visibleCount++;
+    });
+
+    let emptyState = page.querySelector('.my-org-search-empty');
+    if (!emptyState) {
+        emptyState = document.createElement('div');
+        emptyState.className = 'my-org-search-empty';
+        emptyState.innerHTML = `
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <strong>No results found</strong>
+            <span>Try another keyword in this organization page.</span>
+        `;
+        const activeSection = page.querySelector('.my-org-spa-section, .my-org-ref-main');
+        (activeSection || page).appendChild(emptyState);
+    }
+
+    emptyState.hidden = !query || visibleCount > 0;
+}
+
+function renderMyOrganizationTab(contentDiv) {
+    const previewOrgName = getOrganizationPreviewOrgFromUrl();
+    if (previewOrgName) {
+        organizationBrowseContext = {
+            orgName: previewOrgName,
+            editAsMyOrganization: true,
+            canEdit: true,
+            editMode: Boolean(organizationBrowseContext?.editMode)
+        };
+        renderOrganizationProfileView(contentDiv, previewOrgName, {
+            browseMode: false,
+            canEdit: true,
+            editMode: organizationBrowseContext.editMode
+        });
+        return;
+    }
+
+    organizationBrowseContext = null;
+    renderOrganizationProfileView(contentDiv, currentStudentProfile.associatedOrg, { browseMode: false });
+}
+
+function renderOrganizationsAboutTab(contentDiv) {
+    // --- FILTER BUTTONS ---
+    const filterBar = document.createElement('div');
+    filterBar.style.display = 'flex';
+    filterBar.style.gap = '12px';
+    filterBar.style.marginBottom = '24px';
+    filterBar.style.flexWrap = 'wrap';
+
+    const categories = [
+        { key: 'all', label: 'All', icon: 'fa-layer-group' },
+        { key: 'Council', label: 'Council', icon: 'fa-university' },
+        { key: 'ICS', label: 'ICS', icon: 'fa-microchip' },
+        { key: 'ILAS', label: 'ILAS', icon: 'fa-book' },
+        { key: 'INET', label: 'INET', icon: 'fa-network-wired' },
+        { key: 'Interest Club', label: 'Interest Club', icon: 'fa-star' }
+    ];
+
+    categories.forEach((cat, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'org-filter-btn';
+        btn.innerText = cat.label;
+        btn.setAttribute('data-category', cat.key);
+        if (idx === 0) btn.classList.add('active');
+        filterBar.appendChild(btn);
+    });
+    contentDiv.appendChild(filterBar);
+
+    const grid = document.createElement('div');
+    grid.className = 'org-grid-layout';
+    contentDiv.appendChild(grid);
+
+    function renderOrgs(categoryKey) {
+        grid.innerHTML = '';
+        let orgsToShow = [];
+        if (!categoryKey || categoryKey === 'all') {
+            orgsToShow = organizationData;
+        } else if (categoryKey === 'Council') {
+            orgsToShow = organizationData.filter(o => o.name === 'Supreme Student Council');
+        } else if (categoryKey === 'ICS') {
+            orgsToShow = organizationData.filter(o => o.name === 'AISERS' || o.name === 'ELITECH');
+        } else if (categoryKey === 'ILAS') {
+            orgsToShow = organizationData.filter(o => o.name === 'ILASSO');
+        } else if (categoryKey === 'INET') {
+            orgsToShow = organizationData.filter(o => ['AERO-ATSO', 'AETSO', 'AMTSO'].includes(o.name));
+        } else if (categoryKey === 'Interest Club') {
+            orgsToShow = organizationData.filter(o => [
+                'RCYC', 'CYC', 'SAGE', 'Aeronautica'
+            ].includes(o.name));
+        }
+
+        if (orgsToShow.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted);">No organizations found for this category.</div>';
+            return;
+        }
+
+        orgsToShow.forEach(org => {
+            const card = document.createElement('button');
+            card.className = 'org-card';
+            card.type = 'button';
+            card.setAttribute('aria-label', `Open ${org.name}`);
+            card.addEventListener('click', () => openOrganizationPreview(normalizeOrgName(org.name)));
+
+            const img = document.createElement('img');
+            img.src = getOrganizationLogoImage(org) || '../assets/favicon.png';
+            img.className = 'org-card-image';
+            img.alt = org.name;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'org-overlay';
+
+            const title = document.createElement('div');
+            title.className = 'org-title';
+            title.innerText = org.name;
+
+            overlay.appendChild(title);
+            card.appendChild(img);
+            card.appendChild(overlay);
+            grid.appendChild(card);
+        });
+    }
+
+    renderOrgs('all');
+
+    filterBar.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', function () {
+            filterBar.querySelectorAll('button').forEach(b => {
+                b.classList.remove('active');
+            });
+            this.classList.add('active');
+            renderOrgs(this.getAttribute('data-category'));
+        });
+    });
+}
+
+function openOrganizationPreview(orgName) {
+    activeMyOrgSection = 'home';
+    organizationBrowseContext = { orgName };
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        renderOrganizationProfileView(contentDiv, orgName, { browseMode: true });
+    }
+}
+
+function openOrganizationPreviewFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const requestedView = params.get('view');
+    const requestedOrg = params.get('org');
+    const requestedSection = params.get('section');
+    const canEdit = isOrganizationPreviewModeFromUrl();
+
+    if (requestedView !== 'organizations' || !requestedOrg) {
+        return;
+    }
+
+    const normalizedOrg = normalizeOrgName(requestedOrg);
+    const hasOrg = organizationData.some(item => normalizeOrgName(item.name) === normalizedOrg);
+    if (!hasOrg) {
+        return;
+    }
+
+    navigate('organizations');
+    document.querySelectorAll('#organizations .tab-btn').forEach(button => button.classList.remove('active'));
+    const myOrganizationTab = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'my-organization\'"]');
+    if (myOrganizationTab) {
+        myOrganizationTab.classList.add('active');
+    }
+
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        activeMyOrgSection = ['home', 'events', 'about', 'officers', 'contact'].includes(requestedSection)
+            ? requestedSection
+            : 'home';
+        organizationBrowseContext = {
+            orgName: normalizedOrg,
+            editAsMyOrganization: true,
+            canEdit,
+            editMode: false
+        };
+        renderOrganizationProfileView(contentDiv, normalizedOrg, { browseMode: false, canEdit, editMode: false });
+    }
+}
+
+function openStudentActivityPreviewFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('preview') !== '1' || params.get('view') !== 'organizations') {
+        return;
+    }
+
+    const target = params.get('target') || '';
+    if (target === 'event') {
+        const eventId = params.get('event_id');
+        const eventTitle = params.get('event_title');
+        const events = isOsaStudentPreviewModeFromUrl() ? getAllOrganizationEvents() : getStudentScopedExtendedEvents();
+        const eventObj = events.find((event) => String(event.id ?? '') === String(eventId || ''))
+            || events.find((event) => normalizeOrgName(event.title) === normalizeOrgName(eventTitle))
+            || events.find((event) => String(event.title || '').trim().toLowerCase() === String(eventTitle || '').trim().toLowerCase())
+            || mapOsaEventPreviewPayload(getOsaEventPreviewPayloadFromUrl());
+
+        if (eventObj) {
+            navigate('organizations');
+            openEventDetailsModal(eventObj);
+        } else if (isOsaStudentPreviewModeFromUrl()) {
+            showToast('Event preview is no longer available.', 'error');
+        }
+        return;
+    }
+
+    if (target === 'announcements') {
+        activeMyOrgSection = 'home';
+        const announcementPanel = document.querySelector('.my-org-ref-announcements');
+        if (announcementPanel) {
+            announcementPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            announcementPanel.classList.add('activity-preview-highlight');
+            setTimeout(() => announcementPanel.classList.remove('activity-preview-highlight'), 2200);
+        }
+    }
+}
+
+function toggleOrganizationEditMode(shouldEdit) {
+    if (!organizationBrowseContext?.orgName || !organizationBrowseContext.canEdit) {
+        return;
+    }
+
+    organizationBrowseContext.editMode = Boolean(shouldEdit);
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        renderOrganizationProfileView(contentDiv, organizationBrowseContext.orgName, {
+            browseMode: !organizationBrowseContext.editAsMyOrganization,
+            canEdit: true,
+            editMode: organizationBrowseContext.editMode
+        });
+    }
+}
+
+function returnToOrganizationsAboutGrid() {
+    organizationBrowseContext = null;
+    activeMyOrgSection = 'home';
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        contentDiv.innerHTML = '';
+        renderOrganizationsAboutTab(contentDiv);
+    }
+}
+
+function switchMyOrgSection(sectionName) {
+    activeMyOrgSection = sectionName || 'home';
+    currentMyOrgSearchQuery = '';
+    const contentDiv = document.getElementById('tab-content');
+    if (contentDiv) {
+        if (organizationBrowseContext?.orgName) {
+            renderOrganizationProfileView(contentDiv, organizationBrowseContext.orgName, {
+                browseMode: !organizationBrowseContext.editAsMyOrganization,
+                canEdit: Boolean(organizationBrowseContext.canEdit),
+                editMode: Boolean(organizationBrowseContext.editMode)
+            });
+        } else {
+            renderMyOrganizationTab(contentDiv);
+        }
+    }
+}
+
+
+// --- CORE NAVIGATION LOGIC ---
+function navigate(viewId, element) {
+    // Update Active Link
+    if (element) {
+        document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+        element.classList.add('active');
+    } else {
+        const links = document.querySelectorAll('.nav-link');
+        links.forEach(l => {
+            if (l.getAttribute('onclick').includes(viewId)) l.classList.add('active');
+            else l.classList.remove('active');
+        });
+    }
+
+    // Hide all sections
+    document.querySelectorAll('.section-view').forEach(section => {
+        section.classList.remove('active');
+    });
+
+    // Show target section
+    const target = document.getElementById(viewId);
+    if (target) {
+        target.classList.add('active');
+    }
+
+    // Update Page Title
+    const titleMap = {
+        'dashboard': 'Dashboard',
+        'announcements': 'Announcements',
+        'organizations': 'Organizations',
+        'services': 'Services',
+        'profile': 'My Profile'
+    };
+    document.getElementById('page-title').innerText = titleMap[viewId] || 'Student Hub';
+
+    if (viewId === 'announcements' && !studentAnnouncementFeedState.initialized) {
+        fetchStudentAnnouncementFeed();
+    }
+
+    // Clear rental timer when leaving services view
+    if (viewId !== 'services') {
+        if (typeof rentalTimerInterval !== 'undefined' && rentalTimerInterval) {
+            clearInterval(rentalTimerInterval);
+            rentalTimerInterval = null;
+        }
+        stopStudentPrintingAutoRefresh();
+    } else {
+        startStudentPrintingAutoRefresh();
+    }
+    syncStudentPagePolling({ refreshNow: viewId === 'dashboard' && !document.hidden });
+    syncStudentAnnouncementPolling({
+        refreshNow: viewId === 'announcements' && studentAnnouncementFeedState.initialized
+    });
+
+    // Scroll to top
+    window.scrollTo(0, 0);
+}
+
+// ========================================
+// SERVICES TAB SWITCHING
+// ========================================
+
+function switchServiceTab(tabName, btn) {
+    // Update Buttons
+    document.querySelectorAll('#services .tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Hide all service tab contents
+    document.querySelectorAll('.service-tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+
+    // Show selected tab
+    if (tabName === 'catalog') {
+        const catalogTab = document.getElementById('services-catalog-tab');
+        if (catalogTab) catalogTab.classList.add('active');
+        loadCurrentRentals().catch((error) => console.error(error));
+    } else if (tabName === 'my-rentals') {
+        const rentalsTab = document.getElementById('services-my-rentals-tab');
+        if (rentalsTab) rentalsTab.classList.add('active');
+
+        // Load rental data when switching to My Rentals tab
+        loadMyRentalsTab();
+    }
+
+    syncStudentServicesPanels();
+
+    if (tabName === 'catalog') {
+        startStudentPrintingAutoRefresh();
+    } else {
+        stopStudentPrintingAutoRefresh();
+    }
+    syncStudentPagePolling();
+}
+
+// --- ORGANIZATION TABS LOGIC ---
+function switchOrgTab(tabName, btn) {
+    if (tabName === 'membership') {
+        const fallbackBtn = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'about\'"]');
+        if (fallbackBtn) {
+            switchOrgTab('about', fallbackBtn);
+        }
+        return;
+    }
+
+    // Update Buttons
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Update Content
+    const contentDiv = document.getElementById('tab-content');
+    contentDiv.innerHTML = ''; // Clear previous content
+
+    if (tabName === 'about') {
+        renderOrganizationsAboutTab(contentDiv);
+        return;
+    }
+
+    if (tabName === 'about') {
+        // --- FILTER BUTTONS ---
+        const filterBar = document.createElement('div');
+        filterBar.style.display = 'flex';
+        filterBar.style.gap = '12px';
+        filterBar.style.marginBottom = '24px';
+        filterBar.style.flexWrap = 'wrap';
+
+        // Category definitions
+        const categories = [
+            { key: 'all', label: 'All', icon: 'fa-layer-group' },
+            { key: 'Council', label: 'Council', icon: 'fa-university' },
+            { key: 'ICS', label: 'ICS', icon: 'fa-microchip' },
+            { key: 'ILAS', label: 'ILAS', icon: 'fa-book' },
+            { key: 'INET', label: 'INET', icon: 'fa-network-wired' },
+            { key: 'Interest Club', label: 'Interest Club', icon: 'fa-star' }
+        ];
+
+        // Create filter buttons
+        categories.forEach((cat, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'org-filter-btn';
+            btn.innerText = cat.label;
+            btn.setAttribute('data-category', cat.key);
+            if (idx === 0) btn.classList.add('active');
+            filterBar.appendChild(btn);
+        });
+        contentDiv.appendChild(filterBar);
+
+        // --- ORG GRID CONTAINER ---
+        const grid = document.createElement('div');
+        grid.className = 'org-grid-layout';
+        contentDiv.appendChild(grid);
+
+        // --- FILTER LOGIC ---
+        function renderOrgs(categoryKey) {
+            grid.innerHTML = '';
+            let orgsToShow = [];
+            if (!categoryKey || categoryKey === 'all') {
+                orgsToShow = organizationData;
+            } else if (categoryKey === 'Council') {
+                orgsToShow = organizationData.filter(o => o.name === 'Supreme Student Council');
+            } else if (categoryKey === 'ICS') {
+                orgsToShow = organizationData.filter(o => o.name === 'AISERS' || o.name === 'ELITECH');
+            } else if (categoryKey === 'ILAS') {
+                orgsToShow = organizationData.filter(o => o.name === 'ILASSO');
+            } else if (categoryKey === 'INET') {
+                orgsToShow = organizationData.filter(o => ['AERO-ATSO', 'AETSO', 'AMTSO'].includes(o.name));
+            } else if (categoryKey === 'Interest Club') {
+                orgsToShow = organizationData.filter(o => [
+                    'RCYC', 'CYC', 'SAGE', 'Aeronautica'
+                ].includes(o.name));
+            }
+
+            if (orgsToShow.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted);">No organizations found for this category.</div>';
+                return;
+            }
+
+            orgsToShow.forEach(org => {
+                // Create Card
+                const card = document.createElement('div');
+                card.className = 'org-card';
+
+                // Image
+                const img = document.createElement('img');
+                img.src = getOrganizationLogoImage(org) || '../assets/favicon.png';
+                img.className = 'org-card-image';
+                img.alt = org.name;
+
+                // Overlay
+                const overlay = document.createElement('div');
+                overlay.className = 'org-overlay';
+
+                // Title
+                const title = document.createElement('div');
+                title.className = 'org-title';
+                title.innerText = org.name;
+
+                overlay.appendChild(title);
+
+                card.appendChild(img);
+                card.appendChild(overlay);
+                grid.appendChild(card);
+            });
+        }
+
+        // Initial render (All)
+        renderOrgs('all');
+
+        // Add event listeners to filter buttons
+        filterBar.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function () {
+                // Remove active from all
+                filterBar.querySelectorAll('button').forEach(b => {
+                    b.classList.remove('active');
+                });
+                // Set active
+                this.classList.add('active');
+                renderOrgs(this.getAttribute('data-category'));
+            });
+        });
+    } else if (tabName === 'my-organization') {
+        renderMyOrganizationTab(contentDiv);
+    } else if (tabName === 'membership') {
+        // --- MEMBERSHIP LAYOUT (Grid + Modal) ---
+        contentDiv.innerHTML = `
+            <div class="membership-dashboard-wrapper">
+
+                <div class="membership-split-layout">
+                    <div class="recruitment-feed">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                            <h3 class="section-title" style="margin:0; font-size:1.5rem; color:var(--primary);">Recruiting Organizations</h3>
+                            <span style="font-size:0.9rem; color:var(--muted);">Select an organization to apply</span>
+                        </div>
+                        
+                        <div class="recruitment-grid" id="recruitmentGrid">
+                            </div>
+                    </div>
+                </div>
+
+                <div id="membershipApplicationModal" class="modal-overlay">
+                    <div class="modal-content membership-modal-content">
+                        
+                        <div class="modal-header">
+                            <button class="close-modal" onclick="closeMembershipModal()">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <div class="modal-body">
+                            <h3 style="color: var(--primary); font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">
+                                Application for Membership
+                            </h3>
+                            <p class="form-description">
+                                To apply, verify the organization details, complete the form below, attach required documents, then click Submit.
+                            </p>
+                            
+                            <form id="membershipForm" onsubmit="handleMembershipSubmit(event)">
+                                
+                                <div class="form-group">
+                                    <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Full Name</label>
+                                    <input type="text" id="mem-fullname" 
+                                        style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9;" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Email</label>
+                                    <input type="email" id="mem-email" 
+                                        style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9;" required>
+                                </div>
+
+                                <div class="role-toggle-group">
+                                    <button type="button" class="role-btn" onclick="selectRole('Officer', this)">Officer</button>
+                                    <button type="button" class="role-btn" onclick="selectRole('Junior Officer', this)" style="background: #002147;">Junior Officer</button>
+                                    <input type="hidden" id="mem-role-input" value="Junior Officer">
+                                </div>
+
+                                <div class="download-form-container">
+                                    <div class="download-text-group">
+                                        <i class="fa-solid fa-file-pdf download-icon"></i>
+                                        <span>Download Application Form</span>
+                                    </div>
+                                    <button type="button" class="btn-download-app" onclick="downloadApplicationForm()">
+                                        Download
+                                    </button>
+                                </div>
+
+                                <div class="form-group">
+                                    <label style="font-weight: 600; font-size: 0.9rem; color: var(--primary);">Upload file here</label>
+                                    
+                                    <div class="custom-upload-box" id="mem-upload-box" onclick="triggerFileUpload()">
+                                        <span class="upload-placeholder-text">Upload Application Form</span>
+                                        <div class="upload-plus-icon"><i class="fa-solid fa-plus"></i></div>
+                                    </div>
+                                    
+                                    <input type="file" id="mem-file-upload" hidden onchange="handleFilePreview(this)" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                </div>
+
+                                <button type="submit" class="btn-submit-wide">
+                                    Submit Application
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        `;
+
+        // Inject Recruitment Cards
+        const grid = document.getElementById('recruitmentGrid');
+
+        // NEW: Check if data is empty before rendering
+        if (organizationData.length === 0) {
+            grid.innerHTML = `
+                <div class="recruitment-empty-state">
+                    <i class="fa-solid fa-folder-open empty-state-icon"></i>
+                    <div class="empty-state-title">No Available Organizations</div>
+                    <div class="empty-state-desc">
+                        There are currently no organizations accepting applications. 
+                        Please check back later for future recruitment announcements.
+                    </div>
+                </div>
+            `;
+        } else {
+            // EXISTING LOGIC: Loop through data if items exist
+            organizationData.forEach((org, index) => {
+                const card = document.createElement('div');
+                card.className = 'recruit-card';
+                card.id = `recruit-card-${index}`;
+
+                card.innerHTML = `
+                <div class="recruit-header" style="background: ${org.banner ? `url('${versionOrgBannerUrl(org.banner)}') center/cover no-repeat` : org.color}"></div>
+                <div class="recruit-body">
+                    <img src="${getOrganizationLogoImage(org) || '../assets/favicon.png'}" class="recruit-logo">
+                    <div class="recruit-info-group">
+                        <h4>${org.name}</h4>
+                        <span class="recruit-badge">Open for Officers</span>
+                        <p class="recruit-desc">We are looking for passionate individuals to lead our upcoming projects.</p>
+                    </div>
+                    <button class="btn-apply-recruit" onclick="openMembershipModal('${org.name}', 'recruit-card-${index}')">
+                        Apply Now
+                    </button>
+                </div>
+            `;
+                grid.appendChild(card);
+            });
+        }
+    } else if (tabName === 'events') {
+        // --- EVENTS TAB CONTENT ---
+
+        // 1. Search Bar (Existing)
+        const filterBar = document.createElement('div');
+        filterBar.className = 'events-filter-bar';
+        filterBar.innerHTML = `
+            <div class="filter-input-group">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="eventSearch" placeholder="Search events...">
+            </div>
+
+            <div class="filter-select-group">
+                <i class="fa-solid fa-filter"></i>
+                <select id="eventOrgFilter">
+                    <option value="all">All Organizations</option>
+                </select>
+            </div>
+        `;
+        contentDiv.appendChild(filterBar);
+
+        // 2. NEW: Time Filter Tabs (Past, Today, Upcoming)
+        const timeFilters = document.createElement('div');
+        timeFilters.className = 'event-time-filters';
+        timeFilters.innerHTML = `
+            <button class="time-filter-btn active" data-filter="upcoming">Upcoming</button>
+            <button class="time-filter-btn" data-filter="today">Today</button>
+            <button class="time-filter-btn" data-filter="past">Past</button>
+            <button class="time-filter-btn" data-filter="all">All Events</button>
+        `;
+        contentDiv.appendChild(timeFilters);
+
+        // 3. Grid Container
+        const grid = document.createElement('div');
+        grid.className = 'events-grid-layout';
+        grid.id = 'eventsGridContainer';
+        contentDiv.appendChild(grid);
+
+        // State for filtering
+        let currentTimeFilter = 'upcoming';
+        let currentOrgFilter = 'all'; // State for Org Filter
+
+        // Helper to populate Org Dropdown
+        function populateOrgDropdown() {
+            const orgSelect = document.getElementById('eventOrgFilter');
+            // Get unique organizations from the events list
+            const scopedEvents = getStudentScopedExtendedEvents();
+            const uniqueOrgs = [...new Set(scopedEvents.map(ev => ev.org))].sort();
+
+            uniqueOrgs.forEach(org => {
+                const option = document.createElement('option');
+                option.value = org;
+                option.innerText = org;
+                orgSelect.appendChild(option);
+            });
+        }
+
+        function renderEventsList() {
+            grid.innerHTML = '';
+            const searchTerm = document.getElementById('eventSearch').value.toLowerCase();
+
+            // Filter logic
+            const filtered = getStudentScopedExtendedEvents().filter(ev => {
+                // 1. Keyword Match
+                const matchesSearch = ev.title.toLowerCase().includes(searchTerm) ||
+                    ev.org.toLowerCase().includes(searchTerm);
+
+                // 2. Time Match
+                const status = getEventStatus(ev.dateRaw || ev.date);
+                let matchesTime = false;
+                if (currentTimeFilter === 'all') matchesTime = true;
+                else matchesTime = (status === currentTimeFilter);
+
+                // 3. Org Match (NEW)
+                let matchesOrg = false;
+                const orgSelectValue = document.getElementById('eventOrgFilter').value;
+                if (orgSelectValue === 'all') matchesOrg = true;
+                else matchesOrg = (ev.org === orgSelectValue);
+
+                return matchesSearch && matchesTime && matchesOrg;
+            });
+
+            // Empty State
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--muted);">
+                        <i class="fa-regular fa-calendar-xmark" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;"></i>
+                        <p>No ${currentTimeFilter !== 'all' ? currentTimeFilter : ''} events found matching your search.</p>
+                    </div>`;
+                return;
+            }
+
+            // Render Cards
+            filtered.forEach(ev => {
+                const participationStatus = getEventParticipationStatus(ev.title, ev.id);
+                const isRegistered = Boolean(participationStatus);
+                const status = getEventStatus(ev.dateRaw || ev.date);
+
+                // Parse date for Badge (e.g. "Feb. 07")
+                const [monthStr, dayStr] = ev.date.split(' '); // ["Feb.", "07,"]
+                const cleanDay = dayStr.replace(',', '');
+
+                const card = document.createElement('div');
+                card.className = 'event-card-ref'; // Enhanced via CSS
+                card.setAttribute('onclick', `openDetailsModal('${ev.title}')`);
+                card.setAttribute('style', 'cursor: pointer;');
+                card.setAttribute('title', 'View Details');
+
+                // Badge Label
+                let statusLabel = '';
+                if (currentTimeFilter === 'all') {
+                    if (status === 'today') statusLabel = '<span class="event-status-pill status-today">Happening Today</span>';
+                    else if (status === 'upcoming') statusLabel = '<span class="event-status-pill status-upcoming">Upcoming</span>';
+                    else statusLabel = '<span class="event-status-pill status-past">Completed</span>';
+                }
+
+                card.innerHTML = `
+                    <div style="position:relative;">
+                        <div class="event-date-badge">
+                            <span class="event-date-month">${monthStr.replace('.', '')}</span>
+                            <span class="event-date-day">${cleanDay}</span>
+                        </div>
+                        <img src="${ev.img}" class="event-card-thumb" alt="${ev.title}">
+                    </div>
+                    
+                    <div class="event-card-body">
+                        ${statusLabel}
+                        <div class="event-card-header" style="margin-bottom: 8px;">
+                            <div class="event-card-info">
+                                <h4>${ev.title}</h4>
+                                <p><i class="fa-solid fa-users" style="font-size:0.75rem; color:var(--primary);"></i> ${ev.org}</p>
+                            </div>
+                        </div>
+                        
+                        <div style="display:flex; align-items:center; gap:10px; font-size:0.85rem; color:var(--muted); margin-bottom:15px;">
+                            <span><i class="fa-regular fa-clock"></i> ${ev.time.split(' - ')[0]}</span>
+                        </div>
+                    </div>
+
+                    <div class="event-card-footer">
+                        <div class="event-stat"><i class="fa-regular fa-heart"></i> ${Math.floor(Math.random() * 50) + 10}</div>
+                        <div class="event-actions">
+                            <button class="btn-share" onclick="event.stopPropagation(); shareEvent('${ev.title}')" title="Share">
+                                <i class="fa-solid fa-share-nodes"></i>
+                            </button>
+                            
+                            <button class="btn-view-details" onclick="event.stopPropagation(); openDetailsModal('${ev.title}')" title="Details">
+                                <i class="fa-solid fa-circle-info"></i>
+                            </button>
+                            
+                            <button class="btn-register-card ${isRegistered ? 'registered' : ''}" 
+                                    data-registration-title="${escapeHtml(ev.title)}"
+                                    data-registration-event-id="${Number(ev.id || 0)}"
+                                    onclick="event.stopPropagation(); openRegistrationModal('${ev.title}', '${ev.id ?? ''}')" 
+                                    ${isRegistered ? 'disabled style="cursor: not-allowed;"' : ''}>
+                                ${participationStatus === 'attended' ? 'Attended <i class="fa-solid fa-check"></i>' : isRegistered ? 'Joined <i class="fa-solid fa-check"></i>' : 'Join'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // Initialize Options
+        populateOrgDropdown();
+
+        // Listeners for Time Tabs
+        timeFilters.querySelectorAll('.time-filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // UI Toggle
+                timeFilters.querySelectorAll('.time-filter-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // Logic
+                currentTimeFilter = e.target.getAttribute('data-filter');
+                renderEventsList();
+            });
+        });
+
+        // Search Listener
+        document.getElementById('eventSearch').addEventListener('keyup', renderEventsList);
+
+        // NEW Listener for Dropdown
+        document.getElementById('eventOrgFilter').addEventListener('change', renderEventsList);
+
+        // Initial Render
+        renderEventsList();
+    } else if (tabName === 'contacts') {
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+        grid.style.gap = '20px';
+
+        [
+            { name: "John Doe", role: "President, SSC", contact: "0912-345-6789" },
+            { name: "Alice Smith", role: "Head, AISERS", contact: "0998-765-4321" },
+            { name: "Bob Ross", role: "Rep, ELITECH", contact: "0917-123-4567" }
+        ].forEach(person => {
+            const card = document.createElement('div');
+            card.style.textAlign = 'center';
+            card.style.padding = '20px';
+            card.style.border = '1px solid var(--border)';
+            card.style.borderRadius = 'var(--radius-md)';
+
+            card.innerHTML = `
+                <div style="width: 60px; height: 60px; background: var(--panel-2); border-radius: 50%; margin: 0 auto 10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--text);">${person.name.charAt(0)}${person.name.split(' ')[1]}</div>
+                <h4>${person.role}</h4>
+                <p style="color:var(--muted); font-size:0.85rem;"><i class="fa-solid fa-phone"></i> ${person.contact}</p>
+            `;
+            grid.appendChild(card);
+        });
+        contentDiv.appendChild(grid);
+    }
+
+    // Add fade animation
+    contentDiv.style.animation = 'none';
+    contentDiv.offsetHeight; /* trigger reflow */
+    contentDiv.style.animation = 'fadeIn 0.4s ease';
+}
+
+function hideOrganizationsMembershipTab() {
+    const membershipBtn = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'membership\'"]');
+    if (!membershipBtn) return;
+
+    const wasActive = membershipBtn.classList.contains('active');
+    membershipBtn.style.display = 'none';
+
+    if (wasActive) {
+        const fallbackBtn = document.querySelector('.tab-btn[onclick*="switchOrgTab(\'about\'"]');
+        if (fallbackBtn) {
+            switchOrgTab('about', fallbackBtn);
+        }
+    }
+}
+
+
+
+// --- CALENDAR STATE ---
+let currentCalendarDate = new Date();
+
+// --- CALENDAR FUNCTIONS ---
+
+function renderEventCalendar() {
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth(); // 0-11
+
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ];
+
+    // Update Header
+    document.getElementById('calendarMonthYear').innerText = `${monthNames[month]} ${year}`;
+
+    const daysContainer = document.getElementById('calendarDays');
+    daysContainer.innerHTML = '';
+
+    // Logic to get days in month and start day
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    // Previous Month Days (Trailing)
+    const prevMonthDays = new Date(year, month, 0).getDate();
+
+    // We want a fixed 6 rows * 7 days = 42 cells
+    // 1. Previous Month Days
+    for (let x = firstDayIndex; x > 0; x--) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-day', 'other-month');
+        dayDiv.innerText = prevMonthDays - x + 1;
+        daysContainer.appendChild(dayDiv);
+    }
+
+    // 2. Current Month Days
+    const today = new Date();
+    for (let i = 1; i <= daysInMonth; i++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-day');
+        dayDiv.innerText = i;
+
+        // Highlight today
+        if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+            dayDiv.classList.add('today');
+        }
+
+        // ADD CLICK HANDLER
+        dayDiv.onclick = (e) => handleDateClick(year, month, i, e);
+
+        // Check for events on this day
+        const dayEvents = getEventsForDate(year, month, i);
+        if (dayEvents.length > 0) {
+            const dotsContainer = document.createElement('div');
+            dotsContainer.classList.add('event-dots');
+            dayEvents.slice(0, 3).forEach(() => {
+                const dot = document.createElement('div');
+                dot.classList.add('event-dot');
+                dotsContainer.appendChild(dot);
+            });
+            dayDiv.appendChild(dotsContainer);
+
+            const eventTitles = dayEvents.map(e => e.title).join(', ');
+            dayDiv.title = eventTitles;
+        }
+
+        daysContainer.appendChild(dayDiv);
+    }
+
+    // 3. Next Month Days (Leading) to fill 42 cells
+    const filledCells = firstDayIndex + daysInMonth;
+    const nextDays = 42 - filledCells;
+
+    for (let j = 1; j <= nextDays; j++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.classList.add('calendar-day', 'other-month');
+        dayDiv.innerText = j;
+        daysContainer.appendChild(dayDiv);
+    }
+}
+
+function changeMonth(direction) {
+    currentCalendarDate.setMonth(currentCalendarDate.getMonth() + direction);
+    renderEventCalendar();
+}
+
+// --- CALENDAR DATE CLICK & POPOVER LOGIC ---
+
+function handleDateClick(year, month, day, event) {
+    const clickedDate = new Date(year, month, day);
+    const options = { month: 'short', day: 'numeric' };
+    const dateStr = clickedDate.toLocaleDateString('en-US', options);
+
+    // Find events
+    const events = getEventsForDate(year, month, day);
+
+    // Populate Popover
+    const popoverTitle = document.getElementById('popoverDateTitle');
+    const popoverList = document.getElementById('popoverEventList');
+
+    popoverTitle.innerText = `Events on ${dateStr}`;
+    popoverList.innerHTML = '';
+
+    if (events.length > 0) {
+        events.forEach(ev => {
+            const item = document.createElement('div');
+            item.className = 'popover-event-item';
+            item.innerHTML = `
+                <span class="popover-event-title">${ev.title}</span>
+                <button class="btn-popover-view" onclick="navigateToEventDetails('${ev.title}')">View</button>
+            `;
+            popoverList.appendChild(item);
+        });
+    } else {
+        popoverList.innerHTML = `<div class="no-events-msg">No events scheduled.</div>`;
+    }
+
+    // Position Popover
+    const popover = document.getElementById('calendarPopover');
+
+    if (window.innerWidth <= 768) {
+        // Mobile: handled by CSS (center fixed)
+        popover.style.position = '';
+        popover.style.left = '';
+        popover.style.top = '';
+    } else {
+        // Desktop: Position near the click, but don't go off screen
+        const clickX = event.clientX;
+        const clickY = event.clientY;
+
+        popover.style.position = 'fixed';
+        popover.style.left = `${clickX + 10}px`;
+        popover.style.top = `${clickY + 10}px`;
+
+        // Simple boundary check (prevent going off right edge)
+        if (clickX + 300 > window.innerWidth) {
+            popover.style.left = `${clickX - 290}px`;
+        }
+    }
+
+    // Show
+    hideCalendarPopover();
+    popover.classList.remove('hidden');
+    setTimeout(() => {
+        popover.classList.add('visible');
+    }, 10);
+}
+
+function hideCalendarPopover() {
+    const popover = document.getElementById('calendarPopover');
+    if (!popover) return;
+    popover.classList.remove('visible');
+    popover.classList.add('hidden');
+}
+
+function navigateToEventDetails(eventTitle) {
+    hideCalendarPopover();
+    navigate('organizations');
+
+    const buttons = document.querySelectorAll('.tab-btn');
+    let eventsTabBtn = null;
+    buttons.forEach(btn => {
+        if (btn.innerText.includes('Events')) eventsTabBtn = btn;
+    });
+
+    if (eventsTabBtn) {
+        switchOrgTab('events', eventsTabBtn);
+    }
+
+    setTimeout(() => {
+        openDetailsModal(eventTitle);
+    }, 100);
+}
+
+function navigateToOrganizationEvents(event) {
+    if (event) event.preventDefault();
+    hideCalendarPopover();
+    navigate('organizations');
+
+    const eventsTabButton = document.getElementById('organizations-events-tab');
+    if (eventsTabButton) {
+        switchOrgTab('events', eventsTabButton);
+    }
+}
+
+// --- GLOBAL LISTENER TO CLOSE POPOVER ON OUTSIDE CLICK ---
+document.addEventListener('click', function (e) {
+    const popover = document.getElementById('calendarPopover');
+    const calendarGrid = document.getElementById('calendarDays');
+    if (!popover || !calendarGrid) return;
+
+    if (popover.classList.contains('visible') &&
+        !popover.contains(e.target) &&
+        !calendarGrid.contains(e.target)) {
+        hideCalendarPopover();
+    }
+});
+
+// Helper to check if extendedEvents match the current calendar day
+function getEventsForDate(year, month, day) {
+    return getStudentScopedExtendedEvents().filter(event => {
+        const rawDate = parseStudentAnnouncementDate(event.dateRaw);
+        if (rawDate) {
+            return rawDate.getFullYear() === year
+                && rawDate.getMonth() === month
+                && rawDate.getDate() === day;
+        }
+
+        // Extended Events Date Format: "Nov. 11-24, 2024" or "Nov. 11, 2024"
+        const dateStr = String(event.date || '');
+
+        // Simple regex to extract parts
+        // Matches: "Month. Start-End, Year" or "Month. Start, Year"
+        const regex = /([a-zA-Z]+)\.\s+(\d+)(?:-(\d+))?,\s+(\d+)/;
+        const match = dateStr.match(regex);
+
+        if (match) {
+            const eventYear = parseInt(match[4]);
+            const eventMonthStr = match[1];
+            const startDay = parseInt(match[2]);
+            const endDay = match[3] ? parseInt(match[3]) : startDay;
+
+            // Convert month string to index (e.g., "Nov" -> 10)
+            const monthMap = {
+                "Jan": 0, "Feb": 1, "Mar": 2, "Apr": 3, "May": 4, "Jun": 5,
+                "Jul": 6, "Aug": 7, "Sep": 8, "Oct": 9, "Nov": 10, "Dec": 11
+            };
+
+            const eventMonthIndex = monthMap[eventMonthStr.substring(0, 3)]; // Handle "November" vs "Nov"
+
+            if (eventYear === year && eventMonthIndex === month) {
+                return day >= startDay && day <= endDay;
+            }
+        }
+        return false;
+    });
+}
+
+
+function toggleAllDashboardAnnouncements(button) {
+    const announcementItems = document.getElementById('dashboard-organization-announcements');
+    if (!announcementItems) return;
+
+    areDashboardAnnouncementsHidden = !areDashboardAnnouncementsHidden;
+    announcementItems.hidden = areDashboardAnnouncementsHidden;
+
+    if (button) {
+        button.setAttribute('aria-expanded', String(!areDashboardAnnouncementsHidden));
+        button.setAttribute(
+            'aria-label',
+            areDashboardAnnouncementsHidden ? 'Show all organization announcements' : 'Hide all organization announcements'
+        );
+        button.innerHTML = areDashboardAnnouncementsHidden
+            ? '<i class="fa-regular fa-eye"></i><span>Show All Announcements</span>'
+            : '<i class="fa-regular fa-eye-slash"></i><span>Hide All Announcements</span>';
+    }
+}
+
+function renderDashboard() {
+    // 1. Render Announcements
+    const annList = document.getElementById('announcements-list');
+    const todayKey = getStudentManilaDateKey(new Date());
+    const latestAnnouncements = getStudentScopedAnnouncements()
+        .filter((item) => {
+            const relevantDate = item.event_datetime || item.dateRaw;
+            const announcementDateKey = getStudentManilaDateKey(relevantDate);
+            return announcementDateKey !== '' && announcementDateKey >= todayKey;
+        })
+        .slice(0, 5);
+    if (!annList) return;
+    const notificationMarkup = renderStudentTransactionNotifications();
+    let announcementMarkup = '';
+    if (!latestAnnouncements.length) {
+        announcementMarkup = `
+            <div class="dashboard-announcement-empty">
+                No current organization announcements.
+            </div>
+        `;
+    } else {
+        announcementMarkup = latestAnnouncements.map((item, index) => {
+            const orgLabel = item.orgCode
+                ? `${item.org} (${item.orgCode})`
+                : (item.org || 'Organization');
+            const isEventAnnouncement = Boolean(item.event_datetime || item.event_location);
+            const typeLabel = isEventAnnouncement ? 'Event' : 'Announcement';
+            const typeIcon = isEventAnnouncement ? 'fa-calendar-days' : 'fa-bullhorn';
+            const orgColor = getAnnouncementOrganizationColor(item);
+            const colorClass = orgColor ? ' has-org-color' : '';
+            const colorStyle = orgColor
+                ? ` style="--announcement-org-color: ${escapeHtml(orgColor)};"`
+                : '';
+            return `
+                <div class="list-item dashboard-announcement-item ${isEventAnnouncement ? 'is-event-announcement' : 'is-simple-announcement'}${colorClass}"${colorStyle}
+                    onclick="toggleDashboardAnnouncementCard(this)">
+                    <div class="item-icon announcement-icon"><i class="fa-solid ${typeIcon}"></i></div>
+                    <div class="item-content">
+                        <div class="announcement-card-meta">
+                            <div class="announcement-org-label">${escapeHtml(orgLabel)}</div>
+                            <span class="announcement-type-badge"><i class="fa-solid ${typeIcon}"></i> ${typeLabel}</span>
+                        </div>
+                        <h4>${escapeHtml(item.title)}</h4>
+                        <p id="dashboard-announcement-content-${index}" class="dashboard-announcement-content">${escapeHtml(item.content)}</p>
+                        ${isEventAnnouncement ? `
+                            <div class="dashboard-announcement-event-info">
+                                <span><i class="fa-regular fa-calendar"></i> ${escapeHtml(formatStudentAnnouncementDateLabel(item.event_datetime))}</span>
+                                <span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(item.event_location || 'Venue TBA')}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="dashboard-announcement-actions">
+                        <span class="date-badge">${escapeHtml(item.date || '')}</span>
+                        <button type="button" class="dashboard-announcement-expand" aria-expanded="false"
+                            aria-controls="dashboard-announcement-content-${index}" aria-label="Expand announcement"
+                            onclick="event.stopPropagation(); toggleDashboardAnnouncement(this)">
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    annList.innerHTML = `
+        ${notificationMarkup}
+        <section class="organization-announcement-section" aria-labelledby="student-organization-announcement-title">
+            <div class="dashboard-feed-subheading">
+                <span id="student-organization-announcement-title"><i class="fa-solid fa-bullhorn"></i> Organization Announcements</span>
+                <button type="button" class="dashboard-announcements-toggle"
+                    aria-controls="dashboard-organization-announcements"
+                    aria-expanded="${String(!areDashboardAnnouncementsHidden)}"
+                    aria-label="${areDashboardAnnouncementsHidden ? 'Show all organization announcements' : 'Hide all organization announcements'}"
+                    onclick="toggleAllDashboardAnnouncements(this)">
+                    <i class="fa-regular ${areDashboardAnnouncementsHidden ? 'fa-eye' : 'fa-eye-slash'}"></i>
+                    <span>${areDashboardAnnouncementsHidden ? 'Show All Announcements' : 'Hide All Announcements'}</span>
+                </button>
+            </div>
+            <div id="dashboard-organization-announcements"${areDashboardAnnouncementsHidden ? ' hidden' : ''}>
+                ${announcementMarkup}
+            </div>
+        </section>`;
+
+    if (document.getElementById('date-picker-modal')?.classList.contains('active')) {
+        renderStudentAnnouncementCalendar();
+        renderStudentAnnouncementCalendarResults();
+    }
+
+    // 2. Render ALL Upcoming Events (Grid Layout)
+    const eventContainer = document.getElementById('events-preview-container');
+
+    // Filter & Sort
+    const dashboardEvents = dashboardMockUpcomingEvent
+        ? [dashboardMockUpcomingEvent, ...getStudentScopedExtendedEvents()]
+        : getStudentScopedExtendedEvents();
+    const upcomingEvents = dashboardEvents
+        .filter(ev => {
+            const status = getEventStatus(ev.dateRaw || ev.date);
+            return status === 'upcoming' || status === 'today';
+        })
+        .sort((a, b) => {
+            const dateA = parseStudentAnnouncementDate(a.dateRaw) || new Date(String(a.date || '').replace('.', ''));
+            const dateB = parseStudentAnnouncementDate(b.dateRaw) || new Date(String(b.date || '').replace('.', ''));
+            return dateA - dateB;
+        });
+
+    if (upcomingEvents.length === 0) {
+        eventContainer.innerHTML = `
+            <div style="grid-column: 1 / -1; width:100%; text-align:center; padding:30px; color:var(--muted); background:var(--panel-2); border-radius:12px; border:1px dashed var(--border);">
+                <p>No upcoming events scheduled.</p>
+            </div>`;
+    } else {
+        // Map to the Detailed Card HTML
+        eventContainer.innerHTML = upcomingEvents.map(ev => {
+            const previewBanner = (Array.isArray(ev.gallery) && ev.gallery.length ? ev.gallery[0] : ev.img) || '';
+            const escapedTitle = escapeHtml(ev.title);
+            const eventTitleArg = escapeHtml(JSON.stringify(ev.title));
+            const bannerStyle = previewBanner
+                ? ` style="background-image: linear-gradient(90deg, rgba(0, 20, 45, 0.82), rgba(0, 20, 45, 0.45)), url(${escapeHtml(JSON.stringify(previewBanner))});"`
+                : '';
+
+            return `
+            <div class="dashboard-event-preview-card ${previewBanner ? 'has-event-banner' : ''}" onclick="navigateToEventDetails(${eventTitleArg})" title="View Details"${bannerStyle}>
+                <div class="card-top-accent"></div>
+                <div class="card-content">
+                    <div class="preview-date-badge">
+                        <span class="p-month">${ev.date.split('.')[0]}</span>
+                        <span class="p-day">${ev.date.split(' ')[1].replace(',', '')}</span>
+                    </div>
+                    <div class="preview-details">
+                        <h4 class="preview-title">${escapedTitle}</h4>
+                        <div class="preview-meta">
+                            <span class="preview-org"><i class="fa-solid fa-users"></i> ${escapeHtml(ev.org)}</span>
+                            ${ev.time ? `<span class="preview-time"><i class="fa-regular fa-clock"></i> ${escapeHtml(ev.time.split(' - ')[0])}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        }).join('');
+    }
+
+    // 3. Render Calendar (Existing Logic)
+    renderEventCalendar();
+}
+
+function toggleDashboardAnnouncement(button) {
+    const item = button.closest('.dashboard-announcement-item');
+    if (!item) return;
+    toggleDashboardAnnouncementCard(item);
+}
+
+function toggleDashboardAnnouncementCard(item) {
+    const button = item.querySelector('.dashboard-announcement-expand');
+    const expanded = item.classList.toggle('is-expanded');
+    if (button) {
+        button.setAttribute('aria-expanded', String(expanded));
+        button.setAttribute('aria-label', expanded ? 'Collapse announcement' : 'Expand announcement');
+        button.innerHTML = `<i class="fa-solid fa-chevron-${expanded ? 'up' : 'down'}"></i>`;
+    }
+}
+
+function parseStudentAnnouncementDate(value) {
+    if (!value) return null;
+    const raw = String(value).trim();
+    const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+        ? raw.replace(' ', 'T') + '+08:00'
+        : raw;
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getStudentAnnouncementRelevantDate(item) {
+    return parseStudentAnnouncementDate(item.event_datetime || item.dateRaw);
+}
+
+function getStudentAnnouncementDateKey(item) {
+    const date = getStudentAnnouncementRelevantDate(item);
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function openStudentAnnouncementCalendar() {
+    const modal = document.getElementById('date-picker-modal');
+    if (!modal) return;
+    const firstDatedItem = getStudentScopedAnnouncements().find(item => getStudentAnnouncementRelevantDate(item));
+    const initialDate = firstDatedItem ? getStudentAnnouncementRelevantDate(firstDatedItem) : new Date();
+    studentAnnouncementCalendarDate = new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
+    studentAnnouncementSelectedDate = '';
+    renderStudentAnnouncementCalendar();
+    renderStudentAnnouncementCalendarResults();
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeStudentAnnouncementCalendar() {
+    const modal = document.getElementById('date-picker-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+}
+
+function changeStudentAnnouncementMonth(step) {
+    studentAnnouncementCalendarDate.setMonth(studentAnnouncementCalendarDate.getMonth() + step);
+    renderStudentAnnouncementCalendar();
+}
+
+function renderStudentAnnouncementCalendar() {
+    const grid = document.getElementById('student-announcement-calendar-grid');
+    const label = document.getElementById('student-announcement-month-year');
+    if (!grid || !label) return;
+
+    const year = studentAnnouncementCalendarDate.getFullYear();
+    const month = studentAnnouncementCalendarDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayKey = getStudentAnnouncementDateKey({ dateRaw: new Date() });
+    const dateCounts = getStudentScopedAnnouncements().reduce((counts, item) => {
+        const key = getStudentAnnouncementDateKey(item);
+        if (key) counts[key] = (counts[key] || 0) + 1;
+        return counts;
+    }, {});
+
+    label.textContent = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    grid.innerHTML = '';
+    for (let index = 0; index < firstDay; index++) {
+        const spacer = document.createElement('div');
+        spacer.className = 'calendar-date other-month';
+        grid.appendChild(spacer);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'calendar-date';
+        if (key === todayKey) button.classList.add('today');
+        if (key === studentAnnouncementSelectedDate) button.classList.add('selected');
+        if (dateCounts[key]) button.classList.add('has-announcements');
+        button.innerHTML = `<span>${day}</span>${dateCounts[key] ? `<small>${dateCounts[key]}</small>` : ''}`;
+        button.setAttribute('aria-label', `${dateCounts[key] || 0} announcements on ${new Date(year, month, day).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`);
+        button.onclick = () => selectStudentAnnouncementDate(key);
+        grid.appendChild(button);
+    }
+}
+
+function selectStudentAnnouncementDate(dateKey) {
+    studentAnnouncementSelectedDate = studentAnnouncementSelectedDate === dateKey ? '' : dateKey;
+    renderStudentAnnouncementCalendar();
+    renderStudentAnnouncementCalendarResults();
+}
+
+function clearStudentAnnouncementDate() {
+    studentAnnouncementSelectedDate = '';
+    renderStudentAnnouncementCalendar();
+    renderStudentAnnouncementCalendarResults();
+}
+
+function renderStudentAnnouncementCalendarResults() {
+    const container = document.getElementById('student-announcement-calendar-results');
+    if (!container) return;
+    const items = getStudentScopedAnnouncements()
+        .filter(item => !studentAnnouncementSelectedDate || getStudentAnnouncementDateKey(item) === studentAnnouncementSelectedDate)
+        .sort((a, b) => (getStudentAnnouncementRelevantDate(b)?.getTime() || 0) - (getStudentAnnouncementRelevantDate(a)?.getTime() || 0));
+
+    if (!items.length) {
+        container.innerHTML = `<div class="dashboard-announcement-empty">No announcements found for this date.</div>`;
+        return;
+    }
+
+    let currentDateKey = '';
+    container.innerHTML = items.map((item, index) => {
+        const date = getStudentAnnouncementRelevantDate(item);
+        const dateKey = getStudentAnnouncementDateKey(item) || 'undated';
+        const isEvent = Boolean(item.event_datetime || item.event_location);
+        const typeLabel = isEvent ? 'Event' : 'Announcement';
+        const typeIcon = isEvent ? 'fa-calendar-days' : 'fa-bullhorn';
+        const heading = dateKey !== currentDateKey
+            ? `<h4 class="announcement-date-heading">${date ? escapeHtml(date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })) : 'Date unavailable'}</h4>`
+            : '';
+        currentDateKey = dateKey;
+        return `${heading}
+            <article class="announcement-calendar-item ${isEvent ? 'is-event' : 'is-simple'}">
+                <button type="button" class="announcement-calendar-item-summary" onclick="toggleStudentAnnouncementCalendarItem(this)" aria-expanded="false">
+                    <span class="announcement-calendar-type"><i class="fa-solid ${typeIcon}"></i></span>
+                    <span class="announcement-calendar-copy">
+                        <span class="announcement-calendar-item-meta"><strong>${typeLabel}</strong> &middot; ${escapeHtml(item.orgCode || item.org || 'Organization')}</span>
+                        <b>${escapeHtml(item.title)}</b>
+                    </span>
+                    <i class="fa-solid fa-chevron-down announcement-calendar-chevron"></i>
+                </button>
+                <div class="announcement-calendar-item-details">
+                    <p>${escapeHtml(item.content)}</p>
+                    ${isEvent ? `<div class="dashboard-announcement-event-info"><span><i class="fa-regular fa-clock"></i> ${escapeHtml(formatStudentEventTimeLabel(item.event_datetime))}</span><span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(item.event_location || 'Venue TBA')}</span></div>` : `<small>Posted ${escapeHtml(item.date || '')}</small>`}
+                    <div class="announcement-calendar-item-actions">
+                        <button type="button" class="btn btn-outline btn-sm"
+                            onclick="viewStudentAnnouncementFromCalendar(${Number(item.id)})">
+                            <i class="fa-regular fa-eye"></i> View
+                        </button>
+                    </div>
+                </div>
+            </article>`;
+    }).join('');
+}
+
+function viewStudentAnnouncementFromCalendar(announcementId) {
+    const announcementNav = Array.from(document.querySelectorAll('.nav-link')).find(link =>
+        String(link.getAttribute('onclick') || '').includes("'announcements'")
+    );
+    closeStudentAnnouncementCalendar();
+    navigate('announcements', announcementNav || null);
+    openStudentAnnouncementDetail(announcementId);
+}
+
+function toggleStudentAnnouncementCalendarItem(button) {
+    const item = button.closest('.announcement-calendar-item');
+    if (!item) return;
+    const expanded = item.classList.toggle('is-expanded');
+    button.setAttribute('aria-expanded', String(expanded));
+}
+
+document.addEventListener('click', (event) => {
+    const modal = document.getElementById('date-picker-modal');
+    if (event.target === modal) closeStudentAnnouncementCalendar();
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.getElementById('date-picker-modal')?.classList.contains('active')) {
+        closeStudentAnnouncementCalendar();
+    }
+});
+
+function renderProfile() {
+    updateStudentProfileView();
+}
+
+
+function filterServices() {
+    const input = document.getElementById('serviceSearch');
+    renderServices(input.value);
+}
+
+// --- UTILS ---
+
+function setDate() {
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const today = new Date();
+    document.getElementById('current-date').innerText = today.toLocaleDateString('en-US', options);
+}
+
+// Helper to switch to actual theme logic
+function switchThemeLogic() {
+    document.body.classList.toggle('dark');
+    const isDark = document.body.classList.contains('dark');
+
+    // Update Sidebar Footer Button
+    const sbIcon = document.querySelector('#themeBtn .nav-icon');
+    const sbText = document.querySelector('#themeBtn .nav-label');
+
+    if (sbIcon && sbText) {
+        if (isDark) {
+            sbIcon.className = 'fa-solid fa-sun nav-icon';
+            sbText.innerText = 'Light Mode';
+        } else {
+            sbIcon.className = 'fa-solid fa-moon nav-icon';
+            sbText.innerText = 'Dark Mode';
+        }
+    }
+
+    // Update Mobile Header Button
+    const mobIcon = document.getElementById('mobile-theme-icon');
+    if (mobIcon) {
+        mobIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    }
+
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
+// Event Listener for Sidebar Button
+const themeBtn = document.getElementById('themeBtn');
+if (themeBtn) {
+    themeBtn.addEventListener('click', switchThemeLogic);
+}
+
+// Function for Mobile Header Button
+function toggleThemeMobile() {
+    switchThemeLogic();
+}
+
+// Logout Handler
+async function handleLogout(e) {
+    e.preventDefault();
+    const preparation = window.NAAPOffline
+        ? await window.NAAPOffline.prepareLogout()
+        : { proceed: await appConfirm('Are you sure you want to log out?', { title: 'Log out', confirmText: 'Log out' }) };
+    if (preparation.proceed) {
+        try {
+            const response = await fetch('../api/auth/logout.php', { method: 'POST', credentials: 'same-origin' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.ok) throw new Error(data.error || 'Logout failed.');
+            if (window.NAAPOffline) await window.NAAPOffline.completeLogout(preparation);
+            localStorage.removeItem(AUTH_SESSION_KEY);
+            window.location.href = new URL('../', document.baseURI).href;
+        } catch (error) {
+            await appAlert(error.message || 'Could not log out. Please try again.', { type: 'error' });
+        }
+    }
+}
+
+// Check saved theme on load
+if (localStorage.getItem('theme') === 'dark') {
+    document.body.classList.add('dark');
+    // Update icons manually on load
+    const sbIcon = document.querySelector('#themeBtn .nav-icon');
+    const sbText = document.querySelector('#themeBtn .nav-label');
+    const mobIcon = document.getElementById('mobile-theme-icon');
+
+    if (sbIcon) sbIcon.className = 'fa-solid fa-sun nav-icon';
+    if (sbText) sbText.innerText = 'Light Mode';
+    if (mobIcon) mobIcon.className = 'fa-solid fa-sun';
+}
+
+
+// --- DASHBOARD EVENT TODAY CAROUSEL LOGIC ---
+
+let carouselInterval;
+let currentDashboardSlideIndex = 0;
+let dashboardCarouselSignature = '';
+let dashboardMockEventToday = null;
+let dashboardMockUpcomingEvent = null;
+let dashboardTodayEvents = [];
+
+function renderDashboardEventTodayDetails(eventObj) {
+    const details = document.getElementById('dashboardEventTodayDetails');
+    if (!details) return;
+
+    if (!eventObj) {
+        details.innerHTML = '';
+        details.hidden = true;
+        return;
+    }
+
+    details.hidden = false;
+    details.innerHTML = `
+        <div class="details-info-grid dashboard-event-info-grid">
+            <div class="info-item">
+                <i class="fa-regular fa-calendar info-icon"></i>
+                <div>
+                    <small>Date</small>
+                    <span>${escapeHtml(eventObj.date || 'TBA')}</span>
+                </div>
+            </div>
+            <div class="info-item">
+                <i class="fa-regular fa-clock info-icon"></i>
+                <div>
+                    <small>Time</small>
+                    <span>${escapeHtml(eventObj.time || 'TBA')}</span>
+                </div>
+            </div>
+            <div class="info-item">
+                <i class="fa-solid fa-location-dot info-icon"></i>
+                <div>
+                    <small>Venue</small>
+                    <span>${escapeHtml(eventObj.venue || eventObj.location || 'TBA')}</span>
+                </div>
+            </div>
+            <div class="info-item">
+                <i class="fa-solid fa-users info-icon"></i>
+                <div>
+                    <small>Participants</small>
+                    <span>${escapeHtml(`${Number(eventObj.participants || 0)} Registered`)}</span>
+                </div>
+            </div>
+        </div>
+        <div class="dashboard-event-about">
+            <h4>About this Event</h4>
+            <p id="dashboardEventAboutText">${escapeHtml(eventObj.description || eventObj.desc || 'No event description available.')}</p>
+            <button type="button" class="dashboard-event-read-more" onclick="toggleDashboardEventAbout(this)">
+                Read More
+            </button>
+        </div>
+    `;
+}
+
+function toggleDashboardEventAbout(button) {
+    const text = document.getElementById('dashboardEventAboutText');
+    if (!text || !button) return;
+    const expanded = text.classList.toggle('expanded');
+    button.textContent = expanded ? 'Show Less' : 'Read More';
+}
+
+function initDashboardCarousel(force = false) {
+    const track = document.getElementById('dashboardCarouselTrack');
+    if (!track) return;
+
+    const scopedEvents = getStudentScopedExtendedEvents();
+    const todayEvents = dashboardMockEventToday
+        ? [dashboardMockEventToday]
+        : scopedEvents.filter(ev => getEventStatus(ev.dateRaw || ev.date) === 'today');
+    dashboardTodayEvents = todayEvents;
+    const slidesToRender = todayEvents.map(ev => ({
+        src: ev.img,
+        title: ev.title,
+        org: ev.org || '',
+    }));
+
+    const nextSignature = JSON.stringify(slidesToRender.map(item => [item.src || '', item.title || '']));
+    if (!force && track.children.length && nextSignature === dashboardCarouselSignature) {
+        return;
+    }
+
+    dashboardCarouselSignature = nextSignature;
+    track.innerHTML = ''; // Clear previous content
+    track.closest('.dashboard-event-carousel')?.classList.toggle('is-empty', slidesToRender.length === 0);
+
+    if (!slidesToRender.length) {
+        renderDashboardEventTodayDetails(null);
+        track.innerHTML = `
+            <div class="dashboard-event-empty">
+                <i class="fa-regular fa-calendar-check"></i>
+                <strong>No events today</strong>
+                <span>Check Upcoming Events for the next scheduled activities.</span>
+            </div>
+        `;
+        currentDashboardSlideIndex = 0;
+        if (carouselInterval) clearInterval(carouselInterval);
+        return;
+    }
+
+    renderDashboardEventTodayDetails(todayEvents[0]);
+
+    slidesToRender.forEach((item, index) => {
+        const img = document.createElement('img');
+        img.src = item.src;
+        img.className = 'carousel-slide-img';
+        img.alt = item.title;
+        img.title = item.org ? `${item.title} - ${item.org}` : item.title;
+
+        if (index === 0) img.classList.add('active');
+
+        track.appendChild(img);
+    });
+
+    currentDashboardSlideIndex = 0;
+
+    if (carouselInterval) clearInterval(carouselInterval);
+
+    if (slidesToRender.length > 1) {
+        carouselInterval = setInterval(() => {
+            moveDashboardSlide(1);
+        }, 3000);
+    }
+}
+
+function loadMockDashboardEventToday() {
+    if (!window.AppEnvironment?.isLocalDevelopment) return;
+    const now = new Date();
+    dashboardMockEventToday = {
+        id: 'mock-dashboard-today',
+        title: 'Mock Campus Assembly',
+        date: formatStudentEventDateLabel(now.toISOString()),
+        dateRaw: now.toISOString(),
+        org: 'AISERS',
+        desc: 'This is temporary mock data for previewing the Event Today card layout. The description is intentionally long so you can test how the Read More button behaves when an organization posts a detailed announcement-style event description. It should stay compact at first, then expand when the student chooses to read the full details. When expanded, this text should not stretch the dashboard card endlessly. Instead, it should remain inside a neat scrollable area so the Calendar card below stays in a predictable position. This final sentence is here to make the mock content long enough for the scrollbar to appear during testing.',
+        description: 'This is temporary mock data for previewing the Event Today card layout. The description is intentionally long so you can test how the Read More button behaves when an organization posts a detailed announcement-style event description. It should stay compact at first, then expand when the student chooses to read the full details. When expanded, this text should not stretch the dashboard card endlessly. Instead, it should remain inside a neat scrollable area so the Calendar card below stays in a predictable position. This final sentence is here to make the mock content long enough for the scrollbar to appear during testing.',
+        time: '7:00 AM',
+        venue: 'MPH',
+        location: 'MPH',
+        participants: 1,
+        img: '../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg',
+        gallery: ['../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg'],
+        isPublished: true
+    };
+
+    dashboardCarouselSignature = '';
+    initDashboardCarousel(true);
+}
+
+function loadMockUpcomingEvent() {
+    if (!window.AppEnvironment?.isLocalDevelopment) return;
+    const eventDate = new Date();
+    eventDate.setDate(eventDate.getDate() + 1);
+    dashboardMockUpcomingEvent = {
+        id: 'mock-dashboard-upcoming',
+        title: 'Mock Innovation Workshop',
+        date: formatStudentEventDateLabel(eventDate.toISOString()),
+        dateRaw: eventDate.toISOString(),
+        org: 'AISERS',
+        desc: 'Temporary mock data for previewing the Upcoming Events card layout.',
+        description: 'Temporary mock data for previewing the Upcoming Events card layout.',
+        time: '9:30 AM',
+        venue: 'Computer Laboratory 2',
+        location: 'Computer Laboratory 2',
+        participants: 24,
+        img: '../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg',
+        gallery: ['../assets/photos/studentDashboard/Organization/banners/aisersbanner.jpg'],
+        isPublished: true
+    };
+
+    renderDashboard();
+}
+
+// Function to manually move slides (for arrows)
+function moveDashboardSlide(direction) {
+    const track = document.getElementById('dashboardCarouselTrack');
+    if (!track) return;
+
+    const slides = track.getElementsByClassName('carousel-slide-img');
+    if (slides.length === 0) return;
+
+    // Remove active from current
+    slides[currentDashboardSlideIndex].classList.remove('active');
+
+    // Calculate new index
+    currentDashboardSlideIndex = currentDashboardSlideIndex + direction;
+
+    // Wrap around logic
+    if (currentDashboardSlideIndex >= slides.length) {
+        currentDashboardSlideIndex = 0;
+    } else if (currentDashboardSlideIndex < 0) {
+        currentDashboardSlideIndex = slides.length - 1;
+    }
+
+    // Add active to new
+    slides[currentDashboardSlideIndex].classList.add('active');
+    renderDashboardEventTodayDetails(dashboardTodayEvents[currentDashboardSlideIndex] || null);
+
+    // Reset timer on manual interaction so it doesn't jump immediately after click
+    if (slides.length > 1) {
+        clearInterval(carouselInterval);
+        carouselInterval = setInterval(() => {
+            moveDashboardSlide(1);
+        }, 3000);
+    }
+}
+
+// --- INITIALIZATION ---
+window.addEventListener('DOMContentLoaded', async () => {
+    const isOsaPreview = isOsaStudentPreviewModeFromUrl();
+    const initialSession = readAuthSession();
+    window.OrganizationFavicon?.apply({
+        code: initialSession.active_org_code || '',
+        name: getOrganizationPreviewOrgFromUrl() || currentStudentProfile.associatedOrg
+    });
+    validatePhpSession();   // guard: redirect to login if no valid session
+    if (!isOsaPreview) {
+        syncStudentIdentity();
+    }
+    setDate();
+    await loadOrganizationPublicProfiles();
+    setupStudentAnnouncementFeed();
+    renderDashboard();
+    loadStudentAnnouncementsFromApi().catch((error) => console.error(error));
+    loadStudentTransactionNotifications().catch((error) => console.error(error));
+    loadStudentRecentActivity().catch((error) => console.error(error));
+    const eventsLoadPromise = loadStudentEventsFromApi().catch((error) => console.error(error));
+
+    if (!isOsaPreview) {
+        try {
+            await loadStudentServicesTracker();
+            await loadStudentServiceCatalog();
+        } catch (error) {
+            console.error(error);
+        }
+        renderServices();
+        renderServicesModuleNav();
+        renderPrintingProviderOptions();
+        loadCurrentRentals().catch((error) => console.error(error));
+        loadStudentPrintJobs().catch((error) => console.error(error));
+        loadStudentLockers().catch((error) => console.error(error));
+        renderProfile();
+        setupStudentProfileEditor();
+        setupStudentEmailPreferences();
+        setupStudentPasswordForm();
+        setupStudentProfilePhotoUploader();
+        updateEventRegistrationModalFields();
+        loadRegistrationPrefill().catch((error) => console.error(error));
+    }
+
+    hideOrganizationsMembershipTab();
+    applyOrganizationPreviewModeChrome();
+    switchOrgTab('about', document.querySelector('.tab-btn'));
+    openOrganizationPreviewFromUrl();
+    eventsLoadPromise.finally(() => {
+        openStudentActivityPreviewFromUrl();
+    });
+    // Initialize Dashboard Carousel for the new layout
+    initDashboardCarousel();
+    syncStudentPagePolling();
+    syncStudentAnnouncementPolling();
+});
+
+document.addEventListener('visibilitychange', () => {
+    syncStudentAnnouncementPolling({ refreshNow: !document.hidden });
+    syncStudentPagePolling({ refreshNow: !document.hidden });
+    if (document.hidden) return;
+    if (getActiveStudentPageView() !== 'dashboard') {
+        loadStudentAnnouncementsFromApi().catch((error) => console.error('[loadStudentAnnouncementsFromApi]', error));
+        loadStudentTransactionNotifications().catch((error) => console.error('[loadStudentTransactionNotifications]', error));
+        loadStudentRecentActivity().catch((error) => console.error('[loadStudentRecentActivity]', error));
+    }
+});
+
+// --- MODAL LOGIC ---
+
+// Keep any legacy/local-only event state isolated per signed-in student.
+function getRegisteredEventsStorageKey() {
+    const session = readAuthSession();
+    const accountKey = session.user_id || session.student_number || 'anonymous';
+    return `registeredEvents:${accountKey}`;
+}
+
+function getRegisteredEvents() {
+    const registered = localStorage.getItem(getRegisteredEventsStorageKey());
+    return registered ? JSON.parse(registered) : [];
+}
+
+function addRegisteredEvent(eventTitle) {
+    const registered = getRegisteredEvents();
+    if (!registered.includes(eventTitle)) {
+        registered.push(eventTitle);
+        localStorage.setItem(getRegisteredEventsStorageKey(), JSON.stringify(registered));
+    }
+}
+
+function isEventRegistered(eventTitle) {
+    return Boolean(getEventParticipationStatus(eventTitle));
+}
+
+function getEventParticipationStatus(eventTitle, eventId = '') {
+    const numericEventId = Number(eventId || 0);
+    const event = databaseEvents.find(item => numericEventId > 0 && Number(item.id) === numericEventId)
+        || databaseEvents.find(item => String(item.title || '') === String(eventTitle || ''));
+    const status = String(event?.participationStatus || '').toLowerCase();
+    // Database-backed events always use the current account's server state.
+    // Do not let an old browser-local registration from another account win.
+    if (event) return status === 'attended' || status === 'registered' ? status : '';
+    return getRegisteredEvents().includes(eventTitle) ? 'registered' : '';
+}
+
+function openRegistrationModal(eventTitle, eventId = '') {
+    const participationStatus = getEventParticipationStatus(eventTitle, eventId);
+    if (participationStatus === 'attended') {
+        alert('Your attendance for this event has already been recorded. Pre-registration is no longer available.');
+        return;
+    }
+    if (participationStatus === 'registered') {
+        alert('You are already registered for this event.');
+        return;
+    }
+
+    const eventObj = getStudentScopedExtendedEvents().find(e => String(e.id ?? '') === String(eventId ?? ''))
+        || getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
+    const modal = document.getElementById('eventRegistrationModal');
+    const titleEl = document.getElementById('modalEventTitle');
+
+    if (modal && titleEl) {
+        applyEventRegistrationPrefill();
+        titleEl.innerText = 'Registering for: ' + eventTitle;
+        // Store the event title in modal for later use
+        modal.setAttribute('data-event-title', eventTitle);
+        modal.setAttribute('data-event-id', eventObj?.id ?? eventId ?? '');
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+}
+
+function closeRegistrationModal() {
+    const modal = document.getElementById('eventRegistrationModal');
+    if (modal) {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+    // Optional: Reset form
+    document.getElementById('registrationForm').reset();
+}
+
+async function handleRegistrationSubmit(e) {
+    e.preventDefault();
+
+    // Get the event title from the modal
+    const modal = document.getElementById('eventRegistrationModal');
+    const form = document.getElementById('registrationForm');
+    const submitButton = form?.querySelector('button[type="submit"]');
+    const eventTitle = modal?.getAttribute('data-event-title') || '';
+    const eventId = modal?.getAttribute('data-event-id') || '';
+    const inputs = form ? form.querySelectorAll('input') : [];
+
+    if (!eventId || Number(eventId) <= 0) {
+        alert('This event needs to be saved in the database before students can register.');
+        return;
+    }
+
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Submitting...';
+    }
+
+    try {
+        const response = await fetch('../api/student/events/register.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                event_id: Number(eventId),
+                student_name: inputs[0]?.value?.trim() || '',
+                student_number: inputs[1]?.value?.trim() || '',
+                section: inputs[2]?.value?.trim() || ''
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Registration failed. Please try again.');
+        }
+
+        if (!data.queued) addRegisteredEvent(eventTitle);
+        alert(data.queued
+            ? 'Registration saved on this device and queued for sync.'
+            : (data.already_registered ? 'You are already registered for this event.' : 'Registration Submitted Successfully!'));
+        closeRegistrationModal();
+
+        // Update the button for this event
+        updateEventButton(eventTitle, Boolean(data.queued));
+    } catch (error) {
+        console.error('[handleRegistrationSubmit]', error);
+        alert(error.message || 'Registration failed. Please try again.');
+    } finally {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Pre-Register';
+        }
+    }
+}
+
+function updateEventButton(eventTitle, queuedOffline = false, offlineStatus = 'pending') {
+    // Find all buttons with this event title and update them
+    const buttons = document.querySelectorAll('[data-registration-title]');
+    buttons.forEach(btn => {
+        const btnEventTitle = btn.dataset.registrationTitle;
+        if (btnEventTitle === eventTitle) {
+            const queuedState = offlineStatus === 'attention' ? 'attention' : 'queued';
+            if (queuedOffline && btn.dataset.offlineQueuedStatus === queuedState) return;
+            if (queuedOffline && !btn.dataset.offlineOriginalHtml) {
+                btn.dataset.offlineOriginalHtml = btn.innerHTML;
+                btn.dataset.offlineOriginalClass = btn.className;
+                btn.dataset.offlineOriginalStyle = btn.getAttribute('style') || '';
+                btn.dataset.offlineOriginalDisabled = btn.disabled ? '1' : '0';
+            }
+            btn.classList.add('registered');
+            btn.classList.toggle('naap-optimistic-record', queuedOffline);
+            btn.dataset.offlineStatus = queuedState;
+            if (queuedOffline) btn.dataset.offlineQueuedStatus = queuedState;
+            else delete btn.dataset.offlineQueuedStatus;
+            btn.innerHTML = queuedOffline
+                ? (offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline')
+                : 'Joined <i class="fa-solid fa-check"></i>';
+            btn.disabled = true;
+            btn.style.cursor = 'not-allowed';
+            btn.style.background = queuedOffline ? '#ffedd5' : '#16a34a';
+            btn.style.borderColor = queuedOffline ? '#f59e0b' : '#16a34a';
+            btn.style.color = queuedOffline ? '#9a3412' : '#fff';
+        }
+    });
+}
+
+const queuedStudentEventRegistrations = new Map();
+
+function applyQueuedStudentEventRegistrationButtons() {
+    queuedStudentEventRegistrations.forEach((status, eventId) => {
+        document.querySelectorAll(`[data-registration-event-id="${eventId}"]`).forEach(button => {
+            const title = button.dataset.registrationTitle || '';
+            if (title) updateEventButton(title, true, status);
+        });
+    });
+}
+
+async function refreshQueuedStudentEventRegistrations() {
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations('student.event.register');
+    queuedStudentEventRegistrations.clear();
+    queued.forEach(operation => {
+        const eventId = Number(operation.payload?.event_id || 0);
+        if (eventId > 0) queuedStudentEventRegistrations.set(eventId, operation.status);
+    });
+    document.querySelectorAll('[data-offline-queued-status][data-registration-event-id]').forEach(button => {
+        if (queuedStudentEventRegistrations.has(Number(button.dataset.registrationEventId || 0))) return;
+        button.innerHTML = button.dataset.offlineOriginalHtml || 'Register';
+        button.className = button.dataset.offlineOriginalClass || '';
+        button.disabled = button.dataset.offlineOriginalDisabled === '1';
+        if (button.dataset.offlineOriginalStyle) button.setAttribute('style', button.dataset.offlineOriginalStyle);
+        else button.removeAttribute('style');
+        delete button.dataset.offlineOriginalHtml;
+        delete button.dataset.offlineOriginalClass;
+        delete button.dataset.offlineOriginalStyle;
+        delete button.dataset.offlineOriginalDisabled;
+        delete button.dataset.offlineQueuedStatus;
+        delete button.dataset.offlineStatus;
+    });
+    applyQueuedStudentEventRegistrationButtons();
+}
+
+window.addEventListener('naap:offline-queue-changed', async () => {
+    await Promise.all([
+        mergeQueuedStudentRentals(),
+        mergeQueuedStudentPrintJobs(),
+        refreshQueuedStudentEventRegistrations()
+    ]).catch(() => {});
+    renderCurrentRentals();
+    renderStudentPrintingJobs();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.setTimeout(() => refreshQueuedStudentEventRegistrations().catch(() => {}), 250);
+    let registrationRenderTimer = null;
+    new MutationObserver(() => {
+        if (!queuedStudentEventRegistrations.size || registrationRenderTimer) return;
+        registrationRenderTimer = window.setTimeout(() => {
+            registrationRenderTimer = null;
+            applyQueuedStudentEventRegistrationButtons();
+        }, 50);
+    }).observe(document.body, { childList: true, subtree: true });
+});
+
+function updateEventRegistrationModalFields() {
+    const form = document.getElementById('registrationForm');
+    if (!form) return;
+
+    const groups = form.querySelectorAll('.form-group');
+    if (groups.length < 4) return;
+
+    const yearSectionGroup = groups[2];
+    const extraGroup = groups[3];
+
+    const yearSectionLabel = yearSectionGroup.querySelector('label');
+    const yearSectionInput = yearSectionGroup.querySelector('input');
+    if (yearSectionLabel) yearSectionLabel.textContent = 'Year & Section';
+    if (yearSectionInput) {
+        yearSectionInput.type = 'text';
+        yearSectionInput.placeholder = 'e.g. 3A';
+    }
+
+    extraGroup.style.display = 'none';
+    const extraInput = extraGroup.querySelector('input');
+    if (extraInput) {
+        extraInput.required = false;
+        extraInput.disabled = true;
+    }
+}
+
+function applyEventRegistrationPrefill() {
+    const form = document.getElementById('registrationForm');
+    if (!form) return;
+
+    const inputs = form.querySelectorAll('input');
+    if (inputs.length < 3) return;
+
+    const fullNameInput = inputs[0];
+    const studentNumberInput = inputs[1];
+    const yearSectionInput = inputs[2];
+
+    if (fullNameInput) {
+        fullNameInput.value = String(registrationPrefill?.full_name || currentStudentProfile.fullName || '').trim();
+    }
+    if (studentNumberInput) {
+        studentNumberInput.value = String(registrationPrefill?.student_number || currentStudentProfile.studentNumber || '').trim();
+    }
+    if (yearSectionInput) {
+        const combinedYearSection = String(registrationPrefill?.year_section || currentStudentProfile.section || '').trim();
+        yearSectionInput.value = combinedYearSection;
+    }
+}
+
+async function loadRegistrationPrefill() {
+    try {
+        const response = await fetch('../api/student/profile/registration-prefill.php', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load registration profile.');
+        }
+        registrationPrefill = data.item || null;
+    } catch (error) {
+        console.error('[loadRegistrationPrefill]', error);
+        registrationPrefill = null;
+    }
+
+    applyEventRegistrationPrefill();
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', (e) => {
+    const modal = document.getElementById('eventRegistrationModal');
+    if (e.target === modal) {
+        closeRegistrationModal();
+    }
+    const lockerModal = document.getElementById('studentLockerModal');
+    if (e.target === lockerModal) {
+        closeStudentLockerModal();
+    }
+    const lockerConfirmModal = document.getElementById('studentLockerConfirmModal');
+    if (e.target === lockerConfirmModal) {
+        closeStudentLockerConfirmModal();
+    }
+});
+
+// --- EVENT DETAILS MODAL & CAROUSEL LOGIC ---
+
+let currentSlide = 0;
+let currentEventGallery = [];
+
+// --- SHARE EVENT FUNCTION ---
+function shareEvent(eventTitle) {
+    // Create a mock shareable URL
+    const baseUrl = window.location.href.split('?')[0];
+    const shareUrl = `${baseUrl}?event=${encodeURIComponent(eventTitle)}`;
+
+    // Check if Web Share API is supported (Mobile devices mostly)
+    if (navigator.share) {
+        navigator.share({
+            title: eventTitle,
+            text: `Check out this event: ${eventTitle}`,
+            url: shareUrl
+        }).catch((error) => console.log('Error sharing:', error));
+    } else {
+        // Fallback: Copy to clipboard
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showToast("Event link copied to clipboard!");
+        }).catch((err) => {
+            console.error('Failed to copy: ', err);
+            showToast("Failed to copy link.");
+        });
+    }
+}
+
+function openEventDetailsModal(eventObj) {
+    if (!eventObj) return;
+
+    const modal = document.getElementById('eventDetailsModal');
+    if (!modal) return;
+
+    // Populate Details
+    document.getElementById('detailsEventTitle').innerText = eventObj.title;
+    document.getElementById('detailsDate').innerText = eventObj.date;
+    document.getElementById('detailsTime').innerText = eventObj.time || "TBA";
+    document.getElementById('detailsVenue').innerText = eventObj.venue || "TBA";
+    document.getElementById('detailsParticipants').innerText = eventObj.participants + " Registered";
+    document.getElementById('detailsDesc').innerText = eventObj.description || eventObj.desc || "No event description available yet.";
+
+    // Setup Carousel
+    currentEventGallery = (eventObj.gallery && eventObj.gallery.length ? eventObj.gallery : [eventObj.img]).filter(Boolean);
+    currentSlide = 0;
+    renderCarousel();
+
+    // Show Modal
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function openDetailsModal(eventTitle) {
+    // Find event object
+    const eventObj = getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
+    openEventDetailsModal(eventObj);
+}
+
+function openMyOrgEventGallery(eventId, eventTitle) {
+    const eventObj = getStudentScopedExtendedEvents().find(e => String(e.id ?? '') === String(eventId ?? ''))
+        || getStudentScopedExtendedEvents().find(e => e.title === eventTitle);
+    openEventDetailsModal(eventObj);
+}
+
+function closeDetailsModal() {
+    const modal = document.getElementById('eventDetailsModal');
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+
+    const params = new URLSearchParams(window.location.search);
+    if (isOsaStudentPreviewModeFromUrl() && params.get('target') === 'event') {
+        window.close();
+        setTimeout(() => {
+            if (!window.closed) {
+                window.location.href = 'osaDashboard.html';
+            }
+        }, 150);
+    }
+}
+
+function renderCarousel() {
+    const track = document.getElementById('carouselTrack');
+    const indicators = document.getElementById('carouselIndicators');
+    const prevButton = document.querySelector('.carousel-prev');
+    const nextButton = document.querySelector('.carousel-next');
+
+    if (!track || !indicators) return;
+    track.innerHTML = '';
+    indicators.innerHTML = '';
+
+    // Create Slides
+    currentEventGallery.forEach((imgSrc, index) => {
+        const slide = document.createElement('div');
+        slide.className = 'carousel-slide';
+        const image = document.createElement('img');
+        image.src = imgSrc;
+        image.alt = `Event gallery image ${index + 1}`;
+        slide.appendChild(image);
+        track.appendChild(slide);
+
+        // Create Indicator Dot
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = `indicator ${index === 0 ? 'active' : ''}`;
+        dot.setAttribute('aria-label', `Show image ${index + 1}`);
+        dot.onclick = () => {
+            currentSlide = index;
+            updateCarousel();
+        };
+        indicators.appendChild(dot);
+    });
+
+    const hasMultipleSlides = currentEventGallery.length > 1;
+    if (prevButton) prevButton.hidden = !hasMultipleSlides;
+    if (nextButton) nextButton.hidden = !hasMultipleSlides;
+
+    updateCarousel();
+}
+
+function updateCarousel() {
+    const track = document.getElementById('carouselTrack');
+    const dots = document.querySelectorAll('.indicator');
+    if (!track) return;
+
+    const translateValue = -(currentSlide * 100);
+    track.style.transform = `translateX(${translateValue}%)`;
+
+    dots.forEach((dot, idx) => {
+        if (idx === currentSlide) dot.classList.add('active');
+        else dot.classList.remove('active');
+    });
+}
+
+function moveSlide(direction) {
+    const totalSlides = currentEventGallery.length;
+    if (!totalSlides) return;
+    currentSlide = (currentSlide + direction + totalSlides) % totalSlides;
+    updateCarousel();
+}
+
+document.addEventListener('click', (event) => {
+    const mediaButton = event.target.closest('.my-org-event-media');
+    if (!mediaButton) return;
+    openMyOrgEventGallery(mediaButton.dataset.eventId, mediaButton.dataset.eventTitle);
+});
+
+let studentServiceCatalog = [];
+let studentServiceCatalogPromise = null;
+let studentServiceCatalogLoaded = false;
+let studentServicesRenderSignature = '';
+let currentSelectedCatalogItem = null;
+const serviceGroups = {};
+let currentServiceModule = 'rentals';
+let studentServicesTracker = {
+    modules: [],
+    printingProviders: []
+};
+let studentPrintingJobs = [];
+const studentCancellingPrintJobs = new Set();
+let studentPrintingAutoRefreshInterval = null;
+let studentPrintingAutoRefreshInFlight = false;
+let studentServicesTrackerPromise = null;
+const STUDENT_DASHBOARD_POLL_FAST_MS = 5000;
+const STUDENT_DASHBOARD_POLL_SLOW_MS = 30000;
+const STUDENT_SERVICES_POLL_MS = 3000;
+let studentPagePollingInterval = null;
+let studentPagePollingInFlight = false;
+const STUDENT_ANNOUNCEMENT_POLL_FAST_MS = 3000;
+const STUDENT_ANNOUNCEMENT_POLL_SLOW_MS = 30000;
+let studentAnnouncementPollingTimer = null;
+let studentAnnouncementPollingInFlight = false;
+let studentLockerState = {
+    enabled: false,
+    org_name: '',
+    org_code: '',
+    lockers: [],
+    current_locker: null
+};
+let pendingStudentLockerSelection = null;
+
+function getActiveStudentPageView() {
+    const activeSection = document.querySelector('.section-view.active');
+    return activeSection ? activeSection.id : '';
+}
+
+function isStudentPagePollingView(viewId = getActiveStudentPageView()) {
+    return viewId === 'dashboard' || viewId === 'services';
+}
+
+function getStudentPagePollingDelay(viewId = getActiveStudentPageView()) {
+    if (viewId === 'dashboard') {
+        return document.hidden
+            ? STUDENT_DASHBOARD_POLL_SLOW_MS
+            : STUDENT_DASHBOARD_POLL_FAST_MS;
+    }
+    return STUDENT_SERVICES_POLL_MS;
+}
+
+function isStudentAnnouncementPollingActive() {
+    return !isOsaStudentPreviewModeFromUrl() && getActiveStudentPageView() === 'announcements';
+}
+
+function getStudentAnnouncementPollingDelay() {
+    return document.hidden
+        ? STUDENT_ANNOUNCEMENT_POLL_SLOW_MS
+        : STUDENT_ANNOUNCEMENT_POLL_FAST_MS;
+}
+
+function stopStudentAnnouncementPolling() {
+    if (studentAnnouncementPollingTimer) {
+        clearTimeout(studentAnnouncementPollingTimer);
+        studentAnnouncementPollingTimer = null;
+    }
+}
+
+function scheduleStudentAnnouncementPolling(delay = getStudentAnnouncementPollingDelay()) {
+    stopStudentAnnouncementPolling();
+    if (!isStudentAnnouncementPollingActive()) return;
+
+    studentAnnouncementPollingTimer = window.setTimeout(() => {
+        studentAnnouncementPollingTimer = null;
+        pollStudentAnnouncementFeed().catch((error) => {
+            console.error('[pollStudentAnnouncementFeed]', error);
+        });
+    }, delay);
+}
+
+async function pollStudentAnnouncementFeed() {
+    if (!isStudentAnnouncementPollingActive()) return;
+    if (studentAnnouncementPollingInFlight || studentAnnouncementFeedState.loading) {
+        scheduleStudentAnnouncementPolling();
+        return;
+    }
+
+    studentAnnouncementPollingInFlight = true;
+    try {
+        await fetchStudentAnnouncementFeed({
+            silent: true,
+            skipIfBusy: true,
+            limit: Math.max(10, studentAnnouncementFeedState.items.length)
+        });
+    } finally {
+        studentAnnouncementPollingInFlight = false;
+        scheduleStudentAnnouncementPolling();
+    }
+}
+
+function syncStudentAnnouncementPolling({ refreshNow = false } = {}) {
+    stopStudentAnnouncementPolling();
+    if (!isStudentAnnouncementPollingActive()) return;
+
+    if (refreshNow && !studentAnnouncementPollingInFlight) {
+        pollStudentAnnouncementFeed().catch((error) => {
+            console.error('[pollStudentAnnouncementFeed]', error);
+        });
+        return;
+    }
+    scheduleStudentAnnouncementPolling();
+}
+
+async function pollActiveStudentPage() {
+    const activeView = getActiveStudentPageView();
+    if (!isStudentPagePollingView(activeView) || studentPagePollingInFlight) {
+        return;
+    }
+    if (document.hidden && activeView !== 'dashboard') {
+        return;
+    }
+
+    studentPagePollingInFlight = true;
+    try {
+        if (activeView === 'dashboard') {
+            await Promise.allSettled([
+                loadStudentEventsFromApi(),
+                loadStudentAnnouncementsFromApi(),
+                loadStudentRecentActivity(),
+                loadStudentTransactionNotifications()
+            ]);
+            renderDashboard();
+            initDashboardCarousel();
+            return;
+        }
+
+        if (activeView === 'services') {
+            await Promise.allSettled([
+                loadStudentServicesTracker(true),
+                loadStudentServiceCatalog(true),
+                loadCurrentRentals(),
+                loadStudentLockers(),
+                loadStudentPrintJobs(false)
+            ]);
+
+            const searchInput = document.getElementById('serviceSearch');
+            renderServices(searchInput ? searchInput.value : '');
+            renderServicesModuleNav();
+            renderPrintingProviderOptions();
+
+            const rentalsTab = document.getElementById('services-my-rentals-tab');
+            if (rentalsTab && rentalsTab.classList.contains('active')) {
+                await loadRentalHistory();
+                buildFilterOptions();
+                updateFilterVisibility();
+                applyAllFilters();
+            }
+        }
+    } finally {
+        studentPagePollingInFlight = false;
+    }
+}
+
+function stopStudentPagePolling() {
+    if (studentPagePollingInterval) {
+        clearTimeout(studentPagePollingInterval);
+        studentPagePollingInterval = null;
+    }
+}
+
+function scheduleStudentPagePolling() {
+    stopStudentPagePolling();
+    const activeView = getActiveStudentPageView();
+    if (isOsaStudentPreviewModeFromUrl() || !isStudentPagePollingView(activeView)) return;
+
+    studentPagePollingInterval = window.setTimeout(() => {
+        studentPagePollingInterval = null;
+        pollActiveStudentPage()
+            .catch((error) => console.error('[pollActiveStudentPage]', error))
+            .finally(scheduleStudentPagePolling);
+    }, getStudentPagePollingDelay(activeView));
+}
+
+function syncStudentPagePolling({ refreshNow = false } = {}) {
+    stopStudentPagePolling();
+    if (isOsaStudentPreviewModeFromUrl() || !isStudentPagePollingView()) {
+        return;
+    }
+
+    if (refreshNow && !studentPagePollingInFlight) {
+        pollActiveStudentPage()
+            .catch((error) => console.error('[pollActiveStudentPage]', error))
+            .finally(scheduleStudentPagePolling);
+        return;
+    }
+    scheduleStudentPagePolling();
+}
+
+function isStudentPrintingHeroAutoRefreshActive() {
+    const servicesView = document.getElementById('services');
+    if (!servicesView || !servicesView.classList.contains('active')) return false;
+
+    const catalogTab = document.getElementById('services-catalog-tab');
+    if (!catalogTab || !catalogTab.classList.contains('active')) return false;
+
+    const heroLive = document.getElementById('printingHeroLive');
+    if (!heroLive) return false;
+
+    return heroLive.offsetParent !== null;
+}
+
+function stopStudentPrintingAutoRefresh() {
+    if (studentPrintingAutoRefreshInterval) {
+        clearInterval(studentPrintingAutoRefreshInterval);
+        studentPrintingAutoRefreshInterval = null;
+    }
+    studentPrintingAutoRefreshInFlight = false;
+}
+
+function startStudentPrintingAutoRefresh() {
+    if (studentPrintingAutoRefreshInterval) return;
+    if (!isStudentPrintingHeroAutoRefreshActive()) return;
+
+    const tick = async () => {
+        if (document.hidden) return;
+        if (!isStudentPrintingHeroAutoRefreshActive()) {
+            stopStudentPrintingAutoRefresh();
+            return;
+        }
+        if (studentPrintingAutoRefreshInFlight) return;
+
+        studentPrintingAutoRefreshInFlight = true;
+        try {
+            await loadStudentPrintJobs(false);
+        } catch (_error) {
+            // Silent by design for polling
+        } finally {
+            studentPrintingAutoRefreshInFlight = false;
+        }
+    };
+
+    tick().catch(() => undefined);
+    studentPrintingAutoRefreshInterval = setInterval(() => {
+        tick().catch(() => undefined);
+    }, 3000);
+}
+
+function resolveStudentCatalogImage(path) {
+    const raw = String(path || '').trim();
+    if (!raw) return '';
+    if (/^(https?:)?\/\//i.test(raw)) return raw;
+    return `../${raw.replace(/^\/+/, '')}`;
+}
+
+function getServiceCategoryIcon(categoryName) {
+    const value = String(categoryName || '').toLowerCase();
+    if (value.includes('labor')) return 'fa-flask';
+    if (value.includes('print')) return 'fa-print';
+    if (value.includes('tool')) return 'fa-toolbox';
+    if (value.includes('utility')) return 'fa-screwdriver-wrench';
+    if (value.includes('study') || value.includes('academic')) return 'fa-book';
+    if (value.includes('calculator')) return 'fa-calculator';
+    return 'fa-box-open';
+}
+
+async function loadStudentServiceCatalog(force = false) {
+    if (studentServiceCatalogPromise && !force) {
+        return studentServiceCatalogPromise;
+    }
+
+    studentServiceCatalogPromise = fetch('../api/student/services/catalog.php', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+        .then((resp) => resp.json().catch(() => ({})).then((data) => ({ resp, data })))
+        .then(({ resp, data }) => {
+            if (!resp.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load services.');
+            }
+            studentServiceCatalog = Array.isArray(data.items) ? data.items : [];
+            studentServiceCatalogLoaded = true;
+            return studentServiceCatalog;
+        })
+        .catch((err) => {
+            studentServiceCatalog = [];
+            studentServiceCatalogLoaded = true;
+            throw err;
+        });
+
+    return studentServiceCatalogPromise;
+}
+
+async function loadStudentServicesTracker(force = false) {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        studentServicesTracker = { modules: [], printingProviders: [] };
+        return studentServicesTracker;
+    }
+
+    if (studentServicesTrackerPromise && !force) {
+        return studentServicesTrackerPromise;
+    }
+
+    studentServicesTrackerPromise = fetch('../api/student/services/tracker.php', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+        .then((resp) => resp.json().catch(() => ({})).then((data) => ({ resp, data })))
+        .then(({ resp, data }) => {
+            if (!resp.ok || !data.ok) {
+                throw new Error(data.error || 'Could not load service modules.');
+            }
+            studentServicesTracker = {
+                modules: Array.isArray(data.modules) ? data.modules : [],
+                printingProviders: Array.isArray(data.printing_providers) ? data.printing_providers : [],
+            };
+            renderServicesModuleNav();
+            renderPrintingProviderOptions();
+            return studentServicesTracker;
+        })
+        .catch((error) => {
+            studentServicesTracker = { modules: [], printingProviders: [] };
+            renderServicesModuleNav();
+            renderPrintingProviderOptions();
+            throw error;
+        });
+
+    return studentServicesTrackerPromise;
+}
+
+function getServiceModuleMeta(serviceKey) {
+    const normalized = String(serviceKey || '').trim().toLowerCase();
+    return (studentServicesTracker.modules || []).find(item => String(item.service_key || '').toLowerCase() === normalized) || null;
+}
+
+function renderServicesModuleNav() {
+    const sidebar = document.querySelector('#services .services-tracker-sidebar');
+    const sidebarHidden = !sidebar || window.getComputedStyle(sidebar).display === 'none';
+    const buttons = document.querySelectorAll('#servicesModuleNav .services-module-btn');
+    if (!buttons.length) return;
+
+    const visibleButtons = [];
+    buttons.forEach((button) => {
+        const moduleKey = button.dataset.module || '';
+        const moduleMeta = getServiceModuleMeta(moduleKey);
+        const enabled = moduleMeta ? !!moduleMeta.enabled : (moduleKey === 'rentals');
+        button.style.display = enabled ? '' : 'none';
+        button.disabled = !enabled;
+        if (enabled) {
+            visibleButtons.push(button);
+        }
+    });
+
+    const currentButtonVisible = visibleButtons.some(button => (button.dataset.module || '') === currentServiceModule);
+    if (!currentButtonVisible && visibleButtons.length > 0) {
+        currentServiceModule = visibleButtons[0].dataset.module || 'rentals';
+    }
+
+    const activeButton = visibleButtons.find(button => (button.dataset.module || '') === currentServiceModule) || visibleButtons[0] || null;
+    if (sidebarHidden) {
+        syncStudentServicesPanels();
+    } else if (activeButton) {
+        switchServiceModule(activeButton.dataset.module, activeButton);
+    }
+}
+
+function syncStudentServicesPanels() {
+    const printingPane = document.getElementById('services-module-printing');
+    if (printingPane) {
+        printingPane.classList.remove('active');
+        printingPane.style.display = 'none';
+    }
+}
+
+function switchServiceModule(moduleKey, btn = null) {
+    currentServiceModule = moduleKey;
+
+    document.querySelectorAll('#servicesModuleNav .services-module-btn').forEach((button) => {
+        button.classList.toggle('active', button === btn || (button.dataset.module || '') === moduleKey);
+    });
+
+    document.querySelectorAll('#services .services-module-pane').forEach((pane) => {
+        pane.classList.remove('active');
+    });
+
+    const targetPane = document.getElementById(`services-module-${moduleKey}`);
+    if (targetPane) {
+        targetPane.classList.add('active');
+    }
+
+    if (moduleKey === 'printing') {
+        loadStudentPrintJobs().catch((error) => console.error(error));
+    } else if (moduleKey === 'rentals') {
+        const rentalsTab = document.getElementById('services-my-rentals-tab');
+        if (rentalsTab && rentalsTab.classList.contains('active')) {
+            loadMyRentalsTab();
+        }
+    }
+
+    syncStudentServicesPanels();
+}
+
+function resolveStudentDocumentUrl(path) {
+    const raw = String(path || '').trim();
+    if (!raw) return '';
+    if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
+    return `../${raw.replace(/^\/+/, '')}`;
+}
+
+function escapeStudentHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getAuthorizedPrintingProviders() {
+    const providersById = new Map();
+    const authDb = readJsonStorage(AUTH_DB_KEY, {});
+    const orgRows = Array.isArray(authDb.organizations) ? authDb.organizations : [];
+
+    orgRows.forEach((org) => {
+        const orgId = Number(org?.org_id);
+        const isActive = String(org?.status || '').toLowerCase() === 'active';
+        const canOfferPrinting = Number(org?.can_offer_printing || 0) === 1;
+        if (!orgId || !isActive || !canOfferPrinting) {
+            return;
+        }
+
+        providersById.set(orgId, {
+            org_id: orgId,
+            org_name: String(org.org_name || '').trim(),
+            org_code: String(org.org_code || '').trim(),
+            logo_url: String(org.logo_url || '').trim()
+        });
+    });
+
+    const trackerProviders = Array.isArray(studentServicesTracker.printingProviders)
+        ? studentServicesTracker.printingProviders
+        : [];
+
+    trackerProviders.forEach((provider) => {
+        const orgId = Number(provider?.org_id);
+        if (!orgId) {
+            return;
+        }
+
+        const existing = providersById.get(orgId) || {};
+        providersById.set(orgId, {
+            org_id: orgId,
+            org_name: String(existing.org_name || provider.org_name || '').trim(),
+            org_code: String(existing.org_code || provider.org_code || '').trim(),
+            logo_url: String(existing.logo_url || provider.logo_url || '').trim(),
+            has_unpaid_printing_balance: Boolean(provider.has_unpaid_printing_balance),
+            printing_request_allowed: provider.printing_request_allowed !== false
+        });
+    });
+
+    return Array.from(providersById.values())
+        .filter((provider) => provider.org_name)
+        .sort((a, b) => a.org_name.localeCompare(b.org_name));
+}
+
+function renderPrintingProviderOptions() {
+    const select = document.getElementById('printingProviderSelect');
+    const heroSelect = document.getElementById('uploadPrintProvider');
+    const summary = document.getElementById('printingProvidersSummary');
+    const text = document.getElementById('printingAvailabilityText');
+    const selectedProviderId = String(select?.value || '').trim();
+    const selectedHeroProviderId = String(heroSelect?.value || '').trim();
+    const providers = getAuthorizedPrintingProviders();
+
+    if (select) {
+        select.innerHTML = '<option value="">Select organization</option>';
+    }
+    if (heroSelect) {
+        heroSelect.innerHTML = '<option value="">Select printing provider</option>';
+    }
+    if (summary) {
+        summary.innerHTML = '';
+    }
+
+    if (!providers.length) {
+        if (text) {
+            text.textContent = 'No organizations are currently authorized to offer printing services.';
+        }
+        return;
+    }
+
+    if (text) {
+        text.textContent = `${providers.length} authorized printing provider${providers.length > 1 ? 's' : ''} available.`;
+    }
+
+    providers.forEach((provider) => {
+        [select, heroSelect].forEach((target) => {
+            if (!target) return;
+            const option = document.createElement('option');
+            option.value = provider.org_id;
+            const isBlocked = provider.printing_request_allowed === false || provider.has_unpaid_printing_balance;
+            option.disabled = isBlocked;
+            option.textContent = `${provider.org_name}${provider.org_code ? ` (${provider.org_code})` : ''}${isBlocked ? ' — Unpaid balance' : ''}`;
+            target.appendChild(option);
+        });
+
+        if (summary) {
+            const badge = document.createElement('span');
+            badge.className = 'printing-provider-chip';
+            const isBlocked = provider.printing_request_allowed === false || provider.has_unpaid_printing_balance;
+            badge.textContent = `${provider.org_code || provider.org_name}${isBlocked ? ' — Balance due' : ''}`;
+            if (isBlocked) badge.classList.add('is-disabled');
+            summary.appendChild(badge);
+        }
+    });
+
+    if (select) {
+        const matched = providers.some((provider) => String(provider.org_id) === selectedProviderId && provider.printing_request_allowed !== false);
+        if (matched) {
+            select.value = selectedProviderId;
+        } else {
+            const eligibleProviders = providers.filter((provider) => provider.printing_request_allowed !== false);
+            if (eligibleProviders.length === 1) select.value = String(eligibleProviders[0].org_id);
+        }
+    }
+
+    if (heroSelect) {
+        const matched = providers.some((provider) => String(provider.org_id) === selectedHeroProviderId && provider.printing_request_allowed !== false);
+        if (matched) {
+            heroSelect.value = selectedHeroProviderId;
+        }
+    }
+}
+
+function getPrintingJobStatusLabel(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'ready_to_claim') return 'Ready to Claim';
+    if (normalized === 'processing') return 'Processing';
+    if (normalized === 'queued') return 'Queued';
+    if (normalized === 'claimed') return 'Claimed';
+    if (normalized === 'cancelled') return 'Cancelled';
+    return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Unknown';
+}
+
+function getNormalizedLockerActivityStatus(status, rental = null) {
+    const normalized = String(status || '').toLowerCase();
+    const periodType = String(rental?.locker_period_type || '').toLowerCase();
+    if (normalized === 'locker_released' && periodType === 'pending') {
+        return 'locker_rejected';
+    }
+    return normalized;
+}
+
+function isStudentLockerActive(locker) {
+    const status = getNormalizedLockerActivityStatus(locker?.status, locker);
+    return ['locker_pending', 'locker_active', 'locker_overdue'].includes(status);
+}
+
+function getStudentLockerPeriodLabel(locker) {
+    const periodType = String(locker?.locker_period_type || '').toLowerCase();
+    const quantity = Math.max(1, Number(locker?.locker_period_quantity || 1));
+    if (periodType === 'monthly') return `${quantity} month${quantity === 1 ? '' : 's'}`;
+    if (periodType === 'semester') return `${quantity} semester${quantity === 1 ? '' : 's'}`;
+    if (periodType === 'school_year') return 'Whole school year';
+    return 'Not specified';
+}
+
+function getLockerActivityStatusLabel(status, rental = null) {
+    const normalized = getNormalizedLockerActivityStatus(status, rental);
+    if (normalized === 'locker_pending') return 'Pending Approval';
+    if (normalized === 'locker_active') return 'Active';
+    if (normalized === 'locker_overdue') return 'Overdue';
+    if (normalized === 'locker_rejected') return 'Rejected';
+    if (normalized === 'locker_released') return 'Released';
+    return normalized ? normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : 'Unknown';
+}
+
+function getLockerActivityStatusClass(status, rental = null) {
+    const normalized = getNormalizedLockerActivityStatus(status, rental);
+    if (normalized === 'locker_pending') return 'status-reserved';
+    if (normalized === 'locker_active') return 'status-active';
+    if (normalized === 'locker_overdue') return 'status-no-show';
+    if (normalized === 'locker_rejected') return 'status-unknown';
+    if (normalized === 'locker_released') return 'status-returned';
+    return 'status-unknown';
+}
+
+function getStudentLockerNoticeEntries(locker) {
+    if (!locker) return [];
+
+    const entries = [];
+    const normalizedStatus = getNormalizedLockerActivityStatus(locker.status, locker);
+    const upcomingMessage = String(locker.upcoming_notice_message || '').trim();
+    const upcomingSentAt = String(locker.upcoming_notice_sent_at || '').trim();
+    const overdueMessage = String(locker.overdue_notice_message || '').trim();
+    const overdueSentAt = String(locker.overdue_notice_sent_at || '').trim();
+
+    if (upcomingMessage || upcomingSentAt) {
+        entries.push({
+            type: 'upcoming',
+            message: upcomingMessage || 'Your locker rental is due within 7 days. Please coordinate with SSC before the due date if you need assistance.',
+            sentAt: upcomingSentAt,
+            urgent: false
+        });
+    }
+
+    if (overdueMessage || overdueSentAt || normalizedStatus === 'locker_overdue') {
+        entries.push({
+            type: 'overdue',
+            message: overdueMessage || 'This locker rental has exceeded the due date. Proceed to the SSC office immediately to settle the rental and avoid pull-out action.',
+            sentAt: overdueSentAt,
+            urgent: normalizedStatus === 'locker_overdue'
+        });
+    }
+
+    entries.sort((a, b) => {
+        const aTime = a.sentAt ? new Date(a.sentAt).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.sentAt ? new Date(b.sentAt).getTime() : Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+    });
+
+    return entries;
+}
+
+function getStudentLockerNoticeTitle(entry) {
+    const preset = entry.type === 'upcoming'
+        ? 'Your locker rental is due within 7 days. Please coordinate with SSC before the due date if you need assistance.'
+        : 'This locker rental has exceeded the due date. Proceed to the SSC office immediately to settle the rental and avoid pull-out action.';
+    return String(entry.message || '').trim() !== preset.trim()
+        ? 'Notice!'
+        : (entry.type === 'upcoming' ? 'Ending Soon Notice' : 'Pull-out Notice');
+}
+
+function renderStudentLockerBoard() {
+    const section = document.getElementById('studentLockerSection');
+    const board = document.getElementById('studentLockerBoard');
+    const badge = document.getElementById('studentLockerCurrentBadge');
+    const panelTitle = document.getElementById('studentLockerPanelTitle');
+    const currentCard = document.getElementById('studentLockerCurrentCard');
+    const openButton = document.querySelector('.student-locker-open-btn');
+    if (!section || !board || !currentCard) return;
+
+    section.style.display = 'block';
+    const lockers = Array.isArray(studentLockerState.lockers) ? studentLockerState.lockers : [];
+    const currentLocker = studentLockerState.current_locker || null;
+    const hasActiveLocker = isStudentLockerActive(currentLocker);
+
+    if (panelTitle) {
+        panelTitle.textContent = currentLocker && !hasActiveLocker ? 'Released Locker Notice' : 'Current Locker';
+    }
+
+    if (openButton) {
+        openButton.disabled = !studentLockerState.enabled;
+    }
+
+    if (badge) {
+        if (hasActiveLocker && currentLocker?.locker_code) {
+            badge.style.display = 'inline-flex';
+            badge.textContent = `Current Locker: ${currentLocker.locker_code}`;
+        } else {
+            badge.style.display = 'none';
+            badge.textContent = '';
+        }
+    }
+
+    if (!studentLockerState.enabled) {
+        board.innerHTML = `
+            <div class="student-locker-empty">
+                <i class="fa-solid fa-door-closed"></i>
+                <p>Locker services are currently unavailable.</p>
+            </div>
+        `;
+        currentCard.innerHTML = `
+            <div class="student-locker-empty">
+                <i class="fa-solid fa-door-closed"></i>
+                <p>Locker services are currently unavailable.</p>
+            </div>
+        `;
+        renderStudentLockerProfile();
+        return;
+    }
+
+    const groups = lockers.reduce((acc, locker) => {
+        const columnKey = locker.column_key || 'A';
+        if (!acc[columnKey]) acc[columnKey] = [];
+        acc[columnKey].push(locker);
+        return acc;
+    }, {});
+
+    board.innerHTML = ['A', 'B', 'C', 'D', 'E'].map((columnKey) => {
+        const columnLockers = (groups[columnKey] || []).sort((a, b) => String(a.locker_code).localeCompare(String(b.locker_code)));
+        return `
+            <div class="student-locker-column">
+                <div class="student-locker-column-header">Locker ${columnKey}</div>
+                <div class="student-locker-column-grid">
+                    ${columnLockers.map((locker) => {
+                        const isCurrentStudentLocker = hasActiveLocker && !!currentLocker?.locker_code
+                            && String(locker.locker_code || '').trim().toUpperCase() === String(currentLocker.locker_code || '').trim().toUpperCase();
+                        const rawState = String(locker.state || 'available').toLowerCase();
+                        const state = isCurrentStudentLocker ? 'your-locker' : rawState;
+                        const stateLabel = state === 'your-locker'
+                            ? 'Your Locker'
+                            : (state === 'pending'
+                                ? 'Pending'
+                                : (state === 'occupied'
+                                    ? 'Occupied'
+                                    : (state === 'overdue' ? 'Overdue' : 'Available')));
+                        const canRequest = !!locker.request_allowed;
+                        return `
+                            <button
+                                type="button"
+                                class="student-locker-tile state-${state}"
+                                onclick="${canRequest ? `openStudentLockerRequestModal(${Number(locker.item_id)}, '${String(locker.locker_code || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')` : 'void(0)'}"
+                                ${canRequest ? '' : 'disabled'}>
+                                <span class="student-locker-code">${escapeStudentHtml(locker.locker_code || '')}</span>
+                                <span class="student-locker-state">${stateLabel}</span>
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (currentLocker) {
+        const normalizedStatus = getNormalizedLockerActivityStatus(currentLocker.status, currentLocker);
+        const noticeEntries = getStudentLockerNoticeEntries(currentLocker);
+        const currentAlert = noticeEntries.find((entry) => entry.type === 'overdue') || noticeEntries[noticeEntries.length - 1] || null;
+        const paymentStatus = String(currentLocker.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid';
+        const periodLabel = getStudentLockerPeriodLabel(currentLocker);
+        currentCard.innerHTML = `
+            <div class="student-locker-current-top">
+                <div class="student-locker-current-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
+                <span class="status-badge ${getLockerActivityStatusClass(currentLocker.status)}">${escapeStudentHtml(getLockerActivityStatusLabel(currentLocker.status))}</span>
+            </div>
+            ${normalizedStatus === 'locker_pending' ? `
+                <div class="student-locker-current-meta">
+                    <span><strong>For Approval</strong></span>
+                    <span><i class="fa-solid fa-calendar-days"></i> Period: ${escapeStudentHtml(periodLabel)}</span>
+                    <span><i class="fa-solid fa-calendar-check"></i> Requested start: ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
+                    <span><i class="fa-solid fa-calendar-xmark"></i> Requested end: ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
+                    <span><i class="fa-solid fa-money-bill-wave"></i> Estimated price: ₱${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                </div>
+            ` : `
+                <div class="student-locker-current-meta">
+                    <span><i class="fa-solid fa-calendar-check"></i> Start: ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
+                    <span><i class="fa-solid fa-calendar-xmark"></i> Due: ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
+                    <span><i class="fa-solid fa-money-bill-wave"></i> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                    <span><i class="fa-solid fa-wallet"></i> ${escapeStudentHtml(paymentStatus)}</span>
+                </div>
+            `}
+            ${currentAlert ? `
+                <div class="student-locker-notice-banner${currentAlert.urgent ? ' urgent' : ''}">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <div>
+                        <strong>${escapeStudentHtml(getStudentLockerNoticeTitle(currentAlert))}</strong>
+                        <p>${escapeStudentHtml(currentAlert.message)}</p>
+                    </div>
+                </div>
+            ` : ''}
+        `;
+    } else {
+        currentCard.innerHTML = `
+            <div class="student-locker-empty">
+                <i class="fa-solid fa-door-closed"></i>
+                <p>You do not have an active locker request yet.</p>
+            </div>
+        `;
+    }
+
+    renderStudentLockerProfile();
+}
+
+function openStudentLockerModal() {
+    const modal = document.getElementById('studentLockerModal');
+    if (!modal || !studentLockerState.enabled) return;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+}
+
+function closeStudentLockerModal() {
+    const modal = document.getElementById('studentLockerModal');
+    if (!modal) return;
+    closeStudentLockerConfirmModal();
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+}
+
+function formatStudentLockerInputDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function syncStudentLockerRequestPreview(changedField = '') {
+    const selectedLocker = studentLockerState.lockers.find(
+        locker => Number(locker.item_id) === Number(pendingStudentLockerSelection?.itemId || 0)
+    );
+    const periodInput = document.getElementById('studentLockerPeriodType');
+    const quantityField = document.getElementById('studentLockerQuantityField');
+    const quantityLabel = document.getElementById('studentLockerQuantityLabel');
+    const quantityInput = document.getElementById('studentLockerPeriodQuantity');
+    const startInput = document.getElementById('studentLockerStartDate');
+    const endInput = document.getElementById('studentLockerEndDate');
+    const priceInput = document.getElementById('studentLockerEstimatedPrice');
+    const help = document.getElementById('studentLockerPeriodHelp');
+    if (!selectedLocker || !periodInput || !quantityInput || !startInput || !endInput || !priceInput) return;
+
+    const periodType = String(periodInput.value || 'monthly');
+    const usesQuantity = periodType === 'monthly' || periodType === 'semester';
+    if (quantityField) quantityField.style.display = usesQuantity ? '' : 'none';
+    if (quantityLabel) quantityLabel.textContent = periodType === 'semester' ? 'Number of Semesters' : 'Number of Months';
+    quantityInput.max = periodType === 'semester' ? '8' : '24';
+
+    const maximum = periodType === 'semester' ? 8 : 24;
+    let quantity = periodType === 'school_year' ? 1 : Math.trunc(Number(quantityInput.value || 1));
+    quantity = Math.min(maximum, Math.max(1, Number.isFinite(quantity) ? quantity : 1));
+    quantityInput.value = String(quantity);
+
+    const today = new Date();
+    const todayValue = formatStudentLockerInputDate(today);
+    startInput.min = todayValue;
+    if (!startInput.value) startInput.value = todayValue;
+
+    const allowsCustomEndDate = periodType === 'semester' || periodType === 'school_year';
+    endInput.readOnly = !allowsCustomEndDate;
+    if (help) {
+        help.textContent = allowsCustomEndDate
+            ? 'A suggested date is provided; adjust it if your academic schedule differs.'
+            : 'Calculated automatically from the selected number of months.';
+    }
+
+    const startDate = new Date(`${startInput.value}T00:00:00`);
+    if (Number.isNaN(startDate.getTime())) {
+        endInput.value = '';
+        priceInput.value = '';
+        return;
+    }
+
+    const monthsPerPeriod = { monthly: 1, semester: 5, school_year: 10 };
+    const shouldResetEndDate = !allowsCustomEndDate
+        || ['period', 'start', 'quantity'].includes(changedField)
+        || !endInput.value;
+    if (shouldResetEndDate) {
+        const endDate = new Date(startDate.getTime());
+        endDate.setMonth(endDate.getMonth() + monthsPerPeriod[periodType] * quantity);
+        endInput.value = formatStudentLockerInputDate(endDate);
+    }
+
+    endInput.min = formatStudentLockerInputDate(new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + 1));
+    const selectedEndDate = new Date(`${endInput.value}T00:00:00`);
+    const invalidStartDate = startInput.value < todayValue;
+    const invalidEndDate = Number.isNaN(selectedEndDate.getTime()) || selectedEndDate <= startDate;
+    startInput.setCustomValidity(invalidStartDate ? 'Start date cannot be before today.' : '');
+    endInput.setCustomValidity(invalidEndDate ? 'End date must be after the start date.' : '');
+
+    const rateByPeriod = {
+        monthly: Number(selectedLocker.locker_monthly_rate || 0),
+        semester: Number(selectedLocker.locker_semester_rate || 0),
+        school_year: Number(selectedLocker.locker_school_year_rate || 0)
+    };
+    priceInput.value = invalidEndDate ? '' : (rateByPeriod[periodType] * quantity).toFixed(2);
+}
+
+function openStudentLockerRequestModal(itemId, lockerCode) {
+    const modal = document.getElementById('studentLockerConfirmModal');
+    const codeEl = document.getElementById('studentLockerConfirmCode');
+    const confirmBtn = document.getElementById('studentLockerConfirmBtn');
+    if (!modal) return;
+
+    pendingStudentLockerSelection = {
+        itemId: Number(itemId),
+        lockerCode: String(lockerCode || '').trim() || '-'
+    };
+
+    if (codeEl) {
+        codeEl.textContent = pendingStudentLockerSelection.lockerCode;
+    }
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+    }
+
+    const periodInput = document.getElementById('studentLockerPeriodType');
+    const quantityInput = document.getElementById('studentLockerPeriodQuantity');
+    const startInput = document.getElementById('studentLockerStartDate');
+    const endInput = document.getElementById('studentLockerEndDate');
+    if (periodInput) periodInput.value = 'monthly';
+    if (quantityInput) quantityInput.value = '1';
+    if (startInput) startInput.value = formatStudentLockerInputDate(new Date());
+    if (endInput) endInput.value = '';
+    syncStudentLockerRequestPreview('period');
+
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+}
+
+function closeStudentLockerConfirmModal() {
+    const modal = document.getElementById('studentLockerConfirmModal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    pendingStudentLockerSelection = null;
+
+    const lockerModal = document.getElementById('studentLockerModal');
+    if (!lockerModal || !lockerModal.classList.contains('open')) {
+        document.body.classList.remove('modal-open');
+    }
+}
+
+async function confirmStudentLockerRequest() {
+    if (!pendingStudentLockerSelection?.itemId) {
+        closeStudentLockerConfirmModal();
+        return;
+    }
+
+    syncStudentLockerRequestPreview('confirm');
+    const periodInput = document.getElementById('studentLockerPeriodType');
+    const quantityInput = document.getElementById('studentLockerPeriodQuantity');
+    const startInput = document.getElementById('studentLockerStartDate');
+    const endInput = document.getElementById('studentLockerEndDate');
+    const controls = [periodInput, quantityInput, startInput, endInput].filter(Boolean);
+    const invalidControl = controls.find(control => !control.checkValidity());
+    if (invalidControl) {
+        invalidControl.reportValidity();
+        return;
+    }
+
+    const requestDetails = {
+        period_type: periodInput?.value || '',
+        period_quantity: Number(quantityInput?.value || 1),
+        start_date: startInput?.value || '',
+        end_date: endInput?.value || ''
+    };
+
+    if (!beginStudentLockerTransaction(
+        'Submitting locker request',
+        'Sending your request to SSC and updating locker availability...'
+    )) return;
+
+    const confirmBtn = document.getElementById('studentLockerConfirmBtn');
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+    }
+
+    try {
+        await requestStudentLocker(pendingStudentLockerSelection.itemId, requestDetails);
+    } finally {
+        await finishStudentLockerTransaction();
+    }
+}
+
+let studentLockerTransactionBusy = false;
+let studentLockerTransactionStartedAt = 0;
+
+function beginStudentLockerTransaction(title, message) {
+    if (studentLockerTransactionBusy) return false;
+    studentLockerTransactionBusy = true;
+    studentLockerTransactionStartedAt = performance.now();
+    const overlay = document.getElementById('studentLockerTransactionLoading');
+    const titleNode = document.getElementById('studentLockerTransactionLoadingTitle');
+    const messageNode = document.getElementById('studentLockerTransactionLoadingMessage');
+    if (titleNode) titleNode.textContent = title || 'Processing locker transaction';
+    if (messageNode) messageNode.textContent = message || 'Please wait while your request is safely processed.';
+    overlay?.classList.add('is-active');
+    overlay?.setAttribute('aria-hidden', 'false');
+    return true;
+}
+
+async function finishStudentLockerTransaction() {
+    const elapsed = performance.now() - studentLockerTransactionStartedAt;
+    if (elapsed < 350) {
+        await new Promise(resolve => window.setTimeout(resolve, 350 - elapsed));
+    }
+    const overlay = document.getElementById('studentLockerTransactionLoading');
+    overlay?.classList.remove('is-active');
+    overlay?.setAttribute('aria-hidden', 'true');
+    studentLockerTransactionBusy = false;
+}
+
+function renderStudentLockerProfile() {
+    const section = document.getElementById('profileLockerSection');
+    const content = document.getElementById('profileLockerContent');
+    if (!section || !content) return;
+
+    const currentLocker = studentLockerState.current_locker || null;
+    if (!studentLockerState.enabled || !currentLocker) {
+        section.style.display = 'none';
+        content.innerHTML = '';
+        return;
+    }
+
+    section.style.display = 'block';
+    const normalizedStatus = getNormalizedLockerActivityStatus(currentLocker.status, currentLocker);
+    const noticeEntries = getStudentLockerNoticeEntries(currentLocker);
+    const latestNotice = noticeEntries.find((entry) => entry.type === 'overdue') || noticeEntries[noticeEntries.length - 1] || null;
+    const paymentStatus = String(currentLocker.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid';
+    const periodLabel = getStudentLockerPeriodLabel(currentLocker);
+    content.innerHTML = `
+        <div class="profile-locker-card">
+            <div class="profile-locker-main">
+                <div class="profile-locker-code">${escapeStudentHtml(currentLocker.locker_code || '-')}</div>
+                ${normalizedStatus === 'locker_pending' ? `
+                    <div class="profile-locker-details">
+                        <span><strong>Status:</strong> For Approval</span>
+                        <span><strong>Period:</strong> ${escapeStudentHtml(periodLabel)}</span>
+                        <span><strong>Requested start:</strong> ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
+                        <span><strong>Requested end:</strong> ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
+                        <span><strong>Estimated price:</strong> ₱${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                    </div>
+                ` : `
+                    <div class="profile-locker-details">
+                        <span><strong>Status:</strong> ${escapeStudentHtml(getLockerActivityStatusLabel(currentLocker.status))}</span>
+                        <span><strong>Start:</strong> ${escapeStudentHtml(formatDate(currentLocker.rent_time))}</span>
+                        <span><strong>Due:</strong> ${escapeStudentHtml(formatDate(currentLocker.expected_return_time))}</span>
+                        <span><strong>Price:</strong> ${Number(currentLocker.total_cost || 0).toFixed(2)}</span>
+                        <span><strong>Payment:</strong> ${escapeStudentHtml(paymentStatus)}</span>
+                    </div>
+                `}
+            </div>
+            ${latestNotice ? `
+                <div class="profile-locker-notice${latestNotice.urgent ? ' urgent' : ''}">
+                    <i class="fa-solid fa-bell"></i>
+                    <div>
+                        <strong>${escapeStudentHtml(getStudentLockerNoticeTitle(latestNotice))}</strong>
+                        <p>${escapeStudentHtml(latestNotice.message)}</p>
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+async function loadStudentLockers(force = false) {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        studentLockerState = {
+            enabled: false,
+            org_name: '',
+            org_code: '',
+            lockers: [],
+            current_locker: null
+        };
+        return studentLockerState;
+    }
+
+    try {
+        const response = await fetch('../api/lockers/student/list.php', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load locker services.');
+        }
+        studentLockerState = {
+            enabled: !!data.enabled,
+            org_name: data.org_name || '',
+            org_code: data.org_code || '',
+            lockers: Array.isArray(data.lockers) ? data.lockers : [],
+            current_locker: data.current_locker || null
+        };
+        renderStudentLockerBoard();
+        return studentLockerState;
+    } catch (error) {
+        if (force) {
+            console.error('[loadStudentLockers]', error);
+        }
+        studentLockerState = { enabled: false, org_name: '', org_code: '', lockers: [], current_locker: null };
+        renderStudentLockerBoard();
+        throw error;
+    }
+}
+
+async function requestStudentLocker(itemId, requestDetails = {}) {
+    try {
+        const response = await fetch('../api/lockers/student/request.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ item_id: itemId, ...requestDetails })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not submit the locker request.');
+        }
+        studentLockerState = {
+            enabled: !!data.enabled,
+            org_name: data.org_name || '',
+            org_code: data.org_code || '',
+            lockers: Array.isArray(data.lockers) ? data.lockers : [],
+            current_locker: data.current_locker || null
+        };
+        renderStudentLockerBoard();
+        await Promise.all([
+            loadCurrentRentals(),
+            loadRentalHistory()
+        ]);
+        buildFilterOptions();
+        updateMyRentalsEmptyState();
+        closeStudentLockerConfirmModal();
+        closeStudentLockerModal();
+        showToast('Locker request submitted. Proceed to the SSC office to process the rental.');
+        await loadStudentTransactionNotifications();
+    } catch (error) {
+        const confirmBtn = document.getElementById('studentLockerConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+        }
+        alert(error.message || 'Could not submit the locker request.');
+    }
+}
+
+function renderStudentPrintJobCards(jobs, options = {}) {
+    const { showCancelButton = false } = options;
+    return jobs.map((job) => {
+        const status = String(job.status || '').toLowerCase();
+        const providerWasAutoAssigned = Number(job.provider_auto_assigned || 0) === 1;
+        const queueText = job.pendingSync
+            ? (job.offlineStatus === 'attention' ? 'Review before syncing' : 'Saved on this device')
+            : status === 'queued' && Number(job.queue_position || 0) > 0
+            ? `Queue #${job.queue_position}`
+            : (status === 'processing' ? 'In progress' : (status === 'ready_to_claim' ? 'Ready now' : 'Completed'));
+        const submittedAt = formatDateTime(job.submitted_at);
+        const jobUrl = resolveStudentDocumentUrl(job.file_url);
+        const canCancel = showCancelButton && status === 'queued';
+        const isCancelling = studentCancellingPrintJobs.has(Number(job.print_job_id));
+        const paymentStatus = status === 'cancelled'
+            ? 'waived'
+            : (String(job.payment_status || 'unpaid').toLowerCase() === 'paid' ? 'paid' : 'unpaid');
+        return `
+            <div class="printing-job-card ${job.pendingSync ? 'naap-optimistic-record' : ''}" data-print-job-id="${Number(job.print_job_id)}" ${job.pendingSync ? `data-offline-status="${job.offlineStatus === 'attention' ? 'attention' : 'queued'}" data-offline-operation-id="${escapeStudentHtml(job.offlineOperationId || '')}"` : ''}>
+                <div class="printing-job-header">
+                    <div>
+                        <h4>${escapeStudentHtml(job.file_name || 'Untitled PDF')}</h4>
+                        <p>${providerWasAutoAssigned
+                            ? 'Waiting for a printing provider to accept your request'
+                            : `${escapeStudentHtml(job.org_name || 'Unknown Organization')}${job.org_code ? ` (${escapeStudentHtml(job.org_code)})` : ''}`
+                        }</p>
+                    </div>
+                    ${job.pendingSync
+                        ? `<span class="naap-optimistic-badge" data-offline-status="${job.offlineStatus === 'attention' ? 'attention' : 'queued'}">${job.offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline'}</span>`
+                        : `<span class="printing-job-status status-${status}">${getPrintingJobStatusLabel(status)}</span>`}
+                </div>
+                <div class="printing-job-meta">
+                    <span><i class="fa-solid fa-list-ol"></i> ${queueText}</span>
+                    <span><i class="fa-solid fa-calendar-day"></i> ${submittedAt}</span>
+                    ${status === 'claimed' ? `<span><i class="fa-solid fa-peso-sign"></i> ₱${Number(job.total_cost || 0).toFixed(2)} · ${paymentStatus === 'paid' ? 'Paid' : 'Unpaid balance'}</span>` : ''}
+                    ${job.notes ? `<span><i class="fa-solid fa-note-sticky"></i> ${escapeStudentHtml(job.notes)}</span>` : ''}
+                </div>
+                <div class="printing-job-actions">
+                    ${jobUrl ? `<a class="printing-action-btn printing-action-btn-secondary" href="${jobUrl}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> View PDF</a>` : ''}
+                    ${jobUrl ? `<a class="printing-action-btn printing-action-btn-primary" href="${jobUrl}" download><i class="fa-solid fa-download"></i> Download</a>` : ''}
+                    ${canCancel ? `<button class="printing-action-btn printing-action-btn-danger" type="button" onclick="cancelStudentPrintJob(${Number(job.print_job_id)})" ${isCancelling ? 'disabled' : ''}><i class="fa-solid fa-xmark"></i> ${isCancelling ? 'Cancelling...' : 'Cancel'}</button>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function hasStudentActivePrintJobs() {
+    return studentPrintingJobs.some((job) => {
+        const status = String(job.status || '').toLowerCase();
+        return status !== 'claimed' && status !== 'cancelled';
+    });
+}
+
+function updateStudentServicesOverviewLayout(hasSelectedFiles = false) {
+    const studentServicesOverview = document.getElementById('studentServicesOverview');
+    if (!studentServicesOverview) return;
+
+    const fileSelectedState = document.getElementById('fileSelectedState');
+    const fileInput = document.getElementById('fileInput');
+    const hasLiveSelectedFiles = Boolean(
+        (fileSelectedState && fileSelectedState.style.display !== 'none')
+        || (fileInput && fileInput.files && fileInput.files.length)
+    );
+
+    studentServicesOverview.classList.toggle(
+        'is-stacked',
+        Boolean(hasSelectedFiles || hasLiveSelectedFiles || hasStudentActivePrintJobs())
+    );
+}
+
+function renderStudentPrintingJobs() {
+    const heroLiveContainer = document.getElementById('printingHeroLive');
+    const standardList = document.getElementById('studentPrintingJobsList');
+    const heroList = document.getElementById('studentPrintingHeroJobs');
+    const lists = [standardList, heroList].filter(Boolean);
+    if (!lists.length) return;
+
+    const activePrintJobs = studentPrintingJobs.filter((job) => {
+        const status = String(job.status || '').toLowerCase();
+        return status !== 'claimed' && status !== 'cancelled';
+    });
+    updateStudentServicesOverviewLayout(false);
+
+    if (!activePrintJobs.length) {
+        if (heroLiveContainer) {
+            heroLiveContainer.style.display = 'none';
+        }
+        const emptyMarkup = `
+            <div class="printing-empty-state">
+                <i class="fa-solid fa-print"></i>
+                <h3>No Active Print Jobs</h3>
+                <p>Your open print requests will appear here until they are completed and claimed.</p>
+              </div>
+          `;
+        lists.forEach((list) => {
+            list.innerHTML = emptyMarkup;
+        });
+        return;
+    }
+
+    if (heroLiveContainer) {
+        heroLiveContainer.style.display = '';
+    }
+
+    if (standardList) {
+        standardList.innerHTML = renderStudentPrintJobCards(activePrintJobs);
+    }
+    if (heroList) {
+        heroList.innerHTML = renderStudentPrintJobCards(activePrintJobs, { showCancelButton: true });
+    }
+}
+
+async function mergeQueuedStudentPrintJobs() {
+    studentPrintingJobs = studentPrintingJobs.filter(item => !item.pendingSync);
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations('student.printing.submit');
+    const optimistic = queued.flatMap(operation => (operation.files?.length ? operation.files : [{}]).map((file, index) => {
+        const payload = operation.payload || {};
+        return {
+            print_job_id: 0,
+            file_name: file?.name || 'Queued printing file',
+            file_url: '',
+            org_name: payload.provider_name || 'Selected printing provider',
+            org_code: '',
+            notes: Array.isArray(payload.notes) ? (payload.notes[index] || '') : (payload.notes || ''),
+            status: 'queued_offline',
+            submitted_at: operation.createdAt,
+            payment_status: 'unpaid',
+            queue_position: 0,
+            pendingSync: true,
+            offlineStatus: operation.status,
+            offlineOperationId: operation.operationId,
+            offlineError: operation.lastError || ''
+        };
+    }));
+    studentPrintingJobs = [...optimistic, ...studentPrintingJobs];
+}
+
+async function loadStudentPrintJobs(force = false) {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        studentPrintingJobs = [];
+        return studentPrintingJobs;
+    }
+
+    try {
+        const response = await fetch('../api/printing/student/list.php?status=all', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load print jobs.');
+        }
+        studentPrintingJobs = (Array.isArray(data.items) ? data.items : []).sort((a, b) => {
+            const aDate = new Date(a.submitted_at || a.updated_at || 0).getTime();
+            const bDate = new Date(b.submitted_at || b.updated_at || 0).getTime();
+            return bDate - aDate;
+        });
+        await mergeQueuedStudentPrintJobs();
+        renderStudentPrintingJobs();
+        buildFilterOptions();
+        renderRentalHistory();
+        updateMyRentalsEmptyState();
+        return studentPrintingJobs;
+    } catch (error) {
+        if (force) {
+            console.error('[loadStudentPrintJobs]', error);
+        }
+        studentPrintingJobs = [];
+        await mergeQueuedStudentPrintJobs();
+        renderStudentPrintingJobs();
+        buildFilterOptions();
+        renderRentalHistory();
+        updateMyRentalsEmptyState();
+        throw error;
+    }
+}
+
+async function cancelStudentPrintJob(printJobId) {
+    const numericJobId = Number(printJobId);
+    const targetJob = studentPrintingJobs.find((job) => Number(job.print_job_id) === numericJobId);
+    if (!targetJob) {
+        alert('Print job not found.');
+        return;
+    }
+
+    if (String(targetJob.status || '').toLowerCase() !== 'queued') {
+        alert('Only queued print jobs can be cancelled.');
+        return;
+    }
+
+    if (studentCancellingPrintJobs.has(numericJobId)) {
+        return;
+    }
+
+    if (!await appConfirm(`Cancel the print job for "${targetJob.file_name || 'Untitled PDF'}"?`, {
+        title: 'Cancel print job',
+        confirmText: 'Cancel job',
+        danger: true
+    })) {
+        return;
+    }
+
+    studentCancellingPrintJobs.add(numericJobId);
+    renderStudentPrintingJobs();
+
+    try {
+        const response = await fetch('../api/printing/student/cancel.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                print_job_id: numericJobId
+            })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not cancel the print job.');
+        }
+
+        showToast('Print job cancelled.');
+        if (data.queued) {
+            await mergeQueuedStudentPrintJobs();
+            renderStudentPrintingJobs();
+            showToast('Printing request saved on this device and queued for sync.', 'info');
+        } else {
+            await loadStudentPrintJobs(true);
+            await loadStudentTransactionNotifications();
+        }
+    } catch (error) {
+        alert(error.message || 'Could not cancel the print job.');
+    } finally {
+        studentCancellingPrintJobs.delete(numericJobId);
+        renderStudentPrintingJobs();
+    }
+}
+
+async function submitStudentPrintJob() {
+    const providerSelect = document.getElementById('printingProviderSelect');
+    const fileInput = document.getElementById('printingFileInput');
+    const notesInput = document.getElementById('printingNotes');
+    const submitBtn = document.getElementById('btnPrintingSubmit');
+
+    const orgId = String(providerSelect?.value || '').trim();
+    const file = fileInput?.files?.[0] || null;
+    const notes = String(notesInput?.value || '').trim();
+
+    if (!orgId) {
+        alert('Select a printing provider first.');
+        return;
+    }
+    if (!file) {
+        alert('Select a PDF, DOCX, PNG, or JPG file first.');
+        return;
+    }
+    const extension = String(file.name || '').split('.').pop().toLowerCase();
+    if (!['pdf', 'docx', 'png', 'jpg', 'jpeg'].includes(extension)) {
+        alert('Invalid file format. Please select PDF, DOCX, PNG, or JPG.');
+        return;
+    }
+    if (Number(file.size || 0) > 20 * 1024 * 1024) {
+        alert('The selected file must be 20MB or smaller.');
+        return;
+    }
+
+    const payload = new FormData();
+    payload.append('org_id', orgId);
+    payload.append('provider_name', providerSelect?.selectedOptions?.[0]?.textContent?.trim() || 'Selected printing provider');
+    payload.append('notes', notes);
+    payload.append('file', file);
+
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+        const response = await fetch('../api/printing/student/submit.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: payload
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not submit print job.');
+        }
+
+        if (fileInput) fileInput.value = '';
+        if (notesInput) notesInput.value = '';
+        const nameLabel = document.getElementById('printingSelectedFileName');
+        if (nameLabel) nameLabel.textContent = 'No file selected.';
+
+        await loadStudentPrintJobs(true);
+        await loadStudentTransactionNotifications();
+    } catch (error) {
+        alert(error.message || 'Could not submit print job.');
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
+function groupCatalogByCategory(items) {
+    return items.reduce((acc, item) => {
+        const key = String(item.category_name || 'Uncategorized').trim() || 'Uncategorized';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+    }, {});
+}
+
+function formatStudentRate(item) {
+    const min = Number(item.hourly_rate_min || 0);
+    const max = Number(item.hourly_rate_max || 0);
+    if (min === max) {
+        return `₱${min.toFixed(2)}/hr`;
+    }
+    return `₱${min.toFixed(2)} - ₱${max.toFixed(2)}/hr`;
+}
+
+function formatStudentOrgRate(org) {
+    const min = Number(org?.hourly_rate_min ?? org?.hourly_rate ?? 0);
+    const max = Number(org?.hourly_rate_max ?? org?.hourly_rate ?? min);
+    if (min === max) {
+        return `&#8369;${min.toFixed(2)}/hr`;
+    }
+    return `&#8369;${min.toFixed(2)} - &#8369;${max.toFixed(2)}/hr`;
+}
+
+function isStudentServiceAvailable(item) {
+    return Number(item?.available_count || 0) > 0;
+}
+
+function renderServices(filter = "") {
+    const grid = document.getElementById('servicesGrid');
+    const hero = document.getElementById('printingHero');
+    const filterLower = String(filter || '').toLowerCase();
+    const printingKeywords = ["printing", "photo", "1x1"];
+    const showHero = filterLower === "" || printingKeywords.some(keyword => filterLower.includes(keyword));
+    if (!grid) return;
+    if (hero) {
+        hero.style.display = showHero ? "block" : "none";
+    }
+
+    if (!studentServiceCatalogLoaded) {
+        return;
+    }
+
+    const filteredItems = studentServiceCatalog.filter((item) => {
+        const isPrintingItem = String(item.display_name || '').toLowerCase() === 'printing'
+            || String(item.category_name || '').toLowerCase().includes('print');
+        if (isPrintingItem) {
+            return false;
+        }
+        const searchBlob = [
+            item.display_name,
+            item.category_name,
+            ...(Array.isArray(item.orgs) ? item.orgs.map(org => `${org.org_name} ${org.org_code}`) : [])
+        ].join(' ').toLowerCase();
+        return !filterLower || searchBlob.includes(filterLower);
+    });
+
+    const grouped = groupCatalogByCategory(filteredItems);
+    const categories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+    const renderSignature = JSON.stringify({
+        filter: filterLower,
+        categories: categories.map((categoryName) => ({
+            categoryName,
+            items: [...grouped[categoryName]]
+                .sort((a, b) => String(a.display_name || '').localeCompare(String(b.display_name || '')))
+                .map((service) => ({
+                    id: service.service_item_id || service.item_id || service.id || '',
+                    name: service.display_name || '',
+                    image: service.image_path || '',
+                    available: Number(service.available_count || 0),
+                    total: Number(service.total_count || 0),
+                    minRate: Number(service.hourly_rate_min ?? service.min_rate ?? service.rate_min ?? service.hourly_rate ?? 0),
+                    maxRate: Number(service.hourly_rate_max ?? service.max_rate ?? service.rate_max ?? service.hourly_rate ?? 0),
+                    orgs: Array.isArray(service.orgs)
+                        ? service.orgs.map(org => `${org.org_code || ''}:${org.org_name || ''}:${org.hourly_rate_min ?? ''}:${org.hourly_rate_max ?? ''}`).sort()
+                        : []
+                }))
+        }))
+    });
+
+    if (renderSignature === studentServicesRenderSignature) {
+        return;
+    }
+    studentServicesRenderSignature = renderSignature;
+
+    if (!categories.length) {
+        grid.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 40px;">No services found matching "${filter}".</div>`;
+        return;
+    }
+
+    grid.innerHTML = '';
+    categories.forEach((categoryName) => {
+        const section = document.createElement('div');
+        section.className = 'category-section';
+
+        const header = document.createElement('div');
+        header.className = 'category-header';
+        header.innerHTML = `
+            <div class="category-icon"><i class="fa-solid ${getServiceCategoryIcon(categoryName)}"></i></div>
+            <div class="category-title">${categoryName}</div>
+        `;
+        section.appendChild(header);
+
+        const cardGrid = document.createElement('div');
+        cardGrid.className = 'category-grid';
+
+        grouped[categoryName]
+            .sort((a, b) => String(a.display_name || '').localeCompare(String(b.display_name || '')))
+            .forEach((service) => {
+                const card = document.createElement('div');
+                card.className = 'service-card gallery-card';
+                const orgSummary = Array.isArray(service.orgs) ? service.orgs.map(org => org.org_code).join(', ') : '';
+                const isAvailable = isStudentServiceAvailable(service);
+                const availabilityText = isAvailable
+                    ? `${service.available_count} available - ${formatStudentRate(service)}`
+                    : `Unavailable - ${Number(service.total_count || 0)} in inventory`;
+                if (!isAvailable) {
+                    card.classList.add('service-card-unavailable');
+                    card.style.opacity = '0.72';
+                }
+                card.innerHTML = `
+                    <div class="gallery-img-wrapper">
+                        <img src="${resolveStudentCatalogImage(service.image_path)}" alt="${service.display_name}" loading="lazy">
+                    </div>
+                    <div class="gallery-content">
+                        <div class="service-name">${service.display_name}</div>
+                        <div class="service-org" style="font-size:0.8rem; color:var(--muted); margin-top:4px;">${orgSummary}</div>
+                        <div class="service-org" style="font-size:0.8rem; color:var(--muted);">${availabilityText}</div>
+                    </div>
+                `;
+                card.onclick = () => openServiceModal(service.display_name, null, service);
+                card.style.cursor = "pointer";
+                card.setAttribute('role', 'button');
+                card.setAttribute('aria-label', `Select organization for ${service.display_name}`);
+                card.setAttribute('tabindex', '0');
+                card.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openServiceModal(service.display_name, null, service);
+                    }
+                };
+                cardGrid.appendChild(card);
+            });
+
+        section.appendChild(cardGrid);
+        grid.appendChild(section);
+    });
+}
+
+function filterServices() {
+    const searchInput = document.getElementById('serviceSearch');
+    renderServices(searchInput ? searchInput.value : '');
+}
+
+// --- UPLOAD ZONE LOGIC ---
+document.addEventListener('DOMContentLoaded', () => {
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+    const uploadContent = uploadZone?.querySelector('.upload-content');
+    const fileSelectedState = document.getElementById('fileSelectedState');
+    const printingHeroPreviewArea = document.getElementById('printingHeroPreviewArea');
+    const filenameText = document.getElementById('filenameText');
+    const fileSelectionSummary = document.getElementById('fileSelectionSummary');
+    const printingFilesList = document.getElementById('printingFilesList');
+    const btnUploadSubmit = document.getElementById('btnUploadSubmit');
+    const btnAddAnotherFile = document.getElementById('btnAddAnotherFile');
+    let selectedPrintFiles = [];
+    let printPreviewRenderToken = 0;
+
+    if (!uploadZone) return;
+
+    // Click to browse
+    uploadZone.addEventListener('click', (e) => {
+        const interactiveTarget = e.target.closest('button, select, option, textarea, input, label');
+        const clickedSelectedState = fileSelectedState && fileSelectedState.contains(e.target);
+        if (interactiveTarget || clickedSelectedState) {
+            return;
+        }
+        fileInput.click();
+    });
+
+    // Drag & Drop Events
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, () => uploadZone.classList.add('drag-over'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, () => uploadZone.classList.remove('drag-over'), false);
+    });
+
+    // Handle Drop
+    uploadZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    }
+
+    // Handle Input Change
+    fileInput.addEventListener('change', function () {
+        handleFiles(this.files, selectedPrintFiles.length > 0);
+        fileInput.value = '';
+    });
+
+    function handleFiles(files, append = false) {
+        const fileList = Array.from(files || []);
+        if (!fileList.length) {
+            if (!append) {
+                resetUploadUI();
+            }
+            return;
+        }
+
+        const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/png', 'image/jpeg', 'image/jpg'];
+        const validExtensions = ['pdf', 'docx', 'png', 'jpg', 'jpeg'];
+        const invalidFile = fileList.find((file) => {
+            const fileExtension = String(file.name || '').split('.').pop().toLowerCase();
+            return !(validTypes.includes(file.type) || validExtensions.includes(fileExtension));
+        });
+
+        if (invalidFile) {
+            alert('Invalid file format. Please upload PDF, DOCX, PNG, or JPG.');
+            resetUploadUI();
+            return;
+        }
+
+        const oversizedFile = fileList.find(file => Number(file.size || 0) > 20 * 1024 * 1024);
+        if (oversizedFile) {
+            alert(`The file "${oversizedFile.name || 'Selected file'}" is larger than 20 MB. Please choose a smaller file.`);
+            resetUploadUI();
+            return;
+        }
+
+        const newEntries = fileList.map((file) => ({ file, note: '' }));
+        selectedPrintFiles = append ? [...selectedPrintFiles, ...newEntries] : newEntries;
+        showFileSelected(selectedPrintFiles);
+    }
+
+    function renderSelectedPrintFiles(files) {
+        if (!printingFilesList) return;
+        printingFilesList.innerHTML = files.map((entry, index) => {
+            const file = entry.file;
+            const objectUrl = URL.createObjectURL(file);
+            const isImage = String(file.type || '').startsWith('image/');
+            const isPdf = String(file.type || '').includes('pdf') || /\.pdf$/i.test(file.name || '');
+            const preview = isImage
+                ? `<img class="printing-file-preview-image" src="${objectUrl}" alt="${escapeHtml(file.name || `File ${index + 1}`)}">`
+                : isPdf
+                    ? `<canvas class="printing-file-preview-canvas" data-print-preview-index="${index}" aria-label="${escapeHtml(file.name || `File ${index + 1}`)} preview"></canvas>`
+                    : `<div class="printing-file-preview-fallback">
+                        <i class="fa-solid ${isPdf ? 'fa-file-pdf' : 'fa-file-lines'}"></i>
+                        <span>${isPdf ? 'PDF' : 'Document'}</span>
+                    </div>`;
+
+            return `
+                <div class="printing-file-card">
+                    <div class="printing-file-preview">
+                        ${preview}
+                    </div>
+                    <div class="printing-file-row-header">
+                        <span class="printing-file-name" title="${escapeHtml(file.name || `File ${index + 1}`)}">${escapeHtml(file.name || `File ${index + 1}`)}</span>
+                        <button type="button" class="printing-file-remove" data-remove-print-index="${index}" aria-label="Remove file">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <span class="printing-file-meta">${formatFileSize(file.size || 0)}</span>
+                    <textarea
+                        class="printing-file-note"
+                        data-print-note-index="${index}"
+                        rows="2"
+                        placeholder="Add notes for this file here">${escapeHtml(entry.note || '')}</textarea>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function renderPdfFilePreviews(files) {
+        if (typeof pdfjsLib === 'undefined' || !printingFilesList) return;
+        const currentToken = ++printPreviewRenderToken;
+        const pdfEntries = files
+            .map((entry, index) => ({ entry, index }))
+            .filter(({ entry }) => String(entry.file?.type || '').includes('pdf') || /\.pdf$/i.test(entry.file?.name || ''));
+
+        for (const { entry, index } of pdfEntries) {
+            const canvas = printingFilesList.querySelector(`[data-print-preview-index="${index}"]`);
+            if (!canvas) continue;
+            try {
+                const buffer = await entry.file.arrayBuffer();
+                if (currentToken !== printPreviewRenderToken) return;
+                const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+                const page = await pdf.getPage(1);
+                if (currentToken !== printPreviewRenderToken) return;
+                const unscaledViewport = page.getViewport({ scale: 1 });
+                const scale = Math.min(150 / unscaledViewport.width, 180 / unscaledViewport.height);
+                const viewport = page.getViewport({ scale: Math.max(scale, 0.1) });
+                const context = canvas.getContext('2d');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({ canvasContext: context, viewport }).promise;
+            } catch (_error) {
+                canvas.replaceWith(Object.assign(document.createElement('div'), {
+                    className: 'printing-file-preview-fallback',
+                    innerHTML: '<i class="fa-solid fa-file-pdf"></i><span>PDF</span>'
+                }));
+            }
+        }
+    }
+
+    function syncStudentServicesLayout(hasSelectedFiles) {
+        updateStudentServicesOverviewLayout(hasSelectedFiles);
+    }
+
+    function showFileSelected(files) {
+        syncStudentServicesLayout(files.length > 0);
+        uploadContent.style.display = 'none';
+        fileSelectedState.style.display = 'flex';
+        if (printingHeroPreviewArea) printingHeroPreviewArea.style.display = 'flex';
+        filenameText.textContent = `${files.length} file${files.length > 1 ? 's' : ''} selected`;
+        if (fileSelectionSummary) {
+            fileSelectionSummary.textContent = files.length === 1
+                ? 'Preview the file and add notes below before submitting'
+                : 'Preview each file and add notes below before submitting';
+        }
+        renderSelectedPrintFiles(files);
+        renderPdfFilePreviews(files);
+        btnUploadSubmit.disabled = false;
+    }
+
+    function resetUploadUI() {
+        syncStudentServicesLayout(false);
+        uploadContent.style.display = 'block';
+        fileSelectedState.style.display = 'none';
+        if (printingHeroPreviewArea) printingHeroPreviewArea.style.display = 'none';
+        if (printingFilesList) printingFilesList.innerHTML = '';
+        if (fileSelectionSummary) fileSelectionSummary.textContent = 'Add notes for each file before submitting';
+        selectedPrintFiles = [];
+        fileInput.value = ''; // Reset input
+        btnUploadSubmit.disabled = true;
+    }
+
+    function formatFileSize(size) {
+        const bytes = Number(size || 0);
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    btnUploadSubmit.addEventListener('click', async (e) => {
+        e.stopPropagation(); // Stop bubbling to uploadZone click
+        if (selectedPrintFiles.length) {
+            const oversizedFile = selectedPrintFiles.find(entry => Number(entry.file?.size || 0) > 20 * 1024 * 1024);
+            if (oversizedFile) {
+                alert(`The file "${oversizedFile.file?.name || 'Selected file'}" is larger than 20 MB. Remove it before submitting.`);
+                return;
+            }
+            const provider = document.getElementById('uploadPrintProvider');
+            const orgId = String(provider?.value || '').trim();
+
+            const payload = new FormData();
+            if (orgId) {
+                payload.append('org_id', orgId);
+            }
+            selectedPrintFiles.forEach((entry) => {
+                payload.append('files[]', entry.file);
+                payload.append('notes[]', String(entry.note || '').trim());
+            });
+
+            btnUploadSubmit.disabled = true;
+            try {
+                const response = await fetch('../api/printing/student/submit.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: payload
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Could not submit print job.');
+                }
+                resetUploadUI();
+                await loadStudentPrintJobs(true);
+                await loadStudentTransactionNotifications();
+            } catch (error) {
+                alert(error.message || 'Could not submit print job.');
+                btnUploadSubmit.disabled = false;
+            }
+        }
+    });
+
+    if (btnAddAnotherFile) {
+        btnAddAnotherFile.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+    }
+
+    if (printingFilesList) {
+        printingFilesList.addEventListener('click', (e) => {
+            const removeButton = e.target.closest('[data-remove-print-index]');
+            if (!removeButton) return;
+            const index = Number(removeButton.getAttribute('data-remove-print-index'));
+            if (Number.isNaN(index)) return;
+            selectedPrintFiles.splice(index, 1);
+            if (!selectedPrintFiles.length) {
+                resetUploadUI();
+                return;
+            }
+            showFileSelected(selectedPrintFiles);
+        });
+
+        printingFilesList.addEventListener('input', (e) => {
+            const noteInput = e.target.closest('[data-print-note-index]');
+            if (!noteInput) return;
+            const index = Number(noteInput.getAttribute('data-print-note-index'));
+            if (Number.isNaN(index) || !selectedPrintFiles[index]) return;
+            selectedPrintFiles[index].note = noteInput.value;
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const printingFileInput = document.getElementById('printingFileInput');
+    const printingSelectedFileName = document.getElementById('printingSelectedFileName');
+    const printingSubmitButton = document.getElementById('btnPrintingSubmit');
+
+    if (printingFileInput && printingSelectedFileName) {
+        printingFileInput.addEventListener('change', () => {
+            const file = printingFileInput.files && printingFileInput.files[0];
+            printingSelectedFileName.textContent = file ? file.name : 'No file selected.';
+        });
+    }
+
+    if (printingSubmitButton) {
+        printingSubmitButton.addEventListener('click', submitStudentPrintJob);
+    }
+});
+
+// --- DATA MAPPING (Service -> Organizations) ---
+const serviceOrgMapping = {
+    "Shoe Rag": ["AISERS"],
+    "Business Calculator": ["AISERS"],
+    "Scientific Calculator": ["SSC", "AERO-ATSO"],
+    "Arnis": ["AISERS"],
+    "Printing": ["SSC", "CYC", "AMTSO", "AETSO"],
+    "Network Crimping Tool": ["ELITECH"],
+    "Mini Fan": ["ELITECH"],
+    "Network Cable Tester": ["ELITECH"],
+    "Rulers": ["AMTSO"],
+    "T-Square": ["AMTSO", "AERO-ATSO"],
+    "Triangle Ruler": ["AMTSO"],
+    "Protractor": ["AMTSO"],
+    "1x1 Photo Processing": ["SSC"],
+    "Lockers": ["SSC"]
+};
+
+// --- CONFIGURATION CONSTANTS ---
+const OPERATING_HOURS = {
+    OPEN: 7 * 60,  // 7:00 AM in minutes
+    CLOSE: 17 * 60, // 5:00 PM in minutes
+    OPEN_STR: "07:00 AM",
+    CLOSE_STR: "05:00 PM"
+};
+const MAX_ADVANCE_DAYS = 1;  // 1 day ahead only
+
+// --- GLOBAL STATE ---
+let currentSelectedService = null;
+let currentSelectedOrg = null;
+let currentParentGroup = null; // Track if we came from a group (e.g. Calculator)
+let currentSelectedHourlyRate = null;
+let currentSelectedInventoryItemName = null;
+let currentQuoteRequestId = 0;
+let rentalData = {
+    date: "",
+    startTime: "",
+    duration: "",
+    endTime: "",
+    hours: 0,
+    amount: 0
+};
+
+// --- MODAL FUNCTIONS ---
+
+// --- MODAL NAVIGATION (STEP 1 <-> STEP 2) ---
+
+// --- ITEM SELECTION MODAL LOGIC ---
+
+function openItemSelectModal(parentName) {
+    // Reset State
+    resetModalState();
+
+    const modal = document.getElementById('serviceSelectModal');
+    const titleEl = document.getElementById('modalTitle');
+    const subtitleEl = document.getElementById('modalSubtitle');
+    const listContainer = document.getElementById('itemSelectList');
+
+    // Set State
+    currentParentGroup = parentName;
+
+    // Get children from config
+    const children = serviceGroups[parentName] || [];
+
+    // Set Content
+    titleEl.innerText = `Select ${parentName} Type`;
+    titleEl.className = 'step-0-header'; // Apply large centered title style
+    subtitleEl.style.display = 'none'; // Hide subtitle for this clean layout
+    listContainer.innerHTML = '';
+
+    // Switch to horizontal grid layout, add grid-2x2 for 4 items, grid-1x2 for 2 items
+    listContainer.className = 'item-type-grid';
+    if (children.length === 4) {
+        listContainer.classList.add('grid-2x2');
+    } else if (children.length === 2) {
+        listContainer.classList.add('grid-1x2');
+    }
+
+    children.forEach(childName => {
+        // Find full data for the child
+        const childData = getStudentScopedServices().find(s => s.name === childName) || servicesData.find(s => s.name === childName);
+
+        const card = document.createElement('div');
+        card.className = 'item-type-card';
+
+        // Interaction: Close item modal, proceed to org modal
+        card.onclick = () => {
+            closeItemSelectModal();
+            openServiceModal(childName, parentName);
+        };
+
+        // Accessibility
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                card.click();
+            }
+        };
+
+        // Render Content
+        if (childData && childData.backgroundImage) {
+            // Use Background Image
+            card.innerHTML = `
+                <div class="item-type-image-wrapper">
+                    <img src="${childData.backgroundImage}" alt="${childName}">
+                </div>
+                <div class="item-type-title">${childName}</div>
+            `;
+        } else {
+            // Fallback: Icon + Background Color
+            const icon = childData ? childData.icon : 'fa-box';
+            card.innerHTML = `
+                <div class="item-type-image-wrapper" style="background-color: #e2e8f0;">
+                    <i class="fa-solid ${icon} item-type-icon"></i>
+                </div>
+                <div class="item-type-title">${childName}</div>
+            `;
+        }
+
+        listContainer.appendChild(card);
+    });
+
+    // Show Modal (Step 0)
+    showStep0();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    trapFocus(modal);
+}
+
+function closeItemSelectModal() {
+    closeServiceModal();
+}
+
+// Close item modal on ESC
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        closeServiceModal();
+        closeStudentLockerModal();
+    }
+});
+
+function handleBackToItemSelect() {
+    if (currentParentGroup) {
+        openItemSelectModal(currentParentGroup);
+    }
+}
+
+function openServiceModal(serviceName, parentGroup = null, catalogItem = null) {
+    // Reset State
+    resetModalState();
+
+    const modal = document.getElementById('serviceSelectModal');
+    const titleEl = document.getElementById('modalTitle');
+    const subtitleEl = document.getElementById('modalSubtitle');
+    const listContainer = document.getElementById('orgSelectList');
+    const continueBtn = document.getElementById('btnStep1Continue');
+
+    // Set State
+    currentSelectedService = serviceName;
+    currentSelectedOrg = null;
+    currentSelectedCatalogItem = catalogItem;
+    currentParentGroup = parentGroup; // Store for back navigation
+    continueBtn.disabled = true;
+
+    // Set Content
+    titleEl.innerText = "Select an Organization";
+    subtitleEl.innerText = `Choose who will provide: ${serviceName}`;
+    listContainer.innerHTML = '';
+
+    // Populate Orgs from the live catalog when available
+    const orgOptions = catalogItem && Array.isArray(catalogItem.orgs)
+        ? catalogItem.orgs.map((org) => ({
+            label: org.org_name,
+            value: org.org_code || org.org_name,
+            meta: Number(org.available_count || 0) > 0
+                ? `${org.available_count} available`
+                : `Unavailable • ${Number(org.total_count || 0)} in inventory`,
+            rateLabel: formatStudentOrgRate(org),
+        }))
+        : (serviceOrgMapping[serviceName] || []).map((orgName) => ({
+            label: orgName,
+            value: orgName,
+            meta: '',
+            rateLabel: '',
+        }));
+
+    // Logo Mapping
+    const orgLogos = {
+        "AISERS": "../assets/photos/studentDashboard/Organization/AISERS.png",
+        "AMTSO": "../assets/photos/studentDashboard/Organization/AMT.png",
+        "AERO-ATSO": "../assets/photos/studentDashboard/Organization/AEROATSO.png",
+        "ELITECH": "../assets/photos/studentDashboard/Organization/ELITECH.png",
+        "SSC": "../assets/photos/studentDashboard/Organization/SSC.png",
+        "Supreme Student Council": "../assets/photos/studentDashboard/Organization/SSC.png"
+    };
+
+    if (orgOptions.length === 0) {
+        listContainer.innerHTML = `<div style="text-align:center; color:var(--muted); padding:20px;">No organizations found for this service.</div>`;
+    } else {
+        orgOptions.forEach((orgOption) => {
+            const card = document.createElement('div');
+            card.className = 'org-option-card';
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
+            card.onclick = () => selectOrgOption(orgOption.value, card);
+            card.onkeydown = (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectOrgOption(orgOption.value, card);
+                }
+            };
+
+            // Check if we have a logo, otherwise initials
+            const logoPath = orgLogos[orgOption.value] || orgLogos[orgOption.label];
+            const initials = orgOption.label.substring(0, 2).toUpperCase();
+
+            const avatarContent = logoPath
+                ? `<img src="${logoPath}" alt="${orgOption.label} logo">`
+                : initials;
+
+            card.innerHTML = `
+                <div class="org-info">
+                    <div class="org-avatar">${avatarContent}</div>
+                    <div>
+                        <div class="org-name-text">${orgOption.label}</div>
+                        ${orgOption.meta ? `<small style="color:var(--muted);">${orgOption.meta}</small>` : ''}
+                    </div>
+                </div>
+                <div class="org-option-actions">
+                    ${orgOption.rateLabel ? `<div class="org-rate-pill">${orgOption.rateLabel}</div>` : ''}
+                    <i class="fa-solid fa-circle-check check-icon"></i>
+                </div>
+            `;
+            listContainer.appendChild(card);
+
+            if (orgOptions.length === 1) selectOrgOption(orgOption.value, card);
+        });
+    }
+
+    // Show Modal (Step 1)
+    showStep1();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    trapFocus(modal);
+}
+
+function closeServiceModal() {
+    const modal = document.getElementById('serviceSelectModal');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    resetModalState();
+}
+
+function selectOrgOption(orgName, cardElement) {
+    currentSelectedOrg = orgName;
+    currentSelectedHourlyRate = null;
+    currentSelectedInventoryItemName = null;
+    const allCards = document.querySelectorAll('.org-option-card');
+    allCards.forEach(c => c.classList.remove('selected'));
+    cardElement.classList.add('selected');
+    document.getElementById('btnStep1Continue').disabled = false;
+}
+
+function handleServiceContinue() {
+    if (!currentSelectedService || !currentSelectedOrg) return;
+    if (currentSelectedCatalogItem && !isStudentServiceAvailable(currentSelectedCatalogItem)) {
+        showError('This item is currently unavailable for reservation.');
+        return;
+    }
+    // Transition to Step 2
+    showStep2();
+}
+
+function handleBackToStep1() {
+    // Return to Step 1
+    showStep1();
+}
+
+function resetModalState() {
+    currentSelectedService = null;
+    currentSelectedOrg = null;
+    currentSelectedCatalogItem = null;
+    currentParentGroup = null;
+    currentSelectedHourlyRate = null;
+    currentSelectedInventoryItemName = null;
+    rentalData = { date: "", startTime: "", duration: "", endTime: "", hours: 0, amount: 0 };
+
+    // Reset Inputs
+    document.getElementById('rentalDate').value = "";
+    document.getElementById('startTime').value = "";
+    document.getElementById('duration').value = "";
+
+    // Reset Displays
+    document.getElementById('endTimeDisplay').innerText = "--:-- --";
+    document.getElementById('totalAmountDisplay').innerText = "₱0.00";
+    document.getElementById('rentalErrorMessage').innerText = "";
+    document.getElementById('rentalErrorMessage').classList.remove('visible');
+
+    // Reset Buttons
+    document.getElementById('btnStep1Continue').disabled = true;
+    document.getElementById('btnStep2Confirm').disabled = true;
+    document.getElementById('btnModalBack').style.display = 'none';
+
+    // Clear Org Selection visual
+    document.querySelectorAll('.org-option-card').forEach(c => c.classList.remove('selected'));
+}
+
+// --- VIEW CONTROLLERS ---
+
+function showStep0() {
+    document.getElementById('step0-item-selection').style.display = 'block';
+    document.getElementById('step1-org-selection').style.display = 'none';
+    document.getElementById('step2-rental-details').style.display = 'none';
+
+    document.getElementById('modalTitle').innerText = `Select ${currentParentGroup || 'Item'} Type`;
+    document.getElementById('modalSubtitle').innerText = "Choose the specific type you need...";
+
+    // Footer Buttons for Step 0
+    document.getElementById('btnStep1Cancel').style.display = 'inline-block';
+    document.getElementById('btnStep1Continue').style.display = 'none';
+
+    // Header Back Button
+    document.getElementById('btnModalBack').style.display = 'none';
+}
+
+function showStep1() {
+    document.getElementById('step0-item-selection').style.display = 'none';
+    document.getElementById('step1-org-selection').style.display = 'block';
+    document.getElementById('step2-rental-details').style.display = 'none';
+
+    document.getElementById('modalTitle').innerText = "Select an Organization";
+    document.getElementById('modalSubtitle').innerText = `Choose who will provide: ${currentSelectedService || '...'}`;
+
+    // Header Back Button visibility & action
+    const backBtn = document.getElementById('btnModalBack');
+    if (currentParentGroup) {
+        backBtn.style.display = 'flex';
+        backBtn.onclick = handleBackToItemSelect;
+        document.getElementById('btnStep1Cancel').style.display = 'none';
+    } else {
+        backBtn.style.display = 'none';
+        document.getElementById('btnStep1Cancel').style.display = 'inline-block';
+    }
+
+    document.getElementById('btnStep1Continue').style.display = 'inline-block';
+    document.getElementById('btnStep2Confirm').style.display = 'none';
+}
+
+function showStep2() {
+    document.getElementById('step0-item-selection').style.display = 'none';
+    document.getElementById('step1-org-selection').style.display = 'none';
+    document.getElementById('step2-rental-details').style.display = 'block';
+
+    document.getElementById('modalTitle').innerText = "Rental Details";
+    document.getElementById('modalSubtitle').innerText = `Provider: ${currentSelectedOrg}`;
+
+    // Header Back Button
+    const backBtn = document.getElementById('btnModalBack');
+    backBtn.style.display = 'flex';
+    backBtn.onclick = handleBackToStep1;
+
+    // Toggle Footer Buttons
+    document.getElementById('btnStep1Cancel').style.display = 'none';
+    document.getElementById('btnStep1Continue').style.display = 'none';
+    document.getElementById('btnStep2Confirm').style.display = 'inline-block';
+
+    // Set Date Input Constraints (Min = Today, Max = Today + 1 day)
+    const dateInput = document.getElementById('rentalDate');
+    const today = new Date();
+    const maxDate = new Date();
+    maxDate.setDate(today.getDate() + MAX_ADVANCE_DAYS);
+
+    dateInput.min = today.toISOString().split('T')[0];
+    dateInput.max = maxDate.toISOString().split('T')[0];
+
+    document.getElementById('totalAmountDisplay').innerText = "Loading live rate...";
+
+    loadRentalQuote(0)
+        .then((quote) => {
+            if (quote && !document.getElementById('duration').value) {
+                document.getElementById('totalAmountDisplay').innerText = `₱0.00`;
+            }
+        })
+        .catch((err) => {
+            showError(err.message || 'Could not load rental price.');
+        });
+
+    // Trigger initial calculation
+    calculateRental();
+}
+
+// --- RENTAL LOGIC & VALIDATION ---
+
+// Helper: Convert "HH:mm" to minutes from midnight
+function timeToMinutes(timeStr) {
+    if (!timeStr) return null;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return (hours * 60) + minutes;
+}
+
+// Helper: Convert minutes from midnight to "HH:mm AM/PM"
+function minutesToTime(totalMinutes) {
+    let hours = Math.floor(totalMinutes / 60);
+    let minutes = totalMinutes % 60;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${minutes} ${ampm}`;
+}
+
+async function loadRentalQuote(hours = 0) {
+    if (!currentSelectedService || !currentSelectedOrg) {
+        return null;
+    }
+
+    const requestId = ++currentQuoteRequestId;
+    const params = new URLSearchParams({
+        organization: currentSelectedOrg,
+        item_name: currentSelectedService,
+        hours: String(hours || 0)
+    });
+    const response = await fetch(`../api/student/rentals/quote.php?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'same-origin'
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'Could not load rental price.');
+    }
+
+    if (requestId !== currentQuoteRequestId) {
+        return null;
+    }
+
+    currentSelectedHourlyRate = Number(data.hourly_rate || 0);
+    currentSelectedInventoryItemName = data.item_name || currentSelectedService;
+    return data;
+}
+
+async function calculateRental() {
+    const dateInput = document.getElementById('rentalDate');
+    const startInput = document.getElementById('startTime');
+    const durationInput = document.getElementById('duration');
+    const endDisplay = document.getElementById('endTimeDisplay');
+    const priceDisplay = document.getElementById('totalAmountDisplay');
+    const errorMsg = document.getElementById('rentalErrorMessage');
+    const confirmBtn = document.getElementById('btnStep2Confirm');
+
+    // Clear previous errors
+    errorMsg.innerText = "";
+    errorMsg.classList.remove('visible');
+    startInput.classList.remove('input-error');
+    durationInput.classList.remove('input-error');
+
+    const dateVal = dateInput.value;
+    const startVal = startInput.value;
+    const durationVal = parseFloat(durationInput.value);
+
+    // 1. Base Validation (Presence)
+    if (!dateVal || !startVal || !durationVal) {
+        endDisplay.innerText = "--:-- --";
+        priceDisplay.innerText = currentSelectedHourlyRate === null ? "Loading live rate..." : "₱0.00";
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    const startMinutes = timeToMinutes(startVal);
+    const durationMinutes = durationVal * 60;
+    const endMinutes = startMinutes + durationMinutes;
+    const totalHours = durationVal;
+
+    // 2. Date Validation (Max 1 day ahead)
+    const selectedDate = new Date(dateVal);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date();
+    maxDate.setDate(today.getDate() + MAX_ADVANCE_DAYS);
+
+    if (selectedDate < today || selectedDate > maxDate) {
+        showError("Date must be today or tomorrow only.");
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    // 3. Operating Hours Validation (7:00 AM - 5:00 PM)
+    if (startMinutes < OPERATING_HOURS.OPEN) {
+        showError(`Reservations start at ${OPERATING_HOURS.OPEN_STR}.`);
+        startInput.classList.add('input-error');
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    if (endMinutes > OPERATING_HOURS.CLOSE) {
+        showError(`End time exceeds ${OPERATING_HOURS.CLOSE_STR}. Please shorten duration.`);
+        startInput.classList.add('input-error');
+        durationInput.classList.add('input-error');
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    // 4. Calculate Price from the live inventory_items.hourly_rate
+    let calculatedAmount = 0;
+    try {
+        const quote = await loadRentalQuote(totalHours);
+        const liveHourlyRate = quote ? Number(quote.hourly_rate || 0) : Number(currentSelectedHourlyRate || 0);
+        calculatedAmount = liveHourlyRate * totalHours;
+    } catch (err) {
+        showError(err.message || 'Could not load rental price.');
+        confirmBtn.disabled = true;
+        return;
+    }
+
+    // 5. Valid State: Update UI
+    rentalData.date = dateVal;
+    rentalData.startTime = startVal;
+    rentalData.hours = totalHours;
+    rentalData.duration = durationVal;
+    rentalData.endTime = minutesToTime(endMinutes);
+    rentalData.amount = calculatedAmount;
+
+    // Update Displays
+    endDisplay.innerText = rentalData.endTime;
+    priceDisplay.innerText = `₱${rentalData.amount.toFixed(2)}`;
+
+    // Enable Confirm
+    confirmBtn.disabled = false;
+}
+
+function showError(message) {
+    const errorMsg = document.getElementById('rentalErrorMessage');
+    errorMsg.innerText = message;
+    errorMsg.classList.add('visible');
+
+    // Reset calculated displays on error
+    document.getElementById('endTimeDisplay').innerText = "--:-- --";
+    document.getElementById('totalAmountDisplay').innerText = "₱0.00";
+}
+
+async function confirmRental() {
+    const confirmBtn = document.getElementById('btnStep2Confirm');
+    const errorMsg = document.getElementById('rentalErrorMessage');
+
+    if (!currentSelectedService || !currentSelectedOrg || !rentalData.hours) {
+        showError('Complete the rental details first.');
+        return;
+    }
+
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (errorMsg) {
+        errorMsg.innerText = "";
+        errorMsg.classList.remove('visible');
+    }
+
+    try {
+        const scheduledStart = `${rentalData.date} ${rentalData.startTime}:00`;
+        const resp = await fetch('../api/student/rentals/create.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                organization: currentSelectedOrg,
+                item_name: currentSelectedService,
+                hours: rentalData.hours,
+                scheduled_start: scheduledStart,
+                estimated_total: rentalData.amount
+            })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) {
+            throw new Error(data.error || 'Could not create rental.');
+        }
+
+        if (data.queued) {
+            await mergeQueuedStudentRentals();
+            renderCurrentRentals();
+            showToast(`Rental request saved on this device for ${currentSelectedService}.`, 'info');
+            closeServiceModal();
+            return;
+        }
+
+        await loadStudentServiceCatalog(true);
+        renderServices((document.getElementById('serviceSearch') || {}).value || '');
+        await loadCurrentRentals();
+        showToast(`Reservation Confirmed: ${currentSelectedService} on ${rentalData.date} at ${rentalData.startTime}`);
+        await loadStudentTransactionNotifications();
+        closeServiceModal();
+    } catch (err) {
+        showError(err.message || 'Could not create rental.');
+    } finally {
+        if (confirmBtn) confirmBtn.disabled = false;
+    }
+}
+
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    const msgSpan = document.getElementById('toastMessage');
+    const icon = toast ? toast.querySelector('.toast-icon') : null;
+    if (!toast || !msgSpan) return;
+
+    toast.classList.remove('success', 'error', 'info');
+    toast.classList.add(type || 'success');
+    msgSpan.textContent = message;
+
+    if (icon) {
+        icon.className = 'fa-solid toast-icon ';
+        if (type === 'error') icon.classList.add('fa-circle-exclamation');
+        else if (type === 'info') icon.classList.add('fa-circle-info');
+        else icon.classList.add('fa-circle-check');
+    }
+
+    toast.classList.add('show');
+
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+
+// --- ACCESSIBILITY: FOCUS TRAP ---
+function trapFocus(element) {
+    const focusableEls = element.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const firstFocusableEl = focusableEls[0];
+    const lastFocusableEl = focusableEls[focusableEls.length - 1];
+
+    element.addEventListener('keydown', function (e) {
+        const isTabPressed = e.key === 'Tab' || e.keyCode === 9;
+
+        if (!isTabPressed) return;
+
+        if (e.shiftKey) { // Shift + Tab
+            if (document.activeElement === firstFocusableEl) {
+                lastFocusableEl.focus();
+                e.preventDefault();
+            }
+        } else { // Tab
+            if (document.activeElement === lastFocusableEl) {
+                firstFocusableEl.focus();
+                e.preventDefault();
+            }
+        }
+    });
+
+    // Set initial focus
+    if (firstFocusableEl) firstFocusableEl.focus();
+}
+
+// --- EVENT LISTENERS FOR MODAL ---
+
+// 1. Click outside to close
+document.getElementById('serviceSelectModal').addEventListener('click', function (e) {
+    if (e.target === this) {
+        closeServiceModal();
+    }
+});
+
+// 2. ESC key to close
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('serviceSelectModal');
+        if (modal.classList.contains('open')) {
+            closeServiceModal();
+        }
+        const lockerConfirmModal = document.getElementById('studentLockerConfirmModal');
+        if (lockerConfirmModal && lockerConfirmModal.classList.contains('open')) {
+            closeStudentLockerConfirmModal();
+            return;
+        }
+        const lockerModal = document.getElementById('studentLockerModal');
+        if (lockerModal && lockerModal.classList.contains('open')) {
+            closeStudentLockerModal();
+        }
+    }
+});
+
+// 3. Step 1 Continue Button Click
+document.getElementById('btnStep1Continue').addEventListener('click', handleServiceContinue);
+
+// 4. Step 2 Rental Form Input Listeners
+document.addEventListener('DOMContentLoaded', () => {
+    const inputs = ['rentalDate', 'startTime', 'duration'];
+
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', calculateRental);
+            el.addEventListener('change', calculateRental); // For date pickers/time pickers
+        }
+    });
+
+    // 5. Confirm Button Logic
+    const confirmBtn = document.getElementById('btnStep2Confirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', confirmRental);
+    }
+});
+
+// --- MEMBERSHIP FORM LOGIC ---
+
+// 1. Open Modal and Fill Data
+function openMembershipModal(orgName, cardId) {
+    const modal = document.getElementById('membershipApplicationModal');
+
+    // Store the organization name in a data attribute for submission
+    if (modal) {
+        modal.setAttribute('data-selected-org', orgName);
+    }
+
+    // --- NEW: BANNER LOGIC ---
+    // Find the organization data
+    const orgData = organizationData.find(o => o.name === orgName);
+    const modalHeader = modal ? modal.querySelector('.modal-header') : null;
+
+    if (modalHeader && orgData) {
+        if (orgData.banner) {
+            // Set the specific banner if available
+            modalHeader.style.backgroundImage = `url('${versionOrgBannerUrl(orgData.banner)}')`;
+        } else {
+            // Fallback: Clear image or set a default pattern/color
+            modalHeader.style.backgroundImage = 'none';
+            modalHeader.style.backgroundColor = orgData.color || 'var(--panel-2)';
+        }
+    }
+    // -------------------------
+
+    // Highlight selected card visually (in the background grid)
+    document.querySelectorAll('.recruit-card').forEach(c => c.classList.remove('selected-org-card'));
+    const card = document.getElementById(cardId);
+    if (card) card.classList.add('selected-org-card');
+
+    // Show Modal
+    if (modal) {
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+}
+
+// 2. Close Modal
+function closeMembershipModal() {
+    const modal = document.getElementById('membershipApplicationModal');
+    if (modal) {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+
+        // --- NEW: CLEANUP ---
+        // Reset the background image to avoid flashing the wrong one next time
+        const modalHeader = modal.querySelector('.modal-header');
+        if (modalHeader) {
+            setTimeout(() => {
+                modalHeader.style.backgroundImage = '';
+            }, 300); // Wait for transition to finish
+        }
+    }
+}
+
+// 3. Close Modal on Outside Click
+window.addEventListener('click', (e) => {
+    const modal = document.getElementById('membershipApplicationModal');
+    if (e.target === modal) {
+        closeMembershipModal();
+    }
+});
+
+// 2. Role Selection Logic (Visual Toggle)
+function selectRole(role, btnElement) {
+    // Set hidden input value
+    document.getElementById('mem-role-input').value = role;
+
+    // Visual update (Reset all buttons to look like the image - solid dark blue)
+    // Note: The image shows both as dark buttons, but usually one is active. 
+    // I will add a slight opacity change to indicate selection for UX.
+    const buttons = btnElement.parentElement.querySelectorAll('.role-btn');
+    buttons.forEach(b => {
+        b.style.opacity = "0.6"; // Dim others
+        b.style.border = "none";
+    });
+
+    btnElement.style.opacity = "1"; // Active one is fully opaque
+}
+
+// --- FILE PREVIEW LOGIC (With PDF Pagination) ---
+
+// State variables for PDF navigation
+let pdfDoc = null;
+let pageNum = 1;
+let pageRendering = false;
+let pageNumPending = null;
+
+// 1. Trigger the hidden input
+function triggerFileUpload() {
+    const box = document.getElementById('mem-upload-box');
+    if (!box.classList.contains('has-preview')) {
+        document.getElementById('mem-file-upload').click();
+    }
+}
+
+// 2. Handle File Selection
+function handleFilePreview(input) {
+    const box = document.getElementById('mem-upload-box');
+
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        box.classList.add('has-preview');
+
+        // A. Handle PDF (Multi-page)
+        if (file.type === 'application/pdf') {
+            const fileReader = new FileReader();
+
+            fileReader.onload = function () {
+                const typedarray = new Uint8Array(this.result);
+
+                // Initialize PDF Loader
+                pdfjsLib.getDocument(typedarray).promise.then(function (pdf) {
+                    // Set Global State
+                    pdfDoc = pdf;
+                    pageNum = 1;
+
+                    // Setup HTML Structure with Nav Controls
+                    box.innerHTML = `
+                        <div class="file-preview-wrapper">
+                            <canvas id="pdf-render-canvas" class="pdf-preview-canvas"></canvas>
+                            
+                            <div class="pdf-nav-controls">
+                                <button type="button" class="pdf-nav-btn" id="pdf-prev" onclick="changePdfPage(-1)">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </button>
+                                <span class="pdf-page-info">
+                                    <span id="page_num">1</span> / <span id="page_count">${pdf.numPages}</span>
+                                </span>
+                                <button type="button" class="pdf-nav-btn" id="pdf-next" onclick="changePdfPage(1)">
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+
+                            <button type="button" class="btn-remove-file" onclick="removeFile(event)">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    `;
+
+                    // Initial Render
+                    renderPage(pageNum);
+
+                }, function (error) {
+                    console.error(error);
+                    box.innerHTML = `<div style="color:red; font-size:0.9rem;">Error loading PDF.</div>`;
+                });
+            };
+            fileReader.readAsArrayBuffer(file);
+        }
+        // B. Handle Image
+        else if (file.type.match('image.*')) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                box.innerHTML = `
+                    <div class="file-preview-wrapper">
+                        <img src="${e.target.result}" class="file-preview-img" alt="Preview" style="margin-bottom:10px;">
+                        <button type="button" class="btn-remove-file" onclick="removeFile(event)">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                `;
+            }
+            reader.readAsDataURL(file);
+        }
+        // C. Fallback
+        else {
+            box.innerHTML = `
+                <div class="file-preview-wrapper" style="height: 100px;">
+                    <i class="fa-regular fa-file-lines" style="font-size:2rem; color:var(--muted); margin-bottom:8px;"></i>
+                    <span class="file-name-text" style="font-size:0.85rem;">${file.name}</span>
+                    <button type="button" class="btn-remove-file" onclick="removeFile(event)">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+// 3. Render Specific PDF Page
+function renderPage(num) {
+    pageRendering = true;
+
+    // Fetch page
+    pdfDoc.getPage(num).then(function (page) {
+        const canvas = document.getElementById('pdf-render-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Scale 1.5 for clarity
+        const scale = 1.5;
+        const viewport = page.getViewport({ scale: scale });
+
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        // Render Context
+        const renderContext = {
+            canvasContext: ctx,
+            viewport: viewport
+        };
+        const renderTask = page.render(renderContext);
+
+        // Wait for render to finish
+        renderTask.promise.then(function () {
+            pageRendering = false;
+            if (pageNumPending !== null) {
+                // If a page change was requested while rendering, do it now
+                renderPage(pageNumPending);
+                pageNumPending = null;
+            }
+        });
+    });
+
+    // Update Counters UI
+    document.getElementById('page_num').textContent = num;
+
+    // Update Buttons State
+    document.getElementById('pdf-prev').disabled = (num <= 1);
+    document.getElementById('pdf-next').disabled = (num >= pdfDoc.numPages);
+}
+
+// 4. Handle Page Change Clicks
+function changePdfPage(offset) {
+    if (!pdfDoc) return;
+
+    // Calculate new page number
+    const newPage = pageNum + offset;
+
+    // If request comes while rendering, queue it
+    if (pageRendering) {
+        pageNumPending = newPage;
+    } else {
+        // Only proceed if within bounds
+        if (newPage > 0 && newPage <= pdfDoc.numPages) {
+            pageNum = newPage;
+            renderPage(pageNum);
+        }
+    }
+
+    // Stop click bubbling
+    if (typeof event !== 'undefined') event.stopPropagation();
+}
+
+// 5. Remove File & Reset
+function removeFile(event) {
+    event.stopPropagation();
+
+    const box = document.getElementById('mem-upload-box');
+    const input = document.getElementById('mem-file-upload');
+
+    // Clear Global PDF State
+    pdfDoc = null;
+    pageNum = 1;
+    pageRendering = false;
+    pageNumPending = null;
+
+    input.value = '';
+    box.classList.remove('has-preview');
+    box.style = "";
+
+    box.innerHTML = `
+        <span class="upload-placeholder-text">Upload Here</span>
+        <div class="upload-plus-icon"><i class="fa-solid fa-plus"></i></div>
+    `;
+}
+
+function handleMembershipSubmit(e) {
+    e.preventDefault();
+    const modal = document.getElementById('membershipApplicationModal');
+    const org = modal ? modal.getAttribute('data-selected-org') : null;
+
+    if (!org) {
+        alert("Organization info missing. Please try again.");
+        return;
+    }
+
+    // Success Simulation
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.innerText;
+
+    btn.innerText = "Submitting...";
+    btn.disabled = true;
+    btn.style.opacity = "0.7";
+
+    setTimeout(() => {
+        // Show success alert
+        alert(`Application to ${org} submitted successfully!`);
+
+        // Reset and Close
+        e.target.reset();
+
+        // Reset File Preview Box
+        const box = document.getElementById('mem-upload-box');
+        if (box) {
+            box.classList.remove('has-preview');
+            box.style = "";
+            box.innerHTML = `
+                <span class="upload-placeholder-text">Upload Here</span>
+                <div class="upload-plus-icon"><i class="fa-solid fa-plus"></i></div>
+            `;
+        }
+
+        // Reset Global PDF State
+        pdfDoc = null;
+        pageNum = 1;
+        pageRendering = false;
+        pageNumPending = null;
+
+        // Reset Button
+        btn.innerText = originalText;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+
+        closeMembershipModal();
+
+    }, 1500);
+}
+
+function downloadApplicationForm() {
+    // Correctly formatted path with forward slashes and encoded spaces
+    const filePath = '../assets/pdf%20files/membership/AISERS%20RECRUITMENT%20FORM.pdf';
+    const fileName = 'AISERS RECRUITMENT FORM.pdf';
+
+    // 1. Visual Feedback (Spinner)
+    const btn = document.querySelector('.btn-download-app');
+    if (btn) {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Downloading...`;
+        btn.disabled = true;
+
+        // 2. Trigger Download
+        setTimeout(() => {
+            const link = document.createElement('a');
+            link.href = filePath;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+
+            // Trigger click
+            link.click();
+
+            // Clean up
+            document.body.removeChild(link);
+
+            // 3. Reset Button & Show Success
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+
+            // Uses your existing toast function
+            if (typeof showToast === "function") {
+                showToast("Form downloaded successfully!");
+            }
+        }, 1000); // 1s delay for visual feedback
+    }
+}
+
+// === CURRENT RENTALS FEATURE ===
+let currentRentalsData = [];
+let rentalTimerInterval = null;
+const STUDENT_RENTAL_CANCELLATION_LOCK_WINDOW_MS = 30 * 60 * 1000;
+
+function isStudentRentalNoShow(rental) {
+    if (String(rental?.status || '').toLowerCase() !== 'reserved') return false;
+    const raw = String(rental.expected_return_time || '').trim();
+    const due = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
+    return !Number.isNaN(due) && due < Date.now();
+}
+
+function canStudentCancelReservation(rental) {
+    if (String(rental?.status || '').toLowerCase() !== 'reserved') return false;
+    if (Object.prototype.hasOwnProperty.call(rental, 'can_student_cancel')) {
+        return rental.can_student_cancel === true || Number(rental.can_student_cancel) === 1;
+    }
+    const raw = String(rental.rent_time || '').trim();
+    const scheduledStart = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
+    return !Number.isNaN(scheduledStart)
+        && Date.now() < scheduledStart - STUDENT_RENTAL_CANCELLATION_LOCK_WINDOW_MS;
+}
+
+async function cancelStudentReservation(rentalId, button) {
+    const confirmed = await appConfirm(
+        'Cancel this reservation? The item will be released and you will not be charged.',
+        {
+            title: 'Cancel reservation',
+            confirmText: 'Cancel reservation',
+            cancelText: 'Keep reservation',
+            danger: true
+        }
+    );
+    if (!confirmed) return;
+
+    const originalHtml = button ? button.innerHTML : '';
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Cancelling...';
+    }
+
+    try {
+        const response = await fetch('../api/student/rentals/cancel.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rental_id: Number(rentalId) })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not cancel this reservation.');
+        }
+
+        await Promise.allSettled([
+            loadCurrentRentals(),
+            loadRentalHistory(),
+            loadStudentServiceCatalog(true)
+        ]);
+        renderServices((document.getElementById('serviceSearch') || {}).value || '');
+        showToast(data.message || 'Reservation cancelled successfully.');
+    } catch (error) {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+        showToast(error.message || 'Could not cancel this reservation.', 'error');
+    }
+}
+
+async function loadCurrentRentals() {
+    if (isOsaStudentPreviewModeFromUrl()) {
+        currentRentalsData = [];
+        return currentRentalsData;
+    }
+
+    try {
+        const response = await fetch('../api/student/rentals/my-rentals.php?status=open', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load current rentals.');
+        }
+
+        currentRentalsData = (Array.isArray(data.items) ? data.items : []).sort((a, b) => {
+            const aDate = new Date(a.rent_time || a.created_at || 0).getTime();
+            const bDate = new Date(b.rent_time || b.created_at || 0).getTime();
+            return bDate - aDate;
+        });
+        await mergeQueuedStudentRentals();
+        renderCurrentRentals();
+    } catch (err) {
+        console.error('[loadCurrentRentals]', err);
+        currentRentalsData = [];
+        await mergeQueuedStudentRentals();
+        renderCurrentRentals();
+    }
+}
+
+async function mergeQueuedStudentRentals() {
+    currentRentalsData = currentRentalsData.filter(item => !item.pendingSync);
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations('student.rental.create');
+    const optimistic = queued.map(operation => {
+        const payload = operation.payload || {};
+        const start = String(payload.scheduled_start || operation.createdAt);
+        const startDate = new Date(start.replace(' ', 'T'));
+        const expected = Number.isNaN(startDate.getTime())
+            ? start
+            : new Date(startDate.getTime() + (Number(payload.hours || 0) * 3600000)).toISOString();
+        return {
+            rental_id: 0,
+            items_label: payload.item_name || 'Rental request',
+            org_name: payload.organization || 'Selected organization',
+            rent_time: start,
+            expected_return_time: expected,
+            total_cost: Number(payload.estimated_total || 0),
+            payment_status: 'unpaid',
+            status: 'queued_offline',
+            service_kind: 'rental',
+            created_at: operation.createdAt,
+            pendingSync: true,
+            offlineStatus: operation.status,
+            offlineOperationId: operation.operationId,
+            offlineError: operation.lastError || ''
+        };
+    });
+    currentRentalsData = [...optimistic, ...currentRentalsData];
+}
+
+function renderCurrentRentals() {
+    const visibleCurrentRentals = currentRentalsData.filter(
+        (rental) => String(rental.service_kind || '').toLowerCase() !== 'locker'
+    );
+    const targets = [
+        {
+            section: document.getElementById('currentRentalsSection'),
+            container: document.getElementById('currentRentalsContainer')
+        },
+        {
+            section: document.getElementById('servicesCurrentRentalsSection'),
+            container: document.getElementById('servicesCurrentRentalsContainer')
+        }
+    ].filter((target) => target.section && target.container);
+
+    if (!targets.length) return;
+
+    // Clear timer if exists
+    if (rentalTimerInterval) {
+        clearInterval(rentalTimerInterval);
+        rentalTimerInterval = null;
+    }
+
+    if (visibleCurrentRentals.length === 0) {
+        targets.forEach(({ section, container }) => {
+            section.style.display = 'none';
+            container.innerHTML = '';
+        });
+        // Update empty state
+        if (typeof updateMyRentalsEmptyState === 'function') {
+            updateMyRentalsEmptyState();
+        }
+        return;
+    }
+
+    targets.forEach(({ section, container }) => {
+        section.style.display = 'block';
+        container.innerHTML = '';
+        visibleCurrentRentals.forEach(rental => {
+            const card = createRentalCard(rental);
+            container.appendChild(card);
+        });
+    });
+
+    // Start timer for active rentals
+    const hasActiveRentals = visibleCurrentRentals.some(r => r.status === 'active');
+    if (hasActiveRentals) {
+        updateRentalTimers();
+        rentalTimerInterval = setInterval(updateRentalTimers, 1000);
+    }
+
+    // Update empty state
+    if (typeof updateMyRentalsEmptyState === 'function') {
+        updateMyRentalsEmptyState();
+    }
+}
+
+function createRentalCard(rental) {
+    if (String(rental.service_kind || '').toLowerCase() === 'locker') {
+        const card = document.createElement('div');
+        card.className = 'rental-card locker-rental-card';
+        card.setAttribute('data-rental-id', rental.rental_id);
+        const lockerCode = String(rental.items_label || rental.barcodes || 'Locker').replace(/\s*\(\d+x\)/g, '').trim();
+        const statusClass = getLockerActivityStatusClass(rental.status, rental);
+        const statusText = getLockerActivityStatusLabel(rental.status, rental);
+        card.innerHTML = `
+            <div class="rental-card-header">
+                <div class="rental-card-status ${statusClass}">${statusText}</div>
+                <div class="rental-card-org">${rental.org_name || 'Supreme Student Council'}</div>
+            </div>
+            <div class="rental-card-items">
+                <h4><i class="fa-solid fa-door-closed"></i> Locker Assignment</h4>
+                <div class="rental-items-list">${escapeStudentHtml(lockerCode)}</div>
+            </div>
+            <div class="rental-card-details">
+                <div class="rental-detail-row">
+                    <i class="fa-solid fa-calendar-check"></i>
+                    <span class="rental-detail-label">Start:</span>
+                    <span class="rental-detail-value">${formatDateTime(rental.rent_time)}</span>
+                </div>
+                <div class="rental-detail-row">
+                    <i class="fa-solid fa-calendar-xmark"></i>
+                    <span class="rental-detail-label">Due:</span>
+                    <span class="rental-detail-value">${formatDateTime(rental.expected_return_time)}</span>
+                </div>
+                ${rental.locker_notice_message ? `
+                    <div class="rental-detail-row locker-rental-notice">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span class="rental-detail-value">${escapeStudentHtml(rental.locker_notice_message)}</span>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="rental-card-footer">
+                <div class="rental-cost">${parseFloat(rental.total_cost || 0).toFixed(2)}</div>
+                <div class="rental-payment-status ${rental.payment_status}">${rental.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</div>
+            </div>
+        `;
+        return card;
+    }
+
+    const card = document.createElement('div');
+    card.className = `rental-card${rental.pendingSync ? ' naap-optimistic-record' : ''}`;
+    if (rental.pendingSync) {
+        card.dataset.offlineStatus = rental.offlineStatus === 'attention' ? 'attention' : 'queued';
+        card.dataset.offlineOperationId = rental.offlineOperationId || '';
+    }
+    card.setAttribute('data-rental-id', rental.rental_id);
+
+    const isNoShow = isStudentRentalNoShow(rental);
+    const statusClass = rental.pendingSync ? 'status-reserved' : isNoShow
+        ? 'status-no-show'
+        : (rental.status === 'active' ? 'status-active' : 'status-reserved');
+    const statusText = rental.pendingSync
+        ? (rental.offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline')
+        : isNoShow
+        ? 'No Show'
+        : (rental.status === 'active' ? 'Active' : 'Reserved');
+
+    const rentTimeFormatted = formatDateTime(rental.rent_time);
+    const expectedReturnFormatted = formatDateTime(rental.expected_return_time);
+
+    let timerHtml = '';
+    if (rental.status === 'active') {
+        timerHtml = `
+            <div class="rental-timer" data-rental-id="${rental.rental_id}">
+                <i class="fa-solid fa-clock"></i>
+                <div class="rental-timer-text">
+                    <div class="rental-timer-label">Time Remaining</div>
+                    <div class="rental-timer-value">--:--:--</div>
+                </div>
+            </div>
+        `;
+    } else if (rental.status === 'reserved') {
+        timerHtml = `
+            <div class="rental-detail-row">
+                <i class="fa-solid fa-calendar-check"></i>
+                <span class="rental-detail-label">${isNoShow ? 'Missed:' : 'Scheduled:'}</span>
+                <span class="rental-detail-value">${rentTimeFormatted}</span>
+            </div>
+        `;
+    }
+
+    const itemsLabel = String(rental.items_label || 'No items').replace(/\s*\(\d+x\)/g, '').trim();
+    const cancelButtonHtml = !rental.pendingSync && canStudentCancelReservation(rental) ? `
+        <button type="button" class="rental-cancel-reservation-btn" data-cancel-rental-id="${rental.rental_id}">
+            <i class="fa-solid fa-xmark"></i>
+            Cancel Reservation
+        </button>
+    ` : '';
+
+    card.innerHTML = `
+        <div class="rental-card-header">
+            <div class="rental-card-status ${statusClass}">${statusText}</div>
+            <div class="rental-card-org">${rental.org_name || 'Unknown Org'}</div>
+        </div>
+
+        ${rental.pendingSync ? `<span class="naap-optimistic-badge" data-offline-status="${rental.offlineStatus === 'attention' ? 'attention' : 'queued'}">${rental.offlineStatus === 'attention' ? 'Needs attention' : 'Saved on this device'}</span>` : ''}
+
+        <div class="rental-card-items rental-card-items-with-payment">
+            <div class="rental-card-items-content">
+                <h4><i class="fa-solid fa-box"></i> Rented Item</h4>
+                <div class="rental-items-list">${itemsLabel || 'No items'}</div>
+            </div>
+            <div class="rental-payment-status ${rental.payment_status}">${rental.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</div>
+        </div>
+
+        ${timerHtml}
+
+        <div class="rental-card-details">
+            ${rental.status === 'active' ? `
+            <div class="rental-detail-row">
+                <i class="fa-solid fa-clock"></i>
+                <span class="rental-detail-label">Started:</span>
+                <span class="rental-detail-value">${rentTimeFormatted}</span>
+            </div>
+            ` : ''}
+            <div class="rental-detail-row">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span class="rental-detail-label">${isNoShow ? 'Was Due:' : 'Due:'}</span>
+                <span class="rental-detail-value">${expectedReturnFormatted}</span>
+            </div>
+        </div>
+
+        <div class="rental-card-footer">
+            <div class="rental-cost">₱${parseFloat(rental.total_cost).toFixed(2)}</div>
+            ${cancelButtonHtml}
+        </div>
+    `;
+
+    const cancelButton = card.querySelector('[data-cancel-rental-id]');
+    if (cancelButton) {
+        cancelButton.addEventListener('click', () => {
+            cancelStudentReservation(rental.rental_id, cancelButton);
+        });
+    }
+
+    return card;
+}
+
+function updateRentalTimers() {
+    const now = new Date();
+
+    currentRentalsData.forEach(rental => {
+        if (rental.status !== 'active') return;
+
+        const timer = document.querySelector(`.rental-timer[data-rental-id="${rental.rental_id}"] .rental-timer-value`);
+        if (!timer) return;
+
+        const expectedReturn = new Date(rental.expected_return_time);
+        const diff = expectedReturn - now;
+
+        if (diff <= 0) {
+            timer.textContent = 'OVERDUE';
+            timer.style.color = '#dc2626';
+            return;
+        }
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        timer.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    });
+}
+
+function formatDateTime(dateTimeStr) {
+    if (!dateTimeStr) return 'N/A';
+
+    const date = new Date(dateTimeStr);
+    const dateOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+    const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+
+    const datePart = date.toLocaleDateString('en-US', dateOptions);
+    const timePart = date.toLocaleTimeString('en-US', timeOptions);
+
+    return `${datePart} at ${timePart}`;
+}
+
+// ========================================
+// RENTAL HISTORY
+// ========================================
+
+let rentalHistoryData = [];
+
+function updateMyRentalsEmptyState() {
+    const currentSection = document.getElementById('currentRentalsSection');
+    const historySection = document.getElementById('rentalHistorySection');
+    const emptyMessage = document.getElementById('noRentalsMessage');
+
+    if (!emptyMessage) return;
+
+    const hasCurrentRentals = currentRentalsData.length > 0;
+    const hasHistory = rentalHistoryData.length > 0 || studentPrintingJobs.length > 0;
+
+    if (!hasCurrentRentals && !hasHistory) {
+        emptyMessage.style.display = 'block';
+        if (currentSection) currentSection.style.display = 'none';
+        if (historySection) historySection.style.display = 'none';
+    } else {
+        emptyMessage.style.display = 'none';
+    }
+}
+
+async function loadRentalHistory() {
+    try {
+        const response = await fetch('../api/student/rentals/my-rentals.php?status=', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Could not load rental history.');
+        }
+
+        const allRentals = Array.isArray(data.items) ? data.items : [];
+
+        // Filter for completed/history rentals.
+        // Also include no-show rows that may already be stored as cancelled.
+        rentalHistoryData = allRentals.filter(rental => {
+            const status = String(rental.status).toLowerCase();
+            if (String(rental.service_kind || '').toLowerCase() === 'locker') {
+                return ['locker_pending', 'locker_active', 'locker_overdue', 'locker_released', 'locker_rejected'].includes(status);
+            }
+            if (status === 'returned' || status === 'completed' || status === 'cancelled') return true;
+
+            // Check if it's a no-show (reserved but past expected return time)
+            if (status === 'reserved' && isStudentRentalNoShow(rental)) return true;
+
+            return false;
+        }).sort((a, b) => {
+            const aDate = new Date(a.rent_time || a.actual_return_time || a.expected_return_time || 0).getTime();
+            const bDate = new Date(b.rent_time || b.actual_return_time || b.expected_return_time || 0).getTime();
+            return bDate - aDate;
+        });
+
+        renderRentalHistory();
+    } catch (err) {
+        console.error('[loadRentalHistory]', err);
+        rentalHistoryData = [];
+        renderRentalHistory();
+    }
+}
+
+function renderRentalHistory() {
+    const section = document.getElementById('rentalHistorySection');
+    const tableBody = document.getElementById('rentalHistoryTable');
+
+    if (!section || !tableBody) return;
+
+    const printHistoryData = studentPrintingJobs.map(createPrintActivityEntry);
+    const activityRows = [...rentalHistoryData, ...printHistoryData]
+        .sort((a, b) => {
+            const aDate = new Date(a._activityDate || a.submitted_at || a.rent_time || 0).getTime();
+            const bDate = new Date(b._activityDate || b.submitted_at || b.rent_time || 0).getTime();
+            return bDate - aDate;
+        });
+
+    if (activityRows.length === 0) {
+        section.style.display = 'none';
+        // Update empty state
+        if (typeof updateMyRentalsEmptyState === 'function') {
+            updateMyRentalsEmptyState();
+        }
+        return;
+    }
+
+    section.style.display = 'block';
+    tableBody.innerHTML = '';
+
+    activityRows.forEach(rental => {
+        const row = createRentalHistoryRow(rental);
+        tableBody.appendChild(row);
+    });
+
+    // Update empty state
+    if (typeof updateMyRentalsEmptyState === 'function') {
+        updateMyRentalsEmptyState();
+    }
+}
+
+function createPrintActivityEntry(job) {
+    return {
+        ...job,
+        _activityType: 'printing',
+        _activityDate: job.submitted_at || job.updated_at || ''
+    };
+}
+
+function createRentalHistoryRow(rental) {
+    const row = document.createElement('tr');
+
+    if (rental && rental._activityType === 'printing') {
+        row.setAttribute('data-print-job-id', rental.print_job_id);
+        const submittedDate = formatDate(rental.submitted_at || rental.updated_at);
+        const fileName = String(rental.file_name || 'Untitled PDF').trim();
+        const orgName = rental.org_name || 'Unknown';
+        const queueLabel = Number(rental.queue_position || 0) > 0
+            ? `Queue #${rental.queue_position}`
+            : 'Completed';
+        const details = String(rental.notes || '').trim() || 'Print request submitted';
+        const status = String(rental.status || 'queued').toLowerCase();
+        const statusClass = getStatusClass(status);
+        const statusText = getStatusText(status);
+
+        row.innerHTML = `
+            <td data-label="Date">${submittedDate}</td>
+            <td data-label="Activity">Printing</td>
+            <td data-label="Items / File" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(fileName)}">${escapeStudentHtml(fileName)}</td>
+            <td data-label="Organization">${escapeStudentHtml(orgName)}</td>
+            <td data-label="Details" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(details)}">${escapeStudentHtml(details)}</td>
+            <td data-label="Cost / Queue">${escapeStudentHtml(queueLabel)}</td>
+            <td data-label="Status"><span class="status-badge ${statusClass}">${statusText}</span></td>
+        `;
+
+        return row;
+    }
+
+    if (String(rental.service_kind || '').toLowerCase() === 'locker') {
+        row.setAttribute('data-rental-id', rental.rental_id);
+        const activityDate = formatDate(rental.rent_time || rental.updated_at);
+        const lockerCode = String(rental.items_label || rental.barcodes || 'Locker').replace(/\s*\(\d+x\)/g, '').trim();
+        const details = rental.locker_notice_message
+            ? rental.locker_notice_message
+            : (rental.locker_period_type ? rental.locker_period_type.replace(/_/g, ' ') : 'Locker assignment');
+        const statusClass = getLockerActivityStatusClass(rental.status, rental);
+        const statusText = getLockerActivityStatusLabel(rental.status, rental);
+        row.innerHTML = `
+            <td data-label="Date">${activityDate}</td>
+            <td data-label="Activity">Locker</td>
+            <td data-label="Items / File" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(lockerCode)}">${escapeStudentHtml(lockerCode)}</td>
+            <td data-label="Organization">${escapeStudentHtml(rental.org_name || 'Supreme Student Council')}</td>
+            <td data-label="Details" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeStudentHtml(details)}">${escapeStudentHtml(details)}</td>
+            <td data-label="Cost / Queue">${Number(rental.total_cost || 0).toFixed(2)}</td>
+            <td data-label="Status"><span class="status-badge ${statusClass}">${escapeStudentHtml(statusText)}</span></td>
+        `;
+        return row;
+    }
+
+    // Format dates
+    row.setAttribute('data-rental-id', rental.rental_id);
+    const rentDate = formatDate(rental.rent_time);
+    const items = String(rental.items_label || 'No items').replace(/\s*\(\d+x\)/g, '').trim();
+    const orgName = rental.org_name || 'Unknown';
+
+    // Calculate duration
+    const duration = calculateDuration(rental.rent_time, rental.actual_return_time || rental.expected_return_time);
+
+    // Format cost
+    const cost = `₱${parseFloat(rental.total_cost || 0).toFixed(2)}`;
+
+    // Status badge - check if no-show
+    let status = String(rental.status || 'unknown').toLowerCase();
+    if (status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+        status = 'no-show';
+    } else if (isStudentRentalNoShow(rental)) {
+        status = 'no-show';
+    }
+    const statusClass = getStatusClass(status, rental.payment_status);
+    const statusText = getStatusText(status);
+
+    row.innerHTML = `
+        <td data-label="Date">${rentDate}</td>
+        <td data-label="Activity">Rental</td>
+        <td data-label="Items / File" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${items}">${items}</td>
+        <td data-label="Organization">${orgName}</td>
+        <td data-label="Details">${duration}</td>
+        <td data-label="Cost / Queue">${cost}</td>
+        <td data-label="Status"><span class="status-badge ${statusClass}">${statusText}</span></td>
+    `;
+
+    return row;
+}
+
+function formatDate(dateTimeStr) {
+    if (!dateTimeStr) return 'N/A';
+    const date = new Date(dateTimeStr);
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+}
+
+function calculateDuration(startTime, endTime) {
+    if (!startTime || !endTime) return 'N/A';
+
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffMs = end - start;
+
+    if (diffMs < 0) return 'N/A';
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours === 0) return `${minutes}m`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}m`;
+}
+
+function getStatusClass(status, paymentStatus) {
+    if (status === 'returned') return 'status-returned';
+    if (status === 'no-show') return 'status-no-show';
+    if (status === 'locker_overdue') return 'status-no-show';
+    if (status === 'cancelled') return 'status-unknown';
+    if (status === 'completed') return 'status-completed';
+    if (status === 'queued') return 'status-reserved';
+    if (status === 'processing') return 'status-active';
+    if (status === 'ready_to_claim') return 'status-completed';
+    if (status === 'claimed') return 'status-returned';
+    return 'status-unknown';
+}
+
+function getStatusText(status) {
+    if (status === 'returned') return 'Returned';
+    if (status === 'no-show') return 'No Show';
+    if (status === 'locker_overdue') return 'Locker Overdue';
+    if (status === 'cancelled') return 'Cancelled';
+    if (status === 'completed') return 'Completed';
+    if (status === 'queued') return 'Queued';
+    if (status === 'processing') return 'Processing';
+    if (status === 'ready_to_claim') return 'Ready to Claim';
+    if (status === 'claimed') return 'Claimed';
+    return 'Unknown';
+}
+
+// ========================================
+// RENTAL FILTERS
+// ========================================
+
+let rentalFilters = {
+    startDate: null,
+    endDate: null,
+    items: [],
+    statuses: [],
+    search: ''
+};
+
+let allRentalsData = []; // Combined current + history for filtering
+
+function loadMyRentalsTab() {
+    // Load current rentals, rental history, and printing activity
+    Promise.all([
+        loadCurrentRentals(),
+        loadRentalHistory(),
+        loadStudentPrintJobs().catch(() => []),
+        loadStudentLockers().catch(() => null)
+    ]).then(() => {
+        updateMyRentalsEmptyState();
+        buildFilterOptions();
+        updateFilterVisibility();
+        applyAllFilters();
+    });
+}
+
+function buildFilterOptions() {
+    // Combine all activity labels
+    allRentalsData = [...currentRentalsData, ...rentalHistoryData, ...studentPrintingJobs];
+
+    // Extract unique item names
+    const itemsSet = new Set();
+    allRentalsData.forEach(rental => {
+        if (Object.prototype.hasOwnProperty.call(rental, 'file_name')) {
+            const fileName = String(rental.file_name || '').trim();
+            if (fileName) itemsSet.add(fileName);
+            return;
+        }
+
+        const items = (rental.items_label || '').split(', ');
+        items.forEach(item => {
+            const itemName = item.replace(/\s*\(\d+x\)/, '').trim();
+            if (itemName) itemsSet.add(itemName);
+        });
+    });
+
+    // Populate item filter dropdown
+    const itemFilterList = document.getElementById('itemFilterList');
+    if (itemFilterList) {
+        itemFilterList.innerHTML = '';
+
+        if (itemsSet.size === 0) {
+            // Show message when no items available
+            const emptyMsg = document.createElement('div');
+            emptyMsg.style.padding = '12px';
+            emptyMsg.style.textAlign = 'center';
+            emptyMsg.style.color = 'var(--muted)';
+            emptyMsg.style.fontSize = '0.85rem';
+            emptyMsg.textContent = 'No items available';
+            itemFilterList.appendChild(emptyMsg);
+        } else {
+            Array.from(itemsSet).sort().forEach(item => {
+                const label = document.createElement('label');
+                label.className = 'filter-option';
+                label.innerHTML = `
+                    <input type="checkbox" value="${item}" onchange="applyItemFilter()">
+                    <span>${item}</span>
+                `;
+                itemFilterList.appendChild(label);
+            });
+        }
+    }
+}
+
+function updateFilterVisibility() {
+    const filtersSection = document.getElementById('rentalFiltersSection');
+    if (filtersSection) {
+        // Always show filters in My Rentals tab
+        filtersSection.style.display = 'block';
+    }
+}
+
+// DATE FILTER MODAL & CALENDAR
+let calendarCurrentDate = new Date();
+let calendarSelectedStart = null;
+let calendarSelectedEnd = null;
+
+function openDateFilterModal() {
+    const modal = document.getElementById('dateFilterModal');
+    if (modal) {
+        modal.classList.add('open');
+        // Initialize calendar with current month
+        calendarCurrentDate = new Date();
+        renderRentalFilterCalendar();
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeDateFilterModal() {
+    const modal = document.getElementById('dateFilterModal');
+    if (modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function navigateCalendarMonth(offset) {
+    calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + offset);
+    renderRentalFilterCalendar();
+}
+
+function renderRentalFilterCalendar() {
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
+
+    // Update month/year display
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthYear = document.getElementById('filterCalendarMonthYear');
+    if (monthYear) {
+        monthYear.textContent = `${monthNames[month]} ${year}`;
+    }
+
+    // Get first day of month and total days
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Generate calendar days
+    const calendarDays = document.getElementById('filterCalendarDays');
+    if (!calendarDays) return;
+    calendarDays.innerHTML = '';
+
+    // Empty cells before first day
+    for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarDays.appendChild(emptyCell);
+    }
+
+    // Day cells
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, month, day);
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.textContent = day;
+
+        // Check if today
+        if (dateObj.getTime() === today.getTime()) {
+            dayCell.classList.add('today');
+        }
+
+        // Check if selected start or end
+        if (calendarSelectedStart && dateObj.getTime() === calendarSelectedStart.getTime()) {
+            dayCell.classList.add('selected');
+        }
+        if (calendarSelectedEnd && dateObj.getTime() === calendarSelectedEnd.getTime()) {
+            dayCell.classList.add('selected');
+        }
+
+        // Check if in range
+        if (calendarSelectedStart && calendarSelectedEnd) {
+            if (dateObj >= calendarSelectedStart && dateObj <= calendarSelectedEnd) {
+                dayCell.classList.add('in-range');
+            }
+        }
+
+        // Click handler
+        dayCell.addEventListener('click', () => selectCalendarDate(dateObj));
+
+        calendarDays.appendChild(dayCell);
+    }
+
+    // Update selected range display
+    updateSelectedRangeDisplay();
+}
+
+function selectCalendarDate(date) {
+    if (!calendarSelectedStart || (calendarSelectedStart && calendarSelectedEnd)) {
+        // First selection or reset
+        calendarSelectedStart = date;
+        calendarSelectedEnd = null;
+    } else {
+        // Second selection
+        if (date < calendarSelectedStart) {
+            calendarSelectedEnd = calendarSelectedStart;
+            calendarSelectedStart = date;
+        } else {
+            calendarSelectedEnd = date;
+        }
+    }
+
+    renderRentalFilterCalendar();
+}
+
+function updateSelectedRangeDisplay() {
+    const startDisplay = document.getElementById('selectedStartDate');
+    const endDisplay = document.getElementById('selectedEndDate');
+
+    if (calendarSelectedStart) {
+        startDisplay.textContent = calendarSelectedStart.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } else {
+        startDisplay.textContent = 'Not selected';
+    }
+
+    if (calendarSelectedEnd) {
+        endDisplay.textContent = calendarSelectedEnd.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } else {
+        endDisplay.textContent = 'Not selected';
+    }
+}
+
+function applyDatePreset(preset) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    calendarCurrentDate = new Date(today);
+
+    let startDate, endDate;
+
+    switch (preset) {
+        case 'today':
+            startDate = new Date(today);
+            endDate = null;
+            break;
+        case 'week':
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - 7);
+            endDate = new Date(today);
+            break;
+        case 'month':
+            startDate = new Date(today);
+            startDate.setMonth(today.getMonth() - 1);
+            endDate = new Date(today);
+            break;
+        case 'all':
+            startDate = null;
+            endDate = null;
+            break;
+    }
+
+    calendarSelectedStart = startDate;
+    calendarSelectedEnd = endDate;
+    updateSelectedRangeDisplay();
+    renderRentalFilterCalendar();
+}
+
+function applyDateFilter() {
+    const label = document.getElementById('dateFilterLabel');
+
+    // Convert selected dates to ISO format for filtering
+    rentalFilters.startDate = calendarSelectedStart ? calendarSelectedStart.toISOString().split('T')[0] : null;
+    rentalFilters.endDate = calendarSelectedEnd ? calendarSelectedEnd.toISOString().split('T')[0] : null;
+
+    // Update label
+    if (rentalFilters.startDate && !rentalFilters.endDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayKey = today.toISOString().split('T')[0];
+        label.textContent = rentalFilters.startDate === todayKey
+            ? 'Today'
+            : new Date(rentalFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else if (rentalFilters.startDate || rentalFilters.endDate) {
+        const start = rentalFilters.startDate ? new Date(rentalFilters.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...';
+        const end = rentalFilters.endDate ? new Date(rentalFilters.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '...';
+        label.textContent = `${start} - ${end}`;
+    } else {
+        label.textContent = 'All Dates';
+    }
+
+    closeDateFilterModal();
+    applyAllFilters();
+}
+
+// ITEM FILTER DROPDOWN
+function toggleItemFilterDropdown() {
+    const dropdown = document.getElementById('itemFilterDropdown');
+    const statusDropdown = document.getElementById('statusFilterDropdown');
+
+    if (dropdown) {
+        const isVisible = dropdown.style.display === 'block';
+        dropdown.style.display = isVisible ? 'none' : 'block';
+
+        // Close other dropdown
+        if (statusDropdown) statusDropdown.style.display = 'none';
+    }
+}
+
+function applyItemFilter() {
+    const checkboxes = document.querySelectorAll('#itemFilterList input[type="checkbox"]:checked');
+    rentalFilters.items = Array.from(checkboxes).map(cb => cb.value);
+
+    const label = document.getElementById('itemFilterLabel');
+    if (label) {
+        label.textContent = rentalFilters.items.length > 0
+            ? `${rentalFilters.items.length} Item${rentalFilters.items.length > 1 ? 's' : ''}`
+            : 'All Items';
+    }
+
+    applyAllFilters();
+}
+
+function clearItemFilter() {
+    const checkboxes = document.querySelectorAll('#itemFilterList input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    rentalFilters.items = [];
+
+    const label = document.getElementById('itemFilterLabel');
+    if (label) label.textContent = 'All Items';
+
+    applyAllFilters();
+}
+
+// STATUS FILTER DROPDOWN
+function toggleStatusFilterDropdown() {
+    const dropdown = document.getElementById('statusFilterDropdown');
+    const itemDropdown = document.getElementById('itemFilterDropdown');
+
+    if (dropdown) {
+        const isVisible = dropdown.style.display === 'block';
+        dropdown.style.display = isVisible ? 'none' : 'block';
+
+        // Close other dropdown
+        if (itemDropdown) itemDropdown.style.display = 'none';
+    }
+}
+
+function applyStatusFilter() {
+    const checkboxes = document.querySelectorAll('#statusFilterDropdown input[type="checkbox"]:checked');
+    rentalFilters.statuses = Array.from(checkboxes).map(cb => cb.value);
+
+    const label = document.getElementById('statusFilterLabel');
+    if (label) {
+        label.textContent = rentalFilters.statuses.length > 0
+            ? `${rentalFilters.statuses.length} Status`
+            : 'All Status';
+    }
+
+    applyAllFilters();
+}
+
+function clearStatusFilter() {
+    const checkboxes = document.querySelectorAll('#statusFilterDropdown input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    rentalFilters.statuses = [];
+
+    const label = document.getElementById('statusFilterLabel');
+    if (label) label.textContent = 'All Status';
+
+    applyAllFilters();
+}
+
+// APPLY ALL FILTERS
+function applyAllFilters() {
+    // Filter current rentals
+    let filteredCurrent = [...currentRentalsData];
+    let filteredHistory = [...rentalHistoryData];
+    let filteredPrintJobs = [...studentPrintingJobs];
+
+    // Apply filters
+    filteredCurrent = filterRentals(filteredCurrent);
+    filteredHistory = filterRentals(filteredHistory);
+    filteredPrintJobs = filterRentals(filteredPrintJobs);
+
+    // Temporarily replace data
+    const originalCurrent = [...currentRentalsData];
+    const originalHistory = [...rentalHistoryData];
+    const originalPrintJobs = [...studentPrintingJobs];
+
+    currentRentalsData = filteredCurrent;
+    rentalHistoryData = filteredHistory;
+    studentPrintingJobs = filteredPrintJobs;
+
+    // Re-render
+    renderCurrentRentals();
+    renderRentalHistory();
+
+    // Restore original data
+    currentRentalsData = originalCurrent;
+    rentalHistoryData = originalHistory;
+    studentPrintingJobs = originalPrintJobs;
+}
+
+function applyRentalSearch() {
+    const input = document.getElementById('rentalSearchInput');
+    rentalFilters.search = String(input?.value || '').trim().toLowerCase();
+    applyAllFilters();
+}
+
+function filterRentals(rentals) {
+    return rentals.filter(rental => {
+        const isPrintActivity = Object.prototype.hasOwnProperty.call(rental, 'file_name');
+        const isLockerActivity = !isPrintActivity && String(rental.service_kind || '').toLowerCase() === 'locker';
+        const activityDateValue = isPrintActivity ? (rental.submitted_at || rental.updated_at) : rental.rent_time;
+
+        // Date filter
+        if (rentalFilters.startDate || rentalFilters.endDate) {
+            const rentalDate = activityDateValue ? new Date(activityDateValue) : null;
+            if (!rentalDate || Number.isNaN(rentalDate.getTime())) return false;
+            const start = rentalFilters.startDate ? new Date(rentalFilters.startDate) : null;
+            const end = rentalFilters.endDate ? new Date(rentalFilters.endDate) : null;
+
+            if (start && rentalDate < start) return false;
+            if (end) {
+                end.setHours(23, 59, 59, 999); // End of day
+                if (rentalDate > end) return false;
+            }
+        }
+
+        // Item filter
+        if (rentalFilters.items.length > 0) {
+            const rentalItems = isPrintActivity
+                ? [String(rental.file_name || '').trim()].filter(Boolean)
+                : (rental.items_label || '').split(', ').map(item =>
+                    item.replace(/\s*\(\d+x\)/, '').trim()
+                );
+            const hasMatch = rentalFilters.items.some(filterItem => rentalItems.includes(filterItem));
+            if (!hasMatch) return false;
+        }
+
+        // Status filter
+        if (rentalFilters.statuses.length > 0) {
+            let status = String(rental.status).toLowerCase();
+
+            if (isLockerActivity) {
+                status = getNormalizedLockerActivityStatus(status, rental);
+                if (status === 'locker_pending') status = 'reserved';
+                else if (status === 'locker_active') status = 'active';
+                else if (status === 'locker_overdue') status = 'locker_overdue';
+                else if (status === 'locker_rejected') status = 'cancelled';
+                else if (status === 'locker_released') status = 'returned';
+            } else if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+                status = 'no-show';
+            } else if (!isPrintActivity && isStudentRentalNoShow(rental)) {
+                status = 'no-show';
+            }
+
+            if (!rentalFilters.statuses.includes(status)) return false;
+        }
+
+        // Search filter
+        if (rentalFilters.search) {
+            let status = String(rental.status || '').toLowerCase();
+            let statusText = '';
+            if (isLockerActivity) {
+                status = getNormalizedLockerActivityStatus(status, rental);
+                statusText = getLockerActivityStatusLabel(status, rental);
+                if (status === 'locker_pending') status = 'reserved';
+                else if (status === 'locker_active') status = 'active';
+                else if (status === 'locker_rejected') status = 'cancelled';
+                else if (status === 'locker_released') status = 'returned';
+            } else if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
+                status = 'no-show';
+            } else if (!isPrintActivity && isStudentRentalNoShow(rental)) {
+                status = 'no-show';
+            }
+
+            const rentDate = activityDateValue ? formatDate(activityDateValue) : '';
+            const items = isPrintActivity
+                ? String(rental.file_name || '').trim()
+                : String(rental.items_label || '').replace(/\s*\(\d+x\)/g, '').trim();
+            const organization = String(rental.org_name || '');
+            const organizationCode = String(rental.org_code || '');
+            if (!statusText) {
+                statusText = isPrintActivity ? getStatusText(status) : getStatusText(status);
+            }
+            const activityType = isPrintActivity ? 'printing' : (isLockerActivity ? 'locker' : 'rental');
+            const details = isPrintActivity ? String(rental.notes || '') : (isLockerActivity ? String(rental.locker_notice_message || rental.locker_period_type || '') : '');
+            const searchBlob = [rentDate, items, organization, organizationCode, statusText, status, activityType, details]
+                .join(' ')
+                .toLowerCase();
+
+            if (!searchBlob.includes(rentalFilters.search)) return false;
+        }
+
+        return true;
+    });
+}
+
+// RESET ALL FILTERS
+function resetAllFilters() {
+    // Reset filter object
+    rentalFilters = {
+        startDate: null,
+        endDate: null,
+        items: [],
+        statuses: [],
+        search: ''
+    };
+
+    // Reset UI
+    document.getElementById('dateFilterLabel').textContent = 'All Dates';
+    document.getElementById('itemFilterLabel').textContent = 'All Items';
+    document.getElementById('statusFilterLabel').textContent = 'All Status';
+    const rentalSearchInput = document.getElementById('rentalSearchInput');
+    if (rentalSearchInput) rentalSearchInput.value = '';
+
+    // Clear date inputs
+    const startInput = document.getElementById('filterStartDate');
+    const endInput = document.getElementById('filterEndDate');
+    if (startInput) startInput.value = '';
+    if (endInput) endInput.value = '';
+
+    // Clear checkboxes
+    document.querySelectorAll('#itemFilterList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('#statusFilterDropdown input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+    // Re-render with no filters
+    renderCurrentRentals();
+    renderRentalHistory();
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    const itemBtn = document.getElementById('itemFilterBtn');
+    const itemDropdown = document.getElementById('itemFilterDropdown');
+    const statusBtn = document.getElementById('statusFilterBtn');
+    const statusDropdown = document.getElementById('statusFilterDropdown');
+
+    if (itemDropdown && !itemBtn?.contains(e.target) && !itemDropdown.contains(e.target)) {
+        itemDropdown.style.display = 'none';
+    }
+
+    if (statusDropdown && !statusBtn?.contains(e.target) && !statusDropdown.contains(e.target)) {
+        statusDropdown.style.display = 'none';
+    }
+});

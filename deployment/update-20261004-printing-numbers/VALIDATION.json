@@ -1,0 +1,169 @@
+{
+  "source_commit": "f0632fe748125225c05dd8cf835623534318b58a",
+  "rollback_commit": "9f4d7f8d622aa9b4bf9952eb361e5597507ac039",
+  "application_files": 11,
+  "rollback_files": 10,
+  "zip_created": false,
+  "checks": [
+    {
+      "file": "upload/api/osa/activity-feed.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/api/osa/activity-feed.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/assets/css/officerDashboard.css",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/assets/css/officerDashboard.css",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/assets/js/officerDashboard.js",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/assets/js/officerDashboard.js",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/assets/js/studentDashboard.js",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/assets/js/studentDashboard.js",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/includes/notification_email_delivery.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/includes/notification_email_delivery.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/includes/printing_numbers.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/includes/services_tracker.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/includes/services_tracker.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/includes/student_notifications.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/includes/student_notifications.php",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/pages/officerDashboard.html",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/pages/officerDashboard.html",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/pages/studentDashboard.html",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/pages/studentDashboard.html",
+      "git_bytes_match": true
+    },
+    {
+      "file": "upload/sw.js",
+      "git_bytes_match": true
+    },
+    {
+      "file": "rollback/upload/sw.js",
+      "git_bytes_match": true
+    },
+    {
+      "file": "tools/bootstrap.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "tools/clean-waived-printing.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "tools/migrate-printing-numbers.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "upload/sw.js",
+      "syntax_passed": true
+    },
+    {
+      "file": "rollback/upload/sw.js",
+      "syntax_passed": true
+    },
+    {
+      "file": "rollback/upload/includes/notification_email_delivery.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "rollback/upload/includes/services_tracker.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "rollback/upload/includes/student_notifications.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "rollback/upload/api/osa/activity-feed.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "rollback/upload/assets/js/officerDashboard.js",
+      "syntax_passed": true
+    },
+    {
+      "file": "rollback/upload/assets/js/studentDashboard.js",
+      "syntax_passed": true
+    },
+    {
+      "file": "upload/includes/notification_email_delivery.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "upload/includes/printing_numbers.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "upload/includes/services_tracker.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "upload/includes/student_notifications.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "upload/api/osa/activity-feed.php",
+      "syntax_passed": true
+    },
+    {
+      "file": "upload/assets/js/officerDashboard.js",
+      "syntax_passed": true
+    },
+    {
+      "file": "upload/assets/js/studentDashboard.js",
+      "syntax_passed": true
+    }
+  ],
+  "local_cli_verification": "passed",
+  "optional_cleanup_preview": "passed; no changes applied",
+  "hosted_server_verified": false,
+  "rollback_sql_executed": false
+}
