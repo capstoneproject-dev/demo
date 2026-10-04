@@ -505,14 +505,14 @@ try {
                 CONVERT(COALESCE(NULLIF(o.org_code, ''), o.org_name) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS organization,
                 CONVERT('Printing Request' USING utf8mb4) COLLATE utf8mb4_unicode_ci AS activity_type,
                 CONVERT(pj.file_name USING utf8mb4) COLLATE utf8mb4_unicode_ci AS title,
-                CONVERT(CONCAT('Student: ', TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ' - Queue #', pj.queue_order) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS details,
+                CONVERT(CONCAT('Student: ', TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ' - Request #', pj.request_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS details,
                 COALESCE(pj.updated_at, pj.submitted_at) AS activity_at,
                 CONVERT('printing_request' USING utf8mb4) COLLATE utf8mb4_unicode_ci AS source_type,
                 pj.print_job_id AS source_id,
                 CONVERT(CONCAT(
                     'File: ', pj.file_name,
                     '\nStudent: ', TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))),
-                    '\nQueue #: ', pj.queue_order,
+                    '\nRequest #: ', pj.request_number,
                     '\nSubmitted At: ', DATE_FORMAT(pj.submitted_at, '%b %d, %Y %h:%i %p'),
                     '\nUpdated At: ', COALESCE(DATE_FORMAT(pj.updated_at, '%b %d, %Y %h:%i %p'), 'N/A')
                 ) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS full_details,

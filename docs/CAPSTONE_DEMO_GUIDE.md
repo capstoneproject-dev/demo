@@ -75,7 +75,7 @@ Mention email verification or OSA login OTP as configured in your deployment. Co
 
 **Action:** Show the student's AISERS Business Calculator reservation (October 6, 5:10–7:10 PM, PHP 20) and start it if presenting within its permitted start window, 4:55 PM to before 7:10 PM. This is a prepared after-hours defense example; normal student bookings must end by 5 PM. Show the reserved Shoe Rag for October 7 and the remaining available stock. Preview printing job 58 and demonstrate claiming/payment. Use the prepared locker request to explain its workflow. Show a financial total and one export control.
 
-**Visible result:** The Shoe Rag reservation appears in the student and officer views, and the printing transaction progresses to claimed/paid. Refresh the financial summary when needed; do not assume every screen refreshes automatically.
+**Visible result:** The Shoe Rag reservation appears in the student and officer views, and the printing transaction progresses to claimed/paid. Point out that printing request numbers stay the same through processing and pickup and remain in history; each organization has its own sequence, while waiting queue positions can change. Printing emails contain the same request number. Refresh the financial summary when needed; do not assume every screen refreshes automatically.
 
 ### 4:00–5:30 — Documents, adviser, SSC, and OSA review
 

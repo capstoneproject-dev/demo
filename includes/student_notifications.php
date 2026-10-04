@@ -137,6 +137,8 @@ function studentNotificationRentalRows(PDO $pdo, int $userId): array
 
 function studentNotificationPrintingRows(PDO $pdo, int $userId): array
 {
+    require_once __DIR__ . '/services_tracker.php';
+    stEnsureSchema($pdo);
     $stmt = $pdo->prepare(
         "SELECT pj.print_job_id,
                 pj.org_id,
@@ -146,6 +148,7 @@ function studentNotificationPrintingRows(PDO $pdo, int $userId): array
                 pj.file_name,
                 pj.status,
                 pj.queue_order,
+                pj.request_number,
                 pj.submitted_at,
                 pj.processing_started_at,
                 pj.ready_at,
@@ -168,6 +171,8 @@ function studentNotificationBuildPrinting(array $row, DateTimeImmutable $cutoff)
     $organization = (string)$row['organization'];
     $orgId = (int)($row['org_id'] ?? 0);
     $fileName = trim((string)($row['file_name'] ?? '')) ?: 'Your document';
+    $reference = (int)($row['request_number'] ?? 0);
+    if ($reference > 0) $fileName .= " (request #{$reference})";
     $submittedAt = studentNotificationDate($row['submitted_at'] ?? null);
     $acceptedAt = studentNotificationDate($row['provider_accepted_at'] ?? null);
     $processingAt = studentNotificationDate($row['processing_started_at'] ?? null);

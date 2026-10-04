@@ -100,6 +100,9 @@ function printingCollision(PDO $pdo, array $lockOrgs, array $actions, ?callable 
 
 function printingQueueCheck(PDO $pdo, int $org, bool $contiguous = true): array
 {
+    $numbers=$pdo->prepare('SELECT COUNT(*) AS total,COUNT(DISTINCT request_number) AS numbered FROM print_jobs WHERE org_id=?');
+    $numbers->execute([$org]);$counts=$numbers->fetch();
+    printingCheck((int)$counts['total']===(int)$counts['numbered'],'Permanent reference missing or duplicated under concurrency.');
     $stmt = $pdo->prepare("SELECT print_job_id, queue_order FROM print_jobs
         WHERE org_id = ? AND status = 'queued'
         ORDER BY queue_order, submitted_at, print_job_id");

@@ -26,3 +26,6 @@ composer-setup.php
 !/tests/concurrency/
 /docs/defense-demo
 /cli
+/docs
+/docs
+/docs

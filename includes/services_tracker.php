@@ -8,6 +8,7 @@ require_once __DIR__ . '/private_pdf_storage.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/notification_email_delivery.php';
+require_once __DIR__ . '/printing_numbers.php';
 
 class ServiceTrackerValidationException extends RuntimeException {}
 class ServiceTrackerAuthorizationException extends RuntimeException {}
@@ -189,6 +190,8 @@ function stEnsureSchema(PDO $pdo): void
          ADD COLUMN IF NOT EXISTS paid_at DATETIME NULL DEFAULT NULL,
          ADD COLUMN IF NOT EXISTS paid_by_user_id INT NULL DEFAULT NULL"
     );
+
+    stEnsurePrintingNumbers($pdo);
 
     // Preserve the legacy behavior for rows created before printing payments
     // were tracked: claimed jobs were historically reported as paid.
@@ -850,6 +853,7 @@ function stAttachQueuePositions(PDO $pdo, array $rows): array
         $row['org_id'] = (int)$row['org_id'];
         $row['user_id'] = (int)$row['user_id'];
         $row['queue_order'] = (int)$row['queue_order'];
+        $row['request_number'] = (int)$row['request_number'];
         $row['provider_auto_assigned'] = (int)($row['provider_auto_assigned'] ?? 0);
         $row['total_cost'] = (float)($row['total_cost'] ?? 0);
         $row['payment_status'] = strtolower((string)($row['payment_status'] ?? 'unpaid'));

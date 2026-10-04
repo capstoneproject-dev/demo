@@ -6926,15 +6926,15 @@ body.dark .btn-outline:hover {
     .printing-pending-table td:nth-child(3)::before { content: "Submitted"; }
     .printing-pending-table td:nth-child(4)::before { content: "Actions"; }
 
-    .printing-queue-table td:nth-child(1)::before { content: "Queue"; }
+    .printing-queue-table td:nth-child(1)::before { content: "Request number"; }
     .printing-queue-table td:nth-child(2)::before { content: "Document"; }
     .printing-queue-table td:nth-child(3)::before { content: "Student"; }
     .printing-queue-table td:nth-child(4)::before { content: "Submitted"; }
     .printing-queue-table td:nth-child(5)::before { content: "Status"; }
-    .printing-queue-table td:nth-child(6)::before { content: "Priority"; }
+    .printing-queue-table td:nth-child(6)::before { content: "Queue position"; }
     .printing-queue-table td:nth-child(7)::before { content: "Actions"; }
 
-    .printing-history-table td:nth-child(1)::before { content: "Queue"; }
+    .printing-history-table td:nth-child(1)::before { content: "Request number"; }
     .printing-history-table td:nth-child(2)::before { content: "Document"; }
     .printing-history-table td:nth-child(3)::before { content: "Student"; }
     .printing-history-table td:nth-child(4)::before { content: "Submitted"; }

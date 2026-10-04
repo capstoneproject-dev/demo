@@ -6700,9 +6700,7 @@ function renderStudentPrintJobCards(jobs, options = {}) {
         const providerWasAutoAssigned = Number(job.provider_auto_assigned || 0) === 1;
         const queueText = job.pendingSync
             ? (job.offlineStatus === 'attention' ? 'Review before syncing' : 'Saved on this device')
-            : status === 'queued' && Number(job.queue_position || 0) > 0
-            ? `Queue #${job.queue_position}`
-            : (status === 'processing' ? 'In progress' : (status === 'ready_to_claim' ? 'Ready now' : 'Completed'));
+            : `Request ${Number(job.request_number || 0) || '-'}${status === 'queued' && Number(job.queue_position || 0) > 0 ? ` · Queue position ${Number(job.queue_position)}` : ''}`;
         const submittedAt = formatDateTime(job.submitted_at);
         const jobUrl = resolveStudentDocumentUrl(job.file_url);
         const canCancel = showCancelButton && status === 'queued';
@@ -8993,9 +8991,7 @@ function createRentalHistoryRow(rental) {
         const submittedDate = formatDate(rental.submitted_at || rental.updated_at);
         const fileName = String(rental.file_name || 'Untitled PDF').trim();
         const orgName = rental.org_name || 'Unknown';
-        const queueLabel = Number(rental.queue_position || 0) > 0
-            ? `Queue #${rental.queue_position}`
-            : 'Completed';
+        const queueLabel = `Request ${Number(rental.request_number || 0) || '-'}`;
         const details = String(rental.notes || '').trim() || 'Print request submitted';
         const status = String(rental.status || 'queued').toLowerCase();
         const statusClass = getStatusClass(status);

@@ -3115,9 +3115,7 @@ function renderOfficerPrintingQueue(printingEnabled = true) {
     } else {
         tableBody.innerHTML = activeJobs.map((job) => {
         const jobUrl = resolvePdfUrl(job.file_url);
-        const queueLabel = String(job.status || '').toLowerCase() === 'queued'
-            ? `#${Number(job.queue_position || job.queue_order || 0) || '-'}`
-            : '-';
+        const queueLabel = Number(job.request_number || 0) || '-';
         const isQueued = String(job.status || '').toLowerCase() === 'queued';
         const priorityControls = isQueued
             ? `
@@ -3306,6 +3304,7 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
         historyItems = historyItems.filter((job) => {
             const status = getOfficerPrintStatusLabel(job.status);
             const searchBlob = [
+                job.request_number || '',
                 job.file_name || '',
                 job.student_name || '',
                 job.student_number || '',
@@ -3342,7 +3341,7 @@ function renderOfficerPrintingHistory(printingEnabled = true) {
             && Number(job.total_cost || 0) > 0;
         return `
             <tr data-print-job-id="${Number(job.print_job_id)}">
-                <td>${Number(job.queue_order || job.queue_position || 0) || '-'}</td>
+                <td>${Number(job.request_number || 0) || '-'}</td>
                 <td>
                     <strong>${escapeHtml(job.file_name || 'Untitled File')}</strong>
                     ${job.notes ? `<div style="color:var(--muted); font-size:0.8rem; margin-top:4px;">${escapeHtml(job.notes)}</div>` : ''}
@@ -3939,7 +3938,7 @@ function openOfficerPrintClaimModal(printJobId) {
     const barcode = document.getElementById('officerPrintClaimOfficerBarcode');
     const unpaid = document.querySelector('input[name="officerPrintClaimPayment"][value="unpaid"]');
     const error = document.getElementById('officerPrintClaimError');
-    if (summary) summary.textContent = `${job.file_name || 'Print job'} for ${job.student_name || 'the student'}`;
+    if (summary) summary.textContent = `Request ${Number(job.request_number || 0) || '-'}: ${job.file_name || 'Print job'} for ${job.student_name || 'the student'}`;
     if (price) price.value = '';
     if (barcode) barcode.value = '';
     if (unpaid) unpaid.checked = true;

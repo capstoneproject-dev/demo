@@ -387,6 +387,8 @@ function notificationEmailMarkPreferenceSuppressed(PDO $pdo, int $deliveryId): v
 function notificationEmailQueuePrintingJob(PDO $pdo, int $printJobId): ?int
 {
     if ($printJobId <= 0) return null;
+    require_once __DIR__ . '/services_tracker.php';
+    stEnsureSchema($pdo);
     $stmt = $pdo->prepare(
         "SELECT pj.print_job_id,
                 pj.org_id,
@@ -396,6 +398,7 @@ function notificationEmailQueuePrintingJob(PDO $pdo, int $printJobId): ?int
                 pj.file_name,
                 pj.status,
                 pj.queue_order,
+                pj.request_number,
                 pj.submitted_at,
                 pj.processing_started_at,
                 pj.ready_at,
