@@ -1121,10 +1121,10 @@ svg {
   height: auto;
 }
 
-.register-tabs,
-.org-registration-details,
-.org-registration-inline-picks,
-.position-list,
+.register-tabs[hidden],
+.org-registration-details[hidden],
+.org-registration-inline-picks[hidden],
+.position-list[hidden],
 #dashboardChoiceActions[hidden],
 #officerOrganizationChoice[hidden] {
   display: none;
