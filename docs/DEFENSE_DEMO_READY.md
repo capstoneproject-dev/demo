@@ -2,6 +2,18 @@
 
 Prepared for **Tuesday, October 6, 2026, approximately 5:00 PM, Asia/Manila**, allowing for a delayed start. This data is in the local XAMPP `capstone_db`; it has not been uploaded to a hosted deployment.
 
+## Rebuilt after XAMPP recovery — October 5
+
+The prepared records were recreated after the database folder was restored from an older copy. All five proposal PDFs and annotations are available again. DEMO 04 and DEMO 05 remain ready for live forwarding. Existing student, AISERS adviser, and main OSA credentials still work; the SSC reviewer has newly generated credentials in the private demo directory.
+
+Current rental IDs: **24** for Shoe Rag (October 7, 9–11 AM), **25** for Business Calculator (October 6, 5:10–7:10 PM), and **23** for the pending Z91 locker request. The existing A01 student locker remains assigned. Printing jobs 57–59 retain request numbers 9–11 after repeating the authorized waived-request cleanup. The proposal and event IDs remain unchanged.
+
+At the user's confirmation, older calculator rental **18** was returned and marked paid. Its August due date caused the normal overtime calculation to produce **PHP 10,825**, including PHP 10,820 overtime. This amount appears in financial reports. The missing student account/roster schema migration was also applied to repair OSA Account Management.
+
+The pre-rebuild database backup is `%TEMP%\capstone-defense-demo\before-preparation.sql`. A fresh backup containing the recreated records is `%TEMP%\capstone-defense-demo\after-rebuild.sql`. Stale manifests and earlier backups were archived in the dated `before-rebuild-*` subfolder. Save the fresh SQL backup, the application's protected PDF storage (`storage/private` in this local setup), and the private launcher credentials somewhere durable outside XAMPP and the temporary directory. For a raw `mysql/data` folder copy, stop MySQL before copying, then restart it afterward.
+
+The rebuilt accounts use the same Gmail inbox and role aliases. The original email receipt confirmation refers to the earlier rehearsal; this rebuild did not send another batch of demonstration emails or OTPs. Browser verification uses `--skip-ai` to avoid another external AI generation. The separate AI wording verification used synthetic data.
+
 ## Open the demonstration
 
 Double-click [open-defense-demo.cmd](../cli/open-defense-demo.cmd), or run:
@@ -63,12 +75,12 @@ Export attendance through **Events → view event details → Export Event Data*
 | Example | Record | Ready action |
 | --- | --- | --- |
 | Available AISERS Shoe Rag | Inventory 74, barcode `SH002` | Show the remaining available stock |
-| Student Shoe Rag reservation | Rental 25, inventory 62, barcode `SH001` | Existing AISERS item reserved for `12324MN-000080`, October 7, 9–11 AM, PHP 20 |
-| Student Business Calculator reservation | Rental 27, inventory 61, barcode `BCALC001` | Existing AISERS item reserved for `12324MN-000080`, October 6, 5:10–7:10 PM, PHP 20 |
+| Student Shoe Rag reservation | Rental 24, inventory 62, barcode `SH001` | Existing AISERS item reserved for `12324MN-000080`, October 7, 9–11 AM, PHP 20 |
+| Student Business Calculator reservation | Rental 25, inventory 61, barcode `BCALC001` | Existing AISERS item reserved for `12324MN-000080`, October 6, 5:10–7:10 PM, PHP 20 |
 | Queued printing request | Print job 59 | Start processing |
 | Printing ready to claim | Print job 58 | Preview the real handout and demonstrate claiming/payment |
 | Completed printing job | Print job 57 | Claimed and paid, PHP 15; available in financial records |
-| Pending demo locker | Rental 26, locker Z91 | SSC can approve the demo SSC user's request |
+| Pending demo locker | Rental 23, locker Z91 | SSC can approve the demo SSC user's request |
 | Available demo locker | Z92 | Show an available locker on the SSC board |
 
 Printing uses [this real handout PDF](defense-demo/DEMO-printing-handout.pdf). Rentals and printing belong to AISERS; lockers belong to SSC. Your existing student's **A01 locker assignment was preserved**. Because the system permits one open locker per student, the new Z91 request uses the clearly labeled demo SSC student account.
@@ -77,11 +89,11 @@ Printing now displays a permanent numeric **request number**, unique within each
 
 At the user's request, 8 waived AISERS printing requests were subsequently removed and its 11 retained requests renumbered oldest first as **1–11**. The next AISERS request will be **12**. The completed, ready-to-claim, and queued handout examples now have reference numbers **9, 10, and 11**, respectively; their database IDs remain 57, 58, and 59. Unsent email references were updated; delivered emails retain their original historical numbers. The cleanup backup is `%TEMP%\capstone-defense-demo\before-waived-printing-cleanup-20261004-175001.json`. This was a one-time cleanup; normal completion does not renumber other requests.
 
-The three demo calculator items (75–77), their empty Defense Demo Equipment category, and their two seeded rental examples (23–24) were removed at the user's request. Reservation 25 now uses real AISERS Shoe Rag stock, including its actual pricing and overtime settings. Genuine rental history was preserved. The scoped backup is `%TEMP%\capstone-defense-demo\before-shoe-rag-replacement.json`.
+The rebuild uses real AISERS inventory directly and does not create demo calculator items or a Defense Demo Equipment category. Reservation 24 uses Shoe Rag stock with its actual pricing and overtime settings. Older calculator rental 18 was closed and marked paid at the user's confirmation; other existing rental history was preserved.
 
-The Business Calculator reservation is an explicitly requested **after-hours defense example**. Normal student booking still requires rentals to end by 5 PM. Officers can start reservation 27 from 4:55 PM until before 7:10 PM on October 6; after the scheduled end it is handled as a no-show. Its actual inventory rate is PHP 10/hour. Its setup and schedule are tracked privately in the manifest; the CLI helper reuses the existing reservation on repeat runs.
+The Business Calculator reservation is an explicitly requested **after-hours defense example**. Normal student booking still requires rentals to end by 5 PM. Officers can start reservation 25 from 4:55 PM until before 7:10 PM on October 6; after the scheduled end it is handled as a no-show. Its actual inventory rate is PHP 10/hour. Its setup and schedule are tracked privately in the manifest; the CLI helper reuses the existing reservation on repeat runs.
 
-Completed printing examples were prepared on October 4. Use **All Time** or a date range including October 4–6 for financial and analytics demonstrations. Use printing job 58 for the live claim/payment workflow; the Shoe Rag reservation remains scheduled for the following morning.
+Completed printing examples were recreated on October 5. Use **All Time** or a date range including October 5–6 for financial and analytics demonstrations. Use printing job 58 for the live claim/payment workflow; the Shoe Rag reservation remains scheduled for the following morning.
 
 ## OSA accounts and reporting
 

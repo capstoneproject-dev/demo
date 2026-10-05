@@ -1,0 +1,2370 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <base href="../pages/">
+    <style>
+        html:not(.local-development) [data-local-only] { display: none !important; }
+    </style>
+    <script src="../assets/js/app-environment.js?v=20261004-local-mocks-1"></script>
+    <script>
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('a[href="#"]')) event.preventDefault();
+        });
+    </script>
+    <link rel="manifest" href="../manifest.webmanifest">
+    <script src="../assets/js/app-dialog.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/offline-store.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/offline-client.js?v=20260927-complete-ui-1"></script>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="../assets/favicon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Management Dashboard</title>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="../assets/vendor/fontawesome/css/all.min.css?v=20260927-complete-ui-1">
+
+    <script src="../assets/vendor/chart.umd.min.js?v=20260927-complete-ui-1"></script>
+
+    <script src="../assets/vendor/jspdf.umd.min.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/vendor/jspdf.plugin.autotable.min.js?v=20260927-complete-ui-1"></script>
+
+    <!-- PDF.js for Document Viewing -->
+    <script src="../assets/vendor/pdf.min.js?v=20260927-complete-ui-1"></script>
+    <link rel="stylesheet" href="../assets/vendor/pdf_viewer.min.css?v=20260927-complete-ui-1">
+
+    <link rel="stylesheet" href="../assets/css/officerDashboard.css?v=20261004-printing-numbers-1">
+    <!-- PDF Viewer Styles -->
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260927-complete-ui-1">
+</head>
+
+<body>
+
+    <div id="toast-container"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo-area">
+            <i class="fa-solid fa-sitemap logo-icon"></i>
+            <span class="logo-text">ORG DASHBOARD</span>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="#" class="nav-link active" onclick="navigate('dashboard', this)">
+                    <i class="fa-solid fa-gauge-high nav-icon"></i>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('announcements', this)">
+                    <i class="fa-solid fa-bullhorn nav-icon"></i>
+                    <span class="nav-label">Announcements</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('events', this)">
+                    <i class="fa-solid fa-calendar-days nav-icon"></i>
+                    <span class="nav-label">Events</span>
+                </a>
+            </li>
+            <li id="servicesTrackerNavItem" class="nav-item" hidden>
+                <a href="#" class="nav-link" onclick="navigate('tracker', this)">
+                    <i class="fa-solid fa-list-check nav-icon"></i>
+                    <span class="nav-label">Services Tracker</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('documents', this)">
+                    <i class="fa-solid fa-file-contract nav-icon"></i>
+                    <span class="nav-label">Documents</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('analytics', this)">
+                    <i class="fa-solid fa-chart-line nav-icon"></i>
+                    <span class="nav-label">Analytics</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('profile', this)">
+                    <i class="fa-solid fa-user-gear nav-icon"></i>
+                    <span class="nav-label">Profile</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <!-- Desktop Theme Toggle -->
+            <button class="theme-toggle" id="themeBtn">
+                <i class="fa-solid fa-moon nav-icon"></i>
+                <span class="nav-label">Dark Mode</span>
+            </button>
+            <div class="nav-item">
+                <!-- Desktop Logout -->
+                <a href="#" class="logout-btn" onclick="handleLogout(event)">
+                    <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
+                    <span class="nav-label">Logout</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Top Header -->
+        <header>
+            <!-- Left: Page Title -->
+            <div style="flex: 1;">
+                <div class="header-title">
+                    <h1 id="page-title">Dashboard</h1>
+                    <p id="current-date">Fetching date...</p>
+                </div>
+            </div>
+
+            <!-- Right: Controls -->
+            <div class="header-controls">
+                <button id="officerOrgSwitchButton" class="officer-org-switch-button" type="button"
+                    aria-label="Switch organization" aria-haspopup="dialog" onclick="openOfficerOrgSwitcher()" hidden>
+                    <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>
+                    <span>Switch Organization</span>
+                </button>
+                <!-- Mobile Theme Toggle -->
+                <button class="icon-btn mobile-only" onclick="toggleThemeMobile()">
+                    <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
+                </button>
+
+                <!-- Mobile Logout -->
+                <a href="#" class="icon-btn mobile-only logout-icon" onclick="handleLogout(event)">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </a>
+
+                <!-- Global Officer Action Center -->
+                <div class="notif-wrapper" id="officer-action-center">
+                    <button class="notif-btn" id="notif-trigger" type="button"
+                        aria-label="Open alerts" aria-haspopup="dialog" aria-expanded="false"
+                        onclick="toggleNotifs(event)">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notif-badge" id="notif-count" hidden>0</span>
+                    </button>
+                    <div class="notif-backdrop" id="notif-backdrop" onclick="closeNotifs()" hidden></div>
+                    <aside class="notif-dropdown" id="notif-dropdown" role="dialog" aria-modal="true"
+                        aria-labelledby="notif-drawer-title" aria-hidden="true">
+                        <div class="notif-drawer-header">
+                            <div>
+                                <h2 id="notif-drawer-title">Alerts</h2>
+                            </div>
+                            <button class="notif-close-btn" type="button" onclick="closeNotifs()"
+                                aria-label="Close alerts">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="notif-drawer-body" id="notif-drawer-body">
+                            <div class="notif-state">
+                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                <span>Loading alerts...</span>
+                            </div>
+                        </div>
+                        <div class="notif-drawer-footer">
+                            <span id="notif-last-updated">Waiting for updates</span>
+                            <button type="button" class="notif-refresh-btn" onclick="loadOfficerActionCenter(true)">
+                                <i class="fa-solid fa-rotate"></i> Refresh
+                            </button>
+                        </div>
+                    </aside>
+                </div>
+
+                <!-- User Profile -->
+                <a href="#" class="user-profile" onclick="navigate('profile'); return false;"
+                    aria-label="Open my profile">
+                    <div class="user-profile-box">
+                        <img id="officerHeaderAvatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E" alt="Officer" class="avatar">
+                        <div class="user-info">
+                            <span>Admin Officer</span>
+                            <small>Head of Operations</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </header>
+
+        <dialog id="officerOrgSwitchDialog" class="officer-org-switch-dialog" aria-labelledby="officerOrgSwitchTitle">
+            <div class="officer-org-switch-heading">
+                <div>
+                    <h2 id="officerOrgSwitchTitle">Switch Organization</h2>
+                    <p>Choose the organization dashboard you want to open.</p>
+                </div>
+                <button class="officer-org-switch-close" type="button" aria-label="Close" onclick="closeOfficerOrgSwitcher()">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div id="officerOrgSwitchOptions" class="officer-org-switch-options"></div>
+        </dialog>
+
+        <!-- DASHBOARD VIEW -->
+        <div id="dashboard" class="section-view active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <h3 id="dashboard-revenue-value">₱0.00</h3>
+                            <span id="dashboard-revenue-change" style="color: var(--muted); font-size: 0.8rem; font-weight: 600;">
+                                0%
+                            </span>
+                            <span style="color: var(--muted); font-size: 0.75rem;">vs last month</span>
+                        </div>
+                        <p id="dashboard-revenue-period">Revenue</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-wallet"></i></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3 id="dashboard-participation-value" style="color: var(--muted);">N/A</h3>
+                        <p style="margin-bottom: 5px;">Participation Growth</p>
+
+                        <div style="font-size: 0.75rem; line-height: 1.3;">
+                            <span style="color: var(--muted);">Latest completed event:</span>
+                            <div style="font-weight: 600; color: var(--muted);">
+                                <span id="dashboard-participation-event">Waiting for two completed events</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3 id="active-rentals-count">0</h3>
+                        <p>Active Rentals &amp; Services</p>
+                        <p id="rentals-stat-date" style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
+                            Fetching date...
+                        </p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-box"></i></div>
+                </div>
+                <div class="stat-card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                    <div
+                        style="width: 100%; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+                        <div>
+                            <span style="font-weight: 600; color: var(--text); display: block;">Document Status</span>
+                            <small id="dashboard-document-period" style="color: var(--muted); font-size: 0.75rem;">Current month</small>
+                        </div>
+                        <i class="fa-solid fa-file-contract" style="color: var(--muted);"></i>
+                    </div>
+
+                    <div
+                        style="width: 100%; display: flex; justify-content: space-between; text-align: center; padding-top: 5px;">
+                        <div style="flex: 1;">
+                            <h3 id="dashboard-doc-pending" style="color: #d97706; font-size: 1.2rem; margin-bottom: 0;">0</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Pending</p>
+                        </div>
+                        <div
+                            style="flex: 1; border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+                            <h3 id="dashboard-doc-accepted" style="color: #059669; font-size: 1.2rem; margin-bottom: 0;">0</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Accepted</p>
+                        </div>
+                        <div style="flex: 1;">
+                            <h3 id="dashboard-doc-rejected" style="color: #dc2626; font-size: 1.2rem; margin-bottom: 0;">0</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Rejected</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-row">
+                <!-- Recent Services/Rentals -->
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">Active Rentals & Services</div>
+                            <p id="rentals-date" style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
+                                Fetching date...
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <!-- Local development preview control. -->
+                            <button id="dashboard-mock-data-btn" data-local-only class="btn btn-outline btn-sm" type="button" onclick="showOfficerDashboardMockData()">
+                                <i class="fa-solid fa-flask"></i> Mock Data
+                            </button>
+                            <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerDashboard(true)">
+                                <i class="fa-solid fa-rotate-right"></i> Refresh
+                            </button>
+                            <button class="btn btn-outline btn-sm" onclick="viewAllRentals()">View All</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Item/Service</th>
+                                    <th>Requester</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-rentals-table">
+                                <tr>
+                                    <td colspan="4" style="text-align:center; color: var(--muted);">Loading active rentals...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Latest Updates -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Latest Updates</div>
+                    </div>
+                    <div id="dashboard-latest-updates" style="color: var(--muted);">Loading updates...</div>
+                </div>
+
+                <!-- Upcoming Events -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Upcoming Events</div>
+                        <button class="btn btn-outline btn-sm" onclick="viewEventsList()">View Events</button>
+                    </div>
+                    <div id="dashboard-upcoming-events" class="event-list">
+                        <div style="color: var(--muted);">Loading events...</div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Quick Actions</div>
+                    </div>
+                    <div style="display: grid; gap: 10px;">
+                        <button class="btn btn-primary" onclick="navigate('announcements')">
+                            <i class="fa-solid fa-pen-to-square"></i> Post Announcement
+                        </button>
+                        <button class="btn btn-outline" onclick="navigate('events')">
+                            <i class="fa-solid fa-calendar-days"></i> Events
+                        </button>
+                        <button class="btn btn-outline" onclick="navigate('tracker')">
+                            <i class="fa-solid fa-qrcode"></i> Services
+                        </button>
+                        <button class="btn btn-outline" onclick="navigate('documents')">
+                            <i class="fa-solid fa-file-contract"></i> Document
+                        </button>
+                        <button class="btn btn-outline" onclick="navigate('analytics')">
+                            <i class="fa-solid fa-chart-line"></i> Analytics
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SERVICES TRACKER VIEW -->
+        <div id="tracker" class="section-view">
+            <div id="trackerLayout" class="tracker-layout">
+                <button id="trackerSidebarToggle" class="tracker-sidebar-toggle" type="button" data-readonly-allow
+                    aria-controls="trackerSidebar" aria-expanded="false" onclick="toggleTrackerSidebar()">
+                    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                    <span>Services Menu</span>
+                </button>
+                <button id="trackerSidebarBackdrop" class="tracker-sidebar-backdrop" type="button"
+                    data-readonly-allow aria-label="Close services menu" onclick="setTrackerSidebarOpen(false)"></button>
+                <aside id="trackerSidebar" class="tracker-sidebar card">
+                    <div class="tracker-sidebar-mobile-header">
+                        <strong>Services</strong>
+                        <button type="button" data-readonly-allow aria-label="Close services menu"
+                            onclick="setTrackerSidebarOpen(false)">
+                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="tracker-sidebar-nav">
+                        <button id="trackerRentalsBtn" class="sub-nav-btn active" data-readonly-allow
+                            onclick="switchTrackerSubView('rentals', this)" hidden>
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <span class="tracker-btn-label">Rentals</span>
+                        </button>
+                        <button id="trackerPrintingBtn" class="sub-nav-btn" onclick="switchTrackerSubView('printing', this)" hidden>
+                            <i class="fa-solid fa-print"></i>
+                            <span class="tracker-btn-label">Printing Queue</span>
+                        </button>
+                        <button id="trackerLockerBtn" class="sub-nav-btn" onclick="switchTrackerSubView('lockers', this)" hidden>
+                            <i class="fa-solid fa-door-closed"></i>
+                            <span class="tracker-btn-label">Locker Services</span>
+                        </button>
+                        <button id="trackerFinancialBtn" class="sub-nav-btn" onclick="switchTrackerSubView('financial-summary', this)">
+                            <i class="fa-solid fa-wallet"></i>
+                            <span class="tracker-btn-label">Financial Summary</span>
+                        </button>
+                    </div>
+                </aside>
+
+                <div class="tracker-content">
+                    <div id="tracker-rentals-view" class="tracker-sub-view active" style="display: none;">
+                        <div class="card">
+                            <iframe data-src="../pages/igp/index.php" title="IGP Rental System">
+                            </iframe>
+                        </div>
+                    </div>
+
+                    <div id="tracker-financial-summary-view" class="tracker-sub-view">
+                        <div class="card financial-summary-panel">
+                            <div class="card-header financial-summary-header">
+                                <div>
+                                    <div class="card-title">Financial Summary</div>
+                                    <p class="financial-summary-subtitle">
+                                        Review rentals, lockers, and printing transactions for your organization in one summary.
+                                    </p>
+                                </div>
+                                <div class="financial-summary-header-actions">
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="switchTrackerSubView('rentals')">
+                                        <i class="fa-solid fa-arrow-left"></i> Back
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerFinancialSummary(true)">
+                                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                                    </button>
+                                    <button class="btn btn-primary btn-sm" type="button" data-readonly-allow onclick="exportOfficerFinancialSummaryXlsx()">
+                                        <i class="fa-solid fa-file-excel"></i> Export XLSX
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="financial-summary-filter-grid">
+                                <div class="form-group">
+                                    <label for="financialSummaryServiceFilter">Service</label>
+                                    <select id="financialSummaryServiceFilter" onchange="renderOfficerFinancialSummary()">
+                                        <option value="">All Services</option>
+                                        <option value="rental">Rentals</option>
+                                        <option value="locker">Lockers</option>
+                                        <option value="printing">Printing</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="financialSummaryItemFilter">Item / Job</label>
+                                    <select id="financialSummaryItemFilter" onchange="renderOfficerFinancialSummary()">
+                                        <option value="">All Items</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="financialSummaryDateFilterBtn">Date Range</label>
+                                    <button id="financialSummaryDateFilterBtn" class="printing-history-filter-btn" type="button" onclick="openOfficerFinancialDateFilterModal()">
+                                        <span id="financialSummaryDateFilterLabel">Today</span>
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </button>
+                                </div>
+                                <div class="form-group">
+                                    <label for="financialSummaryPaymentFilter">Payment</label>
+                                    <select id="financialSummaryPaymentFilter" onchange="renderOfficerFinancialSummary()">
+                                        <option value="">All</option>
+                                        <option value="paid">Paid</option>
+                                        <option value="unpaid">Unpaid</option>
+                                        <option value="waived">Waived</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>&nbsp;</label>
+                                    <button class="btn btn-outline" type="button" onclick="clearOfficerFinancialSummaryFilters()">
+                                        Clear Filters
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="financial-summary-stats-grid">
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryTotalRevenue">P0.00</h3>
+                                        <p>Total Revenue</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryTotalUnpaid">P0.00</h3>
+                                        <p>Total Unpaid</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryTotalTransactions">0</h3>
+                                        <p>Total Transactions</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-receipt"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryPaidTransactions">0</h3>
+                                        <p>Paid Transactions</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryUnpaidTransactions">0</h3>
+                                        <p>Unpaid Transactions</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+                                </div>
+                                <div class="stat-card financial-stat-card">
+                                    <div class="stat-info">
+                                        <h3 id="financialSummaryAverageValue">P0.00</h3>
+                                        <p>Average Paid Value</p>
+                                    </div>
+                                    <div class="stat-icon"><i class="fa-solid fa-chart-simple"></i></div>
+                                </div>
+                            </div>
+
+                            <div class="financial-summary-range-card">
+                                <strong>Date Range Summary</strong>
+                                <span id="financialSummaryDateRange">-</span>
+                            </div>
+
+                            <div class="card financial-summary-table-card">
+                                <div class="card-header">
+                                    <div class="card-title">All Transactions</div>
+                                </div>
+                                <div class="table-container">
+                                    <table class="tracker-mobile-card-table financial-transactions-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Service</th>
+                                                <th>Item / Job</th>
+                                                <th>Customer</th>
+                                                <th>Processed By</th>
+                                                <th>Base Cost</th>
+                                                <th>Overtime</th>
+                                                <th>Total Cost</th>
+                                                <th>Status</th>
+                                                <th>Payment</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="financialSummaryTransactionsTable">
+                                            <tr>
+                                                <td colspan="10" style="text-align:center; padding:32px; color:var(--muted);">Loading financial summary...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="card financial-summary-table-card">
+                                <div class="card-header">
+                                    <div class="card-title">Date Breakdown</div>
+                                </div>
+                                <div class="table-container">
+                                    <table class="tracker-mobile-card-table financial-breakdown-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Total Revenue</th>
+                                                <th>Total Unpaid</th>
+                                                <th>Transactions</th>
+                                                <th>Paid</th>
+                                                <th>Unpaid</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="financialSummaryDateBreakdownTable">
+                                            <tr>
+                                                <td colspan="6" style="text-align:center; padding:24px; color:var(--muted);">No date breakdown available yet.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tracker-printing-view" class="tracker-sub-view">
+                        <div class="card printing-queue-panel">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">Printing Queue</div>
+                                    <p id="printingQueueSubtitle" style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">
+                                        View PDFs, update print status, and rearrange queued jobs by priority.
+                                    </p>
+                                </div>
+                                <div class="printing-queue-header-actions">
+                                    <button id="btnShowPrintingHistory" class="btn btn-outline btn-sm" type="button" onclick="showOfficerPrintingHistoryView()">
+                                        <i class="fa-solid fa-clock-rotate-left"></i> History
+                                    </button>
+                                    <button id="btnBackToPrintingQueue" class="btn btn-outline btn-sm" type="button" onclick="showOfficerPrintingQueueView()" style="display:none;">
+                                        <i class="fa-solid fa-arrow-left"></i> Back to Queue
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerPrintingQueue(true)">
+                                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="officerPrintingDisabledMessage" class="empty-state" style="display:none; padding:32px; text-align:center;">
+                                <i class="fa-solid fa-print" style="font-size:40px; color:var(--muted); margin-bottom:10px;"></i>
+                                <h3 style="margin-bottom:8px;">Printing Not Enabled</h3>
+                                <p style="color:var(--muted);">OSA has not enabled printing services for this organization yet.</p>
+                            </div>
+
+                            <div id="officerPrintingQueueLoading" class="printing-queue-loading is-active" role="status" aria-live="polite">
+                                <div class="printing-queue-loading-spinner" aria-hidden="true">
+                                    <i class="fa-solid fa-print"></i>
+                                </div>
+                                <strong id="officerPrintingLoadingTitle">Loading printing queue</strong>
+                                <span id="officerPrintingLoadingMessage">Checking for pending requests and active print jobs...</span>
+                            </div>
+
+                            <div id="officerPrintingQueueContent" style="display:none;">
+                                <div id="officerPendingPrintRequestsPanel" class="printing-subpanel" style="margin-bottom: 18px;">
+                                    <div class="card-header">
+                                        <div>
+                                            <div class="card-title">Pending Print Requests</div>
+                                            <p style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">
+                                                Requests submitted without a selected provider. The first organization to accept will receive the job.
+                                            </p>
+                                        </div>
+                                        <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerPendingPrintRequests(true)">
+                                            <i class="fa-solid fa-rotate-right"></i> Refresh
+                                        </button>
+                                    </div>
+
+                                    <div class="table-container" id="officerPendingPrintRequestsTableWrap">
+                                        <table class="tracker-mobile-card-table printing-pending-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Document</th>
+                                                    <th>Student</th>
+                                                    <th>Submitted</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="officerPendingPrintRequestsTable">
+                                                <tr>
+                                                    <td colspan="4" style="text-align:center; padding:24px; color:var(--muted);">Loading pending requests...</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div class="table-container" id="officerPrintingQueueTableWrap">
+                                    <table class="tracker-mobile-card-table printing-queue-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Request number</th>
+                                                <th>Document</th>
+                                                <th>Student</th>
+                                                <th>Submitted</th>
+                                                <th>Status</th>
+                                                <th>Queue position</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="officerPrintingQueueTable">
+                                            <tr>
+                                                <td colspan="7" style="text-align:center; padding:32px; color:var(--muted);">Loading print queue...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div id="officerPrintingHistoryContent" style="display:none;">
+                                <div class="printing-history-toolbar">
+                                    <div class="printing-history-filter-row">
+                                        <div class="printing-history-search">
+                                            <i class="fa-solid fa-magnifying-glass"></i>
+                                            <input type="text" id="printingHistorySearchInput" placeholder="Search by file, student, status, or notes" oninput="filterOfficerPrintingHistory()">
+                                        </div>
+                                        <button class="printing-history-filter-btn" type="button" onclick="openOfficerPrintingDateFilterModal()">
+                                            <span id="printingHistoryDateFilterLabel">All Dates</span>
+                                            <i class="fa-solid fa-chevron-down"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-container">
+                                    <table class="tracker-mobile-card-table printing-history-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Request number</th>
+                                                <th>Document</th>
+                                                <th>Student</th>
+                                                <th>Submitted</th>
+                                                <th>Completed</th>
+                                                <th>Status</th>
+                                                <th>Price</th>
+                                                <th>Payment</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="officerPrintingHistoryTable">
+                                            <tr>
+                                                <td colspan="9" style="text-align:center; padding:32px; color:var(--muted);">No print history found.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tracker-lockers-view" class="tracker-sub-view">
+                        <div class="card locker-services-panel">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">Locker Services</div>
+                                    <p style="color: var(--muted); font-size: 0.85rem; margin-top: 4px;">
+                                        Assign, monitor, and manage SSC locker rentals from an interactive locker board.
+                                    </p>
+                                </div>
+                                <div class="printing-queue-header-actions locker-panel-actions">
+                                    <button class="btn btn-primary btn-sm" type="button" onclick="openAddLockerModal()">
+                                        <i class="fa-solid fa-plus"></i> Add Locker
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" type="button" onclick="loadOfficerLockerBoard(true)">
+                                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="officerLockerDisabledMessage" class="empty-state" style="display:none; padding:32px; text-align:center;">
+                                <i class="fa-solid fa-door-closed" style="font-size:40px; color:var(--muted); margin-bottom:10px;"></i>
+                                <h3 style="margin-bottom:8px;">Locker Services Unavailable</h3>
+                                <p style="color:var(--muted);">Locker services are only available for SSC officers.</p>
+                            </div>
+
+                            <div id="officerLockerContent" class="locker-services-content">
+                                <div class="locker-overview-strip" id="lockerOverviewStrip">
+                                    <div class="locker-overview-chip available"><span id="lockerAvailableCount">0</span><small>Available</small></div>
+                                    <div class="locker-overview-chip pending"><span id="lockerPendingCount">0</span><small>Pending</small></div>
+                                    <div class="locker-overview-chip occupied"><span id="lockerOccupiedCount">0</span><small>Occupied</small></div>
+                                    <div class="locker-overview-chip overdue"><span id="lockerOverdueCount">0</span><small>Overdue</small></div>
+                                </div>
+                                <div id="officerLockerBoard" class="locker-board">
+                                    <div class="empty-state" style="padding:32px; text-align:center;">
+                                        <i class="fa-solid fa-door-closed" style="font-size:40px; color:var(--muted); margin-bottom:10px;"></i>
+                                        <h3 style="margin-bottom:8px;">Loading lockers...</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lockerDetailModal" class="modal-overlay">
+            <div class="modal-content locker-detail-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="lockerDetailTitle">Locker Details</h3>
+                        <p id="lockerDetailSubtitle" class="locker-detail-subtitle">View locker assignment details and pricing.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeLockerDetailModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <div class="locker-detail-top">
+                        <div id="lockerDetailStateBadge" class="locker-state-pill available">Available</div>
+                        <div id="lockerDetailStudentBlock" class="locker-detail-student">
+                            <strong id="lockerDetailStudentName">No student assigned</strong>
+                            <span id="lockerDetailStudentMeta">Select a locker tile to view its details.</span>
+                        </div>
+                    </div>
+
+                    <section class="locker-detail-section">
+                        <div class="locker-detail-section-heading">
+                            <div>
+                                <strong>Rental arrangement</strong>
+                                <span>Choose the rental basis, dates, and duration.</span>
+                            </div>
+                        </div>
+                        <div class="locker-detail-grid locker-rental-grid">
+                            <label class="locker-field locker-code-field">
+                                <span>Locker Code</span>
+                                <input id="lockerDetailCode" type="text" readonly>
+                            </label>
+                            <label class="locker-field">
+                                <span>Rental Period</span>
+                                <select id="lockerDetailPeriodType" onchange="syncLockerAssignmentPreview('period')">
+                                    <option value="">Select rental period</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="semester">Per Semester</option>
+                                    <option value="school_year">Whole School Year</option>
+                                </select>
+                            </label>
+                            <label id="lockerDetailQuantityField" class="locker-field" style="display:none;">
+                                <span id="lockerDetailQuantityLabel">Number of Months</span>
+                                <input id="lockerDetailPeriodQuantity" type="number" min="1" max="24" step="1" value="1" oninput="syncLockerAssignmentPreview('quantity')">
+                            </label>
+                            <label class="locker-field">
+                                <span>Start Date</span>
+                                <input id="lockerDetailStartDate" type="date" onchange="syncLockerAssignmentPreview('start')">
+                            </label>
+                            <label class="locker-field">
+                                <span>End Date</span>
+                                <input id="lockerDetailEndDate" type="date" onchange="syncLockerAssignmentPreview('end')" aria-describedby="lockerPeriodHelp">
+                                <small id="lockerPeriodHelp" class="locker-field-help">Calculated from the selected rental period.</small>
+                            </label>
+                            <label class="locker-field locker-field-highlight locker-final-price-field">
+                                <span>Final Price</span>
+                                <input id="lockerDetailPrice" type="number" min="0" step="0.01" readonly>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="locker-detail-section locker-pricing-section">
+                        <div class="locker-detail-section-heading locker-pricing-heading">
+                            <div>
+                                <strong>Shared locker rates</strong>
+                                <span>These rates apply to every locker in this organization.</span>
+                            </div>
+                        </div>
+                        <div class="locker-detail-grid locker-rate-grid">
+                            <div class="locker-rate-save-group">
+                                <label class="locker-field">
+                                    <span>Monthly Rate</span>
+                                    <input id="lockerMonthlyRate" type="number" min="0" step="0.01" oninput="syncLockerAssignmentPreview('rate')">
+                                </label>
+                                <button id="lockerSavePricingBtn" class="btn btn-outline locker-save-rates-inline" type="button" onclick="saveLockerPricing()">
+                                    <i class="fa-solid fa-tags"></i> Save Shared Rates
+                                </button>
+                            </div>
+                            <label class="locker-field">
+                                <span>Semester Rate</span>
+                                <input id="lockerSemesterRate" type="number" min="0" step="0.01" oninput="syncLockerAssignmentPreview('rate')">
+                            </label>
+                            <label class="locker-field">
+                                <span>School Year Rate</span>
+                                <input id="lockerSchoolYearRate" type="number" min="0" step="0.01" oninput="syncLockerAssignmentPreview('rate')">
+                            </label>
+                        </div>
+                    </section>
+
+                    <div class="locker-notice-stack">
+                        <div id="lockerNoticeComposer" class="locker-notice-composer">
+                            <div class="locker-notice-composer-header">
+                                <strong>Send a Notice</strong>
+                                <span>Choose a notice type, then send a pre-made or custom message.</span>
+                            </div>
+                            <div class="locker-notice-composer-controls">
+                                <label class="locker-field locker-notice-type-field">
+                                    <span>Notice Type</span>
+                                    <select id="lockerNoticeTypeSelect" onchange="applyLockerNoticeTemplate('preset')">
+                                        <option value="">Select notice type</option>
+                                        <option value="upcoming">Ending Soon Notice</option>
+                                        <option value="overdue">Pull-out Notice</option>
+                                    </select>
+                                </label>
+                            </div>
+
+                            <label class="locker-field locker-field-full">
+                                <span>Notice Message</span>
+                                <textarea id="lockerNoticeComposerMessage" rows="4" placeholder="Choose a notice type to load a pre-made message or write your own." oninput="handleLockerNoticeComposerInput()"></textarea>
+                            </label>
+                            <div class="locker-notice-template-actions">
+                                <button id="lockerSendNoticeBtn" class="btn btn-primary btn-sm" type="button" onclick="sendSelectedLockerNotice()">
+                                    <i class="fa-solid fa-paper-plane"></i> Send Notice
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="lockerUpcomingNoticePreview" class="locker-notice-preview locker-notice-preview-upcoming" style="display:none;">
+                            <div class="locker-notice-preview-header">
+                                <i class="fa-solid fa-hourglass-half"></i>
+                                <span>Ending Soon Notice Sent</span>
+                            </div>
+                            <p id="lockerUpcomingNoticePreviewText"></p>
+                            <small id="lockerUpcomingNoticePreviewMeta"></small>
+                        </div>
+
+                        <div id="lockerNoticePreview" class="locker-notice-preview" style="display:none;">
+                            <div class="locker-notice-preview-header">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span>Pull-out Notice Sent</span>
+                            </div>
+                            <p id="lockerNoticePreviewText"></p>
+                            <small id="lockerNoticePreviewMeta"></small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-secondary-actions">
+                        <button id="lockerManualAssignBtn" class="btn btn-outline" type="button" onclick="openLockerAssignStudentModal()" style="display:none;">
+                            <i class="fa-solid fa-user-plus"></i> Assign Student
+                        </button>
+                        <button id="lockerRejectBtn" class="btn btn-outline" type="button" onclick="rejectLockerRequest()" style="display:none;">
+                            <i class="fa-solid fa-circle-xmark"></i> Reject Request
+                        </button>
+                        <button id="lockerClearNoticeBtn" class="btn btn-outline" type="button" onclick="clearLockerNotice()" style="display:none;">
+                            <i class="fa-solid fa-eraser"></i> Clear Notice
+                        </button>
+                        <button id="lockerMarkPaidBtn" class="btn btn-outline" type="button" onclick="openLockerPaymentScanModal()" style="display:none;">
+                            <i class="fa-solid fa-money-bill-wave"></i> Mark as Paid
+                        </button>
+                        <button id="lockerReleaseBtn" class="btn btn-outline" type="button" onclick="openLockerReleaseConfirmModal()" style="display:none;">
+                            <i class="fa-solid fa-box-open"></i> Release Locker
+                        </button>
+                    </div>
+                    <div class="locker-detail-primary-actions">
+                        <button id="lockerConfirmRentalBtn" class="btn btn-primary" type="button" onclick="submitManualLockerAssignment()" style="display:none;">
+                            <i class="fa-solid fa-circle-check"></i> Confirm Rental
+                        </button>
+                        <button class="btn btn-outline" type="button" onclick="closeLockerDetailModal()">Close</button>
+                        <button id="lockerApproveBtn" class="btn btn-primary" type="button" onclick="approveLockerAssignment()" style="display:none;">
+                            <i class="fa-solid fa-circle-check"></i> Approve & Assign
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lockerPaymentScanModal" class="modal-overlay">
+            <div class="modal-content locker-payment-scan-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>Confirm Locker Payment</h3>
+                        <p class="locker-detail-subtitle">The rental transaction is complete. Scan the processing officer's barcode to record the payment.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeLockerPaymentScanModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <div class="locker-payment-summary">
+                        <strong id="lockerPaymentScanTitle">Locker -</strong>
+                        <span id="lockerPaymentScanMeta">No rental selected.</span>
+                    </div>
+                    <label class="locker-field locker-field-full">
+                        <span>Officer Barcode</span>
+                        <input id="lockerPaymentOfficerBarcode" type="text" autocomplete="off" placeholder="Scan officer barcode here" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); markLockerAssignmentPaid(); }">
+                    </label>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeLockerPaymentScanModal()">Cancel</button>
+                        <button id="lockerPaymentConfirmBtn" class="btn btn-primary" type="button" onclick="markLockerAssignmentPaid()">
+                            <i class="fa-solid fa-circle-check"></i> Confirm Payment
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lockerTransactionLoading" class="locker-transaction-loading" role="status" aria-live="assertive" aria-hidden="true">
+            <div class="locker-transaction-loading-card">
+                <div class="locker-transaction-spinner" aria-hidden="true">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <strong id="lockerTransactionLoadingTitle">Processing locker transaction</strong>
+                <span id="lockerTransactionLoadingMessage">Please wait while your changes are safely processed.</span>
+            </div>
+        </div>
+
+        <div id="lockerAssignStudentModal" class="modal-overlay">
+            <div class="modal-content locker-assign-student-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>Assign Student to Locker</h3>
+                        <p class="locker-detail-subtitle">Search the student database, select one student, then assign the current locker.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeLockerAssignStudentModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <label class="locker-field locker-field-full">
+                        <span>Search Student</span>
+                        <input id="lockerAssignStudentSearch" type="text" placeholder="Search by student number, name, section, or program..." oninput="renderLockerAssignStudentResults()">
+                    </label>
+
+                    <div id="lockerAssignSelectedStudent" class="locker-assign-selected" style="display:none;"></div>
+                    <div id="lockerAssignStudentResults" class="locker-assign-results"></div>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeLockerAssignStudentModal()">Cancel</button>
+                        <button id="lockerConfirmAssignBtn" class="btn btn-primary" type="button" onclick="applySelectedLockerAssignStudent()" disabled>
+                            <i class="fa-solid fa-arrow-left"></i> Use Selected Student
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lockerReleaseConfirmModal" class="modal-overlay">
+            <div class="modal-content locker-release-confirm-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>Confirm Locker Release</h3>
+                        <p class="locker-detail-subtitle">Make sure you are releasing the correct locker assignment before continuing.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeLockerReleaseConfirmModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <div class="locker-release-confirm-card">
+                        <strong id="lockerReleaseConfirmTitle">Locker -</strong>
+                        <span id="lockerReleaseConfirmMeta">No student selected.</span>
+                    </div>
+                    <div class="locker-release-confirm-note">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <p>Releasing this locker will mark it as available again and send the automatic pull-out notice to the student.</p>
+                    </div>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeLockerReleaseConfirmModal()">Cancel</button>
+                        <button id="lockerReleaseConfirmBtn" class="btn btn-primary" type="button" onclick="releaseLockerAssignment()">
+                            <i class="fa-solid fa-box-open"></i> Confirm Release
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="addLockerModal" class="modal-overlay">
+            <div class="modal-content add-locker-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>Add Locker</h3>
+                        <p class="locker-detail-subtitle">Default lockers A01-E12 are seeded automatically. Use this to add more locker codes.</p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeAddLockerModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body locker-detail-body">
+                    <div class="locker-detail-grid add-locker-grid">
+                        <label class="locker-field">
+                            <span>Locker Code</span>
+                            <input id="newLockerCode" type="text" maxlength="3" placeholder="F01">
+                        </label>
+                        <label class="locker-field">
+                            <span>Monthly Rate</span>
+                            <input id="newLockerMonthlyRate" type="number" min="0" step="0.01" value="0">
+                        </label>
+                        <label class="locker-field">
+                            <span>Semester Rate</span>
+                            <input id="newLockerSemesterRate" type="number" min="0" step="0.01" value="0">
+                        </label>
+                        <label class="locker-field">
+                            <span>School Year Rate</span>
+                            <input id="newLockerSchoolYearRate" type="number" min="0" step="0.01" value="0">
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer locker-detail-footer">
+                    <div class="locker-detail-primary-actions">
+                        <button class="btn btn-outline" type="button" onclick="closeAddLockerModal()">Cancel</button>
+                        <button class="btn btn-primary" type="button" onclick="submitAddLocker()">
+                            <i class="fa-solid fa-plus"></i> Add Locker
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerPrintingDateFilterModal" class="modal-overlay">
+            <div class="modal-content printing-history-date-filter-modal-content">
+                <div class="modal-header">
+                    <h3>Filter by Date Range</h3>
+                    <button class="close-modal" type="button" onclick="closeOfficerPrintingDateFilterModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="date-filter-presets">
+                        <button class="preset-btn" type="button" onclick="applyOfficerPrintingDatePreset('today')">Today</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerPrintingDatePreset('week')">This Week</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerPrintingDatePreset('month')">This Month</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerPrintingDatePreset('all')">All Time</button>
+                    </div>
+
+                    <div class="calendar-picker-container">
+                        <div class="calendar-header">
+                            <button class="calendar-nav-btn" type="button" onclick="navigateOfficerPrintingCalendarMonth(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="calendar-header-picker-group">
+                                <select
+                                    id="officerPrintingFilterCalendarMonthSelect"
+                                    class="calendar-header-select"
+                                    aria-label="Select month"
+                                    onchange="setOfficerPrintingCalendarMonth(this.value)">
+                                </select>
+                                <select
+                                    id="officerPrintingFilterCalendarYearSelect"
+                                    class="calendar-header-select calendar-header-year-select"
+                                    aria-label="Select year"
+                                    onchange="setOfficerPrintingCalendarYear(this.value)">
+                                </select>
+                            </div>
+                            <button class="calendar-nav-btn" type="button" onclick="navigateOfficerPrintingCalendarMonth(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <div class="calendar-weekday">Sun</div>
+                            <div class="calendar-weekday">Mon</div>
+                            <div class="calendar-weekday">Tue</div>
+                            <div class="calendar-weekday">Wed</div>
+                            <div class="calendar-weekday">Thu</div>
+                            <div class="calendar-weekday">Fri</div>
+                            <div class="calendar-weekday">Sat</div>
+                        </div>
+
+                        <div class="calendar-days" id="officerPrintingFilterCalendarDays"></div>
+
+                        <div class="calendar-selected-range">
+                            <div class="selected-date-display">
+                                <strong>From:</strong> <span id="officerPrintingSelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="selected-date-display">
+                                <strong>To:</strong> <span id="officerPrintingSelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeOfficerPrintingDateFilterModal()">Cancel</button>
+                        <button type="button" class="btn-submit" onclick="applyOfficerPrintingDateFilter()">Apply Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerPrintingFilePreviewModal" class="modal-overlay" aria-hidden="true">
+            <div class="modal-content printing-file-preview-modal-content" role="dialog" aria-modal="true" aria-labelledby="officerPrintingFilePreviewTitle">
+                <div class="modal-header printing-file-preview-header">
+                    <div>
+                        <h3 id="officerPrintingFilePreviewTitle">Printing File Preview</h3>
+                        <p id="officerPrintingFilePreviewName" class="printing-file-preview-name"></p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeOfficerPrintingFilePreviewModal()" aria-label="Close file preview">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div id="officerPrintingFilePreviewBody" class="printing-file-preview-body"></div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" type="button" onclick="closeOfficerPrintingFilePreviewModal()">Close</button>
+                    <a id="officerPrintingFilePreviewDownload" class="btn btn-primary" href="#">
+                        <i class="fa-solid fa-download"></i> Download
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerPrintClaimModal" class="modal-overlay" aria-hidden="true">
+            <div class="modal-content printing-payment-modal-content" role="dialog" aria-modal="true" aria-labelledby="officerPrintClaimTitle">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="officerPrintClaimTitle">Claim Print Job</h3>
+                        <p id="officerPrintClaimSummary" class="printing-payment-summary"></p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeOfficerPrintClaimModal()" aria-label="Close claim dialog">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body printing-payment-modal-body">
+                    <div class="form-group">
+                        <label for="officerPrintClaimPrice">Final Printing Price</label>
+                        <div class="printing-price-input-wrap">
+                            <span>₱</span>
+                            <input id="officerPrintClaimPrice" type="number" min="0.01" max="99999999.99" step="0.01" inputmode="decimal" placeholder="0.00" oninput="syncOfficerPrintClaimModal()" onkeydown="if(event.key === 'Enter'){event.preventDefault(); submitOfficerPrintClaim();}">
+                        </div>
+                    </div>
+                    <fieldset class="printing-payment-choice">
+                        <legend>Payment Status</legend>
+                        <label><input type="radio" name="officerPrintClaimPayment" value="unpaid" checked onchange="syncOfficerPrintClaimModal()"> Claim as Unpaid</label>
+                        <label><input type="radio" name="officerPrintClaimPayment" value="paid" onchange="syncOfficerPrintClaimModal()"> Claim and Mark as Paid</label>
+                    </fieldset>
+                    <div id="officerPrintClaimBarcodeGroup" class="form-group" style="display:none;">
+                        <label for="officerPrintClaimOfficerBarcode">Scan Officer Barcode</label>
+                        <input id="officerPrintClaimOfficerBarcode" type="text" autocomplete="off" placeholder="Scan officer barcode here..." oninput="handleOfficerPrintClaimBarcodeInput()" onkeydown="handleOfficerPrintClaimBarcodeKeydown(event)">
+                        <small>A valid active officer from this organization must verify the payment.</small>
+                    </div>
+                    <div id="officerPrintClaimError" class="printing-payment-error" role="alert" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" type="button" onclick="closeOfficerPrintClaimModal()">Cancel</button>
+                    <button id="officerPrintClaimSubmit" class="btn btn-primary" type="button" onclick="submitOfficerPrintClaim()" disabled>Claim Print Job</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerPrintMarkPaidModal" class="modal-overlay" aria-hidden="true">
+            <div class="modal-content printing-payment-modal-content" role="dialog" aria-modal="true" aria-labelledby="officerPrintMarkPaidTitle">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="officerPrintMarkPaidTitle">Confirm Printing Payment</h3>
+                        <p id="officerPrintMarkPaidSummary" class="printing-payment-summary"></p>
+                    </div>
+                    <button class="close-modal" type="button" onclick="closeOfficerPrintMarkPaidModal()" aria-label="Close payment dialog">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body printing-payment-modal-body">
+                    <div class="form-group">
+                        <label for="officerPrintPaymentOfficerBarcode">Scan Officer Barcode</label>
+                        <input id="officerPrintPaymentOfficerBarcode" type="text" autocomplete="off" placeholder="Scan officer barcode here..." oninput="handleOfficerPrintPaymentBarcodeInput()" onkeydown="handleOfficerPrintPaymentBarcodeKeydown(event)">
+                        <small>A valid active officer from this organization must verify the payment.</small>
+                    </div>
+                    <div id="officerPrintMarkPaidError" class="printing-payment-error" role="alert" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" type="button" onclick="closeOfficerPrintMarkPaidModal()">Cancel</button>
+                    <button id="officerPrintMarkPaidSubmit" class="btn btn-primary" type="button" onclick="submitOfficerPrintMarkPaid()" disabled>Mark as Paid</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="officerFinancialDateFilterModal" class="modal-overlay">
+            <div class="modal-content printing-history-date-filter-modal-content">
+                <div class="modal-header">
+                    <h3>Filter Financial Summary by Date</h3>
+                    <button class="close-modal" type="button" onclick="closeOfficerFinancialDateFilterModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="date-filter-presets">
+                        <button class="preset-btn" type="button" onclick="applyOfficerFinancialDatePreset('today')">Today</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerFinancialDatePreset('week')">This Week</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerFinancialDatePreset('month')">This Month</button>
+                        <button class="preset-btn" type="button" onclick="applyOfficerFinancialDatePreset('all')">All Time</button>
+                    </div>
+
+                    <div class="calendar-picker-container">
+                        <div class="calendar-header">
+                            <button class="calendar-nav-btn" type="button" onclick="navigateOfficerFinancialCalendarMonth(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="calendar-header-picker-group">
+                                <select
+                                    id="officerFinancialFilterCalendarMonthSelect"
+                                    class="calendar-header-select"
+                                    aria-label="Select month"
+                                    onchange="setOfficerFinancialCalendarMonth(this.value)">
+                                </select>
+                                <select
+                                    id="officerFinancialFilterCalendarYearSelect"
+                                    class="calendar-header-select calendar-header-year-select"
+                                    aria-label="Select year"
+                                    onchange="setOfficerFinancialCalendarYear(this.value)">
+                                </select>
+                            </div>
+                            <button class="calendar-nav-btn" type="button" onclick="navigateOfficerFinancialCalendarMonth(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <div class="calendar-weekday">Sun</div>
+                            <div class="calendar-weekday">Mon</div>
+                            <div class="calendar-weekday">Tue</div>
+                            <div class="calendar-weekday">Wed</div>
+                            <div class="calendar-weekday">Thu</div>
+                            <div class="calendar-weekday">Fri</div>
+                            <div class="calendar-weekday">Sat</div>
+                        </div>
+
+                        <div class="calendar-days" id="officerFinancialFilterCalendarDays"></div>
+
+                        <div class="calendar-selected-range">
+                            <div class="selected-date-display">
+                                <strong>From:</strong> <span id="officerFinancialSelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="selected-date-display">
+                                <strong>To:</strong> <span id="officerFinancialSelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeOfficerFinancialDateFilterModal()">Cancel</button>
+                        <button type="button" class="btn-submit" onclick="applyOfficerFinancialDateFilter()">Apply Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="analyticsDateFilterModal" class="modal-overlay">
+            <div class="modal-content printing-history-date-filter-modal-content">
+                <div class="modal-header">
+                    <h3>Filter Analytics by Date</h3>
+                    <button class="close-modal" type="button" onclick="closeAnalyticsDateFilterModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="date-filter-presets">
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsDatePreset('today')">Today</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsDatePreset('week')">This Week</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsDatePreset('month')">This Month</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsDatePreset('all')">All Time</button>
+                    </div>
+
+                    <div class="calendar-picker-container">
+                        <div class="calendar-header">
+                            <button class="calendar-nav-btn" type="button" onclick="navigateAnalyticsCalendarMonth(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="calendar-header-picker-group">
+                                <select
+                                    id="analyticsFilterCalendarMonthSelect"
+                                    class="calendar-header-select"
+                                    aria-label="Select month"
+                                    onchange="setAnalyticsCalendarMonth(this.value)">
+                                </select>
+                                <select
+                                    id="analyticsFilterCalendarYearSelect"
+                                    class="calendar-header-select calendar-header-year-select"
+                                    aria-label="Select year"
+                                    onchange="setAnalyticsCalendarYear(this.value)">
+                                </select>
+                            </div>
+                            <button class="calendar-nav-btn" type="button" onclick="navigateAnalyticsCalendarMonth(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <div class="calendar-weekday">Sun</div>
+                            <div class="calendar-weekday">Mon</div>
+                            <div class="calendar-weekday">Tue</div>
+                            <div class="calendar-weekday">Wed</div>
+                            <div class="calendar-weekday">Thu</div>
+                            <div class="calendar-weekday">Fri</div>
+                            <div class="calendar-weekday">Sat</div>
+                        </div>
+
+                        <div class="calendar-days" id="analyticsFilterCalendarDays"></div>
+
+                        <div class="calendar-selected-range">
+                            <div class="selected-date-display">
+                                <strong>From:</strong> <span id="analyticsSelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="selected-date-display">
+                                <strong>To:</strong> <span id="analyticsSelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeAnalyticsDateFilterModal()">Cancel</button>
+                        <button type="button" class="btn-submit" onclick="applyAnalyticsDateFilter()">Apply Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="analyticsExportDateFilterModal" class="modal-overlay" data-readonly-allow>
+            <div class="modal-content printing-history-date-filter-modal-content">
+                <div class="modal-header">
+                    <h3>Export Analytics by Date Range</h3>
+                    <button class="close-modal" type="button" onclick="closeAnalyticsExportDateFilterModal()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="date-filter-presets">
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsExportDatePreset('today')">Today</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsExportDatePreset('week')">This Week</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsExportDatePreset('month')">This Month</button>
+                        <button class="preset-btn" type="button" onclick="applyAnalyticsExportDatePreset('all')">All Time</button>
+                    </div>
+
+                    <div class="calendar-picker-container">
+                        <div class="calendar-header">
+                            <button class="calendar-nav-btn" type="button" onclick="navigateAnalyticsExportCalendarMonth(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="calendar-header-picker-group">
+                                <select
+                                    id="analyticsExportCalendarMonthSelect"
+                                    class="calendar-header-select"
+                                    aria-label="Select month"
+                                    onchange="setAnalyticsExportCalendarMonth(this.value)">
+                                </select>
+                                <select
+                                    id="analyticsExportCalendarYearSelect"
+                                    class="calendar-header-select calendar-header-year-select"
+                                    aria-label="Select year"
+                                    onchange="setAnalyticsExportCalendarYear(this.value)">
+                                </select>
+                            </div>
+                            <button class="calendar-nav-btn" type="button" onclick="navigateAnalyticsExportCalendarMonth(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="calendar-weekdays">
+                            <div class="calendar-weekday">Sun</div>
+                            <div class="calendar-weekday">Mon</div>
+                            <div class="calendar-weekday">Tue</div>
+                            <div class="calendar-weekday">Wed</div>
+                            <div class="calendar-weekday">Thu</div>
+                            <div class="calendar-weekday">Fri</div>
+                            <div class="calendar-weekday">Sat</div>
+                        </div>
+
+                        <div class="calendar-days" id="analyticsExportCalendarDays"></div>
+
+                        <div class="calendar-selected-range">
+                            <div class="selected-date-display">
+                                <strong>From:</strong> <span id="analyticsExportSelectedStartDate">Not selected</span>
+                            </div>
+                            <div class="selected-date-display">
+                                <strong>To:</strong> <span id="analyticsExportSelectedEndDate">Not selected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn-cancel" onclick="closeAnalyticsExportDateFilterModal()">Cancel</button>
+                        <button type="button" class="btn-submit" onclick="applyAnalyticsExportDateFilter()">Export</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            id="analyticsExportLoadingOverlay"
+            class="analytics-export-loading-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="analyticsExportLoadingTitle"
+            aria-describedby="analyticsExportLoadingMessage"
+            aria-hidden="true">
+            <div class="analytics-export-loading-card">
+                <div class="analytics-export-loading-spinner" aria-hidden="true"></div>
+                <h3 id="analyticsExportLoadingTitle">Generating export</h3>
+                <p id="analyticsExportLoadingMessage">Preparing analytics data and descriptive insights...</p>
+                <div class="analytics-export-loading-progress" aria-hidden="true">
+                    <span></span>
+                </div>
+                <small>Please keep this page open. Your download will begin automatically.</small>
+            </div>
+        </div>
+
+        <!-- DOCUMENTS VIEW -->
+        <div id="documents" class="section-view">
+            <div class="sub-view-nav">
+                <button class="sub-nav-btn active" onclick="switchDocsSubView('status', this)">
+                    <i class="fa-solid fa-list-check"></i> Track Status
+                </button>
+                <button class="sub-nav-btn" onclick="switchDocsSubView('repository', this)">
+                    <i class="fa-solid fa-folder-tree"></i> Repository
+                </button>
+            </div>
+
+            <div id="docs-status-view" class="docs-layout">
+
+                <div class="repo-main card">
+                    <div class="repo-filters">
+                        <div class="filter-tabs-group">
+                            <button class="filter-tab active" onclick="filterDocs('All', this)">All Files</button>
+                            <button class="filter-tab" onclick="filterDocs('Approved', this)">Approved</button>
+                            <button class="filter-tab" onclick="filterDocs('Rejected', this)">Rejected</button>
+                            <button class="filter-tab" onclick="filterDocs('Pending', this)">Pending</button>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="openSubmitModal()">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Submit New
+                        </button>
+                    </div>
+
+                    <div class="date-filters-bar">
+                        <div class="date-input-group">
+                            <label for="docs-filter-sem">Semester:</label>
+                            <select id="docs-filter-sem" onchange="renderDocs(currentDocFilter)">
+                                <option value="1st">1st Semester</option>
+                                <option value="2nd">2nd Semester</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-period">Term:</label>
+                            <select id="docs-filter-period" onchange="renderDocs(currentDocFilter)">
+                                <option value="prelim">Prelim</option>
+                                <option value="midterm">Midterm</option>
+                                <option value="finals">Finals</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-year">School Year:</label>
+                            <select id="docs-filter-year" onchange="renderDocs(currentDocFilter)"></select>
+                        </div>
+
+                        <button class="date-range-btn" onclick="openDatePicker('docs')">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span id="docs-date-range-label">Select Date Range</span>
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="resetDateFilters()">
+                            <i class="fa-solid fa-calendar-check"></i> Show All Dates
+                        </button>
+                    </div>
+
+                    <div class="list-header-row">
+                        <span class="col-name">Document Name</span>
+                        <span class="col-sent mobile-hide">Sent By</span>
+                        <span class="col-adviser mobile-hide">Adviser Review</span>
+                        <span class="col-ssc mobile-hide">SSC Review</span>
+                        <span class="col-osa mobile-hide">OSA Review</span>
+                        <span class="col-status" style="text-align: right;">Actions</span>
+                    </div>
+
+                    <div id="docs-list">
+                    </div>
+                </div>
+
+                <div class="repo-sidebar">
+                    <div class="card" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
+                        <div class="repo-filters">
+                            <span class="header-text-label">Recently Submitted</span>
+
+                        </div>
+                        <div id="recent-docs-list">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Repository View (Initially Hidden) -->
+            <div id="docs-repository-view" style="display: none;">
+
+                <!-- Search & Filter Area -->
+                <div class="repo-search-area">
+                    <div class="search-input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="repo-search-input" placeholder="Search by filename or tag..."
+                            onkeyup="renderRepoTable()">
+                    </div>
+                    <button class="btn btn-primary" onclick="renderRepoTable()">Search</button>
+                </div>
+
+                <div class="card repo-files-card">
+                    <div class="card-header">
+                        <div class="card-title" id="repo-current-view-label">All Documents</div>
+                    </div>
+
+                    <div class="repo-filter-bar">
+                        <div class="repo-filter-group" style="max-width: 400px;">
+                            <label>File Type:</label>
+                            <select id="repo-filter-type" onchange="renderRepoTable()">
+                                <option value="All">All Types</option>
+                                <option value="Activity Report">Activity Report</option>
+                                <option value="Financial Statement">Financial Statement</option>
+                                <option value="Event Proposal">Event Proposal</option>
+                                <option value="Resolution">Resolution</option>
+                                <option value="Operational Plan">Operational Plan</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>Semester:</label>
+                            <select id="repo-filter-sem" onchange="renderRepoTable()">
+                                <option value="1st">1st Semester</option>
+                                <option value="2nd">2nd Semester</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>Term:</label>
+                            <select id="repo-filter-period" onchange="renderRepoTable()">
+                                <option value="prelim">Prelim</option>
+                                <option value="midterm">Midterm</option>
+                                <option value="finals">Finals</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>School Year:</label>
+                            <select id="repo-filter-year" onchange="renderRepoTable()"></select>
+                        </div>
+
+                        <button class="date-range-btn" onclick="openDatePicker('repo')">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span id="repo-date-range-label">Select Date Range</span>
+                        </button>
+
+                        <button class="btn btn-sm btn-outline" onclick="resetRepoFilters()">
+                            <i class="fa-solid fa-rotate-left"></i> Reset
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="repo-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%;">Document Name</th>
+                                    <th>Category</th>
+                                    <th>Organization</th>
+                                    <th>Date Archived</th>
+                                    <th style="text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="repository-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ANALYTICS VIEW -->
+        <div id="analytics" class="section-view">
+
+            <div class="analytics-toolbar card">
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Academic Year</label>
+                        <select id="filter-year" onchange="resetAnalyticsFilters()">
+                            <option>2025-2026</option>
+                            <option>2024-2025</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="analyticsDateFilterBtn">Date Range</label>
+                        <button id="analyticsDateFilterBtn" class="printing-history-filter-btn" type="button" onclick="openAnalyticsDateFilterModal()">
+                            <span id="analyticsDateFilterLabel">All Dates</span>
+                            <i class="fa-solid fa-calendar-days"></i>
+                        </button>
+                    </div>
+                    <div class="filter-group">
+                        <label style="visibility: hidden;">Reset</label>
+                        <button class="btn btn-outline btn-sm" onclick="resetAnalyticsFilters()" style="height: 38px;">
+                            <i class="fa-solid fa-calendar-check"></i> Show All
+                        </button>
+                    </div>
+                </div>
+
+                <div class="export-wrapper analytics-actions">
+                    <button id="analyticsInsightsRefreshBtn" class="btn btn-outline btn-sm" onclick="regenerateOfficerAnalyticsInsights()">
+                        <i class="fa-solid fa-sparkles"></i> Generate Insights
+                    </button>
+                    <span id="analyticsInsightsProviderBadge" style="display:none; font-size:0.78rem; color:var(--muted); padding:6px 10px; border:1px solid var(--border); border-radius:999px;"></span>
+                    <button id="mock-data-btn" data-local-only class="btn btn-sm" onclick="generateMockAnalyticsData()" style="background: #059669; color: white;">
+                        <i class="fa-solid fa-flask"></i> Generate Mock Data
+                    </button>
+                    <button id="clear-mock-btn" data-local-only class="btn btn-sm" onclick="clearMockAnalyticsData()" style="background: #dc2626; color: white; display: none;">
+                        <i class="fa-solid fa-trash"></i> Clear Mock
+                    </button>
+                    <button class="btn btn-outline btn-sm" data-readonly-allow onclick="toggleExportMenu()">
+                        <i class="fa-solid fa-download"></i> Export Report <i class="fa-solid fa-caret-down ms-2"></i>
+                    </button>
+                    <div class="export-dropdown" id="export-dropdown">
+                        <div class="export-item" onclick="openAnalyticsExportDateFilterModal('csv')">
+                            <i class="fa-solid fa-file-csv"></i> Download CSV
+                        </div>
+                        <div class="export-item" onclick="openAnalyticsExportDateFilterModal('pdf')">
+                            <i class="fa-solid fa-file-pdf"></i> Download PDF
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="analytics-active-filter"
+                style="margin: 12px 0 0; font-size: 0.9rem; color: var(--muted);">
+                Showing all available organization analytics data.
+            </div>
+
+            <div class="card" style="margin-top:16px; margin-bottom:16px;" aria-labelledby="analyticsOverallSummaryTitle">
+                <h3 id="analyticsOverallSummaryTitle" style="margin:0 0 10px;">Overall summary</h3>
+                <div id="analyticsInsightOverall" aria-live="polite" style="white-space:pre-line; color:var(--muted); font-size:0.92rem; line-height:1.6; overflow-wrap:anywhere;">Click Generate Insights to explain the selected data.</div>
+            </div>
+
+            <div class="analytics-grid">
+
+                <!-- Financial Performance Card -->
+                <div class="card card-financial analytics-card-hover">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-wallet me-2" style="color: #002147;"></i> Financial Performance
+                        </div>
+                    </div>
+                    <div id="analyticsFinancialUnavailable" hidden
+                        style="padding:32px 18px; text-align:center; color:var(--muted); font-weight:600;">
+                        Not applicable — Organization Rentals and Printing are disabled by OSA.
+                    </div>
+                    <div id="analyticsFinancialChartContent" class="chart-container-relative">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                    <div id="analyticsFinancialStats" class="analytics-stats-footer">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Revenue</span>
+                            <span class="stat-value" style="color: #002147;">₱12,500</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">Growth</span>
+                            <span class="stat-value stat-positive">
+                                <i class="fa-solid fa-arrow-trend-up"></i> +8.5%
+                            </span>
+                        </div>
+                    </div>
+                    <div id="analyticsInsightFinancial" style="margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:0.88rem; line-height:1.5;">
+                        AI insights will appear here.
+                    </div>
+                </div>
+
+                <!-- Participation Trends Card -->
+                <div class="card card-participation analytics-card-hover">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-arrow-trend-up me-2" style="color: #059669;"></i> Participation Trends
+                        </div>
+                    </div>
+                    <div class="chart-container-relative">
+                        <canvas id="participationChart"></canvas>
+                    </div>
+                    <div class="analytics-stats-footer">
+                        <div class="stat-item">
+                            <span class="stat-label">Avg Attendance</span>
+                            <span class="stat-value">
+                                <i class="fa-solid fa-users"></i> 150
+                            </span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">Retention</span>
+                            <span class="stat-badge stat-badge-high">High</span>
+                        </div>
+                    </div>
+                    <div id="analyticsInsightParticipation" style="margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:0.88rem; line-height:1.5;">
+                        AI insights will appear here.
+                    </div>
+                </div>
+
+                <!-- Inventory Utilization Card -->
+                <div class="card card-inventory analytics-card-hover">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-box me-2" style="color: #d97706;"></i> Inventory Utilization
+                        </div>
+                    </div>
+                    <div id="analyticsInventoryUnavailable" hidden
+                        style="padding:32px 18px; text-align:center; color:var(--muted); font-weight:600;">
+                        Not applicable — Organization Rentals and Printing are disabled by OSA.
+                    </div>
+                    <div id="analyticsInventoryChartContent" class="analytics-chart-with-legend" style="display: flex; height: 100%; align-items: center; justify-content: center; padding: 20px 0;">
+                        <div class="chart-wrapper" style="height: 200px; flex-shrink: 0;">
+                            <canvas id="rentalsChart"></canvas>
+                        </div>
+                        <div class="analytics-legend-modern" id="analytics-rentals-legend">
+                            <div class="legend-item legend-active">
+                                <div class="legend-info">
+                                    <span class="legend-label">Active</span>
+                                    <span class="legend-value">14</span>
+                                </div>
+                                <div class="legend-bar">
+                                    <div class="legend-bar-fill" style="width: 70%; background: #059669;"></div>
+                                </div>
+                            </div>
+                            <div class="legend-item legend-pending">
+                                <div class="legend-info">
+                                    <span class="legend-label">Pending</span>
+                                    <span class="legend-value">4</span>
+                                </div>
+                                <div class="legend-bar">
+                                    <div class="legend-bar-fill" style="width: 20%; background: #d97706;"></div>
+                                </div>
+                            </div>
+                            <div class="legend-item legend-overdue">
+                                <div class="legend-info">
+                                    <span class="legend-label">Overdue</span>
+                                    <span class="legend-value">2</span>
+                                </div>
+                                <div class="legend-bar">
+                                    <div class="legend-bar-fill" style="width: 10%; background: #dc2626;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="analyticsInsightInventory" style="margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:0.88rem; line-height:1.5;">
+                        AI insights will appear here.
+                    </div>
+                </div>
+
+                <!-- Document Workflow Card -->
+                <div class="card card-workflow analytics-card-hover">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fa-solid fa-file-contract me-2" style="color: #6b7280;"></i> Document Workflow
+                        </div>
+                    </div>
+                    <div class="analytics-chart-with-legend" style="display: flex; height: 100%; align-items: center; padding: 20px 0;">
+                        <div class="chart-wrapper" style="height: 200px; flex-shrink: 0;">
+                            <canvas id="docsChart"></canvas>
+                        </div>
+                        <div class="analytics-legend-modern" id="analytics-docs-legend">
+                            <div class="legend-item legend-approved">
+                                <div class="legend-info">
+                                    <span class="legend-label">Approved</span>
+                                    <span class="legend-value">0</span>
+                                </div>
+                                <div class="legend-progress">
+                                    <div class="legend-progress-bar" style="width: 0%; background: #059669;"></div>
+                                </div>
+                            </div>
+                            <div class="legend-item legend-pending">
+                                <div class="legend-info">
+                                    <span class="legend-label">Pending</span>
+                                    <span class="legend-value">0</span>
+                                </div>
+                                <div class="legend-progress">
+                                    <div class="legend-progress-bar" style="width: 0%; background: #d97706;"></div>
+                                </div>
+                            </div>
+                            <div class="legend-item legend-rejected">
+                                <div class="legend-info">
+                                    <span class="legend-label">Rejected</span>
+                                    <span class="legend-value">0</span>
+                                </div>
+                                <div class="legend-progress">
+                                    <div class="legend-progress-bar" style="width: 0%; background: #dc2626;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="analyticsInsightDocuments" style="margin-top:14px; padding:12px 14px; border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:0.88rem; line-height:1.5;">
+                        AI insights will appear here.
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ANNOUNCEMENTS VIEW -->
+        <div id="announcements" class="section-view">
+            <div class="announcement-management">
+                <div class="announcement-management-header">
+                    <div>
+                        <h2>Announcement Feed</h2>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="openAnnouncementComposer()">
+                        <i class="fa-solid fa-plus"></i> New Announcement
+                    </button>
+                </div>
+                <div class="announcement-feed-toolbar">
+                    <div class="announcement-status-tabs" role="tablist" aria-label="Announcement status">
+                        <button type="button" id="announcement-tab-active" class="announcement-status-tab active" onclick="setAnnouncementFeedStatus('active')">
+                            Active <span id="announcement-active-count">0</span>
+                        </button>
+                        <button type="button" id="announcement-tab-archived" class="announcement-status-tab" onclick="setAnnouncementFeedStatus('archived')">
+                            Archived <span id="announcement-archived-count">0</span>
+                        </button>
+                    </div>
+                    <div class="announcement-feed-filters">
+                        <div class="announcement-search">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="search" id="announcement-search" placeholder="Search announcements..." aria-label="Search announcements">
+                        </div>
+                        <select id="announcement-audience-filter" aria-label="Filter by audience">
+                            <option value="">All audiences</option>
+                            <option value="all_students">All Students</option>
+                            <option value="specific_courses">Specific Courses</option>
+                        </select>
+                        <select id="announcement-type-filter" aria-label="Filter by type">
+                            <option value="">All types</option>
+                            <option value="announcement">Announcements</option>
+                            <option value="event">Events</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="announcement-feed" class="announcement-management-feed" aria-live="polite"></div>
+                <div id="announcement-load-more-wrap" class="announcement-load-more-wrap"></div>
+            </div>
+        </div>
+
+        <div id="announcementComposerModal" class="modal-overlay">
+            <div class="modal-content announcement-composer-modal">
+                <div class="modal-header">
+                    <h3 id="announcement-composer-title">New Announcement</h3>
+                    <button class="close-modal" type="button" onclick="closeAnnouncementComposer()">&times;</button>
+                </div>
+                <form id="announcement-form" onsubmit="postAnnouncement(event)">
+                    <div class="modal-body announcement-composer-body">
+                        <label>Target Audience</label>
+                        <select id="ann-audience" onchange="toggleAnnouncementCourseTargets()">
+                            <option value="all_students">All Students</option>
+                            <option value="specific_courses">Specific Courses</option>
+                        </select>
+                        <div id="ann-course-targets" class="announcement-course-targets" hidden>
+                            <div class="announcement-course-targets-header">
+                                <span>Courses</span>
+                                <button type="button" class="btn btn-outline btn-sm" id="ann-course-toggle-all" onclick="toggleAllAnnouncementCourses()">Select All</button>
+                            </div>
+                            <div id="ann-course-target-list" class="announcement-course-target-list">
+                                <div class="announcement-course-empty">Loading courses...</div>
+                            </div>
+                        </div>
+                        <label>Headline</label>
+                        <input type="text" id="ann-title" placeholder="Enter headline..." required>
+                        <label>Content</label>
+                        <textarea id="ann-content" rows="6" placeholder="Type details here..." required></textarea>
+                        <label>Announcement Photos (optional)</label>
+                        <input type="file" id="announcement-photos" accept="image/*" multiple>
+                        <div id="announcement-photo-carousel" class="announcement-photo-carousel" hidden>
+                            <button type="button" class="announcement-photo-nav announcement-photo-prev" aria-label="Previous photo">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div class="announcement-photo-stage">
+                                <img id="announcement-photo-preview-img" src="" alt="Selected announcement photo preview">
+                            </div>
+                            <button type="button" class="announcement-photo-nav announcement-photo-next" aria-label="Next photo">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                            <div class="announcement-photo-actions">
+                                <button type="button" class="btn btn-outline btn-sm" id="announcement-photo-add"><i class="fa-solid fa-plus"></i> Add</button>
+                                <button type="button" class="btn btn-outline btn-sm" id="announcement-photo-remove"><i class="fa-regular fa-trash-can"></i> Remove</button>
+                            </div>
+                            <div class="announcement-photo-count" id="announcement-photo-count">0 / 0</div>
+                        </div>
+                        <div class="sync-option" id="announcement-event-sync-option">
+                            <label>
+                                <input type="checkbox" id="sync-event" onclick="toggleEventSyncFields()">
+                                <span class="sync-text"><i class="fa-solid fa-calendar-plus"></i> Also create this as an Event</span>
+                            </label>
+                        </div>
+                        <div id="event-sync-fields" class="announcement-event-fields">
+                            <div class="announcement-event-field event-date-field">
+                                <label for="event-date">Event Date</label>
+                                <input type="date" id="event-date">
+                            </div>
+                            <div class="announcement-event-field event-start-field">
+                                <label for="event-time-start">Start</label>
+                                <input type="time" id="event-time-start">
+                            </div>
+                            <div class="announcement-event-field event-location-field">
+                                <label for="event-location">Location</label>
+                                <input type="text" id="event-location" placeholder="e.g., Auditorium A">
+                            </div>
+                            <div class="announcement-event-field event-end-field">
+                                <label for="event-time-end">End</label>
+                                <input type="time" id="event-time-end">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeAnnouncementComposer()">Cancel</button>
+                        <button type="submit" id="announcement-submit-btn" class="btn btn-primary">
+                            <i class="fa-regular fa-paper-plane"></i> Publish
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="announcementPhotoModal" class="modal-overlay announcement-photo-overlay">
+            <div class="modal-content announcement-photo-modal" role="dialog" aria-modal="true" aria-label="Announcement photos">
+                <button type="button" class="announcement-photo-modal-close" onclick="closeAnnouncementPhotoCarousel()" aria-label="Close photo carousel">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="announcement-photo-lightbox">
+                    <img id="announcement-photo-lightbox-img" src="" alt="Announcement photo">
+                    <button type="button" class="announcement-photo-lightbox-arrow previous" onclick="moveAnnouncementPhotoCarousel(-1)" aria-label="Previous photo">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button type="button" class="announcement-photo-lightbox-arrow next" onclick="moveAnnouncementPhotoCarousel(1)" aria-label="Next photo">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <div id="announcement-photo-lightbox-dots" class="announcement-photo-lightbox-dots"></div>
+                    <div id="announcement-photo-lightbox-count" class="announcement-photo-lightbox-count"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="announcementDetailModal" class="modal-overlay">
+            <div class="modal-content announcement-detail-modal">
+                <div class="modal-header">
+                    <h3 id="announcement-detail-title">Announcement Details</h3>
+                    <button class="close-modal" type="button" onclick="closeAnnouncementDetailModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="announcement-detail-content"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="closeAnnouncementDetailModal()">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- EVENTS VIEW -->
+        <div id="events" class="section-view">
+            <div class="card">
+                <iframe src="../pages/qr-attendance/events.php" title="QR Attendance System">
+                </iframe>
+            </div>
+        </div>
+
+        <!-- PROFILE VIEW -->
+        <div id="profile" class="section-view">
+            <div class="split-view-grid profile-layout">
+
+                <div class="card profile-card">
+                    <div class="profile-header-center">
+                        <div class="profile-avatar-wrapper">
+                            <img id="officerProfileAvatar" src="../assets/favicon.png" alt="Profile"
+                                class="profile-avatar-lg">
+                            <input id="officerProfilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                            <button id="officerProfilePhotoBtn" class="btn-icon-only edit-avatar-btn" title="Change Photo" type="button">
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
+                        </div>
+                        <h3 class="profile-name">Juan Dela Cruz</h3>
+                        <span class="profile-role">Admin Officer • Head of Operations</span>
+                        <span class="status-badge status-completed" style="margin-top: 12px;">Active Status</span>
+                        <a id="officerStudentPreviewLink" class="btn btn-sm btn-outline" href="studentDashboard.html?view=organizations" target="_blank" rel="noopener noreferrer" style="margin-top: 14px;">
+                            <i class="fa-solid fa-eye"></i> View as Student
+                        </a>
+                    </div>
+
+                </div>
+
+                <div class="profile-details-stack">
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Personal Information</div>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <button id="officerProfileCancelBtn" class="btn btn-sm btn-outline" type="button" hidden>
+                                    Cancel
+                                </button>
+                                <button id="officerProfileEditBtn" class="btn btn-sm btn-outline" type="button">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                                </button>
+                            </div>
+                        </div>
+                        <div class="profile-form-grid">
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input id="officerProfileFullNameInput" type="text" value="Juan Dela Cruz" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Student Number</label>
+                                <input id="officerProfileStudentNumberInput" type="text" value="2021-12345" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input id="officerProfileEmailInput" type="email" value="juan.delacruz@student.philsca.edu.ph" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Organization</label>
+                                <input id="officerProfileOrganizationInput" type="text" value="Supreme Student Council" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input id="officerProfilePhoneInput" type="text" value="+63 912 345 6789" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Course & Year</label>
+                                <input id="officerProfileCourseYearInput" type="text" value="BS Aeronautical Engineering - 4th Year" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Security</div>
+                        </div>
+                        <form id="officerPasswordForm">
+                            <div class="form-group">
+                                <label>Change Password</label>
+                                <input id="officerCurrentPasswordInput" type="password" placeholder="Current Password" required>
+                                <div
+                                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                    <input id="officerNewPasswordInput" type="password" placeholder="New Password" required>
+                                    <input id="officerConfirmPasswordInput" type="password" placeholder="Confirm New Password" required>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                                <button id="officerPasswordSubmitBtn" type="submit" class="btn btn-primary">Update Password</button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+
+    </main>
+
+    <div id="submit-doc-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="submit-doc-modal-title">Submit Document</h3>
+                <button class="close-modal" onclick="closeSubmitModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="doc-form" onsubmit="handleDocSubmit(event)">
+                    <input type="hidden" id="doc-revision-of" value="">
+                    <label>Review Route</label>
+                    <input type="hidden" id="doc-recipient" value="SSC">
+                    <div class="document-review-route" id="doc-review-route" role="status">
+                        <i class="fa-solid fa-route"></i>
+                        <span>Supreme Student Council (SSC) → Office of Student Affairs (OSA)</span>
+                    </div>
+
+                    <label>Document Type</label>
+                    <select id="doc-type" required onchange="toggleCustomDocumentTypeField()">
+                        <option value="Activity Report">Activity Report</option>
+                        <option value="Financial Statement">Financial Statement</option>
+                        <option value="Event Proposal">Event Proposal</option>
+                        <option value="Resolution">Resolution</option>
+                        <option value="Operational Plan">Operational Plan</option>
+                        <option value="Others">Others</option>
+                    </select>
+
+                    <div id="doc-custom-type-field" hidden>
+                        <label for="doc-custom-type">Custom Document Type</label>
+                        <input type="text" id="doc-custom-type" maxlength="100" placeholder="Enter the document type">
+                        <small class="document-type-helper">This will be listed under the Others category.</small>
+                    </div>
+
+                    <label>Title</label>
+                    <input type="text" id="doc-title" placeholder="e.g., Semestral Financial Report" required>
+
+                    <label>Description/Notes</label>
+                    <textarea id="doc-description" rows="3" placeholder="Brief details..."></textarea>
+
+                    <label>Attach File</label>
+                    <input type="file" id="doc-file-input" accept=".pdf,application/pdf" style="display:none;" onchange="updateFileUploadLabel(this)">
+                    <div class="file-upload-box" onclick="document.getElementById('doc-file-input').click()">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span id="file-upload-label"> Click to upload PDF</span>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" onclick="closeSubmitModal()">Cancel</button>
+                        <button type="submit" id="doc-submit-button" class="btn btn-primary">
+                            <i class="fa-solid fa-paper-plane"></i> <span id="doc-submit-button-label">Submit</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="review-comment-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="review-comment-title">Reviewer Comment</h3>
+                <button class="close-modal" onclick="closeReviewerNoteModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="review-comment-body" class="review-comment-body"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="closeReviewerNoteModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="review-comment-options-menu" class="reviewer-comment-options" role="menu" aria-label="Document comments" hidden></div>
+
+    <div id="officer-document-approve-modal" class="modal-overlay">
+        <div class="modal-content document-review-modal-content">
+            <div class="modal-header">
+                <h3>Approve Document</h3>
+                <button type="button" class="close-modal" onclick="closeOfficerDocumentReviewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="document-review-modal-copy">You can add an optional reviewer note before approving.</p>
+                <textarea id="officer-document-approve-notes" rows="4" placeholder="Optional comments..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeOfficerDocumentReviewModal()">Cancel</button>
+                <button id="officer-document-approve-confirm" type="button" class="btn btn-success" data-readonly-allow onclick="confirmOfficerDocumentReview()">
+                    <i class="fa-solid fa-check"></i> Approve
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="officer-document-reject-modal" class="modal-overlay">
+        <div class="modal-content document-review-modal-content">
+            <div class="modal-header">
+                <h3>Reject Document</h3>
+                <button type="button" class="close-modal" onclick="closeOfficerDocumentReviewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="officer-document-reject-copy" class="document-review-modal-copy">You can add an optional reviewer note before rejecting.</p>
+                <textarea id="officer-document-reject-notes" rows="4" placeholder="Optional comments..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeOfficerDocumentReviewModal()">Cancel</button>
+                <button id="officer-document-reject-confirm" type="button" class="btn btn-danger" data-readonly-allow onclick="confirmOfficerDocumentReview()">
+                    <i class="fa-solid fa-xmark"></i> Reject
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Viewer Modal (Google Drive Style) -->
+    <div id="pdf-modal" class="pdf-modal">
+        <div class="pdf-modal-content">
+            <!-- Modal Header -->
+            <div class="pdf-modal-header">
+                <div class="pdf-modal-title">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span id="pdf-doc-name">Document</span>
+                </div>
+                <div class="pdf-toolbar">
+                    <!-- Navigation -->
+                    <button class="btn btn-sm btn-outline nav-btn" onclick="pdfPrevPage()" title="Previous Page">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <span id="pdf-page-info" class="pdf-toolbar-info">0 pages</span>
+                    <button class="btn btn-sm btn-outline nav-btn" onclick="pdfNextPage()" title="Next Page">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Zoom -->
+                    <button class="btn btn-sm btn-outline zoom-btn" onclick="pdfZoomOut()" title="Zoom Out">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <span id="pdf-zoom-info" class="pdf-toolbar-info">100%</span>
+                    <button class="btn btn-sm btn-outline zoom-btn" onclick="pdfZoomIn()" title="Zoom In">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Annotation Tools -->
+                    <button id="pdf-highlight-btn" class="btn btn-sm btn-outline" data-readonly-allow onclick="togglePdfHighlightMode()"
+                        title="Highlight Text">
+                        <i class="fa-solid fa-highlighter"></i>
+                    </button>
+                    <div id="pdf-highlight-color-picker" class="pdf-highlight-color-picker" data-readonly-allow aria-label="Highlight color">
+                        <button type="button" class="pdf-highlight-color active" data-color="#ffeb3b"
+                            style="--highlight-color: #ffeb3b;" title="Yellow highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#34d399"
+                            style="--highlight-color: #34d399;" title="Green highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#60a5fa"
+                            style="--highlight-color: #60a5fa;" title="Blue highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#f472b6"
+                            style="--highlight-color: #f472b6;" title="Pink highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#fb923c"
+                            style="--highlight-color: #fb923c;" title="Orange highlight"></button>
+                    </div>
+                    <button id="pdf-comment-btn" class="btn btn-sm btn-outline" data-readonly-allow onclick="togglePdfCommentMode()"
+                        title="Add Comment">
+                        <i class="fa-solid fa-comment"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Sidebar Toggle -->
+                    <button class="btn btn-sm btn-outline" onclick="togglePdfSidebar()" title="Toggle Sidebar">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                </div>
+                <button class="pdf-close-btn" onclick="closePdfViewer()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="pdf-modal-body">
+                <!-- PDF Viewer Container (pages render here) -->
+                <div id="pdf-viewer-container" class="pdf-viewer-container">
+                    <div class="pdf-loading">
+                        <i class="fa-solid fa-spinner"></i>
+                        <p>Select a document to view</p>
+                    </div>
+                </div>
+
+                <!-- Floating Sidebar Toggle (Visible when sidebar is collapsed) -->
+                <button id="pdf-sidebar-toggle" class="pdf-sidebar-toggle" onclick="togglePdfSidebar()"
+                    title="Show Annotations">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
+
+                <!-- Annotations Sidebar -->
+                <div id="pdf-sidebar" class="pdf-sidebar">
+                    <div class="pdf-sidebar-header">
+                        <h4>Annotations</h4>
+                        <button class="btn btn-sm btn-outline" onclick="togglePdfSidebar()">
+                            <i class="fa-solid fa-angles-right"></i>
+                        </button>
+                    </div>
+                    <div id="pdf-annotations-list" class="pdf-sidebar-content">
+                        <div class="pdf-no-annotations">
+                            <i class="fa-solid fa-note-sticky"></i>
+                            <p>No annotations yet<br><small>Select text to add highlights or comments</small></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Picker Modal -->
+    <div id="date-picker-modal" class="date-picker-modal">
+        <div class="date-picker-content">
+            <div class="date-picker-header">
+                <h3>Select Date Range</h3>
+                <button class="close-modal" onclick="closeDatePicker()">&times;</button>
+            </div>
+            <div class="date-picker-body">
+                <div class="calendar-nav">
+                    <button onclick="changeCalendarMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="calendar-month-year" id="calendar-month-year">September 2023</span>
+                    <button onclick="changeCalendarMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+
+                <div class="calendar-grid">
+                    <div class="calendar-weekdays">
+                        <div>Sun</div>
+                        <div>Mon</div>
+                        <div>Tue</div>
+                        <div>Wed</div>
+                        <div>Thu</div>
+                        <div>Fri</div>
+                        <div>Sat</div>
+                    </div>
+                    <div class="calendar-dates" id="calendar-grid">
+                        <!-- Days generated by JS -->
+                    </div>
+                </div>
+
+                <div class="date-range-display">
+                    <div class="date-range-item">
+                        <label>From</label>
+                        <span id="date-from-display">Select Date</span>
+                    </div>
+                    <div class="date-range-item">
+                        <label>To</label>
+                        <span id="date-to-display">Select Date</span>
+                    </div>
+                </div>
+            </div>
+            <div class="date-picker-footer">
+                <button class="btn btn-outline" onclick="clearDateRange()">Clear</button>
+                <button class="btn btn-primary" onclick="applyDateRange()">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comment Input Modal -->
+    <div id="pdf-comment-modal" class="pdf-comment-modal">
+        <div class="pdf-comment-modal-content">
+            <h4>Add Comment</h4>
+            <div id="pdf-selected-text-preview" class="selected-text-preview"></div>
+            <textarea id="pdf-comment-textarea" placeholder="Enter your comment..."></textarea>
+            <div class="pdf-comment-modal-actions">
+                <button class="btn btn-sm btn-outline" onclick="cancelPdfComment()">Cancel</button>
+                <button class="btn btn-sm btn-primary" data-readonly-allow onclick="savePdfComment()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom JS -->
+    <audio id="officerPrintingBarcodeBeep" src="../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
+    <!-- Org-specific data config — must load before officerDashboard.js -->
+    <script src="../data/orgData.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/igp-api.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/pdfViewer.js?v=20261004-defense-page-count-1"></script>
+    <script src="../systems/IGPRentalSystem/lib/xlsx.full.min.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/officerAnalytics.js?v=20261005-analytics-privacy-2"></script>
+    <script src="../assets/js/organizationFavicon.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/officerDashboard.js?v=20261005-summary-notes-1"></script>
+    <script src="../assets/js/readonly-org-dashboard.js?v=20260927-complete-ui-1"></script>
+</body>
+
+</html>

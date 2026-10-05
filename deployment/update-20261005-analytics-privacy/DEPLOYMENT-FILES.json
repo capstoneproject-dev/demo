@@ -1,0 +1,66 @@
+{
+  "package": "update-20261005-analytics-privacy",
+  "sourceCommit": "88d9d046430cde619ca190956a9a760dad366b7b",
+  "rollbackCommit": "7eba3dbb090dc57d779403dda1e345062e2b3f31",
+  "scope": "Four runtime files changed by the reference commit; tests are excluded from upload.",
+  "databaseMigrationRequired": false,
+  "serverFileDeletions": [],
+  "files": [
+    {
+      "path": "assets/js/officerAnalytics.js",
+      "operation": "replace",
+      "upload": {
+        "sha256": "4383c77e54859c468895db4886d9bf00c6ae5975fdffeca48a20d3764b0cf431",
+        "bytes": 112255,
+        "gitBlob": "984ec1608f9a60cbdd1718c8e7a1770cbb0d6397"
+      },
+      "rollback": {
+        "sha256": "a290a0feb5b12ef05d8e308172b122ff85dd91fa23dd8a31ca4c158ce8e3905c",
+        "bytes": 107530,
+        "gitBlob": "239cbcb3ab1276ea7220a7707cb6051efc568b99"
+      }
+    },
+    {
+      "path": "includes/analytics_ai.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "aa86fcff0806d4941ec75234d5c1200b04786c665430250dc402cc6dea8e843a",
+        "bytes": 76295,
+        "gitBlob": "59007eca4367f63e45c920f6046ab96707fe9aaa"
+      },
+      "rollback": {
+        "sha256": "05bb944ddaf6ce6300864b8e20e232fdcb4a18ffcc7c8fe2ac27d6198c74145a",
+        "bytes": 73350,
+        "gitBlob": "7dbdeb0c995c2eef7718f724b4e4d2ecd92084f5"
+      }
+    },
+    {
+      "path": "pages/officerDashboard.html",
+      "operation": "replace",
+      "upload": {
+        "sha256": "e2369a3dbc3dd6acf16be32b5f91fececc6a99d4074cce2d2406b648a8cff23e",
+        "bytes": 143285,
+        "gitBlob": "1c76cb3dceae9ebacdda25996d06b00b9ccaaaa6"
+      },
+      "rollback": {
+        "sha256": "8a61e6927f768ebee074393bf843cf3a96ed9ccade8bfa751fdb6d72bd828ef0",
+        "bytes": 143283,
+        "gitBlob": "db6f733458cf8d0291bb02058d639a75299fec56"
+      }
+    },
+    {
+      "path": "sw.js",
+      "operation": "replace",
+      "upload": {
+        "sha256": "4c4276566a21e7c38a91992091858152c169f88c9a055b47b7e9fadbf612e885",
+        "bytes": 8575,
+        "gitBlob": "0ef45d7ba8b04949254e5343771772980bdf80f9"
+      },
+      "rollback": {
+        "sha256": "ec3eaa07bba61da096c164a07d60e66bdefee58086c882619be1cea442895c59",
+        "bytes": 8573,
+        "gitBlob": "370d785790c1185d63900ce5670c568293906f21"
+      }
+    }
+  ]
+}

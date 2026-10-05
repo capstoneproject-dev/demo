@@ -1,0 +1,2167 @@
+// --- OFFICER ANALYTICS (live, filter-aware, export-ready) ---
+
+const officerAnalyticsState = {
+    charts: {
+        revenue: null,
+        participation: null,
+        rentals: null,
+        docs: null,
+    },
+    snapshot: null,
+    liveEvents: [],
+    liveAttendance: [],
+    liveRentals: null,
+    mockRetentionProfile: null,
+    mockData: null, // Temporary mock data for testing
+};
+
+const officerAnalyticsInsightsState = {
+    cache: new Map(),
+    pending: new Map(),
+    currentKey: '',
+    latestRequestId: 0,
+};
+
+function parseOfficerAnalyticsDate(value) {
+    if (!value) return null;
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+    const direct = new Date(value);
+    if (!Number.isNaN(direct.getTime())) return direct;
+
+    let cleaned = String(value).replace(/\./g, '').trim();
+    if (/^[A-Za-z]{3,9}\s+\d{1,2}$/.test(cleaned)) {
+        cleaned = `${cleaned}, ${new Date().getFullYear()}`;
+    }
+    const fallback = new Date(cleaned);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
+function getOfficerAnalyticsAcademicYearRange(academicYear) {
+    const match = String(academicYear || '').match(/^(\d{4})-(\d{4})$/);
+    if (!match) return { start: null, end: null };
+
+    const startYear = Number(match[1]);
+    const endYear = Number(match[2]);
+    return {
+        start: new Date(startYear, 7, 1, 0, 0, 0, 0),
+        end: new Date(endYear, 6, 31, 23, 59, 59, 999),
+    };
+}
+
+function getOfficerAnalyticsDefaultAcademicYear() {
+    const now = new Date();
+    const year = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+    return `${year}-${year + 1}`;
+}
+
+function getOfficerAnalyticsDateMode() {
+    const range = typeof analyticsDateFilters !== 'undefined' ? analyticsDateFilters : { startDate: null, endDate: null };
+    if (range.startDate || range.endDate) {
+        return {
+            type: 'range',
+            startDate: range.startDate || null,
+            endDate: range.endDate || null,
+        };
+    }
+    return { type: 'all', value: '' };
+}
+
+function isOfficerAnalyticsDateMatch(date, filters) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
+
+    if (filters.yearRange.start && date < filters.yearRange.start) return false;
+    if (filters.yearRange.end && date > filters.yearRange.end) return false;
+
+    if (filters.exportRange && (filters.exportRange.startDate || filters.exportRange.endDate)) {
+        if (filters.exportRange.startDate) {
+            const start = new Date(`${filters.exportRange.startDate}T00:00:00`);
+            if (date < start) return false;
+        }
+        if (filters.exportRange.endDate) {
+            const end = new Date(`${filters.exportRange.endDate}T23:59:59.999`);
+            if (date > end) return false;
+        }
+        return true;
+    }
+
+    if (filters.mode.type === 'range') {
+        if (filters.mode.startDate) {
+            const start = new Date(`${filters.mode.startDate}T00:00:00`);
+            if (date < start) return false;
+        }
+        if (filters.mode.endDate) {
+            const end = new Date(`${filters.mode.endDate}T23:59:59.999`);
+            if (date > end) return false;
+        }
+    }
+
+    return true;
+}
+
+function getOfficerAnalyticsFilters(overrides = {}) {
+    const academicYear = overrides.academicYear
+        || document.getElementById('filter-year')?.value
+        || getOfficerAnalyticsDefaultAcademicYear();
+    const exportRange = overrides.exportRange || null;
+    return {
+        academicYear,
+        yearRange: exportRange
+            ? { start: null, end: null }
+            : getOfficerAnalyticsAcademicYearRange(academicYear),
+        mode: getOfficerAnalyticsDateMode(),
+        exportRange,
+    };
+}
+
+function getOfficerAnalyticsFinancialRows() {
+    if (typeof getOfficerFinancialSummaryRows === 'function') {
+        return getOfficerFinancialSummaryRows();
+    }
+    return [];
+}
+
+function getOfficerAnalyticsLiveRentals() {
+    if (Array.isArray(officerAnalyticsState.liveRentals)) {
+        return officerAnalyticsState.liveRentals;
+    }
+    if (typeof getOfficerScopedRentals !== 'function') return [];
+    return getOfficerScopedRentals().filter((item) => {
+        return Boolean(item && (item.rental_id || item.id || item.dueAt));
+    });
+}
+
+function getOfficerAnalyticsLiveDocs() {
+    if (typeof getOfficerScopedDocs !== 'function') return [];
+    return getOfficerScopedDocs().filter((item) => {
+        return Boolean(item && (item.submission_id || item.id || item.submittedAt));
+    });
+}
+
+function getOfficerAnalyticsSourceData() {
+    // Return mock data if available (temporary for testing)
+    if (officerAnalyticsState.mockData) {
+        return officerAnalyticsState.mockData;
+    }
+
+    const rentals = getOfficerAnalyticsLiveRentals();
+    const docs = getOfficerAnalyticsLiveDocs();
+    const financial = getOfficerAnalyticsFinancialRows();
+    const events = Array.isArray(officerAnalyticsState.liveEvents) ? officerAnalyticsState.liveEvents : [];
+
+    return { rentals, docs, financial, events };
+}
+
+function isOfficerServiceAnalyticsApplicable() {
+    return typeof isOfficerServicesTrackerEnabled === 'function'
+        ? isOfficerServicesTrackerEnabled()
+        : true;
+}
+
+async function loadOfficerAnalyticsEvents() {
+    try {
+        const [eventsRes, attendanceRes] = await Promise.all([
+            fetch('../api/qr-attendance/events/list.php?state=all', { credentials: 'same-origin' }),
+            fetch('../api/qr-attendance/attendance/list.php?limit=10000', { credentials: 'same-origin' }),
+        ]);
+        const eventsData = await eventsRes.json().catch(() => ({}));
+        const attendanceData = await attendanceRes.json().catch(() => ({}));
+        if (!eventsRes.ok || !eventsData.ok) {
+            throw new Error(eventsData.error || `Events request failed (${eventsRes.status})`);
+        }
+        if (!attendanceRes.ok || !attendanceData.ok) {
+            throw new Error(attendanceData.error || `Attendance request failed (${attendanceRes.status})`);
+        }
+
+        officerAnalyticsState.liveAttendance = Array.isArray(attendanceData.items)
+            ? attendanceData.items.filter(item => item.time_in).map((item) => ({
+                record_id: item.record_id,
+                event_id: item.event_id,
+                event_name: item.event_name || '',
+                student_number: String(item.student_number || '').trim(),
+                student_name: String(item.student_name || '').trim(),
+                attendance_date: item.attendance_date || item.time_in || '',
+            }))
+            : [];
+
+        const attendeesByEventId = new Map();
+        officerAnalyticsState.liveAttendance.forEach((record) => {
+            const key = Number(record.event_id || 0);
+            if (!key) return;
+            if (!attendeesByEventId.has(key)) attendeesByEventId.set(key, []);
+            attendeesByEventId.get(key).push(record);
+        });
+
+        officerAnalyticsState.liveEvents = Array.isArray(eventsData.items)
+            ? eventsData.items.map((item) => ({
+                id: item.event_id,
+                title: item.event_name || 'Event',
+                date: item.event_datetime || item.event_date || item.created_at || '',
+                venue: item.location || 'TBA',
+                participants: Number(item.attended_count || 0),
+                status: Number(item.is_published || 0) ? 'published' : 'draft',
+                attendees: attendeesByEventId.get(Number(item.event_id || 0)) || [],
+            }))
+            : [];
+    } catch (error) {
+        console.error('loadOfficerAnalyticsEvents failed', error);
+        officerAnalyticsState.liveEvents = [];
+        officerAnalyticsState.liveAttendance = [];
+    }
+
+    if (typeof initializeOfficerAnalyticsYearOptions === 'function') {
+        initializeOfficerAnalyticsYearOptions();
+    }
+    refreshAnalyticsCharts();
+}
+
+function groupOfficerAnalyticsFinancialRows(rows, modeType) {
+    const buckets = new Map();
+    const formatter = new Intl.DateTimeFormat('en-US',
+        modeType === 'day'
+            ? { month: 'short', day: 'numeric', year: 'numeric' }
+            : (modeType === 'month'
+                ? { month: 'short', day: 'numeric' }
+                : { month: 'short', year: 'numeric' })
+    );
+
+    rows.forEach((item) => {
+        const date = parseOfficerAnalyticsDate(
+            item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+        );
+        if (!date) return;
+
+        const key = modeType === 'day'
+            ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+            : (modeType === 'month'
+                ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+                : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+
+        if (!buckets.has(key)) {
+            buckets.set(key, {
+                label: formatter.format(date),
+                total: 0,
+            });
+        }
+
+        if (String(item.payment_status || '').toLowerCase() === 'paid') {
+            buckets.get(key).total += Number(item.total_cost || 0);
+        }
+    });
+
+    return Array.from(buckets.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([, value]) => value);
+}
+
+function getOfficerAnalyticsRevenueGrowthBreakdown(financialRows, filters) {
+    const scopedRows = financialRows.filter((item) => {
+        const date = parseOfficerAnalyticsDate(
+            item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+        );
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
+
+        if (filters.exportRange && (filters.exportRange.startDate || filters.exportRange.endDate)) {
+            if (filters.exportRange.startDate) {
+                const start = new Date(`${filters.exportRange.startDate}T00:00:00`);
+                if (date < start) return false;
+            }
+            if (filters.exportRange.endDate) {
+                const end = new Date(`${filters.exportRange.endDate}T23:59:59.999`);
+                if (date > end) return false;
+            }
+            return true;
+        }
+
+        if (filters.yearRange.start && date < filters.yearRange.start) return false;
+        if (filters.yearRange.end && date > filters.yearRange.end) return false;
+        return true;
+    });
+
+    const paidRows = scopedRows.filter((item) => String(item.payment_status || '').toLowerCase() === 'paid');
+    const latestDate = paidRows.reduce((latest, item) => {
+        const date = parseOfficerAnalyticsDate(
+            item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+        );
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return latest;
+        return !latest || date > latest ? date : latest;
+    }, null);
+
+    const anchorDate = latestDate || new Date();
+    anchorDate.setHours(23, 59, 59, 999);
+
+    const sumRange = (start, end) => paidRows.reduce((sum, item) => {
+        const date = parseOfficerAnalyticsDate(
+            item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+        );
+        if (!date || date < start || date > end) return sum;
+        return sum + Number(item.total_cost || 0);
+    }, 0);
+
+    const buildGrowth = (days, label) => {
+        const currentEnd = new Date(anchorDate);
+        const currentStart = new Date(anchorDate);
+        currentStart.setDate(currentStart.getDate() - (days - 1));
+        currentStart.setHours(0, 0, 0, 0);
+
+        const previousEnd = new Date(currentStart);
+        previousEnd.setMilliseconds(-1);
+        const previousStart = new Date(previousEnd);
+        previousStart.setDate(previousStart.getDate() - (days - 1));
+        previousStart.setHours(0, 0, 0, 0);
+
+        const currentTotal = sumRange(currentStart, currentEnd);
+        const previousTotal = sumRange(previousStart, previousEnd);
+        const delta = previousTotal > 0
+            ? ((currentTotal - previousTotal) / previousTotal) * 100
+            : (currentTotal > 0 ? 100 : 0);
+
+        return {
+            label,
+            value: delta,
+            currentTotal,
+            previousTotal,
+        };
+    };
+
+    return [
+        buildGrowth(7, 'vs last week'),
+        buildGrowth(30, 'vs last month'),
+        buildGrowth(365, 'vs last year'),
+    ];
+}
+
+function formatOfficerAnalyticsRevenueTrend(growthBreakdown) {
+    return (growthBreakdown || []).map((item) => {
+        const sign = item.value > 0 ? '+' : '';
+        return `${sign}${item.value.toFixed(1)}% ${item.label}`;
+    }).join(' | ');
+}
+
+function getOfficerAnalyticsRetentionLevel(events) {
+    if (!Array.isArray(events) || !events.length) return 'Insufficient data';
+
+    const chronological = events
+        .slice()
+        .sort((a, b) => (parseOfficerAnalyticsDate(a.date)?.getTime() || 0) - (parseOfficerAnalyticsDate(b.date)?.getTime() || 0))
+        .map((event) => {
+            const attendeeKeys = Array.isArray(event.attendees)
+                ? event.attendees
+                    .map((attendee) => String(attendee.student_number || attendee.student_id || attendee.user_id || attendee.student_name || '').trim())
+                    .filter(Boolean)
+                : [];
+            return {
+                ...event,
+                attendeeKeys: Array.from(new Set(attendeeKeys)),
+            };
+        })
+        .filter((event) => event.attendeeKeys.length > 0);
+
+    if (chronological.length < 2) return 'Insufficient data';
+
+    let overlapSum = 0;
+    let overlapCount = 0;
+    for (let index = 1; index < chronological.length; index += 1) {
+        const previous = new Set(chronological[index - 1].attendeeKeys);
+        const current = chronological[index].attendeeKeys;
+        if (!previous.size || !current.length) continue;
+        const repeatedCount = current.filter((key) => previous.has(key)).length;
+        overlapSum += repeatedCount / Math.max(previous.size, 1);
+        overlapCount += 1;
+    }
+
+    const attendeeFrequency = new Map();
+    chronological.forEach((event) => {
+        event.attendeeKeys.forEach((key) => {
+            attendeeFrequency.set(key, (attendeeFrequency.get(key) || 0) + 1);
+        });
+    });
+
+    const uniqueAttendees = attendeeFrequency.size;
+    const repeatingAttendees = Array.from(attendeeFrequency.values()).filter((count) => count >= 2).length;
+    const repeatRate = uniqueAttendees > 0 ? repeatingAttendees / uniqueAttendees : 0;
+    const averageOverlap = overlapCount > 0 ? overlapSum / overlapCount : 0;
+
+    if (repeatRate >= 0.72 && averageOverlap >= 0.58) return 'High';
+    if (repeatRate >= 0.38 && averageOverlap >= 0.3) return 'Medium';
+    return 'Low';
+}
+
+const documentRevisionChecks = {
+    missing_requirements: 'Compare the submission with the required attachments checklist and include each missing file.',
+    signature_approval: 'Verify that the required signatories and endorsements are complete.',
+    formatting_template: 'Compare the document with the current required template, layout, and file naming rules.',
+    budget_financial: 'Recheck itemized amounts, totals, quotations, and supporting receipts.',
+    schedule_venue: 'Check that dates, times, and venue details agree throughout the submission.',
+    content_details: 'Complete the objectives, activity details, participants, and other sections identified by the reviewer.',
+    inconsistent_incorrect: 'Cross-check conflicting statements and correct the specific information flagged by the reviewer.',
+    policy_compliance: 'Compare the flagged section with the applicable published guideline and reviewer instructions.',
+    other: 'Read the original reviewer note for the specific revision requested.'
+};
+
+function getOfficerDocumentFeedbackStatus(doc) {
+    const status = String(doc.rawStatus || doc.status || '').trim().toLowerCase();
+    if (status === 'approved') return 'approved';
+    if (status.includes('reject')) return 'rejected';
+    return null;
+}
+
+async function loadAnalyticsReviewAnnotations(documents) {
+    const reviewable = documents.filter(doc => getOfficerDocumentFeedbackStatus(doc) && Number(doc.submission_id) > 0);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(3, reviewable.length) }, async () => {
+        while (next < reviewable.length) {
+            const doc = reviewable[next++];
+            try {
+                const response = await fetch(`../api/documents/annotations/list.php?submission_id=${encodeURIComponent(doc.submission_id)}`, { credentials: 'same-origin' });
+                const data = await response.json();
+                if (!response.ok || !data.ok) throw new Error('Annotations unavailable');
+                doc.reviewAnnotations = data.items || [];
+                doc.reviewAnnotationsUnavailable = false;
+            } catch (_) {
+                doc.reviewAnnotationsUnavailable = true;
+            }
+        }
+    }));
+    refreshAnalyticsCharts();
+}
+
+function getDocumentRejectionFeedback(doc) {
+    const feedback = [];
+    const stages = [['adviser', 'Adviser'], ['ssc', 'SSC'], ['osa', 'OSA']];
+    stages.forEach(([key, label]) => {
+        const note = String(doc[`${key}ReviewerNotes`] || '').trim();
+        if (note) feedback.push({ source: `${label} comment`, text: note });
+    });
+    const generic = String(doc.reviewerNotes || '').trim();
+    if (generic && !feedback.some(item => item.text === generic)) {
+        feedback.push({ source: 'Reviewer comment', text: generic });
+    }
+    (doc.reviewAnnotations || []).forEach(annotation => {
+        const stage = stages.find(([key]) => Number(doc[`${key}ReviewerUserId`]) > 0
+            && Number(doc[`${key}ReviewerUserId`]) === Number(annotation.created_by_user_id));
+        const role = annotation.author_account_type;
+        const label = stage?.[1] || (role === 'organization_adviser' ? 'Adviser' : role === 'osa_staff' ? 'OSA' : null);
+        const comment = String(annotation.comment_text || '').trim();
+        // A highlight alone contains document text, not a stated rejection reason.
+        if (!label || !comment) return;
+        feedback.push({ source: `${label} annotation, page ${annotation.page_number || '?'}`, text: comment,
+            selectedText: String(annotation.selected_text || '') });
+    });
+    return feedback;
+}
+
+function buildOfficerDocumentRejectionPatterns(documents, includeRecords = false) {
+    const categories = [
+        { key: 'missing_requirements', label: 'Missing requirements or attachments', pattern: /\b(missing|incomplete|lack(?:ing)?|absent|attach(?:ments?|ed)?|requirements?|kulang)\b/i },
+        { key: 'signature_approval', label: 'Missing signature or approval', pattern: /\b(signatures?|signatory|signed|approval|approve|endorse(?:ment)?|pirma)\b/i },
+        { key: 'formatting_template', label: 'Formatting or template issue', pattern: /\b(format(?:ting)?|template|layout|font|margin|spacing|file\s*name|filename)\b/i },
+        { key: 'budget_financial', label: 'Budget or financial inconsistency', pattern: /\b(budget|financial|expense|cost|amount|quotation|receipt|liquidation|gastos)\b/i },
+        { key: 'schedule_venue', label: 'Schedule, date, time, or venue issue', pattern: /\b(schedule|date|time|venue|conflict|calendar|petsa|oras|lugar)\b/i },
+        { key: 'content_details', label: 'Insufficient content or details', pattern: /\b(detail|information|content|description|objective|rationale|mechanics|participant|beneficiar|explain|specif)\w*/i },
+        { key: 'inconsistent_incorrect', label: 'Incorrect, unclear, or inconsistent information', pattern: /\b(incorrect|wrong|unclear|clarify|inconsisten|discrepanc|mismatch|errors?|mali)\w*/i },
+        { key: 'policy_compliance', label: 'Policy or compliance issue', pattern: /\b(policy|guideline|compliance|prohibited|violation|rule|procedure)\b/i },
+    ];
+    const rejectedDocuments = (Array.isArray(documents) ? documents : []).filter((documentItem) => {
+        const status = String(documentItem.rawStatus || documentItem.status || '').toLowerCase();
+        return status.includes('reject');
+    });
+    const counts = new Map(categories.map((category) => [category.key, 0]));
+    counts.set('other', 0);
+    let withNotes = 0;
+    const recordsByCategory = new Map();
+
+    rejectedDocuments.forEach((documentItem) => {
+        const feedback = getDocumentRejectionFeedback(documentItem);
+        const combinedNotes = feedback.map(item => item.text).join(' ');
+        if (!combinedNotes) return;
+        withNotes += 1;
+        const matches = categories.filter((category) => category.pattern.test(combinedNotes));
+        (matches.length ? matches.map(category => category.key) : ['other']).forEach(key => {
+            if (!recordsByCategory.has(key)) recordsByCategory.set(key, []);
+            const category = categories.find(item => item.key === key);
+            const matchingFeedback = category ? feedback.filter(item => category.pattern.test(item.text)) : feedback;
+            recordsByCategory.get(key).push({ ...documentItem, rejectionEvidence: matchingFeedback.map(item =>
+                `${item.source}: ${item.text}${item.selectedText ? ` [Highlighted passage: ${item.selectedText}]` : ''}`).join('\n') });
+        });
+        if (!matches.length) {
+            counts.set('other', counts.get('other') + 1);
+            return;
+        }
+        matches.forEach((category) => counts.set(category.key, counts.get(category.key) + 1));
+    });
+
+    const categoryRows = categories
+        .map((category) => ({
+            key: category.key,
+            label: category.label,
+            count: counts.get(category.key) || 0,
+        }))
+        .concat([{ key: 'other', label: 'Other or uncategorized reason', count: counts.get('other') || 0 }])
+        .filter((category) => category.count > 0)
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+    return {
+        rejectedDocuments: rejectedDocuments.length,
+        rejectedWithNotes: withNotes,
+        rejectedWithoutNotes: Math.max(rejectedDocuments.length - withNotes, 0),
+        annotationsUnavailable: rejectedDocuments.filter(doc => doc.reviewAnnotationsUnavailable).length,
+        categories: categoryRows.map(category => ({
+            ...category,
+            share: withNotes ? Number((category.count / withNotes * 100).toFixed(1)) : 0,
+            revisionCheck: documentRevisionChecks[category.key],
+            ...(includeRecords ? { records: recordsByCategory.get(category.key) || [] } : {})
+        })),
+        categoryMethod: 'Keyword matches in reviewer notes, not verified causes. Percentages use rejected documents with notes; categories can overlap.',
+    };
+}
+
+function buildOfficerDocumentPositivePatterns(documents) {
+    const themes = [
+        {key:'clear_objectives', label:'Clear objectives and activity details', pattern:/\b(?:objectives?|activity details)\s+(?:are\s+|were\s+|is\s+)?(?:clear|well explained|well defined)\b|\bclear\s+(?:objectives?|activity details)\b/i},
+        {key:'complete_attachments', label:'Complete supporting documents', pattern:/\b(?:attachments?|supporting documents|requirements)\s+(?:are\s+|were\s+)?complete\b|\bcomplete\s+(?:attachments?|supporting documents)\b/i},
+        {key:'clear_schedule', label:'Clear schedule and venue details', pattern:/\b(?:schedule|venue details)\s+(?:is\s+|are\s+|were\s+)?(?:clear|consistent|complete)\b|\bclear\s+(?:schedule|venue details)\b/i},
+        {key:'consistent_budget', label:'Clear and consistent budget', pattern:/\bbudget\s+(?:is\s+|was\s+)?(?:clear|consistent|well itemized|complete)\b|\b(?:clear|consistent|well itemized)\s+budget\b/i}
+    ];
+    const approved = (documents || []).filter(doc => getOfficerDocumentFeedbackStatus(doc) === 'approved');
+    const matchesPraise = (doc, theme) => getDocumentRejectionFeedback(doc).some(note =>
+        (note.text.match(/[^.!?;\n]+[.!?;]?/g) || []).some(sentence => !sentence.includes('?')
+            && !/\b(?:not|unclear|missing|incomplete|incorrect|please|must|should|needs?|but|however|if|unless|ensure|check|verify|confirm|whether|could|would|might)\b/i.test(sentence)
+            && theme.pattern.test(sentence)));
+    const categories = themes.map(theme => ({key:theme.key, label:theme.label,
+        count:approved.filter(doc => matchesPraise(doc, theme)).length})).filter(category => category.count > 0);
+    return {approvedDocuments:approved.length, documentsWithPositiveFeedback:approved.filter(doc =>
+        themes.some(theme => matchesPraise(doc, theme))).length,
+        categories, method:'Conservative explicit-praise keyword matches in approved document feedback. Approval alone is not evidence of a successful practice. No raw reviewer text or identities are included.'};
+}
+
+// Conservative privacy check for possible people outside the known account metadata.
+function hasOfficerAnalyticsPersonReference(text) {
+    const entities = {nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'"};
+    text = String(text).replace(/&#(?:x([0-9a-f]+)|([0-9]+));/gi, (match, hex, decimal) => {
+        const code = parseInt(hex || decimal, hex ? 16 : 10);
+        return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : match;
+    }).replace(/&(nbsp|amp|lt|gt|quot|apos);/gi, (_, name) => entities[name.toLowerCase()])
+        .replace(/<[^>]*>/g, '').replace(/[\u00a0\u2000-\u200d\u2028\u2029\u202f\u205f\u2060\u3000\ufeff]/g, ' ');
+    const generic = '(?:the|this|these|those|a|an|it|they|we|you|i|he|she|reviewers?|advisers?|officers?|students?|persons?|documents?|osa|ssc)';
+    const titleName = '[\\p{Lu}][\\p{L}\\p{M}\\u2019\\u0027-]+';
+    const fullName = new RegExp('(?<![\\p{L}\\p{M}\\p{N}_])' + titleName + '(?:\\s+' + titleName + ')+(?![\\p{L}\\p{M}\\p{N}_])', 'u');
+    const address = /\b(?:mr|ms|mrs|dr|prof|sir|ma'am|ni|kay|si|sina|kina)\.?\s+(?!the\b|a\b|an\b|reviewer\b|adviser\b|officer\b|student\b|person\b|osa\b|ssc\b)[\p{L}\p{M}][\p{L}\p{M}'\u2019-]+/iu;
+    const actionName = new RegExp('\\b(?:[Aa]sk|[Cc]ontact|[Cc]onsult|[Nn]otify|[Tt]ell)\\s+(?!(?:' + generic + '|[Ff]or|[Yy]our|[Ww]ith|[Aa]bout|[Oo]ur|[Tt]heir)\\b)' + titleName, 'u');
+    const namedSubject = new RegExp('(?<![\\p{L}\\p{M}\\p{N}_])(?!(?:' + generic + ')\\b)' + titleName + '\\s+(?:reviewed|said|commented|signed|asked|wrote)\\b', 'u');
+    // The generic-word exclusion is case-insensitive without making lowercase
+    // ordinary words into capitalized name candidates.
+    const subject = text.replace(/\b(?:The|This|These|Those|It|They|We|You|He|She|Reviewers?|Advisers?|Officers?|Students?|Persons?|Documents?)\b/g,
+        word => word.toLowerCase());
+    return fullName.test(text) || address.test(text) || actionName.test(text) || namedSubject.test(subject);
+}
+
+// Feedback leaves the browser only as anonymous document references. Original text stays in local exports.
+function buildOfficerDocumentAiFeedback(documents) {
+    const docs = Array.isArray(documents) ? documents : [];
+    const identities = new Set();
+    const singleNames = new Set();
+    const fullNames = new Map();
+    const addIdentity = (value, role = null) => {
+        if (typeof value !== 'string') return;
+        const identity = value.normalize('NFC').trim();
+        if (!identity) return;
+        if (!role) { if (identity.length >= 3) identities.add(identity); return; }
+        const parts = identity.split(/\s+/).filter(part => !/^[A-Za-z]\.?$/.test(part));
+        parts.forEach(part => singleNames.add(part));
+        if (/\s/.test(identity)) {
+            const key = identity.toLowerCase();
+            const previous = fullNames.get(key);
+            fullNames.set(key, previous && previous !== role ? 'the person' : role);
+        }
+    };
+    docs.forEach(doc => {
+        ['submittedByName', 'sender', 'student_name'].forEach(key => addIdentity(doc[key], 'the student'));
+        ['reviewerName', 'sscReviewerName', 'osaReviewerName'].forEach(key => addIdentity(doc[key], 'the reviewer'));
+        addIdentity(doc.adviserReviewerName, 'the adviser');
+        ['student_number', 'email'].forEach(key => addIdentity(doc[key]));
+        (doc.reviewAnnotations || []).forEach(note => {
+            const role = note.author_account_type === 'organization_adviser' ? 'the adviser' : 'the reviewer';
+            ['author_name', 'author_full_name', 'created_by_name', 'first_name', 'last_name'].forEach(key => addIdentity(note[key], role));
+            addIdentity([note.first_name, note.last_name].filter(value => typeof value === 'string').join(' '), role);
+            addIdentity(note.author_email);
+        });
+    });
+    const boundary = '[^\\p{L}\\p{M}\\p{N}_]';
+    const identityPattern = identity => new RegExp('(^|' + boundary + ')' + identity.replace(/[.*+?^{}$()|[\]\\]/g, '\\$&') + '(?=$|' + boundary + ')', 'giu');
+    let truncatedComments = 0;
+    const redact = value => {
+        let text = String(value || '').normalize('NFC')
+            .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email removed]')
+            .replace(/https?:\/\/\S+/gi, '[link removed]')
+            .replace(/\b\d{4,}[A-Z]{0,4}[- ]\d{4,}\b/gi, '[student number removed]')
+            .replace(/(?:\+?63|0)9\d[\d -]{8,12}\b/g, '[phone removed]');
+        const segments = [];
+        let cursor = 0;
+        const names = [...fullNames.keys()].sort((a, b) => b.length - a.length);
+        if (names.length) {
+            const alternatives = names.map(name => name.replace(/[.*+?^{}$()|[\]\\]/g, '\\$&')).join('|');
+            const pattern = new RegExp('(^|' + boundary + ')(' + alternatives + ')(?=$|' + boundary + ')', 'giu');
+            for (const match of text.matchAll(pattern)) {
+                const nameStart = match.index + match[1].length;
+                segments.push({text: text.slice(cursor, nameStart)});
+                const key = fullNames.has(match[2].toLowerCase()) ? match[2].toLowerCase()
+                    : names.find(name => new RegExp('^' + name.replace(/[.*+?^{}$()|[\]\\]/g, '\\$&') + '$', 'iu').test(match[2]));
+                segments.push({role: fullNames.get(key) || 'the person'});
+                cursor = match.index + match[0].length;
+            }
+        }
+        segments.push({text: text.slice(cursor)});
+        let unresolvedKnownName = false;
+        const anonymousText = segments.map(segment => {
+            if (segment.role) return segment.role;
+            let plain = segment.text;
+            [...identities].sort((a, b) => b.length - a.length).forEach(identity => {
+                plain = plain.replace(identityPattern(identity), (_, prefix) => prefix + '[identity removed]');
+            });
+            if ([...singleNames].some(name => identityPattern(name).test(plain))) unresolvedKnownName = true;
+            return plain;
+        }).join('');
+        // Do not guess at standalone names. Withhold the original comment,
+        // record the omission, and leave the local records unchanged.
+        if (unresolvedKnownName || hasOfficerAnalyticsPersonReference(anonymousText)) {
+            truncatedComments++;
+            return '';
+        }
+        return anonymousText.trim();
+    };
+    const eligible = docs.map(doc => {
+        const status = getOfficerDocumentFeedbackStatus(doc);
+        if (!status) return null;
+        const comments = getDocumentRejectionFeedback(doc).map(note => ({
+            source: note.source.replace(/, page .*/, ''), text: redact(note.text),
+        })).filter(note => note.text);
+        return comments.length ? {status, comments} : null;
+    }).filter(Boolean);
+    const records = eligible.slice(0, 60).map((record, index) => {
+        truncatedComments += Math.max(0, record.comments.length - 8);
+        return {ref: `D${index + 1}`, status: record.status, comments: record.comments.slice(0, 8).map(note => {
+            const characters = Array.from(note.text);
+            if (characters.length > 1000) truncatedComments++;
+            return {...note, text: characters.slice(0, 1000).join('')};
+        })};
+    });
+    return {records, totalEligibleDocuments: eligible.length, omittedDocuments: Math.max(0, eligible.length - records.length),
+        truncatedComments, annotationsUnavailable: docs.filter(doc => doc.reviewAnnotationsUnavailable).length};
+}
+
+function splitOfficerRentalItemNames(rental) {
+    const raw = String(rental?.itemsLabel || rental?.item || '').trim();
+    if (!raw || raw === '-') return [];
+    return raw.split(/\s*,\s*/)
+        .map((item) => item.replace(/\s*\[[^\]]+\]\s*/g, ' ').replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+}
+
+function buildOfficerRentalFrequencyPatterns(rentals) {
+    const itemCounts = new Map();
+    (Array.isArray(rentals) ? rentals : []).forEach((rental) => {
+        const uniqueItems = new Map();
+        splitOfficerRentalItemNames(rental).forEach((name) => uniqueItems.set(name.toLowerCase(), name));
+        uniqueItems.forEach((name, key) => {
+            const current = itemCounts.get(key) || { name, count: 0 };
+            current.count += 1;
+            itemCounts.set(key, current);
+        });
+    });
+
+    const frequencies = Array.from(itemCounts.values())
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    const maximum = frequencies.length ? frequencies[0].count : 0;
+    const minimum = frequencies.length ? frequencies[frequencies.length - 1].count : 0;
+
+    return {
+        rentalRecords: Array.isArray(rentals) ? rentals.length : 0,
+        observedItems: frequencies.length,
+        mostRented: frequencies.filter((item) => item.count === maximum).slice(0, 5),
+        leastRented: frequencies.filter((item) => item.count === minimum).slice(0, 5),
+        mostRentedTieCount: frequencies.filter((item) => item.count === maximum).length,
+        leastRentedTieCount: frequencies.filter((item) => item.count === minimum).length,
+        frequencies: frequencies.slice(0, 20),
+        scopeNote: 'Least rented refers only to items appearing in the selected rental records, not inventory items with zero rentals.',
+    };
+}
+
+function buildOfficerFinancialBalancePatterns(financialRows) {
+    const rows = Array.isArray(financialRows) ? financialRows : [];
+    const customerRecords = new Map();
+    let outstandingTransactions = 0;
+    let outstandingAmount = 0;
+
+    rows.forEach((item) => {
+        const status = String(item.payment_status || '').toLowerCase();
+        const amount = Math.max(0, Number(item.total_cost || 0));
+        const isOutstanding = !['paid', 'waived'].includes(status) && amount > 0;
+        if (isOutstanding) {
+            outstandingTransactions += 1;
+            outstandingAmount += amount;
+        }
+
+        const identifier = String(item.customer_identifier || item.customer_name || '').trim();
+        if (!identifier || identifier === '-') return;
+        const key = identifier.toLowerCase();
+        const record = customerRecords.get(key) || { transactions: 0, outstanding: 0 };
+        record.transactions += 1;
+        if (isOutstanding) record.outstanding += 1;
+        customerRecords.set(key, record);
+    });
+
+    const customerValues = Array.from(customerRecords.values());
+    const customersWithOutstanding = customerValues.filter((record) => record.outstanding > 0);
+
+    return {
+        transactions: rows.length,
+        outstandingTransactions,
+        outstandingTransactionRate: rows.length ? (outstandingTransactions / rows.length) * 100 : 0,
+        outstandingAmount: Number(outstandingAmount.toFixed(2)),
+        identifiedCustomers: customerValues.length,
+        customersWithOutstanding: customersWithOutstanding.length,
+        customerOutstandingRate: customerValues.length ? (customersWithOutstanding.length / customerValues.length) * 100 : 0,
+        repeatOutstandingCustomers: customersWithOutstanding.filter((record) => record.outstanding >= 2).length,
+        maximumOutstandingTransactionsPerCustomer: customersWithOutstanding.length
+            ? Math.max(...customersWithOutstanding.map((record) => record.outstanding))
+            : 0,
+    };
+}
+
+function buildOfficerEventParticipationPatterns(events) {
+    const records = Array.isArray(events) ? events : [];
+    const values = records.map((event) => Math.max(0, Number(event.participants || 0)));
+    if (!values.length) {
+        return {
+            eventCount: 0,
+            medianAttendance: 0,
+            zeroAttendanceEvents: 0,
+            aboveAverageEvents: 0,
+            coefficientOfVariation: 0,
+            mostAttended: [],
+            mostAttendedTieCount: 0,
+        };
+    }
+
+    const total = values.reduce((sum, value) => sum + value, 0);
+    const average = total / values.length;
+    const sorted = values.slice().sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2
+        ? sorted[middle]
+        : (sorted[middle - 1] + sorted[middle]) / 2;
+    const variance = values.reduce((sum, value) => sum + ((value - average) ** 2), 0) / values.length;
+    const standardDeviation = Math.sqrt(variance);
+    const highestAttendance = Math.max(...values);
+    const leaders = records.filter((event, index) => values[index] === highestAttendance && highestAttendance > 0);
+
+    return {
+        eventCount: values.length,
+        medianAttendance: Number(median.toFixed(1)),
+        zeroAttendanceEvents: values.filter((value) => value === 0).length,
+        aboveAverageEvents: values.filter((value) => value > average).length,
+        coefficientOfVariation: average > 0 ? Number(((standardDeviation / average) * 100).toFixed(1)) : 0,
+        mostAttended: leaders.slice(0, 5).map((event) => ({
+            title: String(event.title || 'Untitled event'),
+            participants: highestAttendance,
+        })),
+        mostAttendedTieCount: leaders.length,
+    };
+}
+
+function getOfficerAnalyticsSnapshot(overrides = {}) {
+    const filters = getOfficerAnalyticsFilters(overrides);
+    const source = getOfficerAnalyticsSourceData();
+    const servicesApplicable = isOfficerServiceAnalyticsApplicable();
+
+    const filteredFinancial = servicesApplicable ? source.financial.filter((item) => {
+        const date = parseOfficerAnalyticsDate(
+            item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+        );
+        return isOfficerAnalyticsDateMatch(date, filters);
+    }) : [];
+
+    const filteredDocs = source.docs.filter((item) => {
+        const date = parseOfficerAnalyticsDate(item.submittedAt || item.date);
+        return isOfficerAnalyticsDateMatch(date, filters);
+    });
+
+    const filteredRentals = servicesApplicable ? source.rentals.filter((item) => {
+        const date = parseOfficerAnalyticsDate(item.borrowedAt || item.dueAt || item.due);
+        return isOfficerAnalyticsDateMatch(date, filters);
+    }) : [];
+
+    const filteredEvents = source.events.filter((item) => {
+        const date = parseOfficerAnalyticsDate(item.date);
+        return isOfficerAnalyticsDateMatch(date, filters);
+    });
+
+    const totalRevenue = filteredFinancial.reduce((sum, item) => {
+        if (String(item.payment_status || '').toLowerCase() !== 'paid') return sum;
+        return sum + Number(item.total_cost || 0);
+    }, 0);
+
+    const paidTransactionCount = filteredFinancial.filter((item) => String(item.payment_status || '').toLowerCase() === 'paid').length;
+    const waivedTransactionCount = filteredFinancial.filter((item) => String(item.payment_status || '').toLowerCase() === 'waived').length;
+    const outstandingTransactionCount = filteredFinancial.filter((item) => {
+        const status = String(item.payment_status || '').toLowerCase();
+        return !['paid', 'waived'].includes(status) && Number(item.total_cost || 0) > 0;
+    }).length;
+    const financialCounts = {
+        total: filteredFinancial.length,
+        paid: paidTransactionCount,
+        waived: waivedTransactionCount,
+        outstanding: outstandingTransactionCount,
+    };
+
+    const revenueGrowthBreakdown = getOfficerAnalyticsRevenueGrowthBreakdown(
+        servicesApplicable ? source.financial : [],
+        filters
+    );
+    const revenueTrend = formatOfficerAnalyticsRevenueTrend(revenueGrowthBreakdown);
+
+    const participationTotal = filteredEvents.reduce((sum, event) => sum + Number(event.participants || 0), 0);
+    const participationAverage = filteredEvents.length ? Math.round(participationTotal / filteredEvents.length) : 0;
+
+    const retentionLevel = getOfficerAnalyticsRetentionLevel(filteredEvents);
+
+    const rentalCounts = { active: 0, pending: 0, overdue: 0 };
+    filteredRentals.forEach((item) => {
+        const status = String(item.status || '').toLowerCase();
+        if (status.includes('overdue')) rentalCounts.overdue += 1;
+        else if (status.includes('reserved') || status.includes('pending')) rentalCounts.pending += 1;
+        else if (status === 'active') rentalCounts.active += 1;
+    });
+
+    const docCounts = { approved: 0, pending: 0, rejected: 0 };
+    filteredDocs.forEach((item) => {
+        const status = String(item.status || '').toLowerCase();
+        if (status.includes('reject')) docCounts.rejected += 1;
+        else if (status === 'approved') docCounts.approved += 1;
+        else docCounts.pending += 1;
+    });
+
+    const revenueSeries = groupOfficerAnalyticsFinancialRows(
+        filteredFinancial,
+        filters.mode.type === 'day' ? 'day' : (filters.mode.type === 'month' ? 'month' : 'all')
+    );
+
+    // If we have too few data points after grouping, show individual transactions
+    let revenueLabels = revenueSeries.map((item) => item.label);
+    let revenueValues = revenueSeries.map((item) => Number(item.total.toFixed(2)));
+
+    // If less than 3 grouped points and we have transactions, show individual transactions
+    if (revenueLabels.length < 3 && filteredFinancial.length > 0 && filteredFinancial.length <= 10) {
+        const individualSeries = filteredFinancial
+            .filter(item => String(item.payment_status || '').toLowerCase() === 'paid')
+            .map(item => {
+                const date = parseOfficerAnalyticsDate(
+                    item?.transaction_date || item?.transaction_datetime || item?.submitted_at
+                );
+                return {
+                    date: date,
+                    label: date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown',
+                    value: Number(item.total_cost || 0)
+                };
+            })
+            .sort((a, b) => (a.date?.getTime() || 0) - (b.date?.getTime() || 0));
+
+        if (individualSeries.length >= 2) {
+            revenueLabels = individualSeries.map(item => item.label);
+            revenueValues = individualSeries.map(item => item.value);
+        }
+    }
+
+    const participationSeries = filteredEvents
+        .slice()
+        .sort((a, b) => {
+            const aTime = parseOfficerAnalyticsDate(a.date)?.getTime() || 0;
+            const bTime = parseOfficerAnalyticsDate(b.date)?.getTime() || 0;
+            return aTime - bTime;
+        })
+        .map((event) => ({
+            label: event.title || 'Event',
+            value: Number(event.participants || 0),
+        }));
+
+    const patterns = {
+        documentRejections: buildOfficerDocumentRejectionPatterns(filteredDocs),
+        documentPositiveFeedback: buildOfficerDocumentPositivePatterns(filteredDocs),
+        rentalFrequency: buildOfficerRentalFrequencyPatterns(filteredRentals),
+        financialBalances: buildOfficerFinancialBalancePatterns(filteredFinancial),
+        eventParticipation: buildOfficerEventParticipationPatterns(filteredEvents),
+    };
+
+    const filterSummary = (() => {
+        if (filters.mode.type === 'range') {
+            if (filters.mode.startDate && !filters.mode.endDate) {
+                return `Showing analytics for ${new Date(`${filters.mode.startDate}T00:00:00`).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                })} (${filters.academicYear}).`;
+            }
+            const start = filters.mode.startDate
+                ? new Date(`${filters.mode.startDate}T00:00:00`).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                })
+                : '...';
+            const end = filters.mode.endDate
+                ? new Date(`${filters.mode.endDate}T00:00:00`).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                })
+                : '...';
+            return `Showing analytics from ${start} to ${end} (${filters.academicYear}).`;
+        }
+        return `Showing all available analytics for academic year ${filters.academicYear}.`;
+    })();
+
+    return {
+        filters,
+        availability: {
+            servicesApplicable,
+            rentalsEnabled: typeof officerRentalsEnabled !== 'undefined' ? !!officerRentalsEnabled : true,
+            printingEnabled: typeof officerPrintingEnabled !== 'undefined' ? !!officerPrintingEnabled : true,
+        },
+        source,
+        financial: filteredFinancial,
+        docs: filteredDocs,
+        documentFeedback: buildOfficerDocumentAiFeedback(filteredDocs),
+        rentals: filteredRentals,
+        events: filteredEvents,
+        totals: {
+            revenue: totalRevenue,
+            participationAverage,
+            participationTotal,
+        },
+        summaries: {
+            revenueTrend,
+            revenueGrowthBreakdown,
+            participation: retentionLevel,
+            filterSummary,
+        },
+        counts: {
+            financial: financialCounts,
+            rentals: rentalCounts,
+            docs: docCounts,
+        },
+        patterns,
+        charts: {
+            revenue: {
+                labels: servicesApplicable
+                    ? (revenueLabels.length ? revenueLabels : ['No revenue data'])
+                    : ['Not applicable'],
+                values: revenueValues.length ? revenueValues : [0],
+            },
+            participation: {
+                labels: participationSeries.length ? participationSeries.map((item) => item.label) : ['No events'],
+                values: participationSeries.length ? participationSeries.map((item) => item.value) : [0],
+            },
+            rentals: {
+                labels: servicesApplicable ? ['Active', 'Pending', 'Overdue'] : ['Not applicable'],
+                values: servicesApplicable
+                    ? [rentalCounts.active, rentalCounts.pending, rentalCounts.overdue]
+                    : [0],
+            },
+            docs: {
+                labels: ['Approved', 'Pending', 'Rejected'],
+                values: [docCounts.approved, docCounts.pending, docCounts.rejected],
+            },
+        },
+    };
+}
+
+function updateOfficerAnalyticsCardText(snapshot) {
+    const servicesApplicable = snapshot?.availability?.servicesApplicable !== false;
+    const availabilityMappings = [
+        ['analyticsFinancialUnavailable', 'analyticsFinancialChartContent'],
+        ['analyticsInventoryUnavailable', 'analyticsInventoryChartContent'],
+    ];
+    availabilityMappings.forEach(([messageId, contentId]) => {
+        const message = document.getElementById(messageId);
+        const content = document.getElementById(contentId);
+        if (message) message.hidden = servicesApplicable;
+        if (content) content.style.display = servicesApplicable
+            ? (contentId === 'analyticsInventoryChartContent' ? 'flex' : '')
+            : 'none';
+    });
+    const financialStats = document.getElementById('analyticsFinancialStats');
+    if (financialStats) financialStats.style.display = servicesApplicable ? '' : 'none';
+
+    // Update Financial Performance Card
+    const financialFooter = document.querySelector('.card-financial .analytics-stats-footer');
+    if (financialFooter) {
+        const statValues = financialFooter.querySelectorAll('.stat-value');
+        if (statValues[0]) {
+            statValues[0].innerHTML = typeof formatOfficerPeso === 'function'
+                ? formatOfficerPeso(snapshot.totals.revenue)
+                : `₱${snapshot.totals.revenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        if (statValues[1]) {
+            const growthItems = Array.isArray(snapshot.summaries.revenueGrowthBreakdown)
+                ? snapshot.summaries.revenueGrowthBreakdown
+                : [];
+            statValues[1].className = 'stat-value';
+            statValues[1].innerHTML = growthItems.map((item) => {
+                const icon = item.value >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+                const color = item.value >= 0 ? '#059669' : '#dc2626';
+                const sign = item.value > 0 ? '+' : '';
+                return `
+                    <div style="display:flex; flex-direction:column; align-items:center; line-height:1.15; margin-bottom:6px;">
+                        <span style="color:${color}; font-weight:700;"><i class="fa-solid ${icon}"></i> ${sign}${item.value.toFixed(1)}%</span>
+                        <span style="font-size:0.72rem; font-weight:500; color:var(--muted); margin-top:4px;">
+                            ${item.label}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Update Participation Trends Card
+    const participationFooter = document.querySelector('.card-participation .analytics-stats-footer');
+    if (participationFooter) {
+        const statValues = participationFooter.querySelectorAll('.stat-value');
+        if (statValues[0]) {
+            statValues[0].innerHTML = `<i class="fa-solid fa-users"></i> ${snapshot.totals.participationAverage}`;
+        }
+        const retentionBadge = participationFooter.querySelector('.stat-badge');
+        if (retentionBadge) {
+            retentionBadge.textContent = snapshot.summaries.participation;
+            // Update badge class based on retention level
+            const retentionLower = snapshot.summaries.participation.toLowerCase();
+            retentionBadge.className = 'stat-badge';
+            if (retentionLower.includes('high')) {
+                retentionBadge.classList.add('stat-badge-high');
+            } else if (retentionLower.includes('medium') || retentionLower.includes('moderate')) {
+                retentionBadge.classList.add('stat-badge-medium');
+            } else if (retentionLower.includes('low')) {
+                retentionBadge.classList.add('stat-badge-low');
+            }
+        }
+    }
+
+    const activeFilter = document.getElementById('analytics-active-filter');
+    if (activeFilter) {
+        let filterText = snapshot.summaries.filterSummary;
+        if (!servicesApplicable) {
+            filterText += ' Service analytics are not applicable because Organization Rentals and Printing are disabled.';
+        }
+        // Add mock data indicator
+        if (officerAnalyticsState.mockData) {
+            filterText = '<span style="background: #059669; color: white; padding: 4px 8px; border-radius: 4px; font-weight: 600; margin-right: 8px;"><i class="fa-solid fa-flask"></i> MOCK DATA</span> ' + filterText;
+        }
+        activeFilter.innerHTML = filterText;
+    }
+
+    const rentalsLegend = document.getElementById('analytics-rentals-legend');
+    if (rentalsLegend) {
+        const total = snapshot.counts.rentals.active + snapshot.counts.rentals.pending + snapshot.counts.rentals.overdue;
+        const activePercent = total > 0 ? (snapshot.counts.rentals.active / total) * 100 : 0;
+        const pendingPercent = total > 0 ? (snapshot.counts.rentals.pending / total) * 100 : 0;
+        const overduePercent = total > 0 ? (snapshot.counts.rentals.overdue / total) * 100 : 0;
+
+        rentalsLegend.innerHTML = `
+            <div class="legend-item legend-active">
+                <div class="legend-info">
+                    <span class="legend-label">Active</span>
+                    <span class="legend-value">${snapshot.counts.rentals.active}</span>
+                </div>
+                <div class="legend-bar">
+                    <div class="legend-bar-fill" style="width: ${activePercent}%; background: #059669;"></div>
+                </div>
+            </div>
+            <div class="legend-item legend-pending">
+                <div class="legend-info">
+                    <span class="legend-label">Pending</span>
+                    <span class="legend-value">${snapshot.counts.rentals.pending}</span>
+                </div>
+                <div class="legend-bar">
+                    <div class="legend-bar-fill" style="width: ${pendingPercent}%; background: #d97706;"></div>
+                </div>
+            </div>
+            <div class="legend-item legend-overdue">
+                <div class="legend-info">
+                    <span class="legend-label">Overdue</span>
+                    <span class="legend-value">${snapshot.counts.rentals.overdue}</span>
+                </div>
+                <div class="legend-bar">
+                    <div class="legend-bar-fill" style="width: ${overduePercent}%; background: #dc2626;"></div>
+                </div>
+            </div>
+        `;
+    }
+
+    const docsLegend = document.getElementById('analytics-docs-legend');
+    if (docsLegend) {
+        const total = snapshot.counts.docs.approved + snapshot.counts.docs.pending + snapshot.counts.docs.rejected;
+        const approvedPercent = total > 0 ? (snapshot.counts.docs.approved / total) * 100 : 0;
+        const pendingPercent = total > 0 ? (snapshot.counts.docs.pending / total) * 100 : 0;
+        const rejectedPercent = total > 0 ? (snapshot.counts.docs.rejected / total) * 100 : 0;
+
+        docsLegend.innerHTML = `
+            <div class="legend-item legend-approved">
+                <div class="legend-info">
+                    <span class="legend-label">Approved</span>
+                    <span class="legend-value">${snapshot.counts.docs.approved}</span>
+                </div>
+                <div class="legend-progress">
+                    <div class="legend-progress-bar" style="width: ${approvedPercent}%; background: #059669;"></div>
+                </div>
+            </div>
+            <div class="legend-item legend-pending">
+                <div class="legend-info">
+                    <span class="legend-label">Pending</span>
+                    <span class="legend-value">${snapshot.counts.docs.pending}</span>
+                </div>
+                <div class="legend-progress">
+                    <div class="legend-progress-bar" style="width: ${pendingPercent}%; background: #d97706;"></div>
+                </div>
+            </div>
+            <div class="legend-item legend-rejected">
+                <div class="legend-info">
+                    <span class="legend-label">Rejected</span>
+                    <span class="legend-value">${snapshot.counts.docs.rejected}</span>
+                </div>
+                <div class="legend-progress">
+                    <div class="legend-progress-bar" style="width: ${rejectedPercent}%; background: #dc2626;"></div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function buildOfficerAnalyticsInsightsRequest(snapshot) {
+    const filters = snapshot?.filters || {};
+    const mode = filters.mode || {};
+    return {
+        snapshot: {
+            filters: snapshot?.filters || {},
+            availability: snapshot?.availability || {},
+            totals: snapshot?.totals || {},
+            counts: snapshot?.counts || {},
+            summaries: snapshot?.summaries || {},
+            charts: snapshot?.charts || {},
+            patterns: snapshot?.patterns || {},
+            documentFeedback: snapshot?.documentFeedback || buildOfficerDocumentAiFeedback(snapshot?.docs),
+            events: Array.isArray(snapshot?.events)
+                ? snapshot.events.map((event) => ({
+                    id: event.id || event.event_id || null,
+                    title: event.title || event.event_name || 'Event',
+                    date: event.date || event.event_datetime || '',
+                    venue: event.venue || event.location || 'TBA',
+                    participants: Number(event.participants || event.attendance_count || 0),
+                }))
+                : [],
+        },
+        filters: {
+            academicYear: filters.academicYear || '',
+            dateRange: {
+                startDate: mode.startDate || null,
+                endDate: mode.endDate || null,
+            },
+        },
+    };
+}
+
+function buildOfficerAnalyticsInsightsCacheKey(snapshot) {
+    const payload = {
+        version: 23,
+        filters: snapshot?.filters || {},
+        availability: snapshot?.availability || {},
+        totals: snapshot?.totals || {},
+        counts: snapshot?.counts || {},
+        summaries: snapshot?.summaries || {},
+        charts: snapshot?.charts || {},
+        patterns: snapshot?.patterns || {},
+        documentFeedback: snapshot?.documentFeedback || buildOfficerDocumentAiFeedback(snapshot?.docs),
+        eventIds: Array.isArray(snapshot?.events) ? snapshot.events.map((event) => [event.id || event.event_id || event.title, event.participants || 0, event.date || '']) : [],
+    };
+    return JSON.stringify(payload);
+}
+
+function getOfficerServiceAnalyticsUnavailableMessage() {
+    return 'Not applicable — Organization Rentals and Printing are disabled by OSA.';
+}
+
+function setOfficerAnalyticsInsightsLoading() {
+    const overview = document.getElementById('analyticsInsightOverall');
+    if (overview) overview.textContent = 'Generating an explanation of the selected data...';
+    const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
+    const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
+    if (providerBadge) {
+        providerBadge.style.display = 'inline-flex';
+        providerBadge.textContent = 'Generating insights...';
+        providerBadge.title = '';
+    }
+    if (refreshButton) {
+        refreshButton.disabled = true;
+    }
+
+    ['analyticsInsightFinancial', 'analyticsInsightParticipation', 'analyticsInsightInventory', 'analyticsInsightDocuments'].forEach((id) => {
+        const element = document.getElementById(id);
+        if (element) {
+            const serviceInsight = id === 'analyticsInsightFinancial' || id === 'analyticsInsightInventory';
+            element.textContent = serviceInsight && !isOfficerServiceAnalyticsApplicable()
+                ? getOfficerServiceAnalyticsUnavailableMessage()
+                : 'Generating insights...';
+        }
+    });
+}
+
+function setOfficerAnalyticsInsightsIdle() {
+    const overview = document.getElementById('analyticsInsightOverall');
+    if (overview) overview.textContent = 'Click Generate Insights to explain the selected data.';
+    const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
+    const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
+    if (providerBadge) {
+        providerBadge.style.display = 'none';
+        providerBadge.textContent = '';
+        providerBadge.title = '';
+    }
+    if (refreshButton) {
+        refreshButton.disabled = false;
+    }
+
+    ['analyticsInsightFinancial', 'analyticsInsightParticipation', 'analyticsInsightInventory', 'analyticsInsightDocuments'].forEach((id) => {
+        const element = document.getElementById(id);
+        if (element) {
+            const serviceInsight = id === 'analyticsInsightFinancial' || id === 'analyticsInsightInventory';
+            element.textContent = serviceInsight && !isOfficerServiceAnalyticsApplicable()
+                ? getOfficerServiceAnalyticsUnavailableMessage()
+                : 'Click Generate Insights to generate an AI analysis.';
+        }
+    });
+}
+
+function renderOfficerAnalyticsInsights(insights) {
+    const serviceAnalyticsApplicable = isOfficerServiceAnalyticsApplicable();
+    const unavailableMessage = getOfficerServiceAnalyticsUnavailableMessage();
+    const mappings = {
+        analyticsInsightOverall: insights?.exportSummary || 'No overall summary is available for the selected data.',
+        analyticsInsightFinancial: serviceAnalyticsApplicable
+            ? (insights?.chartSummaries?.financial || 'No financial insight available.')
+            : unavailableMessage,
+        analyticsInsightParticipation: insights?.chartSummaries?.participation || 'No participation insight available.',
+        analyticsInsightInventory: serviceAnalyticsApplicable
+            ? (insights?.chartSummaries?.inventory || 'No inventory insight available.')
+            : unavailableMessage,
+        analyticsInsightDocuments: insights?.chartSummaries?.documents || 'No document insight available.',
+    };
+
+    Object.entries(mappings).forEach(([id, text]) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.style.whiteSpace = 'pre-line';
+            element.textContent = formatOfficerAnalyticsInsightLines(text);
+        }
+    });
+
+    const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
+    if (providerBadge) {
+        const providerName = String(insights?.provider || 'rule-based').toLowerCase();
+        const providerLabel = providerName.startsWith('gemini')
+            ? 'Gemini'
+            : 'Rule-based';
+        providerBadge.style.display = 'inline-flex';
+        providerBadge.textContent = insights?.fallbackUsed ? `${providerLabel} fallback` : providerLabel;
+        const errors = Array.isArray(insights?.providerErrors) ? insights.providerErrors.join(' ') : '';
+        const reasons = [];
+        if (/quota|rate.limit|429/i.test(errors)) reasons.push('An AI provider reported a usage limit.');
+        if (/high demand|overload|503/i.test(errors)) reasons.push('An AI provider is temporarily busy.');
+        if (/timed? out|timeout/i.test(errors)) reasons.push('An AI request timed out.');
+        if (/Incomplete AI response|Invalid AI feedback|Unsupported AI feedback|AI omitted|Missing AI feedback|structured JSON|invalid.*JSON|truncated|did not finish/i.test(errors)) reasons.push('An AI response failed the report completeness or evidence checks.');
+        providerBadge.title = insights?.fallbackUsed
+            ? (reasons.join(' ') || 'AI generation was unavailable. The report uses rule-based explanations.') : '';
+    }
+
+    const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
+    if (refreshButton) {
+        refreshButton.disabled = false;
+    }
+}
+
+function formatOfficerAnalyticsInsightLines(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    const existingLines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const lines = existingLines.length > 1
+        ? existingLines
+        : text.split(/(?<=[.!?])\s+(?=[A-Z0-9])/u).filter(Boolean);
+    return lines
+        .map((line) => `- ${String(line).replace(/^(?:[-*•]\s*)+/, '').trim()}`)
+        .join('\n');
+}
+
+function buildOfficerAnalyticsFallbackInsights(snapshot = {}) {
+    const serviceAnalyticsApplicable = snapshot?.availability?.servicesApplicable !== false;
+    const revenue = Number(snapshot?.totals?.revenue || 0);
+    const participationTotal = Number(snapshot?.totals?.participationTotal || 0);
+    const participationAverage = Number(snapshot?.totals?.participationAverage || 0);
+    const eventCount = Array.isArray(snapshot?.events) ? snapshot.events.length : 0;
+    const rentals = snapshot?.counts?.rentals || {};
+    const docs = snapshot?.counts?.docs || {};
+    const financialCounts = snapshot?.counts?.financial || {};
+    const patterns = snapshot?.patterns || {};
+    const balancePattern = patterns.financialBalances || {};
+    const rentalPattern = patterns.rentalFrequency || {};
+    const rejectionPattern = patterns.documentRejections || {};
+    const eventPattern = patterns.eventParticipation || {};
+    const topRental = Array.isArray(rentalPattern.mostRented) ? rentalPattern.mostRented[0] : null;
+    const lowRental = Array.isArray(rentalPattern.leastRented) ? rentalPattern.leastRented[0] : null;
+    const topRejection = Array.isArray(rejectionPattern.categories) ? rejectionPattern.categories[0] : null;
+    const balanceFinding = Number(balancePattern.transactions || 0) > 0
+        ? `${Number(balancePattern.outstandingTransactions || 0)} of ${Number(balancePattern.transactions || 0)} transactions have a positive remaining balance, affecting ${Number(balancePattern.customersWithOutstanding || 0)} of ${Number(balancePattern.identifiedCustomers || 0)} identified students/customers.`
+        : 'No transactions are available for remaining-balance analysis.';
+    const rentalFinding = topRental && lowRental
+        ? `${topRental.name} appears most often (${Number(topRental.count || 0)} rental records), while ${lowRental.name} appears least often among rented items (${Number(lowRental.count || 0)}).`
+        : 'The available rental history is insufficient for a most-versus-least item comparison.';
+    const rejectionFinding = topRejection && Number(rejectionPattern.rejectedWithNotes || 0) >= 2
+        ? `${topRejection.label} is the most frequent categorized rejection issue, appearing in ${Number(topRejection.count || 0)} of ${Number(rejectionPattern.rejectedWithNotes || 0)} rejected documents with usable notes.`
+        : 'The available rejection notes are insufficient to identify a common rejection issue.';
+    const eventFinding = Number(eventPattern.eventCount || 0) > 0
+        ? `Median attendance is ${Number(eventPattern.medianAttendance || 0)}, with ${Number(eventPattern.zeroAttendanceEvents || 0)} zero-attendance event(s) and ${Number(eventPattern.coefficientOfVariation || 0).toFixed(1)}% relative dispersion.`
+        : 'The available event data is insufficient for participation-distribution analysis.';
+    const financial = `Recorded paid revenue is ${formatOfficerPeso(revenue)} for the selected filters. The local emergency summary cannot establish a more detailed pattern without the analytics endpoint.`;
+    const participation = `Recorded participation totals ${participationTotal} across ${eventCount} event(s), with an average of ${participationAverage}. ${eventFinding}`;
+    const inventory = `Rental statuses include ${Number(rentals.active || 0)} active, ${Number(rentals.pending || 0)} pending, and ${Number(rentals.overdue || 0)} overdue records. ${rentalFinding}`;
+    const documents = `Document statuses include ${Number(docs.approved || 0)} approved, ${Number(docs.pending || 0)} pending, and ${Number(docs.rejected || 0)} rejected submissions. ${rejectionFinding}`;
+
+    const result = {
+        chartSummaries: {
+            financial: formatOfficerAnalyticsInsightLines(`${financial} ${balanceFinding}`),
+            participation: formatOfficerAnalyticsInsightLines(participation),
+            inventory: formatOfficerAnalyticsInsightLines(inventory),
+            documents: formatOfficerAnalyticsInsightLines(documents),
+        },
+        exportSections: {
+            revenueSeries: formatOfficerAnalyticsInsightLines(`${financial} Recorded revenue values remain available in the accompanying table.`),
+            eventParticipation: formatOfficerAnalyticsInsightLines(`${participation} Event-level values remain available in the accompanying table.`),
+            financialTransactions: formatOfficerAnalyticsInsightLines(`The selected data contains ${Number(financialCounts.total || 0)} financial transaction(s): ${Number(financialCounts.paid || 0)} paid and ${Number(financialCounts.outstanding || 0)} outstanding. Paid transactions account for ${formatOfficerPeso(revenue)} in recorded revenue. ${balanceFinding}`),
+            rentalRecords: formatOfficerAnalyticsInsightLines(`${inventory} The accompanying table provides the underlying rental records.`),
+            documentWorkflow: formatOfficerAnalyticsInsightLines(`${documents} The accompanying table provides the underlying document records.`),
+        },
+        exportSummary: formatOfficerAnalyticsInsightLines(`${financial} ${participation} ${inventory} ${documents}`),
+        provider: 'rule-based',
+        fallbackUsed: true,
+    };
+    if (!serviceAnalyticsApplicable) {
+        const unavailable = formatOfficerAnalyticsInsightLines(getOfficerServiceAnalyticsUnavailableMessage());
+        result.chartSummaries.financial = unavailable;
+        result.chartSummaries.inventory = unavailable;
+        result.exportSections.revenueSeries = unavailable;
+        result.exportSections.financialTransactions = unavailable;
+        result.exportSections.rentalRecords = unavailable;
+        result.exportSummary = formatOfficerAnalyticsInsightLines(
+            `${getOfficerServiceAnalyticsUnavailableMessage()} Participation and document workflow analytics remain available.`
+        );
+    }
+    return result;
+}
+
+async function getOfficerAnalyticsInsightsData(options = {}) {
+    const snapshot = options.snapshot || officerAnalyticsState.snapshot || getOfficerAnalyticsSnapshot();
+    const render = options.render !== false;
+    const forceRefresh = !!options.forceRefresh;
+    const cacheKey = buildOfficerAnalyticsInsightsCacheKey(snapshot);
+    // Only dashboard consumers own display state; report generation must not replace it.
+    const requestId = render ? ++officerAnalyticsInsightsState.latestRequestId : null;
+    if (render) officerAnalyticsInsightsState.currentKey = cacheKey;
+    const shouldRender = () => render
+        && officerAnalyticsInsightsState.currentKey === cacheKey
+        && officerAnalyticsInsightsState.latestRequestId === requestId;
+
+    if (!forceRefresh && officerAnalyticsInsightsState.cache.has(cacheKey)) {
+        const cached = officerAnalyticsInsightsState.cache.get(cacheKey);
+        if (shouldRender()) renderOfficerAnalyticsInsights(cached);
+        return cached;
+    }
+
+    if (shouldRender()) setOfficerAnalyticsInsightsLoading();
+
+    // Every uncached consumer uses the normal backend provider sequence:
+    // Gemini first, followed by deterministic rule-based fallback.
+    if (officerAnalyticsInsightsState.pending.has(cacheKey)) {
+        try {
+            const pending = await officerAnalyticsInsightsState.pending.get(cacheKey);
+            if (shouldRender()) renderOfficerAnalyticsInsights(pending);
+            return pending;
+        } catch (error) {
+            console.error('getOfficerAnalyticsInsightsData pending request failed', error);
+            const fallback = buildOfficerAnalyticsFallbackInsights(snapshot);
+            if (shouldRender()) renderOfficerAnalyticsInsights(fallback);
+            return fallback;
+        }
+    }
+
+    const request = (async () => {
+        const response = await fetch('../api/analytics/generate-insights.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                ...buildOfficerAnalyticsInsightsRequest(snapshot),
+                forceRefresh,
+            }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || `Request failed (${response.status})`);
+        }
+        return payload;
+    })();
+    officerAnalyticsInsightsState.pending.set(cacheKey, request);
+
+    try {
+        const payload = await request;
+        officerAnalyticsInsightsState.cache.set(cacheKey, payload);
+        if (shouldRender()) renderOfficerAnalyticsInsights(payload);
+        return payload;
+    } catch (error) {
+        console.error('getOfficerAnalyticsInsightsData failed', error);
+        const fallback = buildOfficerAnalyticsFallbackInsights(snapshot);
+        if (shouldRender()) renderOfficerAnalyticsInsights(fallback);
+        return fallback;
+    } finally {
+        if (officerAnalyticsInsightsState.pending.get(cacheKey) === request) {
+            officerAnalyticsInsightsState.pending.delete(cacheKey);
+        }
+    }
+}
+
+function regenerateOfficerAnalyticsInsights() {
+    if (!officerAnalyticsState.snapshot) {
+        refreshAnalyticsCharts();
+    }
+    if (!officerAnalyticsState.snapshot) {
+        return;
+    }
+
+    const cacheKey = buildOfficerAnalyticsInsightsCacheKey(officerAnalyticsState.snapshot);
+    officerAnalyticsInsightsState.cache.delete(cacheKey);
+    void getOfficerAnalyticsInsightsData({
+        snapshot: officerAnalyticsState.snapshot,
+        render: true,
+        forceRefresh: true,
+    });
+}
+
+window.regenerateOfficerAnalyticsInsights = regenerateOfficerAnalyticsInsights;
+window.getOfficerAnalyticsInsightsData = getOfficerAnalyticsInsightsData;
+
+function upsertOfficerAnalyticsChart(key, elementId, config) {
+    const canvas = document.getElementById(elementId);
+    if (!canvas || typeof Chart === 'undefined') {
+        return;
+    }
+
+    // Destroy existing chart and recreate it to ensure proper rendering
+    if (officerAnalyticsState.charts[key]) {
+        officerAnalyticsState.charts[key].destroy();
+        delete officerAnalyticsState.charts[key];
+    }
+
+    officerAnalyticsState.charts[key] = new Chart(canvas, config);
+}
+
+function renderOfficerAnalyticsCharts(snapshot) {
+    upsertOfficerAnalyticsChart('revenue', 'revenueChart', {
+        type: 'line',
+        data: {
+            labels: snapshot.charts.revenue.labels,
+            datasets: [{
+                label: 'Revenue',
+                data: snapshot.charts.revenue.values,
+                borderColor: '#002147',
+                backgroundColor: 'rgba(0, 33, 71, 0.08)',
+                fill: true,
+                tension: 0.35,
+                borderWidth: 3,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                pointBackgroundColor: '#002147',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    enabled: true,
+                    callbacks: {
+                        label: function(context) {
+                            return 'Revenue: ₱' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { display: false },
+                    ticks: {
+                        callback: function(value) {
+                            return '₱' + value.toLocaleString();
+                        }
+                    }
+                },
+                x: { grid: { display: false } },
+            },
+        },
+    });
+
+    upsertOfficerAnalyticsChart('participation', 'participationChart', {
+        type: 'bar',
+        data: {
+            labels: snapshot.charts.participation.labels,
+            datasets: [{
+                label: 'Participants',
+                data: snapshot.charts.participation.values,
+                backgroundColor: snapshot.charts.participation.values.map((value, index, arr) => {
+                    if (!arr.length) return '#94a3b8';
+                    const max = Math.max(...arr);
+                    return value === max ? '#059669' : '#cbd5e1';
+                }),
+                borderRadius: 6,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { display: false } },
+                x: { grid: { display: false } },
+            },
+        },
+    });
+
+    upsertOfficerAnalyticsChart('rentals', 'rentalsChart', {
+        type: 'doughnut',
+        data: {
+            labels: snapshot.charts.rentals.labels,
+            datasets: [{
+                data: snapshot.charts.rentals.values,
+                backgroundColor: ['#002147', '#d97706', '#dc2626'],
+                borderWidth: 0,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            cutout: '70%',
+        },
+    });
+
+    upsertOfficerAnalyticsChart('docs', 'docsChart', {
+        type: 'pie',
+        data: {
+            labels: snapshot.charts.docs.labels,
+            datasets: [{
+                data: snapshot.charts.docs.values,
+                backgroundColor: ['#059669', '#d97706', '#dc2626'],
+                borderWidth: 0,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+        },
+    });
+}
+
+function refreshAnalyticsCharts() {
+    const snapshot = getOfficerAnalyticsSnapshot();
+    const cacheKey = buildOfficerAnalyticsInsightsCacheKey(snapshot);
+    officerAnalyticsState.snapshot = snapshot;
+    updateOfficerAnalyticsCardText(snapshot);
+    renderOfficerAnalyticsCharts(snapshot);
+    renderOfficerAnalyticsEvidence(snapshot);
+
+    if (officerAnalyticsInsightsState.currentKey !== cacheKey) {
+        officerAnalyticsInsightsState.latestRequestId++;
+        officerAnalyticsInsightsState.currentKey = cacheKey;
+        setOfficerAnalyticsInsightsIdle();
+    }
+}
+
+// Evidence stays local: only aggregate category counts and revision checks go to AI.
+function openAnalyticsEvidence(title, records) {
+    document.getElementById('analytics-evidence-dialog')?.remove();
+    const dialog = document.createElement('dialog');
+    dialog.id = 'analytics-evidence-dialog';
+    dialog.className = 'analytics-evidence-dialog';
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    dialog.append(heading);
+    const close = document.createElement('button');
+    close.className = 'btn btn-outline btn-sm';
+    close.textContent = 'Close';
+    close.onclick = () => dialog.close();
+    dialog.append(close);
+    records.forEach(record => {
+        const article = document.createElement('article');
+        const label = document.createElement('strong');
+        label.textContent = record.title || record.item || record.item_label || record.service_type || 'Record';
+        const detail = document.createElement('p');
+        detail.textContent = [record.submittedAt || record.date || record.transaction_date || record.due,
+            record.status || record.payment_status,
+            record.participants !== undefined ? `${record.participants} participants` : '',
+            record.total_cost !== undefined ? `PHP ${record.total_cost}` : '',
+            record.rejectionEvidence || ''].filter(Boolean).join(' · ');
+        article.append(label, detail);
+        dialog.append(article);
+    });
+    if (!records.length) dialog.append(document.createTextNode('No supporting records in the selected period.'));
+    dialog.addEventListener('close', () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+}
+
+function renderOfficerAnalyticsEvidence(snapshot) {
+    const groups = [
+        ['Financial', snapshot.financial],
+        ['Participation', snapshot.events],
+        ['Inventory', snapshot.rentals],
+        ['Documents', snapshot.docs]
+    ];
+    groups.forEach(([name, records]) => {
+        const insight = document.getElementById(`analyticsInsight${name}`);
+        if (!insight) return;
+        let panel = document.getElementById(`analyticsEvidence${name}`);
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = `analyticsEvidence${name}`;
+            panel.className = 'analytics-evidence';
+            insight.after(panel);
+        }
+        panel.replaceChildren();
+        panel.hidden = ['Financial', 'Inventory'].includes(name) && !snapshot.availability.servicesApplicable;
+        const button = document.createElement('button');
+        button.className = 'btn btn-outline btn-sm';
+        button.textContent = 'View supporting records';
+        button.onclick = () => openAnalyticsEvidence(`${name} — supporting records`, records);
+        panel.append(button);
+    });
+}
+
+function isOfficerAnalyticsAiResponse(insights) {
+    return String(insights?.provider || '').startsWith('gemini:') && insights?.fallbackUsed !== true;
+}
+
+function getOfficerAnalyticsSummaryNotes(report, insights) {
+    const rentals = report.counts.rentals;
+    const docs = report.counts.docs;
+    const plural = count => Number(count) === 1 ? '' : 's';
+    const unavailable = 'Not applicable — Rentals and Printing are disabled';
+    let rejectionFeedback = '';
+    if (isOfficerAnalyticsAiResponse(insights)) {
+        rejectionFeedback = String(insights.documentGuidance?.rejectionSummary || '').split(/\r?\n/)
+            .map(line => line.replace(/^\s*[-*]\s*/, '').trim()).find(Boolean) || '';
+    } else {
+        const patterns = buildOfficerDocumentRejectionPatterns(report.docs || []);
+        const leading = patterns.categories.filter(category => category.count === patterns.categories[0]?.count);
+        rejectionFeedback = leading.length
+            ? `Most frequent recorded feedback: ${leading.map(category => `${category.label.toLowerCase()} (${category.count} document${plural(category.count)})`).join('; ')}.`
+            : 'No usable rejection feedback is recorded for this selection.';
+    }
+    return {
+        participants: `${report.totals.participationTotal} attendance entries across ${report.events.length} event${plural(report.events.length)}. These may include the same student at different events.`,
+        activeRentals: report.availability?.servicesApplicable === false ? unavailable : `${rentals.active} rental${plural(rentals.active)} ${Number(rentals.active) === 1 ? 'is' : 'are'} currently in use.`,
+        pendingRentals: report.availability?.servicesApplicable === false ? unavailable : `${rentals.pending} rental request${plural(rentals.pending)} ${Number(rentals.pending) === 1 ? 'is' : 'are'} waiting to be processed.`,
+        overdueRentals: report.availability?.servicesApplicable === false ? unavailable : `${rentals.overdue} rental${plural(rentals.overdue)} ${Number(rentals.overdue) === 1 ? 'is' : 'are'} past the recorded return deadline.`,
+        approvedDocs: `${docs.approved} document${plural(docs.approved)} ${Number(docs.approved) === 1 ? 'is' : 'are'} recorded as approved. Approval alone does not establish which practices worked.`,
+        pendingDocs: `${docs.pending} document${plural(docs.pending)} ${Number(docs.pending) === 1 ? 'is' : 'are'} still awaiting review or approval.`,
+        rejectedDocs: `${docs.rejected} document${plural(docs.rejected)} ${Number(docs.rejected) === 1 ? 'was' : 'were'} rejected.${Number(docs.rejected) > 0 && rejectionFeedback ? ` ${rejectionFeedback}` : ''}`,
+    };
+}
+
+function hasOfficerDocumentAiEvidence(snapshot, analysis) {
+    if (!analysis || !Array.isArray(analysis.rejectionCategories) || !Array.isArray(analysis.positivePractices)) return false;
+    const records = new Map((snapshot.documentFeedback?.records || []).map(record => [record.ref, record.status]));
+    const covered = new Set();
+    for (const [group, status] of [['rejectionCategories', 'rejected'], ['positivePractices', 'approved']]) {
+        const keys = new Set();
+        for (const category of analysis[group]) {
+            if (!category || typeof category.key !== 'string' || keys.has(category.key) || typeof category.label !== 'string'
+                || !Array.isArray(category.documentRefs) || !category.documentRefs.length
+                || new Set(category.documentRefs).size !== category.documentRefs.length
+                || category.count !== category.documentRefs.length
+                || category.documentRefs.some(ref => records.get(ref) !== status)) return false;
+            keys.add(category.key);
+            if (status === 'rejected') category.documentRefs.forEach(ref => covered.add(ref));
+        }
+    }
+    const rejected = [...records].filter(([, status]) => status === 'rejected');
+    return rejected.every(([ref]) => covered.has(ref)) && analysis.reviewedRejectedDocuments === rejected.length;
+}
+
+function resolveOfficerAnalyticsReportInsights(snapshot, insights) {
+    if (!insights) return buildOfficerAnalyticsFallbackInsights(snapshot);
+    if (!isOfficerAnalyticsAiResponse(insights)) return insights;
+    const fields = [insights.exportSummary,
+        ...['financial', 'participation', 'inventory', 'documents'].map(key => insights.chartSummaries?.[key]),
+        ...['revenueSeries', 'eventParticipation', 'financialTransactions', 'rentalRecords', 'documentWorkflow'].map(key => insights.exportSections?.[key])];
+    // An incomplete AI response makes the entire report fall back, not individual sections.
+    const guidance = insights.documentGuidance;
+    if (snapshot.documentFeedback && !hasOfficerDocumentAiEvidence(snapshot, insights.documentAnalysis)) return buildOfficerAnalyticsFallbackInsights(snapshot);
+    const categories = insights.documentAnalysis?.rejectionCategories || buildOfficerDocumentRejectionPatterns(snapshot.docs || []).categories;
+    const completeGuidance = guidance && [guidance.rejectionSummary, guidance.keepDoing].every(value => typeof value === 'string' && value.trim())
+        && guidance.reviewChecks && Object.keys(guidance.reviewChecks).length === categories.length
+        && categories.every(category => typeof guidance.reviewChecks[category.key] === 'string' && guidance.reviewChecks[category.key].trim());
+    return completeGuidance && fields.every(value => typeof value === 'string' && value.trim())
+        ? insights : buildOfficerAnalyticsFallbackInsights(snapshot);
+}
+
+function getOfficerDocumentReportSections(snapshot, insights = null) {
+    const aiReport = isOfficerAnalyticsAiResponse(insights);
+    const keywordPatterns = buildOfficerDocumentRejectionPatterns(snapshot.docs, true);
+    const analysis = aiReport ? insights.documentAnalysis : null;
+    const patterns = analysis ? {...keywordPatterns, categories: analysis.rejectionCategories} : keywordPatterns;
+    const annotationsUnavailable = snapshot.documentFeedback?.annotationsUnavailable
+        ?? buildOfficerDocumentAiFeedback(snapshot.docs).annotationsUnavailable;
+    const coverage = analysis
+        ? `AI-interpreted feedback: ${analysis.reviewedRejectedDocuments} rejected and ${analysis.reviewedApprovedDocuments} approved documents were read. Shares use the ${analysis.reviewedRejectedDocuments} rejected documents read; categories may overlap. ${analysis.omittedDocuments || 0} documents with feedback were omitted from the bounded sample; ${analysis.truncatedComments || 0} comments were shortened or omitted. ${annotationsUnavailable} documents could not load annotations. Interpretations may be mistaken; check the original feedback. Checks do not guarantee approval.`
+        : `Coverage: ${patterns.rejectedWithNotes} of ${patterns.rejectedDocuments} rejected documents have feedback; ${patterns.rejectedWithoutNotes} have no usable feedback.${patterns.annotationsUnavailable ? ` Annotations could not be loaded for ${patterns.annotationsUnavailable} documents.` : ''} Percentages use documents with feedback; categories may overlap. Checks address observed feedback and do not guarantee approval.`;
+    const priorities = [...patterns.categories].sort((a, b) => b.count - a.count).slice(0, 3);
+    const summary = priorities.length
+        ? `Summary: The most frequently recorded feedback categories are ${priorities.map(category => `${category.label.toLowerCase()} (${category.count} document${category.count === 1 ? '' : 's'}; ${category.share}%)`).join('; ')}.`
+        : 'Summary: No usable rejection feedback is available to identify common document issues.';
+    const improvements = priorities.length
+        ? ['Workflow improvements: Use a pre-submission checklist focused on these recorded issues.',
+            ...priorities.map((category, index) => `${index + 1}. ${category.revisionCheck}`),
+            'Before resubmitting, record the correction made for each Adviser, SSC, or OSA comment or annotation. Ask the reviewer to clarify any missing or unclear rejection feedback.']
+        : [patterns.rejectedDocuments
+            ? 'Workflow improvement: Obtain specific reviewer comments for rejected documents, then record each requested correction before resubmission.'
+            : 'Workflow review: No rejection-based priorities can be identified for this period. Continue checking submissions against the required document checklist.'];
+    const feedback = snapshot.docs
+        .filter(doc => String(doc.rawStatus || doc.status || '').toLowerCase().includes('reject'))
+        .flatMap(doc => getDocumentRejectionFeedback(doc).map(note => [
+            doc.title || 'Document', note.source, note.text + (note.selectedText ? `\nHighlighted passage: ${note.selectedText}` : '')
+        ]));
+    return [
+        {
+            title: 'Document Workflow - Summary',
+            description: insights?.exportSections?.documentWorkflow || 'Recorded document status for the selected period.',
+            head: ['Total documents', 'Approved', 'Pending', 'Rejected'],
+            body: [[snapshot.docs.length, snapshot.counts.docs.approved, snapshot.counts.docs.pending, snapshot.counts.docs.rejected]]
+        },
+        {
+            title: 'Rejection Reasons and Revision Checklist',
+            description: [...(aiReport ? [insights.documentGuidance.rejectionSummary, '', 'What to keep doing:', insights.documentGuidance.keepDoing] : [summary, '', ...improvements]), '', coverage].join('\n'),
+            head: ['Feedback category', 'Count', 'Share', 'What to review'],
+            body: patterns.categories.length ? patterns.categories.map(category => [category.label, category.count, `${category.share}%`, aiReport ? insights.documentGuidance.reviewChecks[category.key] : category.revisionCheck]) : [['No usable rejection feedback', '-', '-', '-']]
+        },
+        {
+            title: 'Document Records', description: '',
+            head: ['Title', 'Type', 'Submitted', 'Status'],
+            body: snapshot.docs.length ? snapshot.docs.map(doc => [doc.title || '-', doc.type || '-', doc.submittedAt || doc.date || '-', doc.status || '-']) : [['No document records', '', '', '']]
+        },
+        {
+            title: 'Reviewer Comments and Annotations',
+            description: `Original feedback from rejected documents, listed once per comment or annotation. Categories above are ${analysis ? 'AI interpretations of redacted reviewer feedback' : 'keyword matches in this feedback'}.`,
+            head: ['Document', 'Reviewer / source', 'Feedback'],
+            body: feedback.length ? feedback : [['No reviewer feedback available', '', '']]
+        }
+    ];
+}
+
+function getOfficerAnalyticsEvidenceReportRows(snapshot) {
+    const rows = [];
+    const groups = [
+        ['Financial', snapshot.financial, `${snapshot.counts.financial.outstanding} outstanding transactions`, snapshot.counts.financial.outstanding],
+        ['Participation', snapshot.events, `${snapshot.events.length} events; median attendance ${snapshot.patterns.eventParticipation.medianAttendance || 0}`, 0],
+        ['Inventory', snapshot.rentals, `${snapshot.counts.rentals.overdue} overdue rentals`, snapshot.counts.rentals.overdue],
+        ['Documents', snapshot.docs, `${snapshot.counts.docs.rejected} rejected; ${snapshot.counts.docs.pending} pending`, snapshot.counts.docs.rejected]
+    ];
+    groups.forEach(([name, records, finding, flagged]) => {
+        if (['Financial', 'Inventory'].includes(name) && !snapshot.availability.servicesApplicable) return;
+        rows.push([name, `${officerAnalyticsState.mockData ? 'MOCK DATA. ' : ''}${finding}. Evidence: ${records.length} records in the selected period. ${records.length === 0 ? 'Insufficient data.' : `${flagged ? 'Attention: recorded exceptions present.' : 'Descriptive observation.'}${records.length < 3 ? ' Small sample; interpret cautiously.' : ''}`}`]);
+    });
+    const patterns = buildOfficerDocumentRejectionPatterns(snapshot.docs, true);
+    rows.push(['Rejection feedback coverage', `${patterns.rejectedWithNotes} of ${patterns.rejectedDocuments} rejected documents have comments or annotation comments; ${patterns.rejectedWithoutNotes} lack usable feedback. ${patterns.annotationsUnavailable || 0} documents could not load annotations. ${patterns.categoryMethod} Checks address observed issues and do not guarantee approval.`]);
+    if (!patterns.categories.length) rows.push(['Rejection reasons', 'No usable rejection reasons for this period.']);
+    patterns.categories.forEach(category => {
+        rows.push([category.label, `${category.count}/${patterns.rejectedWithNotes} (${category.share}%). ${category.count >= 2 ? 'Recurring observation' : 'Single observation'}.\nRevision check: ${category.revisionCheck}`]);
+        category.records.forEach(record => {
+            rows.push([record.title || 'Document', record.rejectionEvidence || '']);
+        });
+    });
+    return rows;
+}
+
+function getOfficerAnalyticsReportEvidenceRows(snapshot, insights) {
+    if (!isOfficerAnalyticsAiResponse(insights)) return getOfficerAnalyticsEvidenceReportRows(snapshot);
+    return [['Financial', insights.chartSummaries.financial],
+        ['Participation', insights.chartSummaries.participation],
+        ['Inventory', insights.chartSummaries.inventory]]
+        .filter(([topic]) => snapshot.availability?.servicesApplicable !== false || topic === 'Participation');
+}
+
+function getOfficerAnalyticsReportData(overrides = {}) {
+    if (overrides && Object.keys(overrides).length > 0) {
+        return getOfficerAnalyticsSnapshot(overrides);
+    }
+    if (!officerAnalyticsState.snapshot) {
+        refreshAnalyticsCharts();
+    }
+    return officerAnalyticsState.snapshot;
+}
+
+function initializeOfficerAnalyticsYearOptions() {
+    const select = document.getElementById('filter-year');
+    if (!select) return;
+
+    const source = getOfficerAnalyticsSourceData();
+    const yearSet = new Set([getOfficerAnalyticsDefaultAcademicYear()]);
+
+    const pushDate = (value) => {
+        const parsed = parseOfficerAnalyticsDate(value);
+        if (!parsed) return;
+        const startYear = parsed.getMonth() >= 7 ? parsed.getFullYear() : parsed.getFullYear() - 1;
+        yearSet.add(`${startYear}-${startYear + 1}`);
+    };
+
+    source.financial.forEach((item) => pushDate(item?.transaction_date || item?.transaction_datetime || item?.submitted_at));
+    source.docs.forEach((item) => pushDate(item.submittedAt || item.date));
+    source.rentals.forEach((item) => pushDate(item.borrowedAt || item.dueAt || item.due));
+    source.events.forEach((item) => pushDate(item.date));
+
+    const years = Array.from(yearSet).sort((a, b) => b.localeCompare(a));
+    const current = years.includes(select.value) ? select.value : getOfficerAnalyticsDefaultAcademicYear();
+    select.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
+    select.value = current;
+}
+
+// --- MOCK DATA GENERATOR (for testing only - temporary) ---
+function generateMockAnalyticsData() {
+    if (!window.AppEnvironment?.isLocalDevelopment) return;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const academicYear = now.getMonth() >= 7 ? currentYear : currentYear - 1;
+    const studentFirstNames = ['Aira', 'Miguel', 'Sofia', 'Liam', 'Nicole', 'Daniel', 'Kyla', 'Ethan', 'Pat', 'Rica', 'Paolo', 'Andrea'];
+    const studentLastNames = ['Santos', 'Reyes', 'Cruz', 'Garcia', 'Mendoza', 'Flores', 'Castro', 'Torres', 'Navarro', 'Gonzales'];
+    const orgNames = ['Computer Society', 'Junior Finance Execs', 'Aviation Circle', 'Debate Guild', 'Media Arts Club'];
+    const serviceTypes = ['printing', 'lamination', 'document_request', 'event_registration'];
+    const printingItems = ['Poster Printing', 'Certificate Printing', 'ID Reprint', 'Flyer Batch'];
+    const docTypes = ['Budget Proposal', 'Activity Report', 'Permit Request', 'Equipment Request'];
+    const eventConfigs = [
+        { title: 'General Assembly', base: 125 },
+        { title: 'Leadership Workshop', base: 92 },
+        { title: 'Org Seminar', base: 76 },
+        { title: 'Volunteer Drive', base: 58 },
+        { title: 'Fundraising Booth', base: 49 },
+        { title: 'Career Fair', base: 101 },
+        { title: 'Team Building', base: 68 },
+        { title: 'Sports Fest', base: 140 },
+        { title: 'Cultural Night', base: 155 },
+    ];
+    const venues = ['Auditorium', 'Gymnasium', 'Quadrangle', 'Room 101', 'Covered Court', 'Innovation Hub'];
+    const rentalItems = [
+        { item: 'Projector', category: 'AV Equipment' },
+        { item: 'Sound System', category: 'AV Equipment' },
+        { item: 'Folding Tables', category: 'Furniture' },
+        { item: 'Plastic Chairs', category: 'Furniture' },
+        { item: 'Laptop', category: 'IT Equipment' },
+        { item: 'Microphone Set', category: 'AV Equipment' },
+        { item: 'Extension Cords', category: 'Utilities' },
+        { item: 'Backdrop Stand', category: 'Event Setup' },
+    ];
+
+    const pad = (value) => String(value).padStart(2, '0');
+    const toIsoDate = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const toIsoDateTime = (date, hour = 9, minute = 0) => {
+        const dt = new Date(date);
+        dt.setHours(hour, minute, 0, 0);
+        return `${toIsoDate(dt)}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00`;
+    };
+    const pick = (values) => values[Math.floor(Math.random() * values.length)];
+    const randomName = () => `${pick(studentFirstNames)} ${pick(studentLastNames)}`;
+    const randomStudentId = (index) => `202${Math.floor(Math.random() * 4) + 2}-${pad((index % 90) + 10)}${pad(Math.floor(Math.random() * 90) + 10)}`;
+    const randomPhone = () => `09${Math.floor(100000000 + Math.random() * 900000000)}`;
+    const retentionProfiles = [
+        { label: 'Low', carryMin: 0.04, carryMax: 0.18 },
+        { label: 'Medium', carryMin: 0.22, carryMax: 0.42 },
+        { label: 'High', carryMin: 0.5, carryMax: 0.78 },
+    ];
+    const mockRetentionProfile = pick(retentionProfiles);
+    const mockStudents = Array.from({ length: 180 }, (_, index) => {
+        const name = randomName();
+        return {
+            user_id: 5000 + index,
+            student_number: `202${Math.floor(index / 45) + 2}-${pad((index % 90) + 10)}${pad((index * 3) % 90 + 10)}`,
+            student_name: name,
+            section: `BSIT-${1 + (index % 4)}${String.fromCharCode(65 + (index % 3))}`,
+        };
+    });
+
+    // Helper to generate random date in current academic year
+    const randomDate = (monthsBack = 6) => {
+        const date = new Date(academicYear, 7 + Math.floor(Math.random() * monthsBack), Math.floor(Math.random() * 28) + 1);
+        return date.toISOString().split('T')[0];
+    };
+
+    const randomDateObject = (monthsBack = 6) => new Date(`${randomDate(monthsBack)}T00:00:00`);
+
+    // Generate 20-30 financial transactions
+    const transactionCount = 20 + Math.floor(Math.random() * 11);
+    const financial = [];
+    for (let i = 0; i < transactionCount; i++) {
+        const amount = 50 + Math.floor(Math.random() * 950); // 50-1000
+        const isPaid = Math.random() > 0.2; // 80% paid
+        const serviceType = pick(serviceTypes);
+        const customerName = randomName();
+        const transactionDate = randomDateObject(8);
+        const quantity = 1 + Math.floor(Math.random() * 5);
+        const itemLabel = serviceType === 'printing'
+            ? pick(printingItems)
+            : (serviceType === 'lamination'
+                ? `Document Lamination ${String.fromCharCode(65 + (i % 3))}`
+                : (serviceType === 'document_request'
+                    ? pick(docTypes)
+                    : `Event Ticket Batch ${1 + (i % 4)}`));
+        financial.push({
+            transaction_id: `mock-txn-${i}`,
+            transaction_date: toIsoDate(transactionDate),
+            transaction_datetime: toIsoDateTime(transactionDate, 8 + (i % 8), (i * 7) % 60),
+            submitted_at: toIsoDateTime(transactionDate, 8 + (i % 8), (i * 7) % 60),
+            total_cost: amount,
+            payment_status: isPaid ? 'paid' : 'pending',
+            service_type: serviceType,
+            service_name: serviceType.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
+            item_label: itemLabel,
+            customer_name: customerName,
+            customer_identifier: randomStudentId(i),
+            quantity,
+            unit_price: Number((amount / quantity).toFixed(2)),
+            reference_no: `OR-${academicYear}-${1000 + i}`,
+            notes: isPaid ? 'Paid at cashier' : 'Awaiting payment verification',
+            org_name: pick(orgNames),
+        });
+    }
+
+    // Generate 8-12 events
+    const eventCount = 8 + Math.floor(Math.random() * 5);
+    const events = [];
+    let eventAttendanceBase = 55 + Math.floor(Math.random() * 45);
+    let previousEventAttendees = [];
+    for (let i = 0; i < eventCount; i++) {
+        const config = eventConfigs[i % eventConfigs.length];
+        const eventDate = randomDateObject(8);
+        const attendanceDrift = Math.floor((Math.random() - 0.5) * 40);
+        const participationSeed = config.base + attendanceDrift + Math.floor((eventAttendanceBase - config.base) * 0.35);
+        const participants = Math.max(18, Math.min(220, participationSeed));
+        eventAttendanceBase = Math.round((eventAttendanceBase * 0.55) + (participants * 0.45));
+        const title = `${config.title} ${Math.floor(i / eventConfigs.length) + 1}`;
+        const carryOverRatio = mockRetentionProfile.carryMin
+            + Math.random() * (mockRetentionProfile.carryMax - mockRetentionProfile.carryMin);
+        const retainedCount = Math.min(previousEventAttendees.length, Math.round(participants * carryOverRatio));
+        const retainedStudents = previousEventAttendees
+            .slice()
+            .sort(() => Math.random() - 0.5)
+            .slice(0, retainedCount);
+        const retainedKeys = new Set(retainedStudents.map((student) => student.student_number));
+        const freshStudents = mockStudents
+            .filter((student) => !retainedKeys.has(student.student_number))
+            .slice()
+            .sort(() => Math.random() - 0.5)
+            .slice(0, Math.max(0, participants - retainedStudents.length));
+        const eventAttendees = retainedStudents.concat(freshStudents).slice(0, participants);
+        previousEventAttendees = eventAttendees;
+        events.push({
+            id: `mock-event-${i}`,
+            event_id: `mock-event-${i}`,
+            title,
+            event_name: title,
+            date: toIsoDate(eventDate),
+            event_datetime: toIsoDateTime(eventDate, 9 + (i % 6), 0),
+            venue: pick(venues),
+            location: pick(venues),
+            participants,
+            attendance_count: participants,
+            status: 'published',
+            is_published: 1,
+            description: `${title} mock event for analytics simulation.`,
+            attendees: eventAttendees.map((student, attendeeIndex) => ({
+                record_id: `mock-att-${i}-${attendeeIndex}`,
+                event_id: `mock-event-${i}`,
+                event_name: title,
+                user_id: student.user_id,
+                student_number: student.student_number,
+                student_name: student.student_name,
+                section: student.section,
+                time_in: toIsoDateTime(eventDate, 8 + (attendeeIndex % 4), attendeeIndex % 60),
+                attendance_date: toIsoDate(eventDate),
+            })),
+        });
+    }
+
+    // Generate 10-20 documents
+    const docCount = 20;
+    const mockRejectionNotes = [
+        'Required supporting documents are missing. Pakikumpleto muna ang attachments bago mag-resubmit.',
+        'Missing pa ang required attachments at supporting files. Paki-upload ang mga kulang.',
+        'Wala pang signature ng signatory, and some attachments are still missing. Please complete both before resubmitting.',
+        'The endorsement is incomplete. Paki-check din kung kumpleto na ang required signatures bago ipasa ulit.',
+        'Please use the required template. Pakiayos ang font, margins, at spacing para consistent ang format.',
+        'Hindi tugma ang total expenses sa quotation. Please recheck the budget totals and itemized amounts.',
+        'The attachments are complete, pero mali ang date and time. Please resolve the venue conflict as well.',
+        'Hindi malinaw ang objectives. Please explain who will benefit and ano ang gagawin during the activity.',
+        'The information in the two sections does not match. Paki-correct ang inconsistent details bago mag-resubmit.',
+        'The proposal does not follow the stated policy guidelines. Pakisuri ang requirements bago ipasa ulit.',
+        'May kailangan pang linawin sa submission. Please contact the reviewer for the specific details.',
+        '' // Deliberately missing evidence to test coverage warnings.
+    ];
+    const mockApprovedNotes = {
+        13: 'The objectives are clear. Maayos din ang explanation kung sino ang makikinabang sa activity.',
+        15: 'Complete ang supporting documents, and the attachments are organized. Kumpleto ang mga kalakip na sinuri.',
+        17: 'The schedule and venue details are clear. Consistent ang budget, and each expense is explained clearly.',
+        19: 'If the objectives are clear at kumpleto ang attachments, mas madaling suriin ang proposal. Approved.' // Conditional wording is not explicit praise.
+    };
+    const docs = [];
+    for (let i = 0; i < docCount; i++) {
+        const statuses = ['approved', 'pending', 'pending', 'rejected']; // More pending
+        const submitter = randomName();
+        const docDate = randomDateObject(6);
+        const docType = pick(docTypes);
+        const title = `${docType} ${i + 1}`;
+        docs.push({
+            submission_id: `mock-doc-${i}`,
+            id: `mock-doc-${i}`,
+            title,
+            type: docType,
+            document_type: docType,
+            recipient: Math.random() > 0.5 ? 'OSA' : 'SSC',
+            submittedAt: toIsoDateTime(docDate, 10 + (i % 5), 15),
+            submitted_at: toIsoDateTime(docDate, 10 + (i % 5), 15),
+            date: toIsoDate(docDate),
+            status: i < mockRejectionNotes.length ? 'rejected' : (i % 2 ? 'approved' : 'pending'),
+            reviewerNotes: i < 4 ? mockRejectionNotes[i] : (mockApprovedNotes[i] || ''),
+            adviserDecision: i < 4 ? 'rejected' : (mockApprovedNotes[i] ? 'approved' : ''),
+            adviserReviewerNotes: i < 4 ? mockRejectionNotes[i] : (mockApprovedNotes[i] || ''),
+            sscDecision: i >= 4 && i < 8 ? 'rejected' : '',
+            sscReviewerUserId: 9002,
+            osaDecision: i >= 8 && i < 12 ? 'rejected' : '',
+            osaReviewerUserId: 9003,
+            adviserReviewerUserId: 9001,
+            reviewAnnotations: i >= 4 && i < 11 ? [{
+                created_by_user_id: i < 8 ? 9002 : 9003,
+                author_account_type: i < 8 ? 'student' : 'osa_staff',
+                page_number: 1 + (i % 3),
+                selected_text: `Example passage in ${docType}`,
+                comment_text: mockRejectionNotes[i]
+            }] : (i === 11 ? [{ created_by_user_id: 9003, page_number: 1, selected_text: 'Budget', comment_text: '' }]
+                : (i === 17 ? [{created_by_user_id: 9001, author_account_type: 'organization_adviser', page_number: 1,
+                    selected_text: 'Activity schedule', comment_text: 'The activity schedule is clear, at malinaw din ang venue details.'}] : [])),
+            description: `${title} generated for mock workflow simulation.`,
+            submitted_by: submitter,
+            sender: submitter,
+            academic_year: `${academicYear}-${academicYear + 1}`,
+            semester: docDate.getMonth() >= 7 && docDate.getMonth() <= 11 ? '1st' : '2nd',
+        });
+    }
+
+    // Generate 15-25 rentals
+    const rentalCount = 15 + Math.floor(Math.random() * 11);
+    const rentals = [];
+    for (let i = 0; i < rentalCount; i++) {
+        const statuses = ['active', 'active', 'pending', 'overdue']; // More active
+        const rentalConfig = pick(rentalItems);
+        const borrowerName = randomName();
+        const borrowDate = randomDateObject(2);
+        const dueDate = new Date(borrowDate);
+        dueDate.setDate(dueDate.getDate() + 2 + Math.floor(Math.random() * 12));
+        const status = pick(statuses);
+        rentals.push({
+            rental_id: `mock-rental-${i}`,
+            id: `mock-rental-${i}`,
+            item: rentalConfig.item,
+            item_name: rentalConfig.item,
+            renter: borrowerName,
+            renter_name: borrowerName,
+            borrower_name: borrowerName,
+            borrower_id: randomStudentId(i),
+            borrower_contact: randomPhone(),
+            category: rentalConfig.category,
+            quantity: 1 + Math.floor(Math.random() * 3),
+            dateBorrowed: toIsoDate(borrowDate),
+            borrowed_at: toIsoDateTime(borrowDate, 9 + (i % 4), 30),
+            due: toIsoDate(dueDate),
+            dueAt: toIsoDateTime(dueDate, 17, 0),
+            expected_return_time: toIsoDateTime(dueDate, 17, 0),
+            status,
+            condition: status === 'overdue' ? 'Needs follow-up' : 'Good',
+            notes: status === 'pending' ? 'Awaiting approval from custodian' : 'Mock rental record',
+        });
+    }
+
+    // Store mock data and refresh
+    officerAnalyticsState.mockData = { financial, events, docs, rentals };
+    officerAnalyticsState.mockRetentionProfile = mockRetentionProfile.label;
+
+    // Toggle buttons
+    const mockBtn = document.getElementById('mock-data-btn');
+    const clearBtn = document.getElementById('clear-mock-btn');
+    if (mockBtn) mockBtn.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'inline-flex';
+
+    // Show notification
+    if (typeof showToast === 'function') {
+        showToast(`Mock data generated (${mockRetentionProfile.label} retention profile)! ${transactionCount} transactions, ${eventCount} events. Click "Clear Mock" to remove.`, 'success');
+    } else {
+        alert('Mock data generated successfully!\n\n' +
+              `Retention profile: ${mockRetentionProfile.label}\n` +
+              `${transactionCount} financial transactions\n` +
+              `${eventCount} events\n` +
+              `${docCount} documents\n` +
+              `${rentalCount} rentals\n\n` +
+              'Click "Clear Mock" button to remove mock data.');
+    }
+
+    // Refresh charts
+    initializeOfficerAnalyticsYearOptions();
+    const mockYearSelect = document.getElementById('filter-year');
+    if (mockYearSelect) mockYearSelect.value = `${academicYear}-${academicYear + 1}`;
+    if (typeof analyticsDateFilters !== 'undefined') {
+        analyticsDateFilters.startDate = null;
+        analyticsDateFilters.endDate = null;
+    }
+    refreshAnalyticsCharts();
+}
+
+function clearMockAnalyticsData() {
+    if (!window.AppEnvironment?.isLocalDevelopment) return;
+    // Clear mock data
+    officerAnalyticsState.mockData = null;
+    officerAnalyticsState.mockRetentionProfile = null;
+
+    // Toggle buttons
+    const mockBtn = document.getElementById('mock-data-btn');
+    const clearBtn = document.getElementById('clear-mock-btn');
+    if (mockBtn) mockBtn.style.display = 'inline-flex';
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    // Show notification
+    if (typeof showToast === 'function') {
+        showToast('Mock data cleared. Showing real data.', 'info');
+    }
+
+    // Refresh charts with real data
+    refreshAnalyticsCharts();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializeOfficerAnalyticsYearOptions();
+    refreshAnalyticsCharts();
+    loadOfficerAnalyticsEvents();
+});
