@@ -78,7 +78,7 @@ function analyticsAiGenerateInsights(array $snapshot, array $filters, int $orgId
 function analyticsAiBuildCacheKey(array $snapshot, array $filters, int $orgId): string
 {
     $payload = [
-        'version' => 18,
+        'version' => 23,
         'orgId' => $orgId,
         'filters' => $filters,
         'availability' => $snapshot['availability'] ?? [],
@@ -257,6 +257,19 @@ function analyticsAiHttpJsonRequest(string $url, array $payload, array $headers 
     return $decoded;
 }
 
+function analyticsAiHasPersonReference(string $text): bool
+{
+    $text = analyticsAiCleanInsightText(html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $name = '\p{Lu}[\p{L}\p{M}\x{2019}\x{27}-]+';
+    $generic = '(?:the|this|these|those|a|an|it|they|we|you|i|he|she|reviewers?|advisers?|officers?|students?|persons?|documents?|osa|ssc)';
+    $subject = preg_replace_callback('/\b(?:The|This|These|Those|It|They|We|You|He|She|Reviewers?|Advisers?|Officers?|Students?|Persons?|Documents?)\b/u',
+        static fn($match) => mb_strtolower($match[0], 'UTF-8'), $text);
+    return preg_match('/(?<![\p{L}\p{M}\p{N}_])' . $name . '(?:\s+' . $name . ')+(?![\p{L}\p{M}\p{N}_])/u', $text) === 1
+        || preg_match('/\b(?:mr|ms|mrs|dr|prof|sir|ma\x{27}am|ni|kay|si|sina|kina)\.?\s+(?!the\b|a\b|an\b|reviewer\b|adviser\b|officer\b|student\b|person\b|osa\b|ssc\b)[\p{L}\p{M}][\p{L}\p{M}\x{2019}\x{27}-]+/iu', $text) === 1
+        || preg_match('/\b(?:[Aa]sk|[Cc]ontact|[Cc]onsult|[Nn]otify|[Tt]ell)\s+(?!(?:' . $generic . '|[Ff]or|[Yy]our|[Ww]ith|[Aa]bout|[Oo]ur|[Tt]heir)\b)' . $name . '/u', $text) === 1
+        || preg_match('/(?<![\p{L}\p{M}\p{N}_])(?!(?:' . $generic . ')\b)' . $name . '\s+(?:reviewed|said|commented|signed|asked|wrote)\b/u', $subject) === 1;
+}
+
 function analyticsAiSanitizeDocumentFeedback(array $feedback): array
 {
     $records = [];
@@ -274,6 +287,9 @@ function analyticsAiSanitizeDocumentFeedback(array $feedback): array
             $text = preg_replace(['/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i', '/https?:\/\/\S+/i',
                 '/\b\d{4,}[A-Z]{0,4}[- ]\d{4,}\b/i', '/(?:\+?63|0)9\d[\d -]{8,12}\b/'],
                 ['[email removed]', '[link removed]', '[student number removed]', '[phone removed]'], $text);
+            if (analyticsAiHasPersonReference($text)) {
+                throw new AnalyticsAiException('Reviewer feedback failed the input privacy check.');
+            }
             $text = trim(mb_substr($text, 0, 1000, 'UTF-8'));
             if ($text !== '') $comments[] = ['text' => $text];
         }
@@ -410,6 +426,7 @@ Example style, not facts to reuse: "One event recorded 70 of the 100 attendance 
 Within chart summaries and exportSummary, place each finding on a separate line beginning with "- ". For exportSections, preserve the short passages and blank lines described above; use bullets only where they improve readability.
 
 Use supplied patterns for rental, financial, and event findings. For document feedback, use documentFeedback directly when provided, otherwise the supplied aggregate patterns. Do not expose or request student identities or reproduce raw reviewer comments in the output. Treat rejection categories as associations in reviewer notes, not proven causes.
+In all document narratives, including documentGuidance.rejectionSummary, documentGuidance.keepDoing, every reviewCheck, the document chart, documentWorkflow, and the Documents line in exportSummary, use general role terms only: "the reviewer", "the adviser", "the officer", "the student", or "the person" when the role is unclear. Never name or identify a person, invent a person's name, or reproduce a signature. Explain the issue and the revision step rather than who said it. Use sentence case, not title-case headings. Original comments are preserved separately as records and must not be rewritten or quoted into generated guidance.
 
 Use clear, professional language appropriate for a university organization management dashboard. Avoid vague filler such as 'this shows the importance of' unless the statement is followed by a specific data-supported explanation.
 
@@ -532,6 +549,19 @@ function analyticsAiNormalizeStructuredInsights(array $payload, array $snapshot,
     if ($analysis !== null) $result['documentAnalysis'] = $analysis;
     $result = analyticsAiApplyServiceAvailability($result, $snapshot);
     $result['exportSummary'] = analyticsAiEnsureOverallCoverage($result['exportSummary'], $result['chartSummaries'], ($snapshot['availability']['servicesApplicable'] ?? true) !== false);
+    // Validate the final displayed strings, after cleanup and overview normalization.
+    // Other overview areas may legitimately include recorded event or item names.
+    $documentsOverview = '';
+    foreach (explode("\n", $result['exportSummary']) as $line) {
+        if (preg_match('/^\s*-\s*Documents:\s*(.*)$/i', $line, $match)) $documentsOverview = $match[1];
+    }
+    foreach (array_merge([$result['chartSummaries']['documents'], $result['exportSections']['documentWorkflow'],
+        $result['documentGuidance']['rejectionSummary'], $result['documentGuidance']['keepDoing'], $documentsOverview],
+        array_values((array)$result['documentGuidance']['reviewChecks'])) as $text) {
+        if (analyticsAiHasPersonReference($text)) {
+            throw new AnalyticsAiException('AI document guidance failed the output privacy check.');
+        }
+    }
     return $result;
 }
 

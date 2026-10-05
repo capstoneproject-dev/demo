@@ -93,6 +93,45 @@ $sensitive = ['records' => [['ref' => 'D1', 'status' => 'rejected', 'comments' =
 $clean = json_encode(analyticsAiSanitizeDocumentFeedback($sensitive));
 foreach (['example@example.com', '12324MN-000080', '09171234567'] as $identity) feedbackCheck(!str_contains($clean, $identity), 'Server redaction failed.');
 feedbackCheck(str_contains($clean, 'Kulang ang kalakip'), 'Redaction removed the feedback meaning.');
+foreach (['John Doe requested revisions.', 'Ask Juan about the attachments.', 'Juan reviewed this.'] as $privateText) {
+    $unsafe = ['records' => [['ref' => 'D1', 'status' => 'rejected', 'comments' => [['text' => $privateText]]]]];
+    try { analyticsAiSanitizeDocumentFeedback($unsafe); throw new RuntimeException('Unresolved person reference reached the provider input.'); }
+    catch (AnalyticsAiException $expected) {}
+}
+foreach (['John Doe requested revisions.', 'Ask Juan about the attachments.'] as $privateText) {
+    $unsafe = $payload;
+    $unsafe['documentGuidance']['rejectionSummary'] = $privateText;
+    try { analyticsAiNormalizeStructuredInsights($unsafe, $snapshot, []); throw new RuntimeException('Named guidance was accepted.'); }
+    catch (AnalyticsAiException $expected) {}
+}
+feedbackCheck(str_contains($prompt, 'use general role terms only'), 'Missing anonymous document guidance instruction.');
+feedbackCheck(!analyticsAiHasPersonReference('Ask the reviewer to clarify the missing attachments.'), 'Generic roles must remain usable.');
+foreach (['Ask for clarification about the missing requirements.', 'Contact your adviser before resubmitting.',
+    'Consult with the reviewer about the unclear feedback.', 'The reviewed documents need clearer objectives.',
+    'Students reviewed the checklist before submitting.'] as $instruction) {
+    feedbackCheck(!analyticsAiHasPersonReference($instruction), 'Ordinary instruction failed privacy checks: ' . $instruction);
+    $safe = $payload;
+    $safe['documentGuidance']['reviewChecks']['content_details'] = $instruction;
+    feedbackCheck(analyticsAiNormalizeStructuredInsights($safe, $snapshot, [])['documentGuidance']['reviewChecks']->content_details === $instruction,
+        'Normal guidance must stay AI-generated.');
+}
+foreach (['summary', 'workflow', 'chart', 'keepDoing', 'check', 'overview'] as $field) {
+    foreach (['John <b>Doe</b> requested revisions.', 'Ask <b>Juan</b> about the attachments.', 'John&nbsp;Doe requested revisions.'] as $privateText) {
+        $unsafe = $payload + ['provider' => 'gemini:test', 'fallbackUsed' => false];
+        if ($field === 'summary') $unsafe['documentGuidance']['rejectionSummary'] = $privateText;
+        if ($field === 'workflow') $unsafe['exportSections']['documentWorkflow'] = $privateText;
+        if ($field === 'chart') $unsafe['chartSummaries']['documents'] = $privateText;
+        if ($field === 'keepDoing') $unsafe['documentGuidance']['keepDoing'] = $privateText;
+        if ($field === 'check') $unsafe['documentGuidance']['reviewChecks']['content_details'] = $privateText;
+        if ($field === 'overview') $unsafe['exportSummary'] = '- Documents: ' . $privateText;
+        try { analyticsAiNormalizeStructuredInsights($unsafe, $snapshot, []); throw new RuntimeException('Named output accepted in ' . $field . ': ' . $privateText); }
+        catch (AnalyticsAiException $expected) {}
+    }
+}
+$namedEvent = $payload + ['provider' => 'gemini:test', 'fallbackUsed' => false];
+$namedEvent['exportSummary'] = "- Event attendance: John Doe Workshop recorded 70 entries.\n- Documents: Ask for clarification about unclear feedback.";
+feedbackCheck(str_contains(analyticsAiNormalizeStructuredInsights($namedEvent, $snapshot, [])['exportSummary'], 'John Doe Workshop'),
+    'Privacy checks must not erase recorded event names.');
 if (!ANALYTICS_AI_REVIEW_FEEDBACK_ENABLED) {
     $guarded = analyticsAiGenerateInsights($snapshot, [], 1, true);
     feedbackCheck(($guarded['provider'] ?? '') === 'rule-based' && $guarded['fallbackUsed'], 'Unapproved feedback must stay local and use a clearly labeled fallback.');

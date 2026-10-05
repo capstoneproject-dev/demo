@@ -20,7 +20,7 @@ foreach($fixtures as$name=>$snapshot){
  insightCheck(count(explode("\n",$result['exportSummary']))===4,'Overview area omitted.');
  foreach(['Finances','Event attendance','Rentals','Documents'] as $area)insightCheck(str_contains($result['exportSummary'],'- '.$area.': '),'Overview label missing.');
  if($name==='service disabled')insightCheck(str_contains($result['chartSummaries']['financial'],'disabled by OSA'),'Service availability guard removed.');
- $oldKey=sha1(json_encode(['version'=>17,'orgId'=>2,'filters'=>[],'availability'=>$snapshot['availability']??[],'snapshotHash'=>sha1(json_encode($snapshot))]));
+ $oldKey=sha1(json_encode(['version'=>22,'orgId'=>2,'filters'=>[],'availability'=>$snapshot['availability']??[],'snapshotHash'=>sha1(json_encode($snapshot))]));
  $newKey=analyticsAiBuildCacheKey($snapshot,[],2);
  insightCheck($oldKey!==$newKey,'Previous cache content is reused.');
  insightCheck($newKey===analyticsAiBuildCacheKey($snapshot,[],2),'Same data cache key is unstable.');
