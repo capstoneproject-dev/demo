@@ -399,8 +399,15 @@ const documentRevisionChecks = {
     other: 'Read the original reviewer note for the specific revision requested.'
 };
 
+function getOfficerDocumentFeedbackStatus(doc) {
+    const status = String(doc.rawStatus || doc.status || '').trim().toLowerCase();
+    if (status === 'approved') return 'approved';
+    if (status.includes('reject')) return 'rejected';
+    return null;
+}
+
 async function loadAnalyticsReviewAnnotations(documents) {
-    const reviewable = documents.filter(doc => /reject|approv/.test(String(doc.rawStatus || doc.status || '').toLowerCase()) && Number(doc.submission_id) > 0);
+    const reviewable = documents.filter(doc => getOfficerDocumentFeedbackStatus(doc) && Number(doc.submission_id) > 0);
     let next = 0;
     await Promise.all(Array.from({ length: Math.min(3, reviewable.length) }, async () => {
         while (next < reviewable.length) {
@@ -516,7 +523,7 @@ function buildOfficerDocumentPositivePatterns(documents) {
         {key:'clear_schedule', label:'Clear schedule and venue details', pattern:/\b(?:schedule|venue details)\s+(?:is\s+|are\s+|were\s+)?(?:clear|consistent|complete)\b|\bclear\s+(?:schedule|venue details)\b/i},
         {key:'consistent_budget', label:'Clear and consistent budget', pattern:/\bbudget\s+(?:is\s+|was\s+)?(?:clear|consistent|well itemized|complete)\b|\b(?:clear|consistent|well itemized)\s+budget\b/i}
     ];
-    const approved = (documents || []).filter(doc => /approv/.test(String(doc.rawStatus || doc.status || '').toLowerCase()));
+    const approved = (documents || []).filter(doc => getOfficerDocumentFeedbackStatus(doc) === 'approved');
     const matchesPraise = (doc, theme) => getDocumentRejectionFeedback(doc).some(note =>
         (note.text.match(/[^.!?;\n]+[.!?;]?/g) || []).some(sentence => !sentence.includes('?')
             && !/\b(?:not|unclear|missing|incomplete|incorrect|please|must|should|needs?|but|however|if|unless|ensure|check|verify|confirm|whether|could|would|might)\b/i.test(sentence)
@@ -528,52 +535,115 @@ function buildOfficerDocumentPositivePatterns(documents) {
         categories, method:'Conservative explicit-praise keyword matches in approved document feedback. Approval alone is not evidence of a successful practice. No raw reviewer text or identities are included.'};
 }
 
+// Conservative privacy check for possible people outside the known account metadata.
+function hasOfficerAnalyticsPersonReference(text) {
+    const entities = {nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'"};
+    text = String(text).replace(/&#(?:x([0-9a-f]+)|([0-9]+));/gi, (match, hex, decimal) => {
+        const code = parseInt(hex || decimal, hex ? 16 : 10);
+        return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : match;
+    }).replace(/&(nbsp|amp|lt|gt|quot|apos);/gi, (_, name) => entities[name.toLowerCase()])
+        .replace(/<[^>]*>/g, '').replace(/[\u00a0\u2000-\u200d\u2028\u2029\u202f\u205f\u2060\u3000\ufeff]/g, ' ');
+    const generic = '(?:the|this|these|those|a|an|it|they|we|you|i|he|she|reviewers?|advisers?|officers?|students?|persons?|documents?|osa|ssc)';
+    const titleName = '[\\p{Lu}][\\p{L}\\p{M}\\u2019\\u0027-]+';
+    const fullName = new RegExp('(?<![\\p{L}\\p{M}\\p{N}_])' + titleName + '(?:\\s+' + titleName + ')+(?![\\p{L}\\p{M}\\p{N}_])', 'u');
+    const address = /\b(?:mr|ms|mrs|dr|prof|sir|ma'am|ni|kay|si|sina|kina)\.?\s+(?!the\b|a\b|an\b|reviewer\b|adviser\b|officer\b|student\b|person\b|osa\b|ssc\b)[\p{L}\p{M}][\p{L}\p{M}'\u2019-]+/iu;
+    const actionName = new RegExp('\\b(?:[Aa]sk|[Cc]ontact|[Cc]onsult|[Nn]otify|[Tt]ell)\\s+(?!(?:' + generic + '|[Ff]or|[Yy]our|[Ww]ith|[Aa]bout|[Oo]ur|[Tt]heir)\\b)' + titleName, 'u');
+    const namedSubject = new RegExp('(?<![\\p{L}\\p{M}\\p{N}_])(?!(?:' + generic + ')\\b)' + titleName + '\\s+(?:reviewed|said|commented|signed|asked|wrote)\\b', 'u');
+    // The generic-word exclusion is case-insensitive without making lowercase
+    // ordinary words into capitalized name candidates.
+    const subject = text.replace(/\b(?:The|This|These|Those|It|They|We|You|He|She|Reviewers?|Advisers?|Officers?|Students?|Persons?|Documents?)\b/g,
+        word => word.toLowerCase());
+    return fullName.test(text) || address.test(text) || actionName.test(text) || namedSubject.test(subject);
+}
+
 // Feedback leaves the browser only as anonymous document references. Original text stays in local exports.
 function buildOfficerDocumentAiFeedback(documents) {
     const docs = Array.isArray(documents) ? documents : [];
     const identities = new Set();
+    const singleNames = new Set();
+    const fullNames = new Map();
+    const addIdentity = (value, role = null) => {
+        if (typeof value !== 'string') return;
+        const identity = value.normalize('NFC').trim();
+        if (!identity) return;
+        if (!role) { if (identity.length >= 3) identities.add(identity); return; }
+        const parts = identity.split(/\s+/).filter(part => !/^[A-Za-z]\.?$/.test(part));
+        parts.forEach(part => singleNames.add(part));
+        if (/\s/.test(identity)) {
+            const key = identity.toLowerCase();
+            const previous = fullNames.get(key);
+            fullNames.set(key, previous && previous !== role ? 'the person' : role);
+        }
+    };
     docs.forEach(doc => {
-        ['submittedByName', 'reviewerName', 'adviserReviewerName', 'sscReviewerName', 'osaReviewerName',
-            'sender', 'student_name', 'student_number', 'email'].forEach(key => {
-            if (typeof doc[key] === 'string' && doc[key].trim().length >= 3) {
-                identities.add(doc[key].trim());
-                if (/Name$|_name$/.test(key)) doc[key].split(/\s+/).filter(part => part.length >= 3).forEach(part => identities.add(part));
-            }
-        });
+        ['submittedByName', 'sender', 'student_name'].forEach(key => addIdentity(doc[key], 'the student'));
+        ['reviewerName', 'sscReviewerName', 'osaReviewerName'].forEach(key => addIdentity(doc[key], 'the reviewer'));
+        addIdentity(doc.adviserReviewerName, 'the adviser');
+        ['student_number', 'email'].forEach(key => addIdentity(doc[key]));
         (doc.reviewAnnotations || []).forEach(note => {
-            ['author_name', 'author_full_name', 'created_by_name', 'author_email'].forEach(key => {
-                if (typeof note[key] === 'string' && note[key].trim().length >= 3) identities.add(note[key].trim());
-            });
+            const role = note.author_account_type === 'organization_adviser' ? 'the adviser' : 'the reviewer';
+            ['author_name', 'author_full_name', 'created_by_name', 'first_name', 'last_name'].forEach(key => addIdentity(note[key], role));
+            addIdentity([note.first_name, note.last_name].filter(value => typeof value === 'string').join(' '), role);
+            addIdentity(note.author_email);
         });
     });
+    const boundary = '[^\\p{L}\\p{M}\\p{N}_]';
+    const identityPattern = identity => new RegExp('(^|' + boundary + ')' + identity.replace(/[.*+?^{}$()|[\]\\]/g, '\\$&') + '(?=$|' + boundary + ')', 'giu');
+    let truncatedComments = 0;
     const redact = value => {
-        let text = String(value || '');
-        [...identities].sort((a, b) => b.length - a.length).forEach(identity => {
-            const escaped = identity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            text = text.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), '[identity removed]');
-        });
-        return text.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email removed]')
+        let text = String(value || '').normalize('NFC')
+            .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email removed]')
             .replace(/https?:\/\/\S+/gi, '[link removed]')
             .replace(/\b\d{4,}[A-Z]{0,4}[- ]\d{4,}\b/gi, '[student number removed]')
-            .replace(/(?:\+?63|0)9\d[\d -]{8,12}\b/g, '[phone removed]')
-            .replace(/\b(?:Mr|Ms|Mrs|Dr|Prof|Sir|Ma'am)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}/g, '[name removed]')
-            .replace(/\b(?:ni|kay|si|sina|kina)\s+[A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|[A-Z]\.)){0,3}/g, '[name removed]')
-            .trim();
+            .replace(/(?:\+?63|0)9\d[\d -]{8,12}\b/g, '[phone removed]');
+        const segments = [];
+        let cursor = 0;
+        const names = [...fullNames.keys()].sort((a, b) => b.length - a.length);
+        if (names.length) {
+            const alternatives = names.map(name => name.replace(/[.*+?^{}$()|[\]\\]/g, '\\$&')).join('|');
+            const pattern = new RegExp('(^|' + boundary + ')(' + alternatives + ')(?=$|' + boundary + ')', 'giu');
+            for (const match of text.matchAll(pattern)) {
+                const nameStart = match.index + match[1].length;
+                segments.push({text: text.slice(cursor, nameStart)});
+                const key = fullNames.has(match[2].toLowerCase()) ? match[2].toLowerCase()
+                    : names.find(name => new RegExp('^' + name.replace(/[.*+?^{}$()|[\]\\]/g, '\\$&') + '$', 'iu').test(match[2]));
+                segments.push({role: fullNames.get(key) || 'the person'});
+                cursor = match.index + match[0].length;
+            }
+        }
+        segments.push({text: text.slice(cursor)});
+        let unresolvedKnownName = false;
+        const anonymousText = segments.map(segment => {
+            if (segment.role) return segment.role;
+            let plain = segment.text;
+            [...identities].sort((a, b) => b.length - a.length).forEach(identity => {
+                plain = plain.replace(identityPattern(identity), (_, prefix) => prefix + '[identity removed]');
+            });
+            if ([...singleNames].some(name => identityPattern(name).test(plain))) unresolvedKnownName = true;
+            return plain;
+        }).join('');
+        // Do not guess at standalone names. Withhold the original comment,
+        // record the omission, and leave the local records unchanged.
+        if (unresolvedKnownName || hasOfficerAnalyticsPersonReference(anonymousText)) {
+            truncatedComments++;
+            return '';
+        }
+        return anonymousText.trim();
     };
-    let truncatedComments = 0;
     const eligible = docs.map(doc => {
-        const status = String(doc.rawStatus || doc.status || '').toLowerCase();
-        if (!/reject|approv/.test(status)) return null;
+        const status = getOfficerDocumentFeedbackStatus(doc);
+        if (!status) return null;
         const comments = getDocumentRejectionFeedback(doc).map(note => ({
             source: note.source.replace(/, page .*/, ''), text: redact(note.text),
         })).filter(note => note.text);
-        return comments.length ? {status: status.includes('reject') ? 'rejected' : 'approved', comments} : null;
+        return comments.length ? {status, comments} : null;
     }).filter(Boolean);
     const records = eligible.slice(0, 60).map((record, index) => {
         truncatedComments += Math.max(0, record.comments.length - 8);
         return {ref: `D${index + 1}`, status: record.status, comments: record.comments.slice(0, 8).map(note => {
-            if (note.text.length > 1000) truncatedComments++;
-            return {...note, text: note.text.slice(0, 1000)};
+            const characters = Array.from(note.text);
+            if (characters.length > 1000) truncatedComments++;
+            return {...note, text: characters.slice(0, 1000).join('')};
         })};
     });
     return {records, totalEligibleDocuments: eligible.length, omittedDocuments: Math.max(0, eligible.length - records.length),
@@ -1101,7 +1171,7 @@ function buildOfficerAnalyticsInsightsRequest(snapshot) {
 
 function buildOfficerAnalyticsInsightsCacheKey(snapshot) {
     const payload = {
-        version: 18,
+        version: 23,
         filters: snapshot?.filters || {},
         availability: snapshot?.availability || {},
         totals: snapshot?.totals || {},
@@ -1658,8 +1728,10 @@ function getOfficerDocumentReportSections(snapshot, insights = null) {
     const keywordPatterns = buildOfficerDocumentRejectionPatterns(snapshot.docs, true);
     const analysis = aiReport ? insights.documentAnalysis : null;
     const patterns = analysis ? {...keywordPatterns, categories: analysis.rejectionCategories} : keywordPatterns;
+    const annotationsUnavailable = snapshot.documentFeedback?.annotationsUnavailable
+        ?? buildOfficerDocumentAiFeedback(snapshot.docs).annotationsUnavailable;
     const coverage = analysis
-        ? `AI-interpreted feedback: ${analysis.reviewedRejectedDocuments} rejected and ${analysis.reviewedApprovedDocuments} approved documents were read. Shares use the ${analysis.reviewedRejectedDocuments} rejected documents read; categories may overlap. ${analysis.omittedDocuments || 0} documents with feedback were omitted from the bounded sample; ${analysis.truncatedComments || 0} comments were shortened or omitted. ${keywordPatterns.annotationsUnavailable || 0} documents could not load annotations. Interpretations may be mistaken; check the original feedback. Checks do not guarantee approval.`
+        ? `AI-interpreted feedback: ${analysis.reviewedRejectedDocuments} rejected and ${analysis.reviewedApprovedDocuments} approved documents were read. Shares use the ${analysis.reviewedRejectedDocuments} rejected documents read; categories may overlap. ${analysis.omittedDocuments || 0} documents with feedback were omitted from the bounded sample; ${analysis.truncatedComments || 0} comments were shortened or omitted. ${annotationsUnavailable} documents could not load annotations. Interpretations may be mistaken; check the original feedback. Checks do not guarantee approval.`
         : `Coverage: ${patterns.rejectedWithNotes} of ${patterns.rejectedDocuments} rejected documents have feedback; ${patterns.rejectedWithoutNotes} have no usable feedback.${patterns.annotationsUnavailable ? ` Annotations could not be loaded for ${patterns.annotationsUnavailable} documents.` : ''} Percentages use documents with feedback; categories may overlap. Checks address observed feedback and do not guarantee approval.`;
     const priorities = [...patterns.categories].sort((a, b) => b.count - a.count).slice(0, 3);
     const summary = priorities.length

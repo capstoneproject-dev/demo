@@ -25,7 +25,7 @@ function deferred(){let resolve,reject;const promise=new Promise((r,j)=>{resolve
  assert(!s.el.get('analyticsInsightsProviderBadge').title.includes('private diagnostic details'));
  s.run('setOfficerAnalyticsInsightsLoading()');assert.equal(s.el.get('analyticsInsightsProviderBadge').title,'');
  s.c.sample=payload('AI explanation');s.run('renderOfficerAnalyticsInsights(sample)');assert.equal(s.el.get('analyticsInsightsProviderBadge').title,'');
- assert.equal(JSON.parse(s.run('buildOfficerAnalyticsInsightsCacheKey(a)')).version,18);
+ assert.equal(JSON.parse(s.run('buildOfficerAnalyticsInsightsCacheKey(a)')).version,23);
  let calls=0;s.c.fetch=async()=>{calls++;return response(payload('Cached explanation.'));};await s.run('getOfficerAnalyticsInsightsData({snapshot:a})');await s.run('getOfficerAnalyticsInsightsData({snapshot:a})');await s.run('getOfficerAnalyticsInsightsData({snapshot:a,render:false})');assert.equal(calls,1);
  const r=setup();r.c.a=fixture('A');r.c.b=fixture('B');const first=deferred(),second=deferred();let n=0;r.c.fetch=()=>++n===1?first.promise:second.promise;
  const old=r.run('getOfficerAnalyticsInsightsData({snapshot:a})');const newer=r.run('getOfficerAnalyticsInsightsData({snapshot:b})');second.resolve(response(payload('Current filter B.')));await newer;first.resolve(response(payload('Old filter A.')));await old;assert.match(r.el.get('analyticsInsightOverall').textContent,/Current filter B/);
