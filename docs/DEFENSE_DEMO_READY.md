@@ -30,7 +30,7 @@ The helper blocks browser notification prompts in the demo profiles. Turn on Win
 
 Use the previously supplied passwords for the existing accounts. The SSC password is in `%TEMP%\capstone-defense-demo\ssc-credentials.json`; the launcher reads it automatically. Unique Gmail aliases satisfy the database's unique-email requirement while reaching the same inbox. Student transaction email preferences are enabled for rentals, attendance, printing, and lockers.
 
-## Three real documents
+## Five real documents
 
 Each PDF has two pages of proposal content, including objectives, schedule, budget, safety provisions, and evaluation. Seeded feedback and decisions are explicitly marked as defense examples.
 
@@ -39,10 +39,14 @@ Each PDF has two pages of proposal content, including objectives, schedule, budg
 | [DEMO 01 - Technical Skills Workshop](defense-demo/DEMO-01-workshop-proposal.pdf) | 135 | Awaiting adviser review | Two adviser highlights/comments; no approval yet |
 | [DEMO 02 - Equipment Support Clinic](defense-demo/DEMO-02-equipment-clinic.pdf) | 136 | Awaiting SSC review | Adviser approval and notes, two adviser annotations, one SSC annotation |
 | [DEMO 03 - Student Engagement Day](defense-demo/DEMO-03-student-engagement.pdf) | 137 | Awaiting OSA review | Adviser and SSC approvals/notes, four annotations across the three reviewing roles |
+| [DEMO 04 - Financial Literacy Seminar](defense-demo/DEMO-04-financial-literacy.pdf) | 138 | Adviser approved; ready to Send to SSC | Real proposal PDF, adviser approval notes and two adviser annotations |
+| [DEMO 05 - Peer Mentoring Orientation](defense-demo/DEMO-05-peer-mentoring.pdf) | 139 | SSC approved; ready to Send to OSA | Real proposal PDF, adviser and SSC approval notes, two adviser annotations and one SSC annotation |
 
 The application intentionally hides internal adviser feedback from external reviewing offices. Therefore, the SSC viewer shows its permitted SSC comment, and the OSA viewer shows the permitted SSC and OSA comments. AISERS retains the organization's review history.
 
 Show all three stages in AISERS Documents, then preview the corresponding document in each reviewer profile. For one live final decision, use **DEMO 03** in OSA and refresh its status in AISERS. The sample proposals concern future activities; they are not signed official authorizations. Their protected PDFs and earlier decision snapshots have not been rewritten.
+
+For live forwarding, click **Send to SSC** on DEMO 04 (138), then refresh the SSC Documents page to show the incoming request. Click **Send to OSA** on DEMO 05 (139), then refresh OSA Documents. The adviser can see both records; SSC already sees DEMO 05 through its review history. OSA receives these requests only after forwarding. The three earlier examples remain available on the appropriate review pages. The forwarding demonstration was checked inside a rolled-back transaction, leaving both buttons ready for the defense. These records and PDFs are prepared locally; they have not been uploaded to your deployed server.
 
 ## Attendance and announcements
 
@@ -103,4 +107,4 @@ Backup screenshots are in `docs/defense-demo`, including the three reviewer prev
 
 The original database backup is `%TEMP%\capstone-defense-demo\before-preparation.sql`. Private manifests and delivery/browser reports are in that same directory. Do not import the full backup over new work merely to reset a demonstration. Do not delete these temporary files before the defense: the launcher and generated-account credentials depend on them.
 
-The preparation scripts reuse tracked IDs instead of adding duplicates. They do not undo approvals, returns, or claims performed during rehearsal. Before October 6, confirm that the three documents and live transactions remain in their intended starting states. Browser sessions still obey the normal expiry rules; use the launcher again shortly before presenting.
+The preparation scripts reuse tracked IDs instead of adding duplicates. They do not undo approvals, returns, or claims performed during rehearsal. Before October 6, confirm that the five documents and live transactions remain in their intended starting states. Browser sessions still obey the normal expiry rules; use the launcher again shortly before presenting.

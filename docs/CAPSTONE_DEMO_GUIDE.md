@@ -83,7 +83,7 @@ Mention email verification or OSA login OTP as configured in your deployment. Co
 
 **Say:** “Officers submit categorized PDF documents and track their review status. A regular organization's submission starts with its adviser. After adviser approval, an officer forwards it to SSC. After SSC approval, the organization forwards it to OSA for final review. Reviewers can inspect the PDF and record decisions and feedback. Finalized records and linked revisions preserve the document's history.”
 
-**Action:** Open one PDF and show a comment or annotation. Point to the adviser and SSC decisions on a prepared document, then approve one demo submission already awaiting OSA review. Refresh its officer record to show the outcome. Briefly point to a revision or repository filter.
+**Action:** Open one PDF and show a comment or annotation. In AISERS, use **DEMO 04 (138)** to demonstrate **Send to SSC**, then refresh the SSC review page. Use **DEMO 05 (139)** to demonstrate **Send to OSA**, then refresh OSA Documents. Both have the required previous approvals and real two-page PDFs. For a final live decision, approve **DEMO 03 (137)** already awaiting OSA review and refresh its officer record. Keep each action brief to fit this segment.
 
 **Visible result:** The OSA decision is recorded and the officer sees the updated status.
 
