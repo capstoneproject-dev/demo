@@ -400,11 +400,11 @@ const documentRevisionChecks = {
 };
 
 async function loadAnalyticsReviewAnnotations(documents) {
-    const rejected = documents.filter(doc => String(doc.rawStatus || doc.status || '').toLowerCase().includes('reject') && Number(doc.submission_id) > 0);
+    const reviewable = documents.filter(doc => /reject|approv/.test(String(doc.rawStatus || doc.status || '').toLowerCase()) && Number(doc.submission_id) > 0);
     let next = 0;
-    await Promise.all(Array.from({ length: Math.min(3, rejected.length) }, async () => {
-        while (next < rejected.length) {
-            const doc = rejected[next++];
+    await Promise.all(Array.from({ length: Math.min(3, reviewable.length) }, async () => {
+        while (next < reviewable.length) {
+            const doc = reviewable[next++];
             try {
                 const response = await fetch(`../api/documents/annotations/list.php?submission_id=${encodeURIComponent(doc.submission_id)}`, { credentials: 'same-origin' });
                 const data = await response.json();
@@ -509,6 +509,77 @@ function buildOfficerDocumentRejectionPatterns(documents, includeRecords = false
     };
 }
 
+function buildOfficerDocumentPositivePatterns(documents) {
+    const themes = [
+        {key:'clear_objectives', label:'Clear objectives and activity details', pattern:/\b(?:objectives?|activity details)\s+(?:are\s+|were\s+|is\s+)?(?:clear|well explained|well defined)\b|\bclear\s+(?:objectives?|activity details)\b/i},
+        {key:'complete_attachments', label:'Complete supporting documents', pattern:/\b(?:attachments?|supporting documents|requirements)\s+(?:are\s+|were\s+)?complete\b|\bcomplete\s+(?:attachments?|supporting documents)\b/i},
+        {key:'clear_schedule', label:'Clear schedule and venue details', pattern:/\b(?:schedule|venue details)\s+(?:is\s+|are\s+|were\s+)?(?:clear|consistent|complete)\b|\bclear\s+(?:schedule|venue details)\b/i},
+        {key:'consistent_budget', label:'Clear and consistent budget', pattern:/\bbudget\s+(?:is\s+|was\s+)?(?:clear|consistent|well itemized|complete)\b|\b(?:clear|consistent|well itemized)\s+budget\b/i}
+    ];
+    const approved = (documents || []).filter(doc => /approv/.test(String(doc.rawStatus || doc.status || '').toLowerCase()));
+    const matchesPraise = (doc, theme) => getDocumentRejectionFeedback(doc).some(note =>
+        (note.text.match(/[^.!?;\n]+[.!?;]?/g) || []).some(sentence => !sentence.includes('?')
+            && !/\b(?:not|unclear|missing|incomplete|incorrect|please|must|should|needs?|but|however|if|unless|ensure|check|verify|confirm|whether|could|would|might)\b/i.test(sentence)
+            && theme.pattern.test(sentence)));
+    const categories = themes.map(theme => ({key:theme.key, label:theme.label,
+        count:approved.filter(doc => matchesPraise(doc, theme)).length})).filter(category => category.count > 0);
+    return {approvedDocuments:approved.length, documentsWithPositiveFeedback:approved.filter(doc =>
+        themes.some(theme => matchesPraise(doc, theme))).length,
+        categories, method:'Conservative explicit-praise keyword matches in approved document feedback. Approval alone is not evidence of a successful practice. No raw reviewer text or identities are included.'};
+}
+
+// Feedback leaves the browser only as anonymous document references. Original text stays in local exports.
+function buildOfficerDocumentAiFeedback(documents) {
+    const docs = Array.isArray(documents) ? documents : [];
+    const identities = new Set();
+    docs.forEach(doc => {
+        ['submittedByName', 'reviewerName', 'adviserReviewerName', 'sscReviewerName', 'osaReviewerName',
+            'sender', 'student_name', 'student_number', 'email'].forEach(key => {
+            if (typeof doc[key] === 'string' && doc[key].trim().length >= 3) {
+                identities.add(doc[key].trim());
+                if (/Name$|_name$/.test(key)) doc[key].split(/\s+/).filter(part => part.length >= 3).forEach(part => identities.add(part));
+            }
+        });
+        (doc.reviewAnnotations || []).forEach(note => {
+            ['author_name', 'author_full_name', 'created_by_name', 'author_email'].forEach(key => {
+                if (typeof note[key] === 'string' && note[key].trim().length >= 3) identities.add(note[key].trim());
+            });
+        });
+    });
+    const redact = value => {
+        let text = String(value || '');
+        [...identities].sort((a, b) => b.length - a.length).forEach(identity => {
+            const escaped = identity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            text = text.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), '[identity removed]');
+        });
+        return text.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email removed]')
+            .replace(/https?:\/\/\S+/gi, '[link removed]')
+            .replace(/\b\d{4,}[A-Z]{0,4}[- ]\d{4,}\b/gi, '[student number removed]')
+            .replace(/(?:\+?63|0)9\d[\d -]{8,12}\b/g, '[phone removed]')
+            .replace(/\b(?:Mr|Ms|Mrs|Dr|Prof|Sir|Ma'am)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}/g, '[name removed]')
+            .replace(/\b(?:ni|kay|si|sina|kina)\s+[A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|[A-Z]\.)){0,3}/g, '[name removed]')
+            .trim();
+    };
+    let truncatedComments = 0;
+    const eligible = docs.map(doc => {
+        const status = String(doc.rawStatus || doc.status || '').toLowerCase();
+        if (!/reject|approv/.test(status)) return null;
+        const comments = getDocumentRejectionFeedback(doc).map(note => ({
+            source: note.source.replace(/, page .*/, ''), text: redact(note.text),
+        })).filter(note => note.text);
+        return comments.length ? {status: status.includes('reject') ? 'rejected' : 'approved', comments} : null;
+    }).filter(Boolean);
+    const records = eligible.slice(0, 60).map((record, index) => {
+        truncatedComments += Math.max(0, record.comments.length - 8);
+        return {ref: `D${index + 1}`, status: record.status, comments: record.comments.slice(0, 8).map(note => {
+            if (note.text.length > 1000) truncatedComments++;
+            return {...note, text: note.text.slice(0, 1000)};
+        })};
+    });
+    return {records, totalEligibleDocuments: eligible.length, omittedDocuments: Math.max(0, eligible.length - records.length),
+        truncatedComments, annotationsUnavailable: docs.filter(doc => doc.reviewAnnotationsUnavailable).length};
+}
+
 function splitOfficerRentalItemNames(rental) {
     const raw = String(rental?.itemsLabel || rental?.item || '').trim();
     if (!raw || raw === '-') return [];
@@ -589,7 +660,8 @@ function buildOfficerFinancialBalancePatterns(financialRows) {
 }
 
 function buildOfficerEventParticipationPatterns(events) {
-    const values = (Array.isArray(events) ? events : []).map((event) => Math.max(0, Number(event.participants || 0)));
+    const records = Array.isArray(events) ? events : [];
+    const values = records.map((event) => Math.max(0, Number(event.participants || 0)));
     if (!values.length) {
         return {
             eventCount: 0,
@@ -597,6 +669,8 @@ function buildOfficerEventParticipationPatterns(events) {
             zeroAttendanceEvents: 0,
             aboveAverageEvents: 0,
             coefficientOfVariation: 0,
+            mostAttended: [],
+            mostAttendedTieCount: 0,
         };
     }
 
@@ -609,6 +683,8 @@ function buildOfficerEventParticipationPatterns(events) {
         : (sorted[middle - 1] + sorted[middle]) / 2;
     const variance = values.reduce((sum, value) => sum + ((value - average) ** 2), 0) / values.length;
     const standardDeviation = Math.sqrt(variance);
+    const highestAttendance = Math.max(...values);
+    const leaders = records.filter((event, index) => values[index] === highestAttendance && highestAttendance > 0);
 
     return {
         eventCount: values.length,
@@ -616,6 +692,11 @@ function buildOfficerEventParticipationPatterns(events) {
         zeroAttendanceEvents: values.filter((value) => value === 0).length,
         aboveAverageEvents: values.filter((value) => value > average).length,
         coefficientOfVariation: average > 0 ? Number(((standardDeviation / average) * 100).toFixed(1)) : 0,
+        mostAttended: leaders.slice(0, 5).map((event) => ({
+            title: String(event.title || 'Untitled event'),
+            participants: highestAttendance,
+        })),
+        mostAttendedTieCount: leaders.length,
     };
 }
 
@@ -736,6 +817,7 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
 
     const patterns = {
         documentRejections: buildOfficerDocumentRejectionPatterns(filteredDocs),
+        documentPositiveFeedback: buildOfficerDocumentPositivePatterns(filteredDocs),
         rentalFrequency: buildOfficerRentalFrequencyPatterns(filteredRentals),
         financialBalances: buildOfficerFinancialBalancePatterns(filteredFinancial),
         eventParticipation: buildOfficerEventParticipationPatterns(filteredEvents),
@@ -779,6 +861,7 @@ function getOfficerAnalyticsSnapshot(overrides = {}) {
         source,
         financial: filteredFinancial,
         docs: filteredDocs,
+        documentFeedback: buildOfficerDocumentAiFeedback(filteredDocs),
         rentals: filteredRentals,
         events: filteredEvents,
         totals: {
@@ -995,6 +1078,7 @@ function buildOfficerAnalyticsInsightsRequest(snapshot) {
             summaries: snapshot?.summaries || {},
             charts: snapshot?.charts || {},
             patterns: snapshot?.patterns || {},
+            documentFeedback: snapshot?.documentFeedback || buildOfficerDocumentAiFeedback(snapshot?.docs),
             events: Array.isArray(snapshot?.events)
                 ? snapshot.events.map((event) => ({
                     id: event.id || event.event_id || null,
@@ -1017,6 +1101,7 @@ function buildOfficerAnalyticsInsightsRequest(snapshot) {
 
 function buildOfficerAnalyticsInsightsCacheKey(snapshot) {
     const payload = {
+        version: 18,
         filters: snapshot?.filters || {},
         availability: snapshot?.availability || {},
         totals: snapshot?.totals || {},
@@ -1024,6 +1109,7 @@ function buildOfficerAnalyticsInsightsCacheKey(snapshot) {
         summaries: snapshot?.summaries || {},
         charts: snapshot?.charts || {},
         patterns: snapshot?.patterns || {},
+        documentFeedback: snapshot?.documentFeedback || buildOfficerDocumentAiFeedback(snapshot?.docs),
         eventIds: Array.isArray(snapshot?.events) ? snapshot.events.map((event) => [event.id || event.event_id || event.title, event.participants || 0, event.date || '']) : [],
     };
     return JSON.stringify(payload);
@@ -1034,11 +1120,14 @@ function getOfficerServiceAnalyticsUnavailableMessage() {
 }
 
 function setOfficerAnalyticsInsightsLoading() {
+    const overview = document.getElementById('analyticsInsightOverall');
+    if (overview) overview.textContent = 'Generating an explanation of the selected data...';
     const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
     const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
     if (providerBadge) {
         providerBadge.style.display = 'inline-flex';
         providerBadge.textContent = 'Generating insights...';
+        providerBadge.title = '';
     }
     if (refreshButton) {
         refreshButton.disabled = true;
@@ -1056,11 +1145,14 @@ function setOfficerAnalyticsInsightsLoading() {
 }
 
 function setOfficerAnalyticsInsightsIdle() {
+    const overview = document.getElementById('analyticsInsightOverall');
+    if (overview) overview.textContent = 'Click Generate Insights to explain the selected data.';
     const providerBadge = document.getElementById('analyticsInsightsProviderBadge');
     const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
     if (providerBadge) {
         providerBadge.style.display = 'none';
         providerBadge.textContent = '';
+        providerBadge.title = '';
     }
     if (refreshButton) {
         refreshButton.disabled = false;
@@ -1081,6 +1173,7 @@ function renderOfficerAnalyticsInsights(insights) {
     const serviceAnalyticsApplicable = isOfficerServiceAnalyticsApplicable();
     const unavailableMessage = getOfficerServiceAnalyticsUnavailableMessage();
     const mappings = {
+        analyticsInsightOverall: insights?.exportSummary || 'No overall summary is available for the selected data.',
         analyticsInsightFinancial: serviceAnalyticsApplicable
             ? (insights?.chartSummaries?.financial || 'No financial insight available.')
             : unavailableMessage,
@@ -1107,6 +1200,14 @@ function renderOfficerAnalyticsInsights(insights) {
             : 'Rule-based';
         providerBadge.style.display = 'inline-flex';
         providerBadge.textContent = insights?.fallbackUsed ? `${providerLabel} fallback` : providerLabel;
+        const errors = Array.isArray(insights?.providerErrors) ? insights.providerErrors.join(' ') : '';
+        const reasons = [];
+        if (/quota|rate.limit|429/i.test(errors)) reasons.push('An AI provider reported a usage limit.');
+        if (/high demand|overload|503/i.test(errors)) reasons.push('An AI provider is temporarily busy.');
+        if (/timed? out|timeout/i.test(errors)) reasons.push('An AI request timed out.');
+        if (/Incomplete AI response|Invalid AI feedback|Unsupported AI feedback|AI omitted|Missing AI feedback|structured JSON|invalid.*JSON|truncated|did not finish/i.test(errors)) reasons.push('An AI response failed the report completeness or evidence checks.');
+        providerBadge.title = insights?.fallbackUsed
+            ? (reasons.join(' ') || 'AI generation was unavailable. The report uses rule-based explanations.') : '';
     }
 
     const refreshButton = document.getElementById('analyticsInsightsRefreshBtn');
@@ -1198,42 +1299,34 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
     const render = options.render !== false;
     const forceRefresh = !!options.forceRefresh;
     const cacheKey = buildOfficerAnalyticsInsightsCacheKey(snapshot);
+    // Only dashboard consumers own display state; report generation must not replace it.
+    const requestId = render ? ++officerAnalyticsInsightsState.latestRequestId : null;
+    if (render) officerAnalyticsInsightsState.currentKey = cacheKey;
+    const shouldRender = () => render
+        && officerAnalyticsInsightsState.currentKey === cacheKey
+        && officerAnalyticsInsightsState.latestRequestId === requestId;
 
     if (!forceRefresh && officerAnalyticsInsightsState.cache.has(cacheKey)) {
         const cached = officerAnalyticsInsightsState.cache.get(cacheKey);
-        if (render) {
-            officerAnalyticsInsightsState.currentKey = cacheKey;
-            renderOfficerAnalyticsInsights(cached);
-        }
+        if (shouldRender()) renderOfficerAnalyticsInsights(cached);
         return cached;
     }
+
+    if (shouldRender()) setOfficerAnalyticsInsightsLoading();
 
     // Every uncached consumer uses the normal backend provider sequence:
     // Gemini first, followed by deterministic rule-based fallback.
     if (officerAnalyticsInsightsState.pending.has(cacheKey)) {
         try {
             const pending = await officerAnalyticsInsightsState.pending.get(cacheKey);
-            if (render) {
-                officerAnalyticsInsightsState.currentKey = cacheKey;
-                renderOfficerAnalyticsInsights(pending);
-            }
+            if (shouldRender()) renderOfficerAnalyticsInsights(pending);
             return pending;
         } catch (error) {
             console.error('getOfficerAnalyticsInsightsData pending request failed', error);
             const fallback = buildOfficerAnalyticsFallbackInsights(snapshot);
-            if (render) {
-                renderOfficerAnalyticsInsights(fallback);
-            }
+            if (shouldRender()) renderOfficerAnalyticsInsights(fallback);
             return fallback;
         }
-    }
-
-    const requestId = officerAnalyticsInsightsState.latestRequestId + 1;
-    officerAnalyticsInsightsState.latestRequestId = requestId;
-
-    if (render) {
-        officerAnalyticsInsightsState.currentKey = cacheKey;
-        setOfficerAnalyticsInsightsLoading();
     }
 
     const request = (async () => {
@@ -1257,16 +1350,12 @@ async function getOfficerAnalyticsInsightsData(options = {}) {
     try {
         const payload = await request;
         officerAnalyticsInsightsState.cache.set(cacheKey, payload);
-        if (render && officerAnalyticsInsightsState.currentKey === cacheKey && requestId === officerAnalyticsInsightsState.latestRequestId) {
-            renderOfficerAnalyticsInsights(payload);
-        }
+        if (shouldRender()) renderOfficerAnalyticsInsights(payload);
         return payload;
     } catch (error) {
         console.error('getOfficerAnalyticsInsightsData failed', error);
         const fallback = buildOfficerAnalyticsFallbackInsights(snapshot);
-        if (render) {
-            renderOfficerAnalyticsInsights(fallback);
-        }
+        if (shouldRender()) renderOfficerAnalyticsInsights(fallback);
         return fallback;
     } finally {
         if (officerAnalyticsInsightsState.pending.get(cacheKey) === request) {
@@ -1430,6 +1519,7 @@ function refreshAnalyticsCharts() {
     renderOfficerAnalyticsEvidence(snapshot);
 
     if (officerAnalyticsInsightsState.currentKey !== cacheKey) {
+        officerAnalyticsInsightsState.latestRequestId++;
         officerAnalyticsInsightsState.currentKey = cacheKey;
         setOfficerAnalyticsInsightsIdle();
     }
@@ -1495,8 +1585,82 @@ function renderOfficerAnalyticsEvidence(snapshot) {
     });
 }
 
-function getOfficerDocumentReportSections(snapshot) {
-    const patterns = buildOfficerDocumentRejectionPatterns(snapshot.docs, true);
+function isOfficerAnalyticsAiResponse(insights) {
+    return String(insights?.provider || '').startsWith('gemini:') && insights?.fallbackUsed !== true;
+}
+
+function getOfficerAnalyticsSummaryNotes(report, insights) {
+    const rentals = report.counts.rentals;
+    const docs = report.counts.docs;
+    const plural = count => Number(count) === 1 ? '' : 's';
+    const unavailable = 'Not applicable — Rentals and Printing are disabled';
+    let rejectionFeedback = '';
+    if (isOfficerAnalyticsAiResponse(insights)) {
+        rejectionFeedback = String(insights.documentGuidance?.rejectionSummary || '').split(/\r?\n/)
+            .map(line => line.replace(/^\s*[-*]\s*/, '').trim()).find(Boolean) || '';
+    } else {
+        const patterns = buildOfficerDocumentRejectionPatterns(report.docs || []);
+        const leading = patterns.categories.filter(category => category.count === patterns.categories[0]?.count);
+        rejectionFeedback = leading.length
+            ? `Most frequent recorded feedback: ${leading.map(category => `${category.label.toLowerCase()} (${category.count} document${plural(category.count)})`).join('; ')}.`
+            : 'No usable rejection feedback is recorded for this selection.';
+    }
+    return {
+        participants: `${report.totals.participationTotal} attendance entries across ${report.events.length} event${plural(report.events.length)}. These may include the same student at different events.`,
+        activeRentals: report.availability?.servicesApplicable === false ? unavailable : `${rentals.active} rental${plural(rentals.active)} ${Number(rentals.active) === 1 ? 'is' : 'are'} currently in use.`,
+        pendingRentals: report.availability?.servicesApplicable === false ? unavailable : `${rentals.pending} rental request${plural(rentals.pending)} ${Number(rentals.pending) === 1 ? 'is' : 'are'} waiting to be processed.`,
+        overdueRentals: report.availability?.servicesApplicable === false ? unavailable : `${rentals.overdue} rental${plural(rentals.overdue)} ${Number(rentals.overdue) === 1 ? 'is' : 'are'} past the recorded return deadline.`,
+        approvedDocs: `${docs.approved} document${plural(docs.approved)} ${Number(docs.approved) === 1 ? 'is' : 'are'} recorded as approved. Approval alone does not establish which practices worked.`,
+        pendingDocs: `${docs.pending} document${plural(docs.pending)} ${Number(docs.pending) === 1 ? 'is' : 'are'} still awaiting review or approval.`,
+        rejectedDocs: `${docs.rejected} document${plural(docs.rejected)} ${Number(docs.rejected) === 1 ? 'was' : 'were'} rejected.${Number(docs.rejected) > 0 && rejectionFeedback ? ` ${rejectionFeedback}` : ''}`,
+    };
+}
+
+function hasOfficerDocumentAiEvidence(snapshot, analysis) {
+    if (!analysis || !Array.isArray(analysis.rejectionCategories) || !Array.isArray(analysis.positivePractices)) return false;
+    const records = new Map((snapshot.documentFeedback?.records || []).map(record => [record.ref, record.status]));
+    const covered = new Set();
+    for (const [group, status] of [['rejectionCategories', 'rejected'], ['positivePractices', 'approved']]) {
+        const keys = new Set();
+        for (const category of analysis[group]) {
+            if (!category || typeof category.key !== 'string' || keys.has(category.key) || typeof category.label !== 'string'
+                || !Array.isArray(category.documentRefs) || !category.documentRefs.length
+                || new Set(category.documentRefs).size !== category.documentRefs.length
+                || category.count !== category.documentRefs.length
+                || category.documentRefs.some(ref => records.get(ref) !== status)) return false;
+            keys.add(category.key);
+            if (status === 'rejected') category.documentRefs.forEach(ref => covered.add(ref));
+        }
+    }
+    const rejected = [...records].filter(([, status]) => status === 'rejected');
+    return rejected.every(([ref]) => covered.has(ref)) && analysis.reviewedRejectedDocuments === rejected.length;
+}
+
+function resolveOfficerAnalyticsReportInsights(snapshot, insights) {
+    if (!insights) return buildOfficerAnalyticsFallbackInsights(snapshot);
+    if (!isOfficerAnalyticsAiResponse(insights)) return insights;
+    const fields = [insights.exportSummary,
+        ...['financial', 'participation', 'inventory', 'documents'].map(key => insights.chartSummaries?.[key]),
+        ...['revenueSeries', 'eventParticipation', 'financialTransactions', 'rentalRecords', 'documentWorkflow'].map(key => insights.exportSections?.[key])];
+    // An incomplete AI response makes the entire report fall back, not individual sections.
+    const guidance = insights.documentGuidance;
+    if (snapshot.documentFeedback && !hasOfficerDocumentAiEvidence(snapshot, insights.documentAnalysis)) return buildOfficerAnalyticsFallbackInsights(snapshot);
+    const categories = insights.documentAnalysis?.rejectionCategories || buildOfficerDocumentRejectionPatterns(snapshot.docs || []).categories;
+    const completeGuidance = guidance && [guidance.rejectionSummary, guidance.keepDoing].every(value => typeof value === 'string' && value.trim())
+        && guidance.reviewChecks && Object.keys(guidance.reviewChecks).length === categories.length
+        && categories.every(category => typeof guidance.reviewChecks[category.key] === 'string' && guidance.reviewChecks[category.key].trim());
+    return completeGuidance && fields.every(value => typeof value === 'string' && value.trim())
+        ? insights : buildOfficerAnalyticsFallbackInsights(snapshot);
+}
+
+function getOfficerDocumentReportSections(snapshot, insights = null) {
+    const aiReport = isOfficerAnalyticsAiResponse(insights);
+    const keywordPatterns = buildOfficerDocumentRejectionPatterns(snapshot.docs, true);
+    const analysis = aiReport ? insights.documentAnalysis : null;
+    const patterns = analysis ? {...keywordPatterns, categories: analysis.rejectionCategories} : keywordPatterns;
+    const coverage = analysis
+        ? `AI-interpreted feedback: ${analysis.reviewedRejectedDocuments} rejected and ${analysis.reviewedApprovedDocuments} approved documents were read. Shares use the ${analysis.reviewedRejectedDocuments} rejected documents read; categories may overlap. ${analysis.omittedDocuments || 0} documents with feedback were omitted from the bounded sample; ${analysis.truncatedComments || 0} comments were shortened or omitted. ${keywordPatterns.annotationsUnavailable || 0} documents could not load annotations. Interpretations may be mistaken; check the original feedback. Checks do not guarantee approval.`
+        : `Coverage: ${patterns.rejectedWithNotes} of ${patterns.rejectedDocuments} rejected documents have feedback; ${patterns.rejectedWithoutNotes} have no usable feedback.${patterns.annotationsUnavailable ? ` Annotations could not be loaded for ${patterns.annotationsUnavailable} documents.` : ''} Percentages use documents with feedback; categories may overlap. Checks address observed feedback and do not guarantee approval.`;
     const priorities = [...patterns.categories].sort((a, b) => b.count - a.count).slice(0, 3);
     const summary = priorities.length
         ? `Summary: The most frequently recorded feedback categories are ${priorities.map(category => `${category.label.toLowerCase()} (${category.count} document${category.count === 1 ? '' : 's'}; ${category.share}%)`).join('; ')}.`
@@ -1516,15 +1680,15 @@ function getOfficerDocumentReportSections(snapshot) {
     return [
         {
             title: 'Document Workflow - Summary',
-            description: 'Recorded document status for the selected period.',
+            description: insights?.exportSections?.documentWorkflow || 'Recorded document status for the selected period.',
             head: ['Total documents', 'Approved', 'Pending', 'Rejected'],
             body: [[snapshot.docs.length, snapshot.counts.docs.approved, snapshot.counts.docs.pending, snapshot.counts.docs.rejected]]
         },
         {
             title: 'Rejection Reasons and Revision Checklist',
-            description: [summary, '', ...improvements, '', `Coverage: ${patterns.rejectedWithNotes} of ${patterns.rejectedDocuments} rejected documents have feedback; ${patterns.rejectedWithoutNotes} have no usable feedback.${patterns.annotationsUnavailable ? ` Annotations could not be loaded for ${patterns.annotationsUnavailable} documents.` : ''} Percentages use documents with feedback; categories may overlap. Checks address observed feedback and do not guarantee approval.`].join('\n'),
+            description: [...(aiReport ? [insights.documentGuidance.rejectionSummary, '', 'What to keep doing:', insights.documentGuidance.keepDoing] : [summary, '', ...improvements]), '', coverage].join('\n'),
             head: ['Feedback category', 'Count', 'Share', 'What to review'],
-            body: patterns.categories.length ? patterns.categories.map(category => [category.label, category.count, `${category.share}%`, category.revisionCheck]) : [['No usable rejection feedback', '-', '-', '-']]
+            body: patterns.categories.length ? patterns.categories.map(category => [category.label, category.count, `${category.share}%`, aiReport ? insights.documentGuidance.reviewChecks[category.key] : category.revisionCheck]) : [['No usable rejection feedback', '-', '-', '-']]
         },
         {
             title: 'Document Records', description: '',
@@ -1533,7 +1697,7 @@ function getOfficerDocumentReportSections(snapshot) {
         },
         {
             title: 'Reviewer Comments and Annotations',
-            description: 'Original feedback from rejected documents, listed once per comment or annotation. Categories above are keyword matches in this feedback.',
+            description: `Original feedback from rejected documents, listed once per comment or annotation. Categories above are ${analysis ? 'AI interpretations of redacted reviewer feedback' : 'keyword matches in this feedback'}.`,
             head: ['Document', 'Reviewer / source', 'Feedback'],
             body: feedback.length ? feedback : [['No reviewer feedback available', '', '']]
         }
@@ -1562,6 +1726,14 @@ function getOfficerAnalyticsEvidenceReportRows(snapshot) {
         });
     });
     return rows;
+}
+
+function getOfficerAnalyticsReportEvidenceRows(snapshot, insights) {
+    if (!isOfficerAnalyticsAiResponse(insights)) return getOfficerAnalyticsEvidenceReportRows(snapshot);
+    return [['Financial', insights.chartSummaries.financial],
+        ['Participation', insights.chartSummaries.participation],
+        ['Inventory', insights.chartSummaries.inventory]]
+        .filter(([topic]) => snapshot.availability?.servicesApplicable !== false || topic === 'Participation');
 }
 
 function getOfficerAnalyticsReportData(overrides = {}) {
@@ -1765,19 +1937,25 @@ function generateMockAnalyticsData() {
     // Generate 10-20 documents
     const docCount = 20;
     const mockRejectionNotes = [
-        'Missing required attachments and supporting files.',
-        'Missing required attachments and supporting files.',
-        'Missing required attachments and signature of the signatory.',
-        'Signature and endorsement are incomplete.',
-        'Use the required template and correct the font and margins.',
-        'Budget totals do not match the quotation amounts.',
-        'Schedule and venue conflict; correct the date and time.',
-        'Explain the objectives and participant details.',
-        'Incorrect and inconsistent information across sections.',
-        'Review the policy compliance requirements.',
-        'Please consult the reviewer.',
+        'Required supporting documents are missing. Pakikumpleto muna ang attachments bago mag-resubmit.',
+        'Missing pa ang required attachments at supporting files. Paki-upload ang mga kulang.',
+        'Wala pang signature ng signatory, and some attachments are still missing. Please complete both before resubmitting.',
+        'The endorsement is incomplete. Paki-check din kung kumpleto na ang required signatures bago ipasa ulit.',
+        'Please use the required template. Pakiayos ang font, margins, at spacing para consistent ang format.',
+        'Hindi tugma ang total expenses sa quotation. Please recheck the budget totals and itemized amounts.',
+        'The attachments are complete, pero mali ang date and time. Please resolve the venue conflict as well.',
+        'Hindi malinaw ang objectives. Please explain who will benefit and ano ang gagawin during the activity.',
+        'The information in the two sections does not match. Paki-correct ang inconsistent details bago mag-resubmit.',
+        'The proposal does not follow the stated policy guidelines. Pakisuri ang requirements bago ipasa ulit.',
+        'May kailangan pang linawin sa submission. Please contact the reviewer for the specific details.',
         '' // Deliberately missing evidence to test coverage warnings.
     ];
+    const mockApprovedNotes = {
+        13: 'The objectives are clear. Maayos din ang explanation kung sino ang makikinabang sa activity.',
+        15: 'Complete ang supporting documents, and the attachments are organized. Kumpleto ang mga kalakip na sinuri.',
+        17: 'The schedule and venue details are clear. Consistent ang budget, and each expense is explained clearly.',
+        19: 'If the objectives are clear at kumpleto ang attachments, mas madaling suriin ang proposal. Approved.' // Conditional wording is not explicit praise.
+    };
     const docs = [];
     for (let i = 0; i < docCount; i++) {
         const statuses = ['approved', 'pending', 'pending', 'rejected']; // More pending
@@ -1796,9 +1974,9 @@ function generateMockAnalyticsData() {
             submitted_at: toIsoDateTime(docDate, 10 + (i % 5), 15),
             date: toIsoDate(docDate),
             status: i < mockRejectionNotes.length ? 'rejected' : (i % 2 ? 'approved' : 'pending'),
-            reviewerNotes: i < 4 ? mockRejectionNotes[i] : '',
-            adviserDecision: i < 4 ? 'rejected' : '',
-            adviserReviewerNotes: i < 4 ? mockRejectionNotes[i] : '',
+            reviewerNotes: i < 4 ? mockRejectionNotes[i] : (mockApprovedNotes[i] || ''),
+            adviserDecision: i < 4 ? 'rejected' : (mockApprovedNotes[i] ? 'approved' : ''),
+            adviserReviewerNotes: i < 4 ? mockRejectionNotes[i] : (mockApprovedNotes[i] || ''),
             sscDecision: i >= 4 && i < 8 ? 'rejected' : '',
             sscReviewerUserId: 9002,
             osaDecision: i >= 8 && i < 12 ? 'rejected' : '',
@@ -1810,7 +1988,9 @@ function generateMockAnalyticsData() {
                 page_number: 1 + (i % 3),
                 selected_text: `Example passage in ${docType}`,
                 comment_text: mockRejectionNotes[i]
-            }] : (i === 11 ? [{ created_by_user_id: 9003, page_number: 1, selected_text: 'Budget', comment_text: '' }] : []),
+            }] : (i === 11 ? [{ created_by_user_id: 9003, page_number: 1, selected_text: 'Budget', comment_text: '' }]
+                : (i === 17 ? [{created_by_user_id: 9001, author_account_type: 'organization_adviser', page_number: 1,
+                    selected_text: 'Activity schedule', comment_text: 'The activity schedule is clear, at malinaw din ang venue details.'}] : [])),
             description: `${title} generated for mock workflow simulation.`,
             submitted_by: submitter,
             sender: submitter,

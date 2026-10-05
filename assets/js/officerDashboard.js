@@ -8581,6 +8581,13 @@ function escapeCsvValue(value) {
     return stringValue;
 }
 
+function formatAnalyticsReportPeso(value) {
+    const amount = Number(value);
+    return 'PHP ' + (Number.isFinite(amount) ? amount : 0).toLocaleString('en-PH', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+    });
+}
+
 function normalizeAnalyticsPdfText(value) {
     return String(value ?? '')
         .replace(/\r\n/g, '\n')
@@ -8591,7 +8598,6 @@ function normalizeAnalyticsPdfText(value) {
         .replace(/[“”]/g, '"')
         .replace(/[\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]/g, ' ')
         .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, ' ')
-        .replace(/(?:[A-Za-z0-9+.,%:-]\s+){5,}[A-Za-z0-9+.,%:-]/g, (match) => match.replace(/\s+/g, ''))
         .replace(/[ \t]+/g, ' ')
         .replace(/ *\n */g, '\n')
         .trim();
@@ -8599,6 +8605,10 @@ function normalizeAnalyticsPdfText(value) {
 
 function addAnalyticsPdfSectionDescription(doc, title, description, startY) {
     const normalizedTitle = normalizeAnalyticsPdfText(title);
+    // Measure using the same font and spacing that will draw the explanation.
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    if (typeof doc.setCharSpace === 'function') doc.setCharSpace(0);
     const bodyLines = doc.splitTextToSize(
         normalizeAnalyticsPdfText(description || 'No descriptive analysis available.'),
         180
@@ -8631,8 +8641,10 @@ function addAnalyticsPdfSectionDescription(doc, title, description, startY) {
 }
 
 function buildAnalyticsCsvRows(meta, report, insights = null) {
+    insights = resolveOfficerAnalyticsReportInsights(report, insights);
+    const summaryNotes = getOfficerAnalyticsSummaryNotes(report, insights);
     const servicesApplicable = report?.availability?.servicesApplicable !== false;
-    const serviceNote = servicesApplicable ? 'Inventory utilization' : 'Not applicable — Rentals and Printing are disabled';
+    const serviceNote = 'Not applicable — Rentals and Printing are disabled';
     const rows = [
         ['ORGANIZATION ANALYTICS REPORT'],
         ['Organization', meta.organization],
@@ -8642,15 +8654,15 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
         [],
         ['SUMMARY'],
         ['Metric', 'Value', 'Notes'],
-        ['Total Revenue', servicesApplicable ? formatOfficerPeso(report.totals.revenue) : 'Not applicable', servicesApplicable ? String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '') : serviceNote],
-        ['Average Attendance', report.totals.participationAverage, report.summaries.participation],
-        ['Total Event Participants', report.totals.participationTotal, `${report.events.length} event(s)`],
-        ['Active Rentals', servicesApplicable ? report.counts.rentals.active : 'Not applicable', serviceNote],
-        ['Pending Rentals', servicesApplicable ? report.counts.rentals.pending : 'Not applicable', serviceNote],
-        ['Overdue Rentals', servicesApplicable ? report.counts.rentals.overdue : 'Not applicable', serviceNote],
-        ['Approved Documents', report.counts.docs.approved, 'Document workflow'],
-        ['Pending Documents', report.counts.docs.pending, 'Document workflow'],
-        ['Rejected Documents', report.counts.docs.rejected, 'Document workflow'],
+        ['Total Revenue', servicesApplicable ? formatAnalyticsReportPeso(report.totals.revenue) : 'Not applicable', servicesApplicable ? (isOfficerAnalyticsAiResponse(insights) ? insights.chartSummaries.financial : String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '')) : serviceNote],
+        ['Average Attendance', report.totals.participationAverage, isOfficerAnalyticsAiResponse(insights) ? insights.chartSummaries.participation : report.summaries.participation],
+        ['Total Event Participants', report.totals.participationTotal, summaryNotes.participants],
+        ['Active Rentals', servicesApplicable ? report.counts.rentals.active : 'Not applicable', summaryNotes.activeRentals],
+        ['Pending Rentals', servicesApplicable ? report.counts.rentals.pending : 'Not applicable', summaryNotes.pendingRentals],
+        ['Overdue Rentals', servicesApplicable ? report.counts.rentals.overdue : 'Not applicable', summaryNotes.overdueRentals],
+        ['Approved Documents', report.counts.docs.approved, summaryNotes.approvedDocs],
+        ['Pending Documents', report.counts.docs.pending, summaryNotes.pendingDocs],
+        ['Rejected Documents', report.counts.docs.rejected, summaryNotes.rejectedDocs],
         [],
         ['AI / DESCRIPTIVE INSIGHTS'],
         ['Provider', insights?.provider || 'rule-based'],
@@ -8667,10 +8679,10 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
 
     if (servicesApplicable && report.charts.revenue.labels.length && !(report.charts.revenue.labels.length === 1 && report.charts.revenue.labels[0] === 'No revenue data')) {
         report.charts.revenue.labels.forEach((label, index) => {
-            rows.push([label, formatOfficerPeso(report.charts.revenue.values[index] || 0)]);
+            rows.push([label, formatAnalyticsReportPeso(report.charts.revenue.values[index] || 0)]);
         });
     } else {
-        rows.push([servicesApplicable ? 'No revenue data' : 'Not applicable', servicesApplicable ? formatOfficerPeso(0) : 'Rentals and Printing are disabled']);
+        rows.push([servicesApplicable ? 'No revenue data' : 'Not applicable', servicesApplicable ? formatAnalyticsReportPeso(0) : 'Rentals and Printing are disabled']);
     }
 
     rows.push([]);
@@ -8701,7 +8713,7 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
                 getOfficerFinancialServiceLabel(item.service_type),
                 getOfficerFinancialItemDisplayLabel(item),
                 item.customer_name || '-',
-                formatOfficerPeso(item.total_cost || 0),
+                formatAnalyticsReportPeso(item.total_cost || 0),
                 getOfficerFinancialPaymentLabel(item),
             ]);
         });
@@ -8722,7 +8734,7 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
     }
 
     rows.push([]);
-    getOfficerDocumentReportSections(report).forEach(section => {
+    getOfficerDocumentReportSections(report, insights).forEach(section => {
         rows.push([], [section.title]);
         if (section.description) rows.push(['Notes', section.description]);
         rows.push(section.head, ...section.body);
@@ -8731,7 +8743,7 @@ function buildAnalyticsCsvRows(meta, report, insights = null) {
     if (typeof getOfficerAnalyticsEvidenceReportRows === 'function') {
         rows.push([], ['OTHER SUPPORTING EVIDENCE']);
         rows.push(['Topic', 'Findings']);
-        rows.push(...getOfficerAnalyticsEvidenceReportRows(report).filter(row => ['Financial', 'Participation', 'Inventory'].includes(row[0])));
+        rows.push(...getOfficerAnalyticsReportEvidenceRows(report, insights).filter(row => ['Financial', 'Participation', 'Inventory'].includes(row[0])));
     }
     return rows;
 }
@@ -8747,9 +8759,10 @@ async function exportCSV(options = {}) {
         }
 
         setAnalyticsExportLoadingMessage('Generating descriptive insights for the CSV report...');
-        const insights = typeof getOfficerAnalyticsInsightsData === 'function'
+        const generatedInsights = typeof getOfficerAnalyticsInsightsData === 'function'
             ? await getOfficerAnalyticsInsightsData({ snapshot: report, render: false })
             : null;
+        const insights = resolveOfficerAnalyticsReportInsights(report, generatedInsights);
         setAnalyticsExportLoadingMessage('Building the CSV file and starting your download...');
         await waitForAnalyticsExportUiPaint();
 
@@ -8783,13 +8796,15 @@ async function exportPDF(options = {}) {
     }
 
     setAnalyticsExportLoadingMessage('Generating descriptive insights for the PDF report...');
-    const insights = typeof getOfficerAnalyticsInsightsData === 'function'
+    const generatedInsights = typeof getOfficerAnalyticsInsightsData === 'function'
         ? await getOfficerAnalyticsInsightsData({ snapshot: report, render: false })
         : null;
+    const insights = resolveOfficerAnalyticsReportInsights(report, generatedInsights);
     setAnalyticsExportLoadingMessage('Formatting report sections, tables, and page layout...');
+    const summaryNotes = getOfficerAnalyticsSummaryNotes(report, insights);
     await waitForAnalyticsExportUiPaint();
     const servicesApplicable = report?.availability?.servicesApplicable !== false;
-    const serviceNote = servicesApplicable ? 'Inventory utilization' : 'Not applicable — Rentals and Printing are disabled';
+    const serviceNote = 'Not applicable — Rentals and Printing are disabled';
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -8804,23 +8819,28 @@ async function exportPDF(options = {}) {
     doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 32);
     doc.text(`Period: ${meta.dateLabel} | A.Y. ${meta.year}`, 14, 38);
 
+    doc.setCharSpace(0);
     doc.autoTable({
         startY: 46,
         head: [['Metric', 'Value', 'Notes']],
         body: [
-            ['Total Revenue', servicesApplicable ? formatOfficerPeso(report.totals.revenue) : 'Not applicable', servicesApplicable ? String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '') : serviceNote],
-            ['Average Attendance', String(report.totals.participationAverage), report.summaries.participation],
-            ['Total Participants', String(report.totals.participationTotal), `${report.events.length} event(s)`],
-            ['Active Rentals', servicesApplicable ? String(report.counts.rentals.active) : 'Not applicable', serviceNote],
-            ['Pending Rentals', servicesApplicable ? String(report.counts.rentals.pending) : 'Not applicable', serviceNote],
-            ['Overdue Rentals', servicesApplicable ? String(report.counts.rentals.overdue) : 'Not applicable', serviceNote],
-            ['Approved Docs', String(report.counts.docs.approved), 'Document workflow'],
-            ['Pending Docs', String(report.counts.docs.pending), 'Document workflow'],
-            ['Rejected Docs', String(report.counts.docs.rejected), 'Document workflow'],
-        ],
+            ['Total Revenue', servicesApplicable ? formatAnalyticsReportPeso(report.totals.revenue) : 'Not applicable', servicesApplicable ? (isOfficerAnalyticsAiResponse(insights) ? insights.chartSummaries.financial : String(report.summaries.revenueTrend).replace(/<[^>]+>/g, '')) : serviceNote],
+            ['Average Attendance', String(report.totals.participationAverage), isOfficerAnalyticsAiResponse(insights) ? insights.chartSummaries.participation : report.summaries.participation],
+            ['Total Participants', String(report.totals.participationTotal), summaryNotes.participants],
+            ['Active Rentals', servicesApplicable ? String(report.counts.rentals.active) : 'Not applicable', summaryNotes.activeRentals],
+            ['Pending Rentals', servicesApplicable ? String(report.counts.rentals.pending) : 'Not applicable', summaryNotes.pendingRentals],
+            ['Overdue Rentals', servicesApplicable ? String(report.counts.rentals.overdue) : 'Not applicable', summaryNotes.overdueRentals],
+            ['Approved Docs', String(report.counts.docs.approved), summaryNotes.approvedDocs],
+            ['Pending Docs', String(report.counts.docs.pending), summaryNotes.pendingDocs],
+            ['Rejected Docs', String(report.counts.docs.rejected), summaryNotes.rejectedDocs],
+        ].map(row => row.map(normalizeAnalyticsPdfText)),
         theme: 'grid',
+        tableWidth: 182,
+        margin: { left: 14, right: 14 },
         headStyles: { fillColor: [0, 33, 71] },
-        styles: { fontSize: 9, cellPadding: 3 },
+        styles: { font: 'helvetica', fontStyle: 'normal', fontSize: 9, cellPadding: 3, overflow: 'linebreak', valign: 'top', halign: 'left' },
+        columnStyles: { 0: { cellWidth: 32 }, 1: { cellWidth: 35 }, 2: { cellWidth: 115 } },
+        willDrawCell: () => doc.setCharSpace(0),
     });
 
     let currentY = (doc.lastAutoTable?.finalY || 46) + 10;
@@ -8858,8 +8878,8 @@ async function exportPDF(options = {}) {
         startY: currentY + 4,
         head: [['Period', 'Revenue']],
         body: (servicesApplicable && report.charts.revenue.labels.length && !(report.charts.revenue.labels.length === 1 && report.charts.revenue.labels[0] === 'No revenue data'))
-            ? report.charts.revenue.labels.map((label, index) => [label, formatOfficerPeso(report.charts.revenue.values[index] || 0)])
-            : [[servicesApplicable ? 'No revenue data' : 'Not applicable', servicesApplicable ? formatOfficerPeso(0) : 'Rentals and Printing are disabled']],
+            ? report.charts.revenue.labels.map((label, index) => [label, formatAnalyticsReportPeso(report.charts.revenue.values[index] || 0)])
+            : [[servicesApplicable ? 'No revenue data' : 'Not applicable', servicesApplicable ? formatAnalyticsReportPeso(0) : 'Rentals and Printing are disabled']],
         theme: 'striped',
         headStyles: { fillColor: [0, 33, 71] },
         styles: { fontSize: 9 },
@@ -8904,7 +8924,7 @@ async function exportPDF(options = {}) {
                 getOfficerFinancialServiceLabel(item.service_type),
                 getOfficerFinancialItemDisplayLabel(item),
                 item.customer_name || '-',
-                formatOfficerPeso(item.total_cost || 0),
+                formatAnalyticsReportPeso(item.total_cost || 0),
                 getOfficerFinancialPaymentLabel(item),
             ])
             : [[servicesApplicable ? 'No financial transactions' : 'Not applicable — Rentals and Printing are disabled', '', '', '', '', '']],
@@ -8932,7 +8952,7 @@ async function exportPDF(options = {}) {
     });
 
     currentY = (doc.lastAutoTable?.finalY || currentY) + 10;
-    getOfficerDocumentReportSections(report).forEach((section, index) => {
+    getOfficerDocumentReportSections(report, insights).forEach((section, index) => {
         if (index === 0 || index === 3) {
             doc.addPage();
             currentY = 20;
@@ -8964,7 +8984,7 @@ async function exportPDF(options = {}) {
         doc.autoTable({
             startY: currentY + 4,
             head: [['Topic / Document', 'Findings / Reviewer Feedback']],
-            body: getOfficerAnalyticsEvidenceReportRows(report).filter(row => ['Financial', 'Participation', 'Inventory'].includes(row[0])).map(row => row.map(normalizeAnalyticsPdfText)),
+            body: getOfficerAnalyticsReportEvidenceRows(report, insights).filter(row => ['Financial', 'Participation', 'Inventory'].includes(row[0])).map(row => row.map(normalizeAnalyticsPdfText)),
             theme: 'striped',
             headStyles: { fillColor: [107, 114, 128] },
             styles: { fontSize: 8, overflow: 'linebreak' },

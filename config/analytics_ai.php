@@ -16,6 +16,12 @@ if (!defined('ANALYTICS_AI_GEMINI_ENABLED')) {
     define('ANALYTICS_AI_GEMINI_ENABLED', true);
 }
 
+// Redacted reviewer feedback to Gemini was explicitly authorized for this installation.
+// A deployment can still disable it through runtime configuration.
+if (!defined('ANALYTICS_AI_REVIEW_FEEDBACK_ENABLED')) {
+    define('ANALYTICS_AI_REVIEW_FEEDBACK_ENABLED', filter_var(appRuntimeValue('ANALYTICS_AI_REVIEW_FEEDBACK_ENABLED', 'true'), FILTER_VALIDATE_BOOLEAN));
+}
+
 if (!defined('ANALYTICS_AI_GEMINI_API_KEY')) {
     define('ANALYTICS_AI_GEMINI_API_KEY', trim((string)appRuntimeValue('ANALYTICS_AI_GEMINI_API_KEY', '')));
 }
