@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const source = fs.readFileSync('assets/js/igp-index-exact.js', 'utf8');
+const markup = fs.readFileSync('pages/igp/index.php', 'utf8');
+assert.equal((markup.match(/id="paymentAdjustmentRow"/g) || []).length, 1);
+const nodes = Object.fromEntries(['paymentBaseCost', 'paymentOvertimeCost', 'paymentAdjustmentRow', 'paymentAdjustmentCost', 'paymentTotalCost'].map(id => [id, {}]));
+const context = vm.createContext({ $: id => nodes[id], peso: value => Number(value).toFixed(2), getModalInstance: () => ({ show() {} }) });
+vm.runInContext(source.slice(source.indexOf('    function openPaymentModal('), source.indexOf('    function encodeRef(')), context);
+context.openPaymentModal({ base_cost: 20, overtime_cost: 80, charge_adjustment_total: -80, total_cost: 20 }, 7, 'officer');
+assert.equal(nodes.paymentAdjustmentRow.hidden, false);
+assert.equal(nodes.paymentAdjustmentCost.textContent, '-80.00');
+assert.equal(nodes.paymentTotalCost.textContent, '20.00');
+context.openPaymentModal({ base_cost: 20, overtime_cost: 0, total_cost: 20 }, 8, 'officer');
+assert.equal(nodes.paymentAdjustmentRow.hidden, true, 'Next ordinary rental must hide the previous adjustment');
+assert.equal(nodes.paymentAdjustmentCost.textContent, '0.00');
+console.log('Adjusted payment breakdown and reset checks passed.');

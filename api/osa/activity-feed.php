@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../includes/private_pdf_storage.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/rental_charges.php';
 require_once __DIR__ . '/../../includes/services_tracker.php';
 require_once __DIR__ . '/../../includes/organization_public_profile_columns.php';
 
@@ -271,6 +272,10 @@ function osaActivityBuildPayloads(PDO $pdo, array $rows): array
     }
     unset($payload);
 
+    if (!empty($payloads['rental'])) {
+        $quotes = igpAttachCurrentRentalCharges($pdo, array_values($payloads['rental']));
+        foreach ($quotes as $quote) $payloads['rental'][(int)$quote['rental_id']] = $quote;
+    }
     return $payloads;
 }
 

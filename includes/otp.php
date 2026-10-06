@@ -69,6 +69,7 @@ function isAllowedOtpPurpose(string $purpose): bool
         'osa_login',
         'password_reset',
         'profile_email_change',
+        'osa_rental_adjustment',
     ], true);
 }
 
@@ -85,6 +86,14 @@ function otpRecipientIsEligible(
     string $studentName = ''
 ): bool
 {
+    if ($purpose === 'osa_rental_adjustment') {
+        $userId = (int)($_SESSION['user_id'] ?? 0);
+        if ($userId <= 0 || !str_starts_with($identifier, $userId . ':')) return false;
+        $stmt = $pdo->prepare("SELECT user_id FROM users WHERE user_id = :id
+            AND account_type = 'osa_staff' AND is_active = 1 AND LOWER(email) = :email LIMIT 1");
+        $stmt->execute([':id' => $userId, ':email' => $email]);
+        return (bool)$stmt->fetchColumn();
+    }
     if ($purpose === 'profile_email_change') {
         $userId = (int)($_SESSION['user_id'] ?? 0);
         if ($userId <= 0 || $identifier !== (string)$userId) return false;

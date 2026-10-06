@@ -961,6 +961,9 @@ td {
 .activity-detail-modal-content {
     max-width: 720px;
     max-height: 90vh;
+    max-height: calc(100dvh - 32px);
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
 }
 
@@ -977,7 +980,15 @@ td {
 }
 
 .activity-detail-modal-content .request-action-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.activity-detail-modal-content .request-action-modal-header,
+.activity-detail-modal-content .request-action-modal-footer {
+    flex: 0 0 auto;
 }
 
 .activity-detail-summary {

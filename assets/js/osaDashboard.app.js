@@ -1448,7 +1448,7 @@ function renderRentalActivityDetail(activity, payload, detailMap) {
         { icon: 'fa-solid fa-user', label: 'Student', value: payload.student_name || detailMap.Student },
         { icon: 'fa-regular fa-id-card', label: 'Student No.', value: payload.student_number || detailMap['Student No'] },
         { icon: 'fa-solid fa-box-open', label: 'Items', value: payload.items_label || detailMap.Items },
-        { icon: 'fa-solid fa-peso-sign', label: 'Total Cost', value: formatActivityMoney(payload.total_cost || detailMap['Total Cost']) },
+        { icon: 'fa-solid fa-peso-sign', label: 'Total Cost', value: formatActivityMoney(payload.current_total_cost ?? payload.total_cost ?? detailMap['Total Cost']) },
     ])}
         ${renderActivityInfoGrid([
         { icon: 'fa-regular fa-clock', label: 'Rented At', value: formatOptionalDashboardActivityDate(payload.rent_time, detailMap['Rented At'] || 'N/A') },
@@ -1456,6 +1456,11 @@ function renderRentalActivityDetail(activity, payload, detailMap) {
         { icon: 'fa-solid fa-rotate-left', label: 'Returned At', value: formatOptionalDashboardActivityDate(payload.actual_return_time, detailMap['Returned At'] || 'Not returned') },
         { icon: 'fa-solid fa-sitemap', label: 'Organization', value: payload.organization || activity.organization },
     ])}
+        ${payload.service_kind !== 'locker' && Number(payload.rental_id || activity.sourceId) > 0 ? `
+            <div style="margin-top:16px">
+                <button type="button" class="btn btn-outline" onclick="openOsaRentalAdjustment(${Number(payload.rental_id || activity.sourceId)})">Adjust Rental</button>
+                <div id="osa-rental-adjustment-panel" style="margin-top:12px" aria-live="polite"></div>
+            </div>` : ''}
     `;
 }
 
@@ -1708,6 +1713,9 @@ function buildMonitoringActivities(org) {
     return osaActivityFeed
         .filter((activity) => normalizeMonitoringOrgName(activity.organization) === orgName)
         .map((activity) => ({
+            sourceType: activity.sourceType,
+            sourceId: activity.sourceId,
+            payload: activity.payload,
             title: activity.title || activity.details || 'Activity',
             type: activity.type || 'Activity',
             dateRaw: activity.date,
@@ -1778,7 +1786,8 @@ function renderMonitoringActivitiesTable() {
 
     eventTable.innerHTML = visibleItems.length ? visibleItems.map((activity) => `
         <tr>
-            <td>${escapeDashboardHtml(activity.title)}</td>
+            <td>${escapeDashboardHtml(activity.title)}
+                ${activity.sourceType === 'rental' && Number(activity.sourceId) > 0 && activity.payload?.service_kind !== 'locker' ? `<button type="button" class="btn btn-outline btn-sm" style="margin-left:8px" onclick="openMonitoringRentalDetail(${Number(activity.sourceId)})">View rental</button>` : ''}</td>
             <td>${escapeDashboardHtml(activity.type)}</td>
             <td>${escapeDashboardHtml(activity.dateLabel)}</td>
             <td><span class="status-badge status-${getActivityStatusClass(activity.status)}">${escapeDashboardHtml(activity.status)}</span></td>
@@ -1968,7 +1977,7 @@ async function loadRequestsFromApi() {
 }
 
 // --- UPDATED DASHBOARD PREVIEW RENDER ---
-async function loadOsaActivityFeed() {
+async function loadOsaActivityFeed(options = {}) {
     try {
         const response = await fetch(`${OSA_ACTIVITY_FEED_API}?limit=100`, {
             method: 'GET',
@@ -1983,6 +1992,7 @@ async function loadOsaActivityFeed() {
         return osaActivityFeed;
     } catch (error) {
         console.error('[loadOsaActivityFeed]', error);
+        if (options.preserveOnError) throw error;
         osaActivityFeed = [];
         renderDashboardPreview();
         return osaActivityFeed;
@@ -2115,6 +2125,19 @@ function openActivityDetailModal(activityIndex) {
         return;
     }
 
+    displayOsaActivityDetails(activity);
+}
+
+function openMonitoringRentalDetail(rentalId) {
+    const org = organizations.find(o => o.id === currentOrgId);
+    const activity = osaActivityFeed.find(item => item.sourceType === 'rental'
+        && Number(item.sourceId) === Number(rentalId)
+        && normalizeMonitoringOrgName(item.organization) === normalizeMonitoringOrgName(org?.name));
+    if (activity) displayOsaActivityDetails(activity);
+    else showToast('Rental details are no longer available. Refresh the activity list.', 'error');
+}
+
+function displayOsaActivityDetails(activity) {
     const modal = document.getElementById('activity-detail-modal');
     const title = document.getElementById('activity-detail-title');
     const subtitle = document.getElementById('activity-detail-subtitle');

@@ -1844,7 +1844,9 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
         $baseCost = $charges['base_cost'];
         $overtimeCost = $charges['overtime_cost'];
         $overMin = $charges['overtime_minutes'];
-        $total = $charges['total_cost'];
+        $adjustments = igpRentalAdjustmentTotals($pdo, [$rentalId]);
+        $chargeAdjustment = $adjustments[$rentalId] ?? 0.0;
+        $total = round(max(0, $charges['total_cost'] + $chargeAdjustment), 2);
         $newStatus = $overMin > 0 ? 'overdue' : 'returned';
         $updRental = $pdo->prepare(
             "UPDATE rentals
@@ -1884,6 +1886,7 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
         $pdo->commit();
         return [
             'rental_id' => $rentalId,
+            'charge_adjustment_total' => $chargeAdjustment,
             'base_cost' => $baseCost,
             'overtime_minutes' => $overMin,
             'overtime_cost' => $overtimeCost,

@@ -20,6 +20,21 @@ if ($purpose === 'profile_email_change') {
     $identifier = (string)$_SESSION['user_id'];
 }
 
+if ($purpose === 'osa_rental_adjustment') {
+    apiGuard(true);
+    $session = apiRequireOsaSystemAdministrator();
+    apiRequireRecentReauthentication();
+    require_once __DIR__ . '/../../../includes/rental_adjustments.php';
+    require_once __DIR__ . '/../../../includes/functions.php';
+    $administrator = getUserById((int)$session['user_id']);
+    $email = (string)($administrator['email'] ?? '');
+    try {
+        $identifier = osaRentalAdjustmentOtpIdentifier((int)$session['user_id'], osaRentalAdjustmentId($body['rental_id'] ?? null), $body);
+    } catch (InvalidArgumentException $e) {
+        jsonError($e->getMessage(), 422);
+    }
+}
+
 // OSA login codes are issued only after the password has been validated by
 // login.php. Do not expose that purpose through this public-purpose endpoint.
 if ($purpose === 'osa_login') {
@@ -90,6 +105,7 @@ try {
     $challenge = createOtpChallenge($purpose, $email, $identifier, $invitationToken, $studentName);
     jsonOk([
         ...$challenge,
+        ...($purpose === 'osa_rental_adjustment' ? ['recipient_email' => $email] : []),
         'message' => 'If the supplied details are eligible, a verification code has been sent.',
     ]);
 } catch (InvalidArgumentException $e) {

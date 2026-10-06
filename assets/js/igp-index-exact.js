@@ -595,6 +595,9 @@
         pendingPaymentOfficerIdentifier = String(officerIdentifier || '').trim();
         if ($('paymentBaseCost')) $('paymentBaseCost').textContent = peso(summary.base_cost);
         if ($('paymentOvertimeCost')) $('paymentOvertimeCost').textContent = peso(summary.overtime_cost);
+        const adjustment = Number(summary.charge_adjustment_total || 0);
+        if ($('paymentAdjustmentRow')) $('paymentAdjustmentRow').hidden = adjustment === 0;
+        if ($('paymentAdjustmentCost')) $('paymentAdjustmentCost').textContent = peso(adjustment);
         if ($('paymentTotalCost')) $('paymentTotalCost').textContent = peso(summary.total_cost);
         const modal = getModalInstance('returnPaymentModal');
         if (modal) modal.show();

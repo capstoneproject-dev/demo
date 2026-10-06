@@ -108,6 +108,7 @@ function sendOtpEmail(string $recipient, string $otp, string $purpose): void
         'osa_login' => 'OSA account login',
         'password_reset' => 'password reset',
         'profile_email_change' => 'profile email change',
+        'osa_rental_adjustment' => 'OSA rental adjustment approval',
     ];
     $label = $labels[$purpose] ?? 'account verification';
 

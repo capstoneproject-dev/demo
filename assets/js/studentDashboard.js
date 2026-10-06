@@ -8713,13 +8713,14 @@ function getStudentRentalCurrentCost(rental, nowMs = Date.now()) {
     if (!Number.isFinite(expectedMs) || !Number.isFinite(quotedAtMs) || !Number.isFinite(receivedAtMs)) return storedCost;
     const serverNowMs = quotedAtMs + Math.max(0, nowMs - receivedAtMs);
     const overdueMinutes = Math.max(0, Math.ceil((Math.floor(serverNowMs / 1000) * 1000 - expectedMs) / 60000));
-    return items.reduce((total, item) => {
+    const accruedCost = items.reduce((total, item) => {
         const interval = Number(item.overtime_interval_minutes || 0);
         const rate = Number(item.overtime_rate_per_block || 0);
         const overtime = overdueMinutes > 0 && interval > 0 && rate > 0
             ? Math.ceil(overdueMinutes / interval) * rate * Number(item.quantity) : 0;
         return total + Number(item.item_cost || 0) + overtime;
     }, 0);
+    return Math.max(0, accruedCost + Number(rental.charge_adjustment_total || 0));
 }
 
 function createRentalCard(rental) {

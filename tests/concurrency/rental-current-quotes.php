@@ -3,21 +3,25 @@ require_once __DIR__ . '/../../includes/rental_charges.php';
 
 class QuoteTestStatement extends PDOStatement
 {
+    public function __construct(private array $rows) {}
     public function execute(?array $params = null): bool { return true; }
     public function fetchAll(int $mode = PDO::FETCH_DEFAULT, mixed ...$args): array
     {
-        return [['rental_id' => 1, 'quantity' => 2, 'item_cost' => 40,
-            'overtime_interval_minutes' => 30, 'overtime_rate_per_block' => 5]];
+        return $this->rows;
     }
 }
 class QuoteTestPdo extends PDO
 {
     public array $queries = [];
+    public float $adjustment = 0;
     public function __construct() {}
     public function prepare(string $query, array $options = []): PDOStatement|false
     {
         $this->queries[] = $query;
-        return new QuoteTestStatement();
+        return new QuoteTestStatement(str_contains($query, 'FROM audit_logs')
+            ? [['target_id' => 1, 'adjustment_total' => $this->adjustment]]
+            : [['rental_id' => 1, 'quantity' => 2, 'item_cost' => 40,
+                'overtime_interval_minutes' => 30, 'overtime_rate_per_block' => 5]]);
     }
 }
 function quoteCheck(bool $condition, string $message): void
@@ -38,6 +42,14 @@ quoteCheck($quotes[0]['pricing_as_of'] === '2026-10-06T17:30:01+08:00', 'Quote i
 quoteCheck($quotes[1]['current_total_cost'] === 70.0, 'Finalized rentals retain their final total.');
 quoteCheck($quotes[2]['current_total_cost'] === 40.0, 'Reservations do not accrue overtime.');
 quoteCheck($quotes[3]['current_total_cost'] === 40.0, 'Locker charges are unchanged.');
-quoteCheck(count($pdo->queries) === 1, 'Pricing lookup uses one batch query.');
+quoteCheck(count($pdo->queries) === 2, 'Pricing and adjustment lookups each use one batch query.');
+$pdo->adjustment = -40;
+$adjusted = igpAttachCurrentRentalCharges($pdo, [$base], $now)[0];
+quoteCheck($adjusted['current_total_cost'] === 20.0, 'Active quote includes the approved reduction.');
+quoteCheck($adjusted['charge_adjustment_total'] === -40.0, 'Adjustment remains separate from original rates.');
+$later = igpAttachCurrentRentalCharges($pdo, [$base], $now->modify('+30 minutes'))[0];
+quoteCheck($later['current_total_cost'] === 30.0, 'Future overtime accrues after an adjustment.');
+$finalized = igpAttachCurrentRentalCharges($pdo, [array_replace($base, ['status' => 'returned', 'total_cost' => 20])], $now)[0];
+quoteCheck($finalized['current_total_cost'] === 20.0, 'Closed rentals do not apply an adjustment twice.');
 quoteCheck(igpAttachCurrentRentalCharges($pdo, [], $now) === [], 'Empty list remains empty.');
 echo "Shared student/officer rental quote checks passed.\n";
