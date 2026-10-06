@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/functions.php';
+require_once __DIR__ . '/../../../includes/otp.php';
 
 header('Content-Type: application/json');
 
@@ -27,7 +28,8 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 $currentUser = getUserById($userId);
 if (!$currentUser) jsonError('User not found.', 404);
-if (strcasecmp($email, (string)($currentUser['email'] ?? '')) !== 0) {
+$emailChanged = strcasecmp($email, (string)($currentUser['email'] ?? '')) !== 0;
+if ($emailChanged) {
     apiRequireRecentReauthentication();
 }
 
@@ -68,6 +70,12 @@ try {
         jsonError('An account with that email already exists.', 409);
     }
 
+    $pdo->beginTransaction();
+    if ($emailChanged) {
+        consumeOtpVerification($pdo, (string)($body['email_verification_token'] ?? ''),
+            'profile_email_change', $email, (string)$userId);
+    }
+
     $updateStmt = $pdo->prepare('
         UPDATE users
         SET first_name = :first_name,
@@ -87,6 +95,7 @@ try {
         ':user_id' => $userId,
     ]);
 
+    $pdo->commit();
     $user = getUserById($userId);
     if (!$user) {
         jsonError('Updated account could not be reloaded.', 500);
@@ -106,7 +115,11 @@ try {
             'profile_photo' => $user['profile_photo'] ?? null,
         ],
     ]);
+} catch (InvalidArgumentException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    jsonError($e->getMessage(), 422);
 } catch (PDOException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('[api/osa/profile/update] ' . $e->getMessage());
     jsonError('Could not update profile right now.', 500);
 }

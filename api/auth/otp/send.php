@@ -14,6 +14,12 @@ $invitationToken = trim((string)($body['invitation_token'] ?? ''));
 $studentName = trim((string)($body['student_name'] ?? ''));
 $currentPassword = (string)($body['current_password'] ?? '');
 
+if ($purpose === 'profile_email_change') {
+    apiGuard(true);
+    apiRequireRecentReauthentication();
+    $identifier = (string)$_SESSION['user_id'];
+}
+
 // OSA login codes are issued only after the password has been validated by
 // login.php. Do not expose that purpose through this public-purpose endpoint.
 if ($purpose === 'osa_login') {

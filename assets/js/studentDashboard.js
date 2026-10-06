@@ -2116,11 +2116,13 @@ async function saveStudentProfileDetails() {
     if (editBtn) editBtn.disabled = true;
 
     try {
+        const emailVerificationToken = await window.verifyProfileEmailChange(email, studentProfileSnapshot?.email);
+        if (emailVerificationToken === null) return;
         const resp = await fetch("../api/student/profile/update.php", {
             method: "POST",
             credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ full_name: fullName, email, phone }),
+            body: JSON.stringify({ full_name: fullName, email, phone, email_verification_token: emailVerificationToken }),
         });
         const data = await resp.json();
         if (!data.ok) {
@@ -2137,7 +2139,7 @@ async function saveStudentProfileDetails() {
         showToast("Profile updated successfully.", "success");
     } catch (error) {
         console.error("[saveStudentProfileDetails] error:", error);
-        showToast("Could not connect to the server.", "error");
+        showToast(error.message || "Could not connect to the server.", "error");
     } finally {
         if (editBtn) editBtn.disabled = false;
     }
@@ -8580,7 +8582,8 @@ async function loadCurrentRentals() {
     try {
         const response = await fetch('../api/student/rentals/my-rentals.php?status=open', {
             method: 'GET',
-            credentials: 'same-origin'
+            credentials: 'same-origin',
+            cache: 'no-store'
         });
 
         const data = await response.json();
@@ -8588,7 +8591,10 @@ async function loadCurrentRentals() {
             throw new Error(data.error || 'Could not load current rentals.');
         }
 
-        currentRentalsData = (Array.isArray(data.items) ? data.items : []).sort((a, b) => {
+        const pricingReceivedAt = Date.now();
+        currentRentalsData = (Array.isArray(data.items) ? data.items : []).map(rental => ({
+            ...rental, pricing_received_at_ms: pricingReceivedAt
+        })).sort((a, b) => {
             const aDate = new Date(a.rent_time || a.created_at || 0).getTime();
             const bDate = new Date(b.rent_time || b.created_at || 0).getTime();
             return bDate - aDate;
@@ -8689,6 +8695,31 @@ function renderCurrentRentals() {
     if (typeof updateMyRentalsEmptyState === 'function') {
         updateMyRentalsEmptyState();
     }
+}
+
+function getStudentRentalCurrentCost(rental, nowMs = Date.now()) {
+    const storedCost = Number(rental.current_total_cost ?? rental.total_cost ?? 0);
+    const items = rental.overtime_pricing_items;
+    if (rental.pendingSync || rental.status !== 'active' || rental.actual_return_time
+        || rental.service_kind === 'locker' || !Array.isArray(items) || !items.length) {
+        return storedCost;
+    }
+    // Database timestamps are in Manila. ISO timestamps retain their own offset.
+    const expectedRaw = String(rental.expected_return_time || '');
+    const expectedMs = Date.parse(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(expectedRaw)
+        ? expectedRaw.replace(' ', 'T') + '+08:00' : expectedRaw);
+    const quotedAtMs = Date.parse(rental.pricing_as_of || '');
+    const receivedAtMs = Number(rental.pricing_received_at_ms);
+    if (!Number.isFinite(expectedMs) || !Number.isFinite(quotedAtMs) || !Number.isFinite(receivedAtMs)) return storedCost;
+    const serverNowMs = quotedAtMs + Math.max(0, nowMs - receivedAtMs);
+    const overdueMinutes = Math.max(0, Math.ceil((Math.floor(serverNowMs / 1000) * 1000 - expectedMs) / 60000));
+    return items.reduce((total, item) => {
+        const interval = Number(item.overtime_interval_minutes || 0);
+        const rate = Number(item.overtime_rate_per_block || 0);
+        const overtime = overdueMinutes > 0 && interval > 0 && rate > 0
+            ? Math.ceil(overdueMinutes / interval) * rate * Number(item.quantity) : 0;
+        return total + Number(item.item_cost || 0) + overtime;
+    }, 0);
 }
 
 function createRentalCard(rental) {
@@ -8818,7 +8849,7 @@ function createRentalCard(rental) {
         </div>
 
         <div class="rental-card-footer">
-            <div class="rental-cost">₱${parseFloat(rental.total_cost).toFixed(2)}</div>
+            <div class="rental-cost">₱${getStudentRentalCurrentCost(rental).toFixed(2)}</div>
             ${cancelButtonHtml}
         </div>
     `;
@@ -8834,28 +8865,33 @@ function createRentalCard(rental) {
 }
 
 function updateRentalTimers() {
-    const now = new Date();
-
+    const nowMs = Date.now();
     currentRentalsData.forEach(rental => {
         if (rental.status !== 'active') return;
-
-        const timer = document.querySelector(`.rental-timer[data-rental-id="${rental.rental_id}"] .rental-timer-value`);
-        if (!timer) return;
-
-        const expectedReturn = new Date(rental.expected_return_time);
-        const diff = expectedReturn - now;
-
-        if (diff <= 0) {
-            timer.textContent = 'OVERDUE';
-            timer.style.color = '#dc2626';
-            return;
-        }
-
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        timer.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        const cost = getStudentRentalCurrentCost(rental, nowMs);
+        document.querySelectorAll(`.rental-card[data-rental-id="${rental.rental_id}"] .rental-cost`).forEach(element => {
+            element.textContent = `\u20b1${cost.toFixed(2)}`;
+        });
+        const expectedRaw = String(rental.expected_return_time || '');
+        const expectedMs = Date.parse(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(expectedRaw)
+            ? expectedRaw.replace(' ', 'T') + '+08:00' : expectedRaw);
+        const quotedAtMs = Date.parse(rental.pricing_as_of || '');
+        const now = Number.isFinite(quotedAtMs) && Number.isFinite(rental.pricing_received_at_ms)
+            ? quotedAtMs + Math.max(0, nowMs - rental.pricing_received_at_ms) : nowMs;
+        const diff = expectedMs - now;
+        document.querySelectorAll(`.rental-timer[data-rental-id="${rental.rental_id}"] .rental-timer-value`).forEach(timer => {
+            if (!Number.isFinite(diff)) return;
+            if (diff <= 0) {
+                timer.textContent = 'OVERDUE';
+                timer.style.color = '#dc2626';
+                return;
+            }
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            timer.style.color = '';
+            timer.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        });
     });
 }
 

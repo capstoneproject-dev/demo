@@ -419,16 +419,34 @@ document.addEventListener('DOMContentLoaded', async function () {
             const idInput = document.getElementById('manualStudentId');
             if (idInput) setTimeout(() => idInput.focus(), 150);
         });
+        // Use all active programs, independent of the current organization.
+        fetch('../../api/announcements/programs.php', { credentials: 'same-origin' })
+            .then(response => response.json())
+            .then(data => {
+                const options = document.getElementById('manualProgramOptions');
+                if (!options || !data.ok) return;
+                options.replaceChildren(...data.items.map(program => new Option(program.programCode, program.programCode)));
+            }).catch(error => console.error('Could not load attendance programs', error));
+        manualBtn.addEventListener('click', () => {
+            const options = document.getElementById('manualSectionOptions');
+            if (!options) return;
+            const sections = new Set(['N/A', ...students.map(student => student.section).filter(Boolean)]);
+            options.replaceChildren(...Array.from(sections, section => new Option(section, section)));
+        });
         const manualForm = document.getElementById('manualCheckInForm');
         if (manualForm) {
             manualForm.addEventListener('submit', async function (e) {
                 e.preventDefault();
-                const studentId = (document.getElementById('manualStudentId')?.value || '').trim();
+                const studentId = (document.getElementById('manualStudentId')?.value || '').trim() || `GUEST-${Array.from(crypto.getRandomValues(new Uint8Array(9)), byte => byte.toString(16).padStart(2, '0')).join('')}`;
                 const studentName = (document.getElementById('manualStudentName')?.value || '').trim();
-                const course = (document.querySelector('input[name="manualCourse"]:checked')?.value || '').trim();
+                const course = (document.getElementById('manualCourse')?.value || '').trim();
                 const yearSection = (document.getElementById('manualYearSection')?.value || '').trim();
-                if (!studentId || !studentName || !course || !yearSection) return;
-                const section = `${course} ${yearSection}`;
+                if (!studentName) return;
+                if (!getCurrentEvent()) {
+                    showToast('Select an event', 'Choose an event before recording attendance.', 'warning');
+                    return;
+                }
+                const section = !yearSection || yearSection.toUpperCase() === 'N/A' ? 'N/A' : [course, yearSection].filter(Boolean).join(' ');
                 const student = { studentId, studentName, section };
 
                 // Add/update student in local student database
@@ -507,6 +525,7 @@ function showToast(title, message, type) {
 // Update event filter dropdown
 function updateEventFilter() {
     const eventFilter = document.getElementById('eventFilter');
+    if (!eventFilter) return;
     const events = new Set(attendanceRecords.map(record => record.event));
     const currentEvent = getCurrentEvent();
     if (currentEvent) events.add(currentEvent);
@@ -708,7 +727,7 @@ async function updateStudentTimeOut(studentId, section, event, date, source = 'a
 // Update the updateAttendanceTable function
 function updateAttendanceTable() {
     const tbody = document.getElementById('attendanceRecords');
-    const eventFilter = document.getElementById('eventFilter').value;
+    const eventFilter = document.getElementById('eventFilter')?.value || getCurrentEvent() || 'all';
 
     // Use the global localStorage-backed attendance records array
     let filteredRecords = attendanceRecords;
@@ -806,7 +825,7 @@ if (sectionDropdown) {
 }
 
 // Add event listener for event filter
-document.getElementById('eventFilter').addEventListener('change', function () {
+document.getElementById('eventFilter')?.addEventListener('change', function () {
     updateAttendanceTable();
     updateSectionDropdownAndStudentList();
 });
@@ -836,7 +855,7 @@ if (exportBtn) {
         }
         // Get selected event for filename
         const eventFilter = document.getElementById('eventFilter');
-        let selectedEvent = eventFilter ? eventFilter.value : 'all';
+        let selectedEvent = eventFilter ? eventFilter.value : (getCurrentEvent() || 'all');
         if (!selectedEvent || selectedEvent === 'all') {
             selectedEvent = 'All_Events';
         }

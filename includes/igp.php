@@ -7,6 +7,7 @@
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/services_tracker.php';
+require_once __DIR__ . '/rental_charges.php';
 
 class IgpValidationException extends RuntimeException {}
 class IgpAuthorizationException extends RuntimeException {}
@@ -954,7 +955,8 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
         $r['total_cost'] = (float)$r['total_cost'];
         $r['hourly_total'] = (float)$r['hourly_total'];
     }
-    return $rows;
+    unset($r);
+    return igpAttachCurrentRentalCharges($pdo, $rows);
 }
 
 function igpFindUserByIdentifier(PDO $pdo, string $identifier): ?array
@@ -1837,27 +1839,12 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
 
         $tz = new DateTimeZone('Asia/Manila');
         $actual = new DateTimeImmutable('now', $tz);
-        $expected = new DateTimeImmutable($rental['expected_return_time']);
-        $baseCost = 0.0;
-        $overtimeCost = 0.0;
-        $overMin = 0;
-
-        if ($actual > $expected) {
-            $overMin = (int)ceil(($actual->getTimestamp() - $expected->getTimestamp()) / 60);
-        }
-
-        foreach ($items as $it) {
-            $qty = (int)$it['quantity'];
-            $baseCost += (float)$it['item_cost'];
-            $interval = $it['overtime_interval_minutes'] !== null ? (int)$it['overtime_interval_minutes'] : null;
-            $rate = $it['overtime_rate_per_block'] !== null ? (float)$it['overtime_rate_per_block'] : null;
-            if ($overMin > 0 && $interval && $rate !== null && $rate > 0) {
-                $blocks = (int)ceil($overMin / $interval);
-                $overtimeCost += ($blocks * $rate * $qty);
-            }
-        }
-
-        $total = $baseCost + $overtimeCost;
+        $expected = new DateTimeImmutable($rental['expected_return_time'], $tz);
+        $charges = igpCalculateRentalCharges($items, $expected, $actual);
+        $baseCost = $charges['base_cost'];
+        $overtimeCost = $charges['overtime_cost'];
+        $overMin = $charges['overtime_minutes'];
+        $total = $charges['total_cost'];
         $newStatus = $overMin > 0 ? 'overdue' : 'returned';
         $updRental = $pdo->prepare(
             "UPDATE rentals

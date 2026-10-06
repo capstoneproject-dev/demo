@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/igp.php';
 
 header('Content-Type: application/json');
+header('Cache-Control: no-store');
 apiGuard();
 
 try {
@@ -103,6 +104,8 @@ try {
             && $serverNow < $cancellationCutoff;
     }
 
+    unset($r);
+    $rows = igpAttachCurrentRentalCharges($pdo, $rows, $serverNow);
     jsonOk(['items' => $rows]);
 } catch (IgpConflictException $e) {
     jsonError($e->getMessage(), 409, ['code' => 'RENTAL_CONFLICT']);

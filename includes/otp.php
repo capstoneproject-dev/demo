@@ -68,6 +68,7 @@ function isAllowedOtpPurpose(string $purpose): bool
         'osa_registration',
         'osa_login',
         'password_reset',
+        'profile_email_change',
     ], true);
 }
 
@@ -84,6 +85,13 @@ function otpRecipientIsEligible(
     string $studentName = ''
 ): bool
 {
+    if ($purpose === 'profile_email_change') {
+        $userId = (int)($_SESSION['user_id'] ?? 0);
+        if ($userId <= 0 || $identifier !== (string)$userId) return false;
+        $stmt = $pdo->prepare('SELECT user_id FROM users WHERE LOWER(email) = :email AND user_id <> :id LIMIT 1');
+        $stmt->execute([':email' => $email, ':id' => $userId]);
+        return !$stmt->fetchColumn();
+    }
     if ($purpose === 'student_registration') {
         $stmt = $pdo->prepare(
             "SELECT sn.student_name
@@ -229,6 +237,9 @@ function createOtpChallenge(
 
     $eligible = otpRecipientIsEligible($pdo, $purpose, $email, $identifier, $invitationToken, $studentName);
     if (!$eligible && $purpose !== 'password_reset') {
+        if ($purpose === 'profile_email_change') {
+            throw new InvalidArgumentException('That email is already in use or cannot be verified for this account.');
+        }
         if ($purpose === 'osa_registration') {
             throw new InvalidArgumentException(OSA_INVITATION_GENERIC_ERROR);
         }

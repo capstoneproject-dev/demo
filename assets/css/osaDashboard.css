@@ -4860,3 +4860,16 @@ th {
     }
 }
 
+
+/* Keep the activity date picker usable on small screens and with keyboards. */
+#date-picker-modal { padding: 16px; }
+#date-picker-modal .date-picker-content { width: min(100%, 500px); overflow-y: auto; }
+#date-picker-modal .calendar-grid { display: block; width: 100%; }
+#date-picker-modal .calendar-weekdays,
+#date-picker-modal .calendar-dates { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+#date-picker-modal .calendar-date { width: 100%; min-width: 0; padding: 0; font-family: inherit; }
+#date-picker-modal .calendar-date:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+#date-picker-modal .calendar-date.selected { background: var(--primary); color: white; opacity: 1; }
+@media (max-width: 480px) {
+    #date-picker-modal .date-picker-body { padding: 16px; }
+}

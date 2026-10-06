@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/functions.php';
+require_once __DIR__ . '/../../../includes/otp.php';
 
 header('Content-Type: application/json');
 
@@ -28,7 +29,8 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 $currentUser = getUserById($userId);
 if (!$currentUser) jsonError('User not found.', 404);
-if (strcasecmp($email, (string)($currentUser['email'] ?? '')) !== 0) {
+$emailChanged = strcasecmp($email, (string)($currentUser['email'] ?? '')) !== 0;
+if ($emailChanged) {
     apiRequireRecentReauthentication();
 }
 
@@ -36,21 +38,8 @@ if ($phone !== '' && !preg_match('/^\+63\s\d{10}$/', $phone)) {
     jsonError('Phone number must be +63 followed by a space and 10 digits.', 422);
 }
 
-function splitOfficerProfileName(string $fullName): array
-{
-    $clean = preg_replace('/\s+/', ' ', trim($fullName));
-    if ($clean === '') {
-        return ['', ''];
-    }
-    $parts = explode(' ', $clean);
-    if (count($parts) === 1) {
-        return [$parts[0], '-'];
-    }
-    $lastName = array_pop($parts);
-    return [implode(' ', $parts), $lastName];
-}
-
-[$firstName, $lastName] = splitOfficerProfileName($fullName);
+$firstName = (string)$currentUser['first_name'];
+$lastName = (string)$currentUser['last_name'];
 
 $pdo = getPdo();
 
@@ -68,6 +57,12 @@ try {
     ]);
     if ($dupStmt->fetch()) {
         jsonError('An account with that email already exists.', 409);
+    }
+
+    $pdo->beginTransaction();
+    if ($emailChanged) {
+        consumeOtpVerification($pdo, (string)($body['email_verification_token'] ?? ''),
+            'profile_email_change', $email, (string)$userId);
     }
 
     $updateStmt = $pdo->prepare("
@@ -89,6 +84,7 @@ try {
         ':user_id' => $userId,
     ]);
 
+    $pdo->commit();
     $user = getUserById($userId);
     if (!$user) {
         jsonError('Updated account could not be reloaded.', 500);
@@ -125,7 +121,11 @@ try {
             'section' => $user['year_section'] ?? null,
         ],
     ]);
+} catch (InvalidArgumentException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    jsonError($e->getMessage(), 422);
 } catch (PDOException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('[api/officer/profile/update] ' . $e->getMessage());
     jsonError('Could not update profile right now.', 500);
 }

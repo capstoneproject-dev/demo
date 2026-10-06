@@ -57,7 +57,7 @@
             renter: String(rental.renter_student_number || ''),
             start: String(rental.rent_time || ''),
             end: String(rental.expected_return_time || ''),
-            total: Number(rental.total_cost || 0),
+            total: Number(rental.current_total_cost ?? rental.total_cost ?? 0),
         })));
     }
 
@@ -496,18 +496,7 @@
 
     function accumulatedPrice(rental) {
         if (!rental) return 0;
-        if (String(rental.status || '').toLowerCase() !== 'active') {
-            return Number(rental.total_cost || 0);
-        }
-        const hourly = Number(rental.hourly_total || 0);
-        const raw = String(rental.rent_time || '').trim();
-        const start = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
-        if (Number.isNaN(start) || hourly <= 0) {
-            return Number(rental.total_cost || 0);
-        }
-        const elapsedMs = Math.max(0, Date.now() - start);
-        const elapsedHours = Math.max(1, Math.ceil(elapsedMs / 3600000));
-        return hourly * elapsedHours;
+        return Number(rental.current_total_cost ?? rental.total_cost ?? 0);
     }
 
     function getModalInstance(id) {

@@ -3,8 +3,8 @@
 const APP_BASE = self.location.pathname.replace(/\/sw\.js$/, '');
 const appPath = (path) => `${APP_BASE}${path}`;
 
-const STATIC_CACHE = 'naap-static-v63';
-const RUNTIME_CACHE = 'naap-runtime-v63';
+const STATIC_CACHE = 'naap-static-v66';
+const RUNTIME_CACHE = 'naap-runtime-v66';
 const ASSET_REVALIDATE_MS = 5 * 60 * 1000;
 const assetLastChecked = new Map();
 const OFFLINE_PAGE = appPath('/offline.html');

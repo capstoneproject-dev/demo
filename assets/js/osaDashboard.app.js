@@ -371,11 +371,13 @@ async function saveOsaProfileDetails() {
     if (editBtn) editBtn.disabled = true;
 
     try {
+        const emailVerificationToken = await window.verifyProfileEmailChange(email, osaProfileSnapshot?.email);
+        if (emailVerificationToken === null) return;
         const resp = await fetch('../api/osa/profile/update.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ full_name: fullName, email, phone }),
+            body: JSON.stringify({ full_name: fullName, email, phone, email_verification_token: emailVerificationToken }),
         });
         const data = await resp.json();
         if (!data.ok) {
@@ -392,7 +394,7 @@ async function saveOsaProfileDetails() {
         showToast('Profile updated successfully.', 'success');
     } catch (error) {
         console.error('[saveOsaProfileDetails] error:', error);
-        showToast('Could not connect to the server.', 'error');
+        showToast(error.message || 'Could not connect to the server.', 'error');
     } finally {
         if (editBtn) editBtn.disabled = false;
     }
@@ -715,8 +717,6 @@ async function openOsaAuditDetail(auditId) {
             ['Result', log.result || 'N/A'],
             ['Target', osaAuditTargetLabel(log)],
             ['Target type', log.target_type || 'N/A'],
-            ['IP address', log.request_ip || 'N/A'],
-            ['Browser / device', log.user_agent || 'N/A'],
         ];
         body.innerHTML = `
             <div class="audit-detail-grid">${fields.map(([label, value]) => `<div class="audit-detail-field"><span>${escapeDashboardHtml(label)}</span><strong>${escapeDashboardHtml(value)}</strong></div>`).join('')}</div>
@@ -3783,6 +3783,9 @@ function openDatePicker(context = 'requests') {
         selectedToDate = monitoringActivityDateFilter.to;
     }
 
+    const visibleDate = selectedFromDate || new Date();
+    calendarCurrentMonth = visibleDate.getMonth();
+    calendarCurrentYear = visibleDate.getFullYear();
     updateDateRangeDisplay();
     renderCalendar(calendarCurrentMonth, calendarCurrentYear);
 }
@@ -3796,71 +3799,33 @@ function closeDatePicker() {
 }
 
 function renderCalendar(month, year) {
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'];
-
-    document.getElementById('calendar-month-label').innerText = `${monthNames[month]} ${year}`;
-
+    const visibleMonth = new Date(year, month, 1);
+    document.getElementById('calendar-month-label').innerText = visibleMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const datesContainer = document.getElementById('calendar-dates');
-    datesContainer.innerHTML = '';
-
-    // Get first day of month and number of days
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const daysInPrevMonth = new Date(year, month, 0).getDate();
-
+    datesContainer.replaceChildren();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    // Previous month days
-    for (let i = firstDay - 1; i >= 0; i--) {
-        const day = daysInPrevMonth - i;
-        const dateDiv = document.createElement('div');
-        dateDiv.className = 'calendar-date other-month';
-        dateDiv.innerText = day;
-        datesContainer.appendChild(dateDiv);
-    }
-
-    // Current month days
-    for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
-        date.setHours(0, 0, 0, 0);
-
-        const dateDiv = document.createElement('div');
-        dateDiv.className = 'calendar-date';
-        dateDiv.innerText = day;
-
-        // Mark today
-        if (date.getTime() === today.getTime()) {
-            dateDiv.classList.add('today');
-        }
-
-        // Mark selected dates
-        if (selectedFromDate && date.getTime() === selectedFromDate.getTime()) {
-            dateDiv.classList.add('selected');
-        }
-        if (selectedToDate && date.getTime() === selectedToDate.getTime()) {
-            dateDiv.classList.add('selected');
-        }
-
-        // Mark dates in range
-        if (selectedFromDate && selectedToDate &&
-            date > selectedFromDate && date < selectedToDate) {
-            dateDiv.classList.add('in-range');
-        }
-
-        dateDiv.onclick = () => selectDate(date);
-        datesContainer.appendChild(dateDiv);
-    }
-
-    // Next month days to fill grid
-    const totalCells = datesContainer.children.length;
-    const remainingCells = 42 - totalCells; // 6 rows x 7 days
-    for (let day = 1; day <= remainingCells; day++) {
-        const dateDiv = document.createElement('div');
-        dateDiv.className = 'calendar-date other-month';
-        dateDiv.innerText = day;
-        datesContainer.appendChild(dateDiv);
+    const firstDay = visibleMonth.getDay();
+    for (let cell = 0; cell < 42; cell++) {
+        const date = new Date(year, month, cell - firstDay + 1);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'calendar-date';
+        button.textContent = date.getDate();
+        button.setAttribute('aria-label', date.toLocaleDateString('en-US', { dateStyle: 'full' }));
+        if (date.getMonth() !== month) button.classList.add('other-month');
+        if (date.getTime() === today.getTime()) button.classList.add('today');
+        const selected = (selectedFromDate && date.getTime() === selectedFromDate.getTime())
+            || (selectedToDate && date.getTime() === selectedToDate.getTime());
+        if (selected) button.classList.add('selected');
+        button.setAttribute('aria-pressed', String(Boolean(selected)));
+        if (selectedFromDate && selectedToDate && date > selectedFromDate && date < selectedToDate) button.classList.add('in-range');
+        button.onclick = () => {
+            calendarCurrentMonth = date.getMonth();
+            calendarCurrentYear = date.getFullYear();
+            selectDate(date);
+        };
+        datesContainer.appendChild(button);
     }
 }
 
@@ -3926,9 +3891,10 @@ function clearDateRange() {
 }
 
 function applyDateRange() {
+    if (selectedFromDate && !selectedToDate) selectedToDate = new Date(selectedFromDate);
     if (selectedFromDate && selectedToDate) {
-        const fromStr = selectedFromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const toStr = selectedToDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const fromStr = selectedFromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const toStr = selectedToDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         const labelText = `${fromStr} - ${toStr}`;
 
         if (currentDateContext === 'requests') {
@@ -3967,7 +3933,7 @@ function applyDateRange() {
             activityRangeStart = 1;
             activityRangeEnd = 10;
 
-            const dateBtn = document.querySelector('.dashboard-activity-header-actions .date-range-btn');
+            const dateBtn = document.getElementById('activity-date-range-label')?.closest('.date-range-btn');
             const label = document.getElementById('activity-date-range-label');
             if (label) label.innerText = labelText;
             if (dateBtn) dateBtn.classList.add('active');
@@ -4005,7 +3971,7 @@ function clearActivityDateFilter() {
         selectedToDate = null;
     }
 
-    const dateBtn = document.querySelector('.dashboard-activity-header-actions .date-range-btn');
+    const dateBtn = document.getElementById('activity-date-range-label')?.closest('.date-range-btn');
     const label = document.getElementById('activity-date-range-label');
     if (label) label.innerText = 'Select Date Range';
     if (dateBtn) dateBtn.classList.remove('active');
@@ -4302,8 +4268,7 @@ function renderRepoTable() {
             String(item.typeLabel || '').toLowerCase().includes(searchInput);
 
         // 4. Term and Date Logic
-        const itemHasTerm = !!(item.semester || item.academicYear || item.gradingPeriod);
-        const matchesTerm = !itemHasTerm || (
+        const matchesTerm = (
             String(item.semester || '').toLowerCase() === String(filterSem).toLowerCase()
             && String(item.academicYear || '').trim() === String(filterYear).trim()
             && String(item.gradingPeriod || '').toLowerCase() === String(filterPeriod).toLowerCase()
@@ -4323,19 +4288,11 @@ function renderRepoTable() {
         return {
             item,
             included: matchesType && matchesOrg && matchesSearch && matchesTerm && matchesDate,
-            includedIgnoringTerm: matchesType && matchesOrg && matchesSearch && matchesDate,
         };
     };
 
     const evaluated = repositoryData.map((item) => evaluateRepoItem(item));
-    let filtered = evaluated.filter((entry) => entry.included).map((entry) => entry.item);
-    const termFallback = filtered.length === 0
-        ? evaluated.filter((entry) => entry.includedIgnoringTerm).map((entry) => entry.item)
-        : [];
-
-    if (termFallback.length > 0) {
-        filtered = termFallback;
-    }
+    const filtered = evaluated.filter((entry) => entry.included).map((entry) => entry.item);
 
     // Update Header Label
     const label = document.getElementById('repo-current-view-label');

@@ -736,7 +736,8 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
     $studentName = trim((string)($data['student_name'] ?? $data['studentName'] ?? ''));
     $section = trim((string)($data['section'] ?? ''));
     if ($studentNumber === '') {
-        throw new QrAttendanceValidationException('student_number is required.');
+        if ($studentName === '') throw new QrAttendanceValidationException('Name is required.');
+        $studentNumber = 'GUEST-' . bin2hex(random_bytes(9));
     }
 
     $times = qrAttendanceCaptureTimes($pdo, $data);
