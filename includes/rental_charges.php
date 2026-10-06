@@ -1,5 +1,12 @@
 <?php
 
+/** Equipment stays open until its return is recorded, including imported overdue rows. */
+function igpRentalIsOpenEquipment(array $rental): bool
+{
+    return in_array($rental['status'] ?? '', ['active', 'overdue'], true)
+        && empty($rental['actual_return_time']) && ($rental['service_kind'] ?? 'rental') !== 'locker';
+}
+
 /** Apply the rental's saved rates, rounding each started overtime block up. */
 function igpCalculateRentalCharges(array $items, DateTimeInterface $expected, DateTimeInterface $asOf): array
 {
@@ -42,8 +49,7 @@ function igpAttachCurrentRentalCharges(PDO $pdo, array $rentals, ?DateTimeImmuta
 {
     $timezone = new DateTimeZone('Asia/Manila');
     $asOf = $asOf ?? new DateTimeImmutable('now', $timezone);
-    $active = array_filter($rentals, static fn(array $r): bool => ($r['status'] ?? '') === 'active'
-        && empty($r['actual_return_time']) && ($r['service_kind'] ?? 'rental') !== 'locker');
+    $active = array_filter($rentals, 'igpRentalIsOpenEquipment');
     $pricingItems = [];
     if ($active) {
         $ids = array_column($active, 'rental_id');

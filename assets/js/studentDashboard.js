@@ -8700,7 +8700,7 @@ function renderCurrentRentals() {
 function getStudentRentalCurrentCost(rental, nowMs = Date.now()) {
     const storedCost = Number(rental.current_total_cost ?? rental.total_cost ?? 0);
     const items = rental.overtime_pricing_items;
-    if (rental.pendingSync || rental.status !== 'active' || rental.actual_return_time
+    if (rental.pendingSync || !['active', 'overdue'].includes(rental.status) || rental.actual_return_time
         || rental.service_kind === 'locker' || !Array.isArray(items) || !items.length) {
         return storedCost;
     }

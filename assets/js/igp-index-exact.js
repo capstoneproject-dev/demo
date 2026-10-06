@@ -591,6 +591,12 @@
     }
 
     function openPaymentModal(summary, rentalId, officerIdentifier) {
+        if (!summary.queued && summary.payment_status === 'waived') {
+            pendingPaymentRentalId = null;
+            pendingPaymentOfficerIdentifier = '';
+            setScanResult('Return recorded. The final rental balance was waived; no payment is due.', 'success');
+            return;
+        }
         pendingPaymentRentalId = Number(rentalId || 0);
         pendingPaymentOfficerIdentifier = String(officerIdentifier || '').trim();
         if ($('paymentBaseCost')) $('paymentBaseCost').textContent = peso(summary.base_cost);

@@ -49,6 +49,16 @@ quoteCheck($adjusted['current_total_cost'] === 20.0, 'Active quote includes the 
 quoteCheck($adjusted['charge_adjustment_total'] === -40.0, 'Adjustment remains separate from original rates.');
 $later = igpAttachCurrentRentalCharges($pdo, [$base], $now->modify('+30 minutes'))[0];
 quoteCheck($later['current_total_cost'] === 30.0, 'Future overtime accrues after an adjustment.');
+$openOverdue = array_replace($base, ['status' => 'overdue', 'actual_return_time' => null]);
+quoteCheck(igpRentalIsOpenEquipment($openOverdue), 'Unreturned overdue equipment remains open.');
+$overdueQuote = igpAttachCurrentRentalCharges($pdo, [$openOverdue], $now)[0];
+quoteCheck($overdueQuote['current_total_cost'] === 20.0, 'Open overdue quote includes the approved reduction.');
+quoteCheck(igpAttachCurrentRentalCharges($pdo, [$openOverdue], $now->modify('+30 minutes'))[0]['current_total_cost'] === 30.0,
+    'Open overdue adjustment retains future overtime charges.');
+$closedOverdue = array_replace($openOverdue, ['actual_return_time' => '2026-10-06 17:30:01', 'total_cost' => 20]);
+quoteCheck(!igpRentalIsOpenEquipment($closedOverdue), 'Returned overdue equipment is closed.');
+quoteCheck(igpAttachCurrentRentalCharges($pdo, [$closedOverdue], $now->modify('+1 day'))[0]['current_total_cost'] === 20.0,
+    'Returned overdue equipment does not accrue or apply the ledger twice.');
 $finalized = igpAttachCurrentRentalCharges($pdo, [array_replace($base, ['status' => 'returned', 'total_cost' => 20])], $now)[0];
 quoteCheck($finalized['current_total_cost'] === 20.0, 'Closed rentals do not apply an adjustment twice.');
 quoteCheck(igpAttachCurrentRentalCharges($pdo, [], $now) === [], 'Empty list remains empty.');

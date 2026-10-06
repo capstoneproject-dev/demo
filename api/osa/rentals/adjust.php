@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/../../../includes/igp.php';
 require_once __DIR__ . '/../../../includes/functions.php';
-require_once __DIR__ . '/../../../includes/functions.php';
 require_once __DIR__ . '/../../../includes/audit.php';
 require_once __DIR__ . '/../../../includes/rental_adjustments.php';
 require_once __DIR__ . '/../../../includes/otp.php';
@@ -46,7 +45,7 @@ try {
             'rental_id' => $rentalId, 'student_name' => trim(($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? '')),
             'organization' => $organization->fetchColumn(), 'status' => $rental['status'],
             'payment_status' => $rental['payment_status'], 'current_total_cost' => $quote['current_total_cost'],
-            'can_adjust' => $canAdjust,
+            'can_adjust' => $canAdjust, 'is_open' => igpRentalIsOpenEquipment($rental),
         ]]);
     }
     $adjustment = validateOsaRentalAdjustment($rental, $body, (float)$quote['current_total_cost']);
@@ -58,16 +57,18 @@ try {
     if (!is_string($body['verification_token'] ?? null)) throw new InvalidArgumentException('Email verification is required.', 422);
     consumeOtpVerification($pdo, (string)($body['verification_token'] ?? ''), 'osa_rental_adjustment',
         (string)$actor['email'], osaRentalAdjustmentOtpIdentifier((int)$session['user_id'], $rentalId, $body));
-    // Active rentals keep their original fee; the audit adjustment is applied to
+    // Open rentals keep their original fee; the audit adjustment is applied to
     // live quotes and final checkout. Closed rentals have a finalized balance.
-    if ($rental['status'] !== 'active') {
-        $pdo->prepare('UPDATE rentals SET total_cost = :amount WHERE rental_id = :id')
-            ->execute([':amount' => $amount, ':id' => $rentalId]);
+    $isOpen = igpRentalIsOpenEquipment($rental);
+    $paymentStatus = !$isOpen && $amount === 0.0 ? 'waived' : $rental['payment_status'];
+    if (!$isOpen) {
+        $pdo->prepare('UPDATE rentals SET total_cost = :amount, payment_status = :payment WHERE rental_id = :id')
+            ->execute([':amount' => $amount, ':payment' => $paymentStatus, ':id' => $rentalId]);
     }
     $auditId = appendAuditLog('rental_charge_adjusted', 'rental', (string)$rentalId, $actor,
         getUserById((int)$rental['renter_user_id']),
         ['total_cost' => $before, 'stored_total_cost' => (float)$rental['total_cost'], 'status' => $rental['status'], 'payment_status' => $rental['payment_status']],
-        ['total_cost' => $amount, 'adjustment_delta' => $delta, 'applies_to_active_rental' => $rental['status'] === 'active',
+        ['total_cost' => $amount, 'adjustment_delta' => $delta, 'applies_to_active_rental' => $isOpen, 'payment_status' => $paymentStatus,
             'reason' => $reason, 'org_id' => (int)$rental['org_id'], 'approved_by_user_id' => (int)$session['user_id'], 'approval_method' => 'email_otp'],
         'success', $pdo);
     igpRefreshUserDebtFlag($pdo, (int)$rental['renter_user_id']);

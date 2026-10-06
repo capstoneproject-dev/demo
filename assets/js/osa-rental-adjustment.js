@@ -104,7 +104,7 @@ async function openOsaRentalAdjustment(rentalId) {
                 <h4>Adjust Rental Charge</h4>
                 <p>${escapeDashboardHtml(rental.student_name)} — ${escapeDashboardHtml(rental.organization)}</p>
                 <p>Current amount: <strong>${formatActivityMoney(rental.current_total_cost)}</strong></p>
-                ${rental.status === 'active' ? '<p>Future overdue charges will still accrue while this rental is active.</p>' : ''}
+                ${(rental.is_open ?? rental.status === 'active') ? '<p>Future overdue charges will still accrue until this item is returned.</p>' : ''}
                 <label for="osa-rental-revised-amount">Revised amount</label>
                 <input id="osa-rental-revised-amount" type="number" min="0" max="99999999.99" step="0.01" required value="${Number(rental.current_total_cost).toFixed(2)}">
                 <label for="osa-rental-adjustment-reason">Reason (required)</label>

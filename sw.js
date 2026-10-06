@@ -3,8 +3,8 @@
 const APP_BASE = self.location.pathname.replace(/\/sw\.js$/, '');
 const appPath = (path) => `${APP_BASE}${path}`;
 
-const STATIC_CACHE = 'naap-static-v70';
-const RUNTIME_CACHE = 'naap-runtime-v70';
+const STATIC_CACHE = 'naap-static-v71';
+const RUNTIME_CACHE = 'naap-runtime-v71';
 const ASSET_REVALIDATE_MS = 5 * 60 * 1000;
 const assetLastChecked = new Map();
 const OFFLINE_PAGE = appPath('/offline.html');
@@ -57,7 +57,7 @@ const PRECACHE = [
     '/data/orgData.js?v=20260927-complete-ui-1',
     '/assets/js/organizationFavicon.js?v=20260927-complete-ui-1',
     '/assets/js/profile-email-verification.js?v=20261005-email-loading-2',
-    '/assets/js/studentDashboard.js?v=20261006-rental-adjustment-2',
+    '/assets/js/studentDashboard.js?v=20261006-rental-waiver-open-1',
     '/assets/js/offline-store.js?v=20260927-complete-ui-1',
     '/assets/js/offline-client.js?v=20260927-complete-ui-1',
     '/assets/vendor/chart.umd.min.js?v=20260927-complete-ui-1',
@@ -76,7 +76,7 @@ const PRECACHE = [
     '/assets/css/responsive-tables.css?v=20260927-complete-ui-1',
     '/assets/js/responsive-tables.js?v=20260927-complete-ui-1',
     '/assets/js/osaDashboard.app.js?v=20261006-rental-review-1',
-    '/assets/js/osa-rental-adjustment.js?v=20261006-rental-review-1',
+    '/assets/js/osa-rental-adjustment.js?v=20261006-rental-waiver-open-1',
 ].map(appPath);
 
 self.addEventListener('install', (event) => {

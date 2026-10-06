@@ -39,6 +39,10 @@ fixtures.forEach((fixture, i) => {
 const active = { ...rental, pricing_as_of: fixtures[3].asOf, overtime_pricing_items: [item] };
 assert.equal(context.getStudentRentalCurrentCost(active, clock + 1000), 30, 'Price advances at the next overtime block');
 assert.equal(context.getStudentRentalCurrentCost({ ...active, charge_adjustment_total: -10 }), 15, 'Student card applies the approved adjustment');
+assert.equal(context.getStudentRentalCurrentCost({ ...active, status: 'overdue', actual_return_time: null, charge_adjustment_total: -10 }, clock + 1000), 20,
+    'Unreturned overdue card retains its adjustment and advances with overtime');
+assert.equal(context.getStudentRentalCurrentCost({ ...active, status: 'overdue', actual_return_time: '2026-10-06 17:30:00', current_total_cost: 15, charge_adjustment_total: -10 }, clock + 1000), 15,
+    'Returned overdue card keeps the finalized balance');
 assert.equal(context.getStudentRentalCurrentCost({ ...active, charge_adjustment_total: -100 }), 0, 'Displayed charge cannot become negative');
 for (const extra of [{ status: 'reserved' }, { status: 'returned' }, { service_kind: 'locker' }, { pendingSync: true }, { actual_return_time: '2026-10-06 17:30:00' }]) {
     assert.equal(context.getStudentRentalCurrentCost({ ...active, ...extra }), 20, 'Do not accrue charges for non-active equipment');
