@@ -118,8 +118,8 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label for="manualStudentId" class="form-label">Student Number</label>
-                                <input type="text" class="form-control" id="manualStudentId" required autocomplete="off"
+                                <label for="manualStudentId" class="form-label">Student Number (optional)</label>
+                                <input type="text" class="form-control" id="manualStudentId" autocomplete="off"
                                     autofocus>
                             </div>
                             <div class="mb-3">
@@ -129,20 +129,13 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Course & Section</label>
-                                <div class="mb-2">
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="manualCourse"
-                                            id="manualCourseBsisAis" value="BSIS-AIS" checked>
-                                        <label class="form-check-label" for="manualCourseBsisAis">BSIS-AIS</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="manualCourse"
-                                            id="manualCourseAis" value="BSAIS">
-                                        <label class="form-check-label" for="manualCourseAis">BSAIS</label>
-                                    </div>
-                                </div>
-                                <input type="text" class="form-control" id="manualYearSection"
-                                    placeholder="Year-Section, e.g., 3-3 or 1-2" required autocomplete="off">
+                                <label for="manualCourse" class="form-label">Program (optional)</label>
+                                <input id="manualCourse" class="form-control mb-2" list="manualProgramOptions" placeholder="Choose or enter a program">
+                                <datalist id="manualProgramOptions"></datalist>
+                                <label for="manualYearSection" class="form-label">Section (optional)</label>
+                                <input type="text" class="form-control" id="manualYearSection" list="manualSectionOptions"
+                                    placeholder="N/A or year-section, e.g., 3-3" autocomplete="off">
+                                <datalist id="manualSectionOptions"><option value="N/A"></option></datalist>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -159,11 +152,6 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         <div class="card mt-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h5 mb-0">Attendance Records</h2>
-                <div class="ms-auto">
-                    <select id="eventFilter" class="form-select form-select-sm me-2 d-inline-block w-auto">
-                        <option value="all">All Events</option>
-                    </select>
-                </div>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -223,20 +211,18 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <script src="../../systems/QR-Attendance/lib/encoder.js?v=20260927-complete-ui-1"></script>
     <script src="../../systems/QR-Attendance/lib/xlsx.full.min.js?v=20260927-complete-ui-1"></script>
     <script src="../../assets/js/responsive-tables.js?v=20260927-complete-ui-1"></script>
-    <script src="../../systems/QR-Attendance/lib/script.js?v=20261001-duplicate-attendance-2"></script>
+    <script src="../../systems/QR-Attendance/lib/script.js?v=20261005-attendance-profile-1"></script>
     <script>
         // Utility to check if any of the filter/search/section controls are focused
         function updateBarcodeInputState() {
             const barcodeInput = document.getElementById('barcodeInput');
             const sectionDropdown = document.getElementById('sectionDropdown');
             const attendanceSearch = document.getElementById('attendanceSearch');
-            const eventFilter = document.getElementById('eventFilter');
 
             // If any of the three are focused, disable barcodeInput
             if (
                 document.activeElement === sectionDropdown ||
-                document.activeElement === attendanceSearch ||
-                document.activeElement === eventFilter
+                document.activeElement === attendanceSearch
             ) {
                 barcodeInput.disabled = true;
             } else {
@@ -247,26 +233,10 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
         document.addEventListener('DOMContentLoaded', function () {
             const sectionDropdown = document.getElementById('sectionDropdown');
             const attendanceSearch = document.getElementById('attendanceSearch');
-            const eventFilter = document.getElementById('eventFilter');
             const barcodeInput = document.getElementById('barcodeInput');
 
-            // Update Current Event display when eventFilter changes
-            if (eventFilter) {
-                eventFilter.addEventListener('change', function () {
-                    const selectedOption = eventFilter.options[eventFilter.selectedIndex];
-                    const eventNameDisplay = document.getElementById('eventNameDisplay');
-                    if (eventNameDisplay) {
-                        if (selectedOption.value === 'all') {
-                            eventNameDisplay.textContent = 'All Events';
-                        } else {
-                            eventNameDisplay.textContent = selectedOption.textContent;
-                        }
-                    }
-                });
-            }
-
-            // Add focus/blur listeners to all three controls
-            [sectionDropdown, attendanceSearch, eventFilter].forEach(el => {
+            // Pause scanning while using attendance controls
+            [sectionDropdown, attendanceSearch].forEach(el => {
                 if (el) {
                     el.addEventListener('focus', updateBarcodeInputState);
                     el.addEventListener('blur', function () {

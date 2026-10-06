@@ -92,9 +92,11 @@ function studentNotificationItem(
 
 function studentNotificationAppendPayment(string $message, string $paymentStatus): string
 {
-    return strtolower($paymentStatus) === 'paid'
-        ? $message . ' Payment has been recorded.'
-        : $message . ' Payment is still unpaid; please coordinate with the organization.';
+    return match (strtolower(trim($paymentStatus))) {
+        'paid' => $message . ' Payment has been recorded.',
+        'waived' => $message . ' The rental balance has been waived; no payment is due.',
+        default => $message . ' Payment is still unpaid; please coordinate with the organization.',
+    };
 }
 
 function studentNotificationRentalRows(PDO $pdo, int $userId): array
@@ -281,7 +283,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
         );
     }
 
-    if ($status === 'active' && !$actualAt) {
+    if (in_array($status, ['active', 'overdue'], true) && !$actualAt) {
         $secondsRemaining = $dueAt ? $dueAt->getTimestamp() - $now->getTimestamp() : PHP_INT_MAX;
         if ($secondsRemaining <= 0) {
             return studentNotificationItem(
@@ -325,7 +327,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
         $message = studentNotificationAppendPayment("{$items} was returned successfully.", $paymentStatus);
         return studentNotificationItem(
             "rental:{$rentalId}:returned_{$paymentStatus}", 'rental', $rentalId, 'returned',
-            $paymentStatus === 'paid' ? 'success' : 'warning',
+            in_array($paymentStatus, ['paid', 'waived'], true) ? 'success' : 'warning',
             'Equipment returned', $message, $organization, $completedAt, $dueAt, false, $orgId
         );
     }
@@ -334,7 +336,7 @@ function studentNotificationBuildEquipment(array $row, DateTimeImmutable $now, D
         $message = studentNotificationAppendPayment("{$items} was returned after its expected return time.", $paymentStatus);
         return studentNotificationItem(
             "rental:{$rentalId}:returned_late_{$paymentStatus}", 'rental', $rentalId, 'returned_late',
-            $paymentStatus === 'paid' ? 'warning' : 'danger',
+            in_array($paymentStatus, ['paid', 'waived'], true) ? 'warning' : 'danger',
             'Equipment returned late', $message, $organization, $completedAt, $dueAt, false, $orgId
         );
     }

@@ -714,23 +714,6 @@
 
                     <hr style="border:0; border-top:1px solid var(--border); width:100%; margin: 24px 0;">
 
-                    <div class="profile-stats-row">
-                        <div class="p-stat">
-                            <strong id="studentProfileYearStat">3</strong>
-                            <span>Year Level</span>
-                        </div>
-                        <div class="profile-divider-vert"></div>
-                        <div class="p-stat">
-                            <strong id="studentProfileTransactionStat">0</strong>
-                            <span>Transactions</span>
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 24px; width: 100%;">
-                        <label style="margin-bottom: 8px;">Bio / Note</label>
-                        <textarea id="studentProfileBioInput" rows="3" readonly>Actively participating in student services, events, and organization initiatives.</textarea>
-                    </div>
-
                     <div class="profile-email-preferences-card" aria-labelledby="studentEmailPreferencesTitle">
                         <div class="profile-email-preferences-heading">
                             <span class="profile-email-preferences-icon"><i class="fa-solid fa-envelope"></i></span>
@@ -780,7 +763,7 @@
                         <div class="profile-form-grid">
                             <div class="form-group">
                                 <label>Full Name</label>
-                                <input id="studentProfileFullNameInput" type="text" value="Juan Dela Cruz" readonly data-editable="true">
+                                <input id="studentProfileFullNameInput" type="text" value="Juan Dela Cruz" readonly>
                             </div>
                             <div class="form-group">
                                 <label>Student Number</label>
@@ -1217,7 +1200,8 @@
     <!-- Org-specific data config — must load before studentDashboard.js -->
     <script src="../data/orgData.js?v=20260927-complete-ui-1"></script>
     <script src="../assets/js/organizationFavicon.js?v=20260927-complete-ui-1"></script>
-    <script src="../assets/js/studentDashboard.js?v=20261004-printing-numbers-1"></script>
+    <script src="../assets/js/profile-email-verification.js?v=20261005-email-loading-2"></script>
+    <script src="../assets/js/studentDashboard.js?v=20261006-student-overdue-timer-1"></script>
 
     <!-- NEW: CALENDAR EVENT POPOVER -->
     <div id="calendarPopover" class="calendar-popover hidden">

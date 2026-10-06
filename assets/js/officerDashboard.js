@@ -335,11 +335,14 @@ async function saveOfficerProfileDetails() {
     if (editBtn) editBtn.disabled = true;
 
     try {
+        const emailVerificationToken = await window.verifyProfileEmailChange(email, officerProfileSnapshot?.email);
+        if (emailVerificationToken === null) return;
         const resp = await fetch('../api/officer/profile/update.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                email_verification_token: emailVerificationToken,
                 full_name: fullName,
                 email,
                 phone,
@@ -360,7 +363,7 @@ async function saveOfficerProfileDetails() {
         showToast('Profile updated successfully.', 'success');
     } catch (error) {
         console.error('[saveOfficerProfileDetails] error:', error);
-        showToast('Could not connect to the server.', 'error');
+        showToast(error.message || 'Could not connect to the server.', 'error');
     } finally {
         if (editBtn) editBtn.disabled = false;
     }
@@ -9598,8 +9601,7 @@ function renderRepoTable() {
             String(item.typeLabel || '').toLowerCase().includes(searchInput);
 
         // 3. Academic Term + Date Logic
-        const itemHasTerm = !!(item.semester || item.academicYear || item.gradingPeriod);
-        const matchesTerm = !itemHasTerm || (
+        const matchesTerm = (
             String(item.semester || '').toLowerCase() === String(filterSem).toLowerCase()
             && String(item.academicYear || '').trim() === String(filterYear).trim()
             && String(item.gradingPeriod || '').toLowerCase() === String(filterPeriod).toLowerCase()
@@ -9627,7 +9629,6 @@ function renderRepoTable() {
             matchesTerm,
             matchesDate,
             included: matchesActiveOrg && matchesType && matchesSearch && matchesTerm && matchesDate,
-            includedIgnoringTerm: matchesActiveOrg && matchesType && matchesSearch && matchesDate,
             term: {
                 semester: item.semester || null,
                 academicYear: item.academicYear || null,
@@ -9637,14 +9638,7 @@ function renderRepoTable() {
     };
 
     const evaluated = repositoryData.map((item) => evaluateRepoItem(item));
-    let filtered = evaluated.filter((entry) => entry.included).map((entry) => entry.item);
-    const termFallback = filtered.length === 0
-        ? evaluated.filter((entry) => entry.includedIgnoringTerm).map((entry) => entry.item)
-        : [];
-
-    if (termFallback.length > 0) {
-        filtered = termFallback;
-    }
+    const filtered = evaluated.filter((entry) => entry.included).map((entry) => entry.item);
 
     // Update Label
     const label = document.getElementById('repo-current-view-label');

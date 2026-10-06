@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/igp.php';
 
 header('Content-Type: application/json');
+header('Cache-Control: no-store');
 apiGuard();
 
 try {
@@ -36,10 +37,12 @@ try {
     $where = ["r.renter_user_id = :user_id"];
     $params = [':user_id' => $userId];
 
+    $openOverdueEquipment = "(r.status = 'overdue' AND r.actual_return_time IS NULL"
+        . ($hasServiceKind ? " AND COALESCE(r.service_kind, 'rental') <> 'locker'" : '') . ')';
     if ($status === 'open') {
-        $where[] = "r.status IN ('reserved', 'active', 'locker_pending', 'locker_active', 'locker_overdue')";
+        $where[] = "(r.status IN ('reserved', 'active', 'locker_pending', 'locker_active', 'locker_overdue') OR {$openOverdueEquipment})";
     } elseif ($status === 'active') {
-        $where[] = "r.status IN ('active', 'locker_active', 'locker_overdue')";
+        $where[] = "(r.status IN ('active', 'locker_active', 'locker_overdue') OR {$openOverdueEquipment})";
     } elseif ($status === 'reserved') {
         $where[] = "r.status IN ('reserved', 'locker_pending')";
     } elseif (!empty($status)) {
@@ -103,6 +106,8 @@ try {
             && $serverNow < $cancellationCutoff;
     }
 
+    unset($r);
+    $rows = igpAttachCurrentRentalCharges($pdo, $rows, $serverNow);
     jsonOk(['items' => $rows]);
 } catch (IgpConflictException $e) {
     jsonError($e->getMessage(), 409, ['code' => 'RENTAL_CONFLICT']);

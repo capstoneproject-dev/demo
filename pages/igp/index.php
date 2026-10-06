@@ -343,6 +343,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
                 <div class="modal-body">
                     <p class="mb-1">Base Cost: <strong id="paymentBaseCost">₱0.00</strong></p>
                     <p class="mb-1">Overtime Cost: <strong id="paymentOvertimeCost">₱0.00</strong></p>
+                    <p class="mb-1" id="paymentAdjustmentRow" hidden>OSA Adjustment: <strong id="paymentAdjustmentCost">₱0.00</strong></p>
                     <p class="mb-0">Total Cost: <strong id="paymentTotalCost">₱0.00</strong></p>
                 </div>
                 <div class="modal-footer">
@@ -356,7 +357,7 @@ if (($session['login_role'] ?? '') !== 'org' || empty($session['active_org_id'])
     <audio id="beepSound" src="../../systems/IGPRentalSystem/lib/Barcode scanner beep sound (sound effect).mp3" preload="auto"></audio>
     <script src="../../systems/IGPRentalSystem/lib/bootstrap.bundle.min.js?v=20260927-complete-ui-1"></script>
     <script src="../../assets/js/igp-api.js?v=20260927-complete-ui-1"></script>
-    <script src="../../assets/js/igp-index-exact.js?v=20260927-complete-ui-1"></script>
+    <script src="../../assets/js/igp-index-exact.js?v=20261006-waived-return-1"></script>
     <script src="../../assets/js/readonly-org-dashboard.js?v=20260927-complete-ui-1"></script>
     <script src="../../assets/js/responsive-tables.js?v=20260927-complete-ui-1"></script>
 </body>

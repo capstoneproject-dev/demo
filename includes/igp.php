@@ -7,6 +7,7 @@
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/services_tracker.php';
+require_once __DIR__ . '/rental_charges.php';
 
 class IgpValidationException extends RuntimeException {}
 class IgpAuthorizationException extends RuntimeException {}
@@ -886,7 +887,7 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
 
     if (!empty($filters['status'])) {
         if ($filters['status'] === 'open') {
-            $where[] = "r.status IN ('reserved', 'active')";
+            $where[] = "(r.status IN ('reserved', 'active') OR (r.status = 'overdue' AND r.actual_return_time IS NULL))";
         } else {
             $where[] = "r.status = :status";
             $params[':status'] = $filters['status'];
@@ -954,7 +955,8 @@ function igpGetRentals(PDO $pdo, int $orgId, array $filters = []): array
         $r['total_cost'] = (float)$r['total_cost'];
         $r['hourly_total'] = (float)$r['hourly_total'];
     }
-    return $rows;
+    unset($r);
+    return igpAttachCurrentRentalCharges($pdo, $rows);
 }
 
 function igpFindUserByIdentifier(PDO $pdo, string $identifier): ?array
@@ -1812,7 +1814,7 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
     try {
         igpLockRentalInventory($pdo, $rentalId, $orgId);
         $stmt = $pdo->prepare(
-            "SELECT rental_id, renter_user_id, rent_time, expected_return_time, status, payment_status
+            "SELECT rental_id, renter_user_id, rent_time, expected_return_time, actual_return_time, status, payment_status
              FROM rentals
              WHERE rental_id = :rid AND org_id = :org
              FOR UPDATE"
@@ -1820,7 +1822,7 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
         $stmt->execute([':rid' => $rentalId, ':org' => $orgId]);
         $rental = $stmt->fetch();
         if (!$rental) throw new IgpValidationException('Rental not found for this organization.');
-        if ($rental['status'] !== 'active') throw new IgpConflictException('Only active rentals can be returned.');
+        if (!igpRentalIsOpenEquipment($rental)) throw new IgpConflictException('Only unreturned active or overdue rentals can be returned.');
 
         $itemsStmt = $pdo->prepare(
             "SELECT ri.rental_item_id, ri.item_id, ri.quantity, ri.unit_rate, ri.item_cost, ri.overtime_interval_minutes, ri.overtime_rate_per_block,
@@ -1837,39 +1839,33 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
 
         $tz = new DateTimeZone('Asia/Manila');
         $actual = new DateTimeImmutable('now', $tz);
-        $expected = new DateTimeImmutable($rental['expected_return_time']);
-        $baseCost = 0.0;
-        $overtimeCost = 0.0;
-        $overMin = 0;
-
-        if ($actual > $expected) {
-            $overMin = (int)ceil(($actual->getTimestamp() - $expected->getTimestamp()) / 60);
-        }
-
-        foreach ($items as $it) {
-            $qty = (int)$it['quantity'];
-            $baseCost += (float)$it['item_cost'];
-            $interval = $it['overtime_interval_minutes'] !== null ? (int)$it['overtime_interval_minutes'] : null;
-            $rate = $it['overtime_rate_per_block'] !== null ? (float)$it['overtime_rate_per_block'] : null;
-            if ($overMin > 0 && $interval && $rate !== null && $rate > 0) {
-                $blocks = (int)ceil($overMin / $interval);
-                $overtimeCost += ($blocks * $rate * $qty);
-            }
-        }
-
-        $total = $baseCost + $overtimeCost;
+        $expected = new DateTimeImmutable($rental['expected_return_time'], $tz);
+        $charges = igpCalculateRentalCharges($items, $expected, $actual);
+        $baseCost = $charges['base_cost'];
+        $overtimeCost = $charges['overtime_cost'];
+        $overMin = $charges['overtime_minutes'];
+        $adjustments = igpRentalAdjustmentTotals($pdo, [$rentalId]);
+        $chargeAdjustment = $adjustments[$rentalId] ?? 0.0;
+        $total = round(max(0, $charges['total_cost'] + $chargeAdjustment), 2);
         $newStatus = $overMin > 0 ? 'overdue' : 'returned';
+        $paymentStatus = $rental['payment_status'];
+        if ($paymentStatus === 'unpaid' && $total === 0.0 && $chargeAdjustment < 0) {
+            $paymentStatus = 'waived';
+        }
         $updRental = $pdo->prepare(
             "UPDATE rentals
              SET actual_return_time = :actual,
                  total_cost = :total,
-                 status = :status
-             WHERE rental_id = :rid AND org_id = :org AND status = 'active'"
+                 status = :status,
+                 payment_status = :payment
+             WHERE rental_id = :rid AND org_id = :org AND status = :previous_status AND actual_return_time IS NULL"
         );
         $updRental->execute([
             ':actual' => $actual->format('Y-m-d H:i:s'),
             ':total' => $total,
             ':status' => $newStatus,
+            ':payment' => $paymentStatus,
+            ':previous_status' => $rental['status'],
             ':rid' => $rentalId,
             ':org' => $orgId,
         ]);
@@ -1897,11 +1893,13 @@ function igpReturnRental(PDO $pdo, int $orgId, array $data): array
         $pdo->commit();
         return [
             'rental_id' => $rentalId,
+            'charge_adjustment_total' => $chargeAdjustment,
             'base_cost' => $baseCost,
             'overtime_minutes' => $overMin,
             'overtime_cost' => $overtimeCost,
             'total_cost' => $total,
             'status' => $newStatus,
+            'payment_status' => $paymentStatus,
             'actual_return_time' => $actual->format(DateTimeInterface::ATOM),
         ];
     } catch (Throwable $e) {
