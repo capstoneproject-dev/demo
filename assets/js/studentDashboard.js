@@ -8774,21 +8774,22 @@ function createRentalCard(rental) {
     }
     card.setAttribute('data-rental-id', rental.rental_id);
 
+    const isOpenEquipment = ['active', 'overdue'].includes(rental.status) && !rental.actual_return_time;
     const isNoShow = isStudentRentalNoShow(rental);
     const statusClass = rental.pendingSync ? 'status-reserved' : isNoShow
         ? 'status-no-show'
-        : (rental.status === 'active' ? 'status-active' : 'status-reserved');
+        : (rental.status === 'overdue' ? 'status-no-show' : (isOpenEquipment ? 'status-active' : 'status-reserved'));
     const statusText = rental.pendingSync
         ? (rental.offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline')
         : isNoShow
         ? 'No Show'
-        : (rental.status === 'active' ? 'Active' : 'Reserved');
+        : (rental.status === 'overdue' ? 'Overdue' : (isOpenEquipment ? 'Active' : 'Reserved'));
 
     const rentTimeFormatted = formatDateTime(rental.rent_time);
     const expectedReturnFormatted = formatDateTime(rental.expected_return_time);
 
     let timerHtml = '';
-    if (rental.status === 'active') {
+    if (isOpenEquipment) {
         timerHtml = `
             <div class="rental-timer" data-rental-id="${rental.rental_id}">
                 <i class="fa-solid fa-clock"></i>
@@ -8835,7 +8836,7 @@ function createRentalCard(rental) {
         ${timerHtml}
 
         <div class="rental-card-details">
-            ${rental.status === 'active' ? `
+            ${isOpenEquipment ? `
             <div class="rental-detail-row">
                 <i class="fa-solid fa-clock"></i>
                 <span class="rental-detail-label">Started:</span>
@@ -8868,7 +8869,7 @@ function createRentalCard(rental) {
 function updateRentalTimers() {
     const nowMs = Date.now();
     currentRentalsData.forEach(rental => {
-        if (rental.status !== 'active') return;
+        if (!['active', 'overdue'].includes(rental.status) || rental.actual_return_time || rental.service_kind === 'locker') return;
         const cost = getStudentRentalCurrentCost(rental, nowMs);
         document.querySelectorAll(`.rental-card[data-rental-id="${rental.rental_id}"] .rental-cost`).forEach(element => {
             element.textContent = `\u20b1${cost.toFixed(2)}`;
@@ -8955,7 +8956,8 @@ async function loadRentalHistory() {
             if (String(rental.service_kind || '').toLowerCase() === 'locker') {
                 return ['locker_pending', 'locker_active', 'locker_overdue', 'locker_released', 'locker_rejected'].includes(status);
             }
-            if (status === 'returned' || status === 'completed' || status === 'cancelled') return true;
+            if (status === 'returned' || status === 'completed' || status === 'cancelled'
+                || (status === 'overdue' && rental.actual_return_time)) return true;
 
             // Check if it's a no-show (reserved but past expected return time)
             if (status === 'reserved' && isStudentRentalNoShow(rental)) return true;
@@ -9087,6 +9089,7 @@ function createRentalHistoryRow(rental) {
     } else if (isStudentRentalNoShow(rental)) {
         status = 'no-show';
     }
+    if (status === 'overdue' && rental.actual_return_time) status = 'returned_late';
     const statusClass = getStatusClass(status, rental.payment_status);
     const statusText = getStatusText(status);
 
@@ -9128,7 +9131,7 @@ function calculateDuration(startTime, endTime) {
 }
 
 function getStatusClass(status, paymentStatus) {
-    if (status === 'returned') return 'status-returned';
+    if (status === 'returned' || status === 'returned_late') return 'status-returned';
     if (status === 'no-show') return 'status-no-show';
     if (status === 'locker_overdue') return 'status-no-show';
     if (status === 'cancelled') return 'status-unknown';
@@ -9142,6 +9145,8 @@ function getStatusClass(status, paymentStatus) {
 
 function getStatusText(status) {
     if (status === 'returned') return 'Returned';
+    if (status === 'returned_late') return 'Returned Late';
+    if (status === 'overdue') return 'Overdue';
     if (status === 'no-show') return 'No Show';
     if (status === 'locker_overdue') return 'Locker Overdue';
     if (status === 'cancelled') return 'Cancelled';
@@ -9593,6 +9598,8 @@ function filterRentals(rentals) {
                 else if (status === 'locker_overdue') status = 'locker_overdue';
                 else if (status === 'locker_rejected') status = 'cancelled';
                 else if (status === 'locker_released') status = 'returned';
+            } else if (!isPrintActivity && status === 'overdue') {
+                status = rental.actual_return_time ? 'returned' : 'active';
             } else if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
                 status = 'no-show';
             } else if (!isPrintActivity && isStudentRentalNoShow(rental)) {
@@ -9613,6 +9620,9 @@ function filterRentals(rentals) {
                 else if (status === 'locker_active') status = 'active';
                 else if (status === 'locker_rejected') status = 'cancelled';
                 else if (status === 'locker_released') status = 'returned';
+            } else if (!isPrintActivity && status === 'overdue') {
+                statusText = rental.actual_return_time ? 'Returned Late' : 'Overdue';
+                status = rental.actual_return_time ? 'returned' : 'active';
             } else if (!isPrintActivity && status === 'cancelled' && String(rental.payment_status || '').toLowerCase() === 'unpaid') {
                 status = 'no-show';
             } else if (!isPrintActivity && isStudentRentalNoShow(rental)) {
