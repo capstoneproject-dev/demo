@@ -8684,9 +8684,10 @@ function renderCurrentRentals() {
         });
     });
 
-    // Start timer for active rentals
-    const hasActiveRentals = visibleCurrentRentals.some(r => r.status === 'active');
-    if (hasActiveRentals) {
+    // Update open equipment immediately and keep its timer and quote advancing.
+    const hasOpenEquipment = visibleCurrentRentals.some(r =>
+        ['active', 'overdue'].includes(r.status) && !r.actual_return_time);
+    if (hasOpenEquipment) {
         updateRentalTimers();
         rentalTimerInterval = setInterval(updateRentalTimers, 1000);
     }
