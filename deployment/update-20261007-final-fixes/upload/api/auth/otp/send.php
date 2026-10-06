@@ -1,0 +1,130 @@
+<?php
+
+require_once __DIR__ . '/../../../includes/otp.php';
+
+header('Content-Type: application/json');
+requirePost();
+rateLimitEnsureAllowed('otp_send_ip', 'ip:' . rateLimitClientIp(), 10, 600);
+
+$body = getRequestBody();
+$purpose = trim((string)($body['purpose'] ?? ''));
+$email = trim((string)($body['email'] ?? ''));
+$identifier = trim((string)($body['identifier'] ?? ''));
+$invitationToken = trim((string)($body['invitation_token'] ?? ''));
+$studentName = trim((string)($body['student_name'] ?? ''));
+$currentPassword = (string)($body['current_password'] ?? '');
+
+if ($purpose === 'profile_email_change') {
+    apiGuard(true);
+    apiRequireRecentReauthentication();
+    $identifier = (string)$_SESSION['user_id'];
+}
+
+if ($purpose === 'osa_rental_adjustment') {
+    apiGuard(true);
+    $session = apiRequireOsaSystemAdministrator();
+    apiRequireRecentReauthentication();
+    require_once __DIR__ . '/../../../includes/rental_adjustments.php';
+    require_once __DIR__ . '/../../../includes/functions.php';
+    $administrator = getUserById((int)$session['user_id']);
+    $email = (string)($administrator['email'] ?? '');
+    try {
+        $identifier = osaRentalAdjustmentOtpIdentifier((int)$session['user_id'], osaRentalAdjustmentId($body['rental_id'] ?? null), $body);
+    } catch (InvalidArgumentException $e) {
+        jsonError($e->getMessage(), 422);
+    }
+}
+
+// OSA login codes are issued only after the password has been validated by
+// login.php. Do not expose that purpose through this public-purpose endpoint.
+if ($purpose === 'osa_login') {
+    jsonError('Invalid OTP purpose.', 422);
+}
+
+// Organization registration adds a membership to an existing student
+// account. Verify that account password before sending an OTP so this field
+// behaves as login verification and never creates or changes credentials.
+if ($purpose === 'org_registration') {
+    $student = null;
+    if ($currentPassword !== '') {
+        $stmt = getPdo()->prepare(
+            "SELECT password_hash
+             FROM users
+             WHERE student_number = :identifier
+               AND LOWER(email) = LOWER(:email)
+               AND is_active = 1
+             LIMIT 1"
+        );
+        $stmt->execute([':identifier' => $identifier, ':email' => $email]);
+        $student = $stmt->fetch();
+    }
+
+    if (!$student || !password_verify($currentPassword, (string)$student['password_hash'])) {
+        jsonError('Incorrect password.', 403, ['error_code' => 'INCORRECT_PASSWORD']);
+    }
+}
+
+// A student registration creates a new login account. Reject identifiers
+// already attached to an account before issuing an OTP so the applicant does
+// not complete verification for credentials that can never be activated.
+if ($purpose === 'student_registration') {
+    $pdo = getPdo();
+    $existingAccountStmt = $pdo->prepare(
+        "SELECT user_id
+         FROM users
+         WHERE student_number = :student_number
+            OR LOWER(email) = LOWER(:email)
+         LIMIT 1"
+    );
+    $existingAccountStmt->execute([
+        ':student_number' => $identifier,
+        ':email' => $email,
+    ]);
+    if ($existingAccountStmt->fetch()) {
+        jsonError('That student number or email is already registered. Please log in or use different account details.', 409);
+    }
+
+    $pendingAccountStmt = $pdo->prepare(
+        "SELECT reg_id
+         FROM pending_registrations
+         WHERE status = 'pending'
+           AND requested_role IN ('student', 'organization_adviser')
+           AND (student_number = :student_number OR LOWER(email) = LOWER(:email))
+         LIMIT 1"
+    );
+    $pendingAccountStmt->execute([
+        ':student_number' => $identifier,
+        ':email' => $email,
+    ]);
+    if ($pendingAccountStmt->fetch()) {
+        jsonError('That student number or email already has a pending registration request.', 409);
+    }
+}
+
+try {
+    $challenge = createOtpChallenge($purpose, $email, $identifier, $invitationToken, $studentName);
+    jsonOk([
+        ...$challenge,
+        ...($purpose === 'osa_rental_adjustment' ? ['recipient_email' => $email] : []),
+        'message' => 'If the supplied details are eligible, a verification code has been sent.',
+    ]);
+} catch (InvalidArgumentException $e) {
+    jsonError($e->getMessage(), 422);
+} catch (OtpRateLimitException $e) {
+    header('Retry-After: ' . max(1, $e->retryAfter));
+    header('Cache-Control: no-store');
+    http_response_code(429);
+    echo json_encode([
+        'ok' => false,
+        'error' => $e->getMessage(),
+        'error_code' => CAPSTONE_RATE_LIMIT_ERROR_CODE,
+        'retry_after' => $e->retryAfter,
+    ]);
+    exit;
+} catch (RuntimeException $e) {
+    error_log('[api/auth/otp/send] ' . $e->getMessage());
+    jsonError('Could not send the verification code right now.', 503);
+} catch (Throwable $e) {
+    error_log('[api/auth/otp/send] ' . $e->getMessage());
+    jsonError('Could not send the verification code right now.', 500);
+}

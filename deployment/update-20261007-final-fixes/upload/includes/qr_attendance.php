@@ -1001,7 +1001,7 @@ function qrListStudents(PDO $pdo, int $orgId, array $filters = []): array
                     FROM attendance_records ar
                     JOIN events e ON e.event_id = ar.event_id
                     WHERE e.org_id = :attendance_org
-                      AND ar.student_number COLLATE utf8mb4_unicode_ci = u.student_number COLLATE utf8mb4_unicode_ci
+                      AND ar.student_number = u.student_number
                 )
           )
         ORDER BY u.student_number ASC, u.user_id ASC";

@@ -1,0 +1,384 @@
+<?php
+
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/osa_staff.php';
+
+const OTP_EXPIRES_SECONDS = 600;
+const OTP_RESEND_SECONDS = 60;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_VERIFICATION_SECONDS = 600;
+
+class OtpRateLimitException extends RuntimeException
+{
+    public int $retryAfter;
+
+    public function __construct(int $retryAfter)
+    {
+        parent::__construct('Please wait before requesting another code.', 429);
+        $this->retryAfter = max(1, $retryAfter);
+    }
+}
+
+function normalizeOtpEmail(string $email): string
+{
+    return strtolower(trim($email));
+}
+
+function hashOtpToken(string $token): string
+{
+    return hash('sha256', $token);
+}
+
+function generateOpaqueToken(): string
+{
+    return bin2hex(random_bytes(32));
+}
+
+/** Normalize roster names for a human-friendly but order-sensitive match. */
+function normalizeStudentRegistryName(string $name): string
+{
+    $normalized = trim($name);
+    if ($normalized === '') return '';
+    if (class_exists('Normalizer')) {
+        $unicode = Normalizer::normalize($normalized, Normalizer::FORM_KC);
+        if (is_string($unicode)) $normalized = $unicode;
+    }
+    $normalized = function_exists('mb_strtolower')
+        ? mb_strtolower($normalized, 'UTF-8')
+        : strtolower($normalized);
+    $withoutPunctuation = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $normalized);
+    if (is_string($withoutPunctuation)) $normalized = $withoutPunctuation;
+    return trim((string)(preg_replace('/\s+/u', ' ', $normalized) ?? $normalized));
+}
+
+function studentRegistryNamesMatch(string $providedName, string $registeredName): bool
+{
+    $provided = normalizeStudentRegistryName($providedName);
+    $registered = normalizeStudentRegistryName($registeredName);
+    return $provided !== '' && $registered !== '' && hash_equals($registered, $provided);
+}
+
+function isAllowedOtpPurpose(string $purpose): bool
+{
+    return in_array($purpose, [
+        'student_registration',
+        'org_registration',
+        'organization_adviser_registration',
+        'osa_registration',
+        'osa_login',
+        'password_reset',
+    ], true);
+}
+
+/**
+ * Check whether a code should actually be delivered. Ineligible requests are
+ * still answered generically by the API so account existence is not exposed.
+ */
+function otpRecipientIsEligible(
+    PDO $pdo,
+    string $purpose,
+    string $email,
+    string $identifier,
+    string $invitationToken = '',
+    string $studentName = ''
+): bool
+{
+    if ($purpose === 'student_registration') {
+        $stmt = $pdo->prepare(
+            "SELECT sn.student_name
+             FROM student_numbers sn
+             WHERE sn.student_number = :identifier AND sn.is_active = 1
+               AND NOT EXISTS (
+                   SELECT 1 FROM users u
+                   WHERE u.student_number COLLATE utf8mb4_unicode_ci = sn.student_number COLLATE utf8mb4_unicode_ci
+               )
+               AND NOT EXISTS (
+                   SELECT 1 FROM pending_registrations pr
+                   WHERE pr.student_number COLLATE utf8mb4_unicode_ci = sn.student_number COLLATE utf8mb4_unicode_ci
+                     AND pr.status = 'pending'
+               )
+             LIMIT 1"
+        );
+        $stmt->execute([':identifier' => $identifier]);
+        $registeredName = $stmt->fetchColumn();
+        return is_string($registeredName) && studentRegistryNamesMatch($studentName, $registeredName);
+    }
+
+    if ($purpose === 'org_registration') {
+        $stmt = $pdo->prepare(
+            "SELECT 1
+             FROM users u
+             WHERE u.student_number = :identifier
+               AND LOWER(u.email) = :email
+               AND u.is_active = 1
+             LIMIT 1"
+        );
+        $stmt->execute([':identifier' => $identifier, ':email' => $email]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    if ($purpose === 'organization_adviser_registration') {
+        $stmt = $pdo->prepare(
+            "SELECT NOT EXISTS (
+                        SELECT 1 FROM users
+                        WHERE LOWER(email) = :user_email OR employee_number = :user_identifier
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM pending_registrations
+                        WHERE status = 'pending'
+                          AND (LOWER(email) = :request_email OR employee_number = :request_identifier)
+                    )"
+        );
+        $stmt->execute([
+            ':user_email' => $email,
+            ':user_identifier' => $identifier,
+            ':request_email' => $email,
+            ':request_identifier' => $identifier,
+        ]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    if ($purpose === 'osa_registration') {
+        try {
+            requireMatchingOsaInvitation($pdo, $invitationToken, $email, $identifier);
+        } catch (InvalidArgumentException $e) {
+            return false;
+        }
+        $stmt = $pdo->prepare(
+            "SELECT NOT EXISTS (SELECT 1 FROM users WHERE LOWER(email) = :email)
+                    AND NOT EXISTS (SELECT 1 FROM users WHERE employee_number = :identifier)"
+        );
+        $stmt->execute([':email' => $email, ':identifier' => $identifier]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    if ($purpose === 'osa_login') {
+        $stmt = $pdo->prepare(
+            "SELECT 1
+             FROM users
+             WHERE user_id = :user_id
+               AND LOWER(email) = :email
+               AND account_type = 'osa_staff'
+               AND is_active = 1
+             LIMIT 1"
+        );
+        $stmt->execute([
+            ':user_id' => (int)$identifier,
+            ':email' => $email,
+        ]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT 1 FROM users
+         WHERE (student_number = :student_identifier OR employee_number = :employee_identifier)
+           AND LOWER(email) = :email AND is_active = 1
+         LIMIT 1"
+    );
+    $stmt->execute([
+        ':student_identifier' => $identifier,
+        ':employee_identifier' => $identifier,
+        ':email' => $email,
+    ]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function createOtpChallenge(
+    string $purpose,
+    string $email,
+    string $identifier,
+    string $invitationToken = '',
+    string $studentName = ''
+): array
+{
+    $email = normalizeOtpEmail($email);
+    $identifier = trim($identifier);
+    if (!isAllowedOtpPurpose($purpose) || !filter_var($email, FILTER_VALIDATE_EMAIL) || $identifier === '') {
+        throw new InvalidArgumentException('Valid email, identifier, and purpose are required.');
+    }
+
+    $pdo = getPdo();
+    $ip = substr(rateLimitClientIp(), 0, 45);
+    $recent = $pdo->prepare(
+        "SELECT TIMESTAMPDIFF(SECOND, CURRENT_TIMESTAMP, resend_available_at) AS retry_after
+         FROM email_otp_challenges
+         WHERE email = :email AND purpose = :purpose
+           AND consumed_at IS NULL
+           AND verified_at IS NULL
+           AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 SECOND)
+         ORDER BY challenge_id DESC LIMIT 1"
+    );
+    $recent->execute([':email' => $email, ':purpose' => $purpose]);
+    $cooldown = $recent->fetch();
+    if ($cooldown && (int)$cooldown['retry_after'] > 0) {
+        throw new OtpRateLimitException((int)$cooldown['retry_after']);
+    }
+
+    if ($ip !== '') {
+        $ipLimit = $pdo->prepare(
+            "SELECT COUNT(*) FROM email_otp_challenges
+             WHERE request_ip = :request_ip
+               AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 10 MINUTE)"
+        );
+        $ipLimit->execute([':request_ip' => $ip]);
+        if ((int)$ipLimit->fetchColumn() >= 10) {
+            throw new OtpRateLimitException(600);
+        }
+    }
+
+    $eligible = otpRecipientIsEligible($pdo, $purpose, $email, $identifier, $invitationToken, $studentName);
+    if (!$eligible && $purpose !== 'password_reset') {
+        if ($purpose === 'osa_registration') {
+            throw new InvalidArgumentException(OSA_INVITATION_GENERIC_ERROR);
+        }
+        if ($purpose === 'student_registration') {
+            throw new InvalidArgumentException('The student number and name do not match an eligible student record.');
+        }
+        throw new InvalidArgumentException('These registration details are not eligible for email verification. Check the identifier or contact the OSA.');
+    }
+    $otp = (string)random_int(100000, 999999);
+    $challengeToken = generateOpaqueToken();
+
+    $pdo->beginTransaction();
+    try {
+        $invalidate = $pdo->prepare(
+            "UPDATE email_otp_challenges
+             SET consumed_at = CURRENT_TIMESTAMP
+             WHERE email = :email AND purpose = :purpose AND consumed_at IS NULL"
+        );
+        $invalidate->execute([':email' => $email, ':purpose' => $purpose]);
+
+        $insert = $pdo->prepare(
+            "INSERT INTO email_otp_challenges
+                (challenge_token_hash, purpose, email, identifier, otp_hash,
+                 expires_at, resend_available_at, max_attempts, request_ip)
+             VALUES
+                (:token_hash, :purpose, :email, :identifier, :otp_hash,
+                 DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 MINUTE),
+                 DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 60 SECOND), :max_attempts, :request_ip)"
+        );
+        $insert->execute([
+            ':token_hash' => hashOtpToken($challengeToken),
+            ':purpose' => $purpose,
+            ':email' => $email,
+            ':identifier' => $identifier,
+            ':otp_hash' => password_hash($otp, PASSWORD_DEFAULT),
+            ':max_attempts' => OTP_MAX_ATTEMPTS,
+            ':request_ip' => $ip ?: null,
+        ]);
+        $challengeId = (int)$pdo->lastInsertId();
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+
+    if ($eligible) {
+        try {
+            sendOtpEmail($email, $otp, $purpose);
+        } catch (Throwable $e) {
+            $pdo->prepare("UPDATE email_otp_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE challenge_id = :id")
+                ->execute([':id' => $challengeId]);
+            throw $e;
+        }
+    }
+
+    return [
+        'challenge_token' => $challengeToken,
+        'expires_in' => OTP_EXPIRES_SECONDS,
+        'resend_after' => OTP_RESEND_SECONDS,
+    ];
+}
+
+function verifyOtpChallenge(string $challengeToken, string $otp): string
+{
+    if (!preg_match('/^[a-f0-9]{64}$/', $challengeToken) || !preg_match('/^\d{6}$/', $otp)) {
+        throw new InvalidArgumentException('Invalid or expired verification code.');
+    }
+
+    $pdo = getPdo();
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT * FROM email_otp_challenges
+             WHERE challenge_token_hash = :token_hash LIMIT 1 FOR UPDATE"
+        );
+        $stmt->execute([':token_hash' => hashOtpToken($challengeToken)]);
+        $challenge = $stmt->fetch();
+
+        $unusable = !$challenge
+            || $challenge['consumed_at'] !== null
+            || $challenge['verified_at'] !== null
+            || strtotime($challenge['expires_at']) < time()
+            || (int)$challenge['attempt_count'] >= (int)$challenge['max_attempts'];
+        if ($unusable) {
+            throw new InvalidArgumentException('Invalid or expired verification code.');
+        }
+
+        if (!password_verify($otp, $challenge['otp_hash'])) {
+            $pdo->prepare(
+                "UPDATE email_otp_challenges SET attempt_count = attempt_count + 1 WHERE challenge_id = :id"
+            )->execute([':id' => (int)$challenge['challenge_id']]);
+            $pdo->commit();
+            throw new InvalidArgumentException('Invalid or expired verification code.');
+        }
+
+        $verificationToken = generateOpaqueToken();
+        $pdo->prepare(
+            "UPDATE email_otp_challenges
+             SET verified_at = CURRENT_TIMESTAMP,
+                 verification_token_hash = :verification_hash,
+                 verification_expires_at = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 10 MINUTE)
+             WHERE challenge_id = :id"
+        )->execute([
+            ':verification_hash' => hashOtpToken($verificationToken),
+            ':id' => (int)$challenge['challenge_id'],
+        ]);
+        $pdo->commit();
+        return $verificationToken;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+}
+
+/** Must be called inside the same transaction as the protected operation. */
+function consumeOtpVerification(
+    PDO $pdo,
+    string $verificationToken,
+    string $purpose,
+    string $email,
+    string $identifier
+): void {
+    if (!preg_match('/^[a-f0-9]{64}$/', $verificationToken)) {
+        throw new InvalidArgumentException('Email verification is required.');
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT challenge_id
+         FROM email_otp_challenges
+         WHERE verification_token_hash = :token_hash
+           AND purpose = :purpose
+           AND email = :email
+           AND identifier = :identifier
+           AND verified_at IS NOT NULL
+           AND verification_expires_at >= CURRENT_TIMESTAMP
+           AND consumed_at IS NULL
+         LIMIT 1 FOR UPDATE"
+    );
+    $stmt->execute([
+        ':token_hash' => hashOtpToken($verificationToken),
+        ':purpose' => $purpose,
+        ':email' => normalizeOtpEmail($email),
+        ':identifier' => trim($identifier),
+    ]);
+    $challengeId = $stmt->fetchColumn();
+    if (!$challengeId) {
+        throw new InvalidArgumentException('Email verification is invalid or expired.');
+    }
+
+    $pdo->prepare(
+        "UPDATE email_otp_challenges SET consumed_at = CURRENT_TIMESTAMP WHERE challenge_id = :id"
+    )->execute([':id' => (int)$challengeId]);
+}

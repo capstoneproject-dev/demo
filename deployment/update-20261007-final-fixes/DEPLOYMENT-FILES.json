@@ -1,0 +1,419 @@
+{
+  "package": "update-20261007-final-fixes",
+  "sourceCommit": "c7e2eda1ce46813366a6b34a79aa6922a40bbfe2",
+  "rollbackCommit": "a50a11328259e994f2faa50647da12a0af517246",
+  "scope": "All runtime changes introduced by the reference commit; test files excluded.",
+  "databaseMigrationRequired": false,
+  "serverFileDeletions": [],
+  "rollbackFileDeletions": [
+    "api/osa/rentals/adjust.php",
+    "assets/js/osa-rental-adjustment.js",
+    "assets/js/profile-email-verification.js",
+    "includes/rental_adjustments.php",
+    "includes/rental_charges.php"
+  ],
+  "excludedTestFiles": [
+    "tests/concurrency/dashboard-profile-updates.cjs",
+    "tests/concurrency/offline-changed-assets.cjs",
+    "tests/concurrency/osa-rental-adjustment-get.php",
+    "tests/concurrency/osa-rental-adjustment-races.cjs",
+    "tests/concurrency/osa-rental-adjustment-save.php",
+    "tests/concurrency/osa-rental-adjustment-ui.cjs",
+    "tests/concurrency/rental-adjustment-database.php",
+    "tests/concurrency/rental-adjustment-payment.cjs",
+    "tests/concurrency/rental-adjustment-validation.php",
+    "tests/concurrency/rental-current-quotes.php",
+    "tests/concurrency/student-overdue-feed.php",
+    "tests/concurrency/student-overdue-ui.cjs",
+    "tests/concurrency/student-rental-current-cost.cjs",
+    "tests/concurrency/student-rental-notifications.php"
+  ],
+  "files": [
+    {
+      "path": "api/auth/otp/send.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "fe0499d1209f78d591c7abdc0f2cb1dc33666a786425a66d97fad7095ff04628",
+        "bytes": 4926,
+        "gitBlob": "67d450c8defb91c72aba4deb2afb87ccbf55f277"
+      },
+      "rollback": {
+        "sha256": "6d7b48b527caa66c8f3effd406a1e36ec42431053e7a97e4d3a917c5bd495c97",
+        "bytes": 4035,
+        "gitBlob": "216a24553aac4fecd3e2fd88fcfb42ead9ef6bf0"
+      }
+    },
+    {
+      "path": "api/igp/rentals/list.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "954d587887a69061b9d63edc42d06c051348ed18525626e550a2f5c9319a09eb",
+        "bytes": 1253,
+        "gitBlob": "8bbec17c22e1906fc6214a6089332d8d43c3015a"
+      },
+      "rollback": {
+        "sha256": "66ef505e34a3b8b3f0280946e7d3c59bb75b941f9af42c942cd177b736c27210",
+        "bytes": 1218,
+        "gitBlob": "008ee917d2183866b1aaa370219465007901381c"
+      }
+    },
+    {
+      "path": "api/officer/profile/update.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "5559a1aa24a1bb7498c616123acaf2b64fc3d0ade9033b14a552b4d17f591126",
+        "bytes": 4096,
+        "gitBlob": "105f3bb1601b030e49eabd39817e2c86353f8d0e"
+      },
+      "rollback": {
+        "sha256": "0ce5b9dd16fb584fe55c3ec9ae2139a93b39319d9b48a9f1434a51b64fcb5c27",
+        "bytes": 3933,
+        "gitBlob": "c5245144c141839b901c606ef313c2d5f4f05fe6"
+      }
+    },
+    {
+      "path": "api/osa/activity-feed.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "5cc4ef2ab695f8ab61e57495805ddb9f4f2409322fad7eed812df25243dd578f",
+        "bytes": 27827,
+        "gitBlob": "f83a193cb7008362e809d76eea67ed112edbd046"
+      },
+      "rollback": {
+        "sha256": "81cfc51181db408e4890ce20586b94e4f9eeec17e58c6a68b266eb57cf8a5aab",
+        "bytes": 27539,
+        "gitBlob": "67479446cf0be3a84d41a4986944419f203d54bb"
+      }
+    },
+    {
+      "path": "api/osa/profile/update.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "fc5c65d3890623b1d27240318aeebb6b808d110c2a060e53d4c0e83da19caf66",
+        "bytes": 3736,
+        "gitBlob": "44f150acb20cda11285635fb5d51c7581d4b1b2c"
+      },
+      "rollback": {
+        "sha256": "1eaee3e2c9115b7b84f6b0d6400d1e578cc7e295abdc36143d9b000250263044",
+        "bytes": 3244,
+        "gitBlob": "55194cd7abe415b3c43a22b35a157329ed6d827e"
+      }
+    },
+    {
+      "path": "api/osa/rentals/adjust.php",
+      "operation": "add",
+      "upload": {
+        "sha256": "fbb449f4ef5eefd981081bfc20bd22175d67cdee191e4c0f40883cf0b9cc5c94",
+        "bytes": 5239,
+        "gitBlob": "559fb7b7af68546e1f71e654284b8df1e6a8cc0a"
+      },
+      "rollback": null
+    },
+    {
+      "path": "api/student/profile/update.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "8ec76510cc7c3165f2eeed9364c31eae5f7f925446f0e401950f12ba84e3633b",
+        "bytes": 3797,
+        "gitBlob": "d91dc90ed2ac22d4cd887961ad136e0c30a30d4b"
+      },
+      "rollback": {
+        "sha256": "d3bd2c3496fe2356029246766f31833466629b0951173d0d29dba8f32c70d9e3",
+        "bytes": 3634,
+        "gitBlob": "6c84611cae02d9f73c3cdda1df13cc099e299c90"
+      }
+    },
+    {
+      "path": "api/student/rentals/my-rentals.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "e8664d95aa3bc94ad45403422736ae16df3e737a1bf5539e345a1e4e6f0dce4e",
+        "bytes": 5649,
+        "gitBlob": "e9bc065bf650535d81842f8a50ebe75284706f6b"
+      },
+      "rollback": {
+        "sha256": "df3ee988d8c8ce4e3e7ae65ea4dc9fa560c6ffbf4cc702a28b5d3cd0528eb4c5",
+        "bytes": 5292,
+        "gitBlob": "01d6a3fce518948b13abda87c870fc479896fe41"
+      }
+    },
+    {
+      "path": "assets/css/osaDashboard.css",
+      "operation": "replace",
+      "upload": {
+        "sha256": "2f15b63c18f2457f0d0ee829189babd087f3f4a58e388d852bd694f45a6a3b22",
+        "bytes": 97891,
+        "gitBlob": "0f77a28b5aafff24b1f996591bf503580348ced5"
+      },
+      "rollback": {
+        "sha256": "b3ecaa3e37c92fb0ab2c211877d83af0f970524d2fec836751eb5e6f8dc698f9",
+        "bytes": 96789,
+        "gitBlob": "867f542683915c52e44703927af89cbf21258d51"
+      }
+    },
+    {
+      "path": "assets/js/igp-index-exact.js",
+      "operation": "replace",
+      "upload": {
+        "sha256": "9ef0aab916800dc23f0afac3c0c4f1af8306fc673ca2ea9c6ec1f4c47f556012",
+        "bytes": 51901,
+        "gitBlob": "56ddc6f3cd09c0d7a2b91a86289ecf57d69ed1d0"
+      },
+      "rollback": {
+        "sha256": "e4dd95b803a33c92bea1999b72a82f7844cbbcbc5b67a55448af28c19c00cd03",
+        "bytes": 51845,
+        "gitBlob": "eaff335771b0650cf464e83847e50ccaabc7f0e6"
+      }
+    },
+    {
+      "path": "assets/js/officerDashboard.js",
+      "operation": "replace",
+      "upload": {
+        "sha256": "0fd9f64414d9161eef864dfead64e3fa51021127d55a01db0c0613b46a633889",
+        "bytes": 425459,
+        "gitBlob": "52fad388ce732f0d29c7c0f528c6536b52c1dd65"
+      },
+      "rollback": {
+        "sha256": "ebc5df2d53c05fc8e6aa1cc15f483c25b88aa2459e2f99c456d0a191ae5d56f9",
+        "bytes": 425639,
+        "gitBlob": "d064ed5983a7d3d00e09b854d9d5eb37a27716c4"
+      }
+    },
+    {
+      "path": "assets/js/osa-rental-adjustment.js",
+      "operation": "add",
+      "upload": {
+        "sha256": "ea69f12ff845a7806bca39e40d23b346fc4508e3f8a6e7484075151a222db6c3",
+        "bytes": 10915,
+        "gitBlob": "b208322d8ff3f70484240a3415eb2ffdf31d63a9"
+      },
+      "rollback": null
+    },
+    {
+      "path": "assets/js/osaDashboard.app.js",
+      "operation": "replace",
+      "upload": {
+        "sha256": "dda1c8835dbc7cc5925b0bd6b24bfcf6466e59ad561cf01e766ec04d32dd0a32",
+        "bytes": 186826,
+        "gitBlob": "8195229454b872fd195f0745f3a2e9544ff8ce9c"
+      },
+      "rollback": {
+        "sha256": "c2d12ce122d1fe868d128eb836760cc918d111cc3209b0859eef73803d982597",
+        "bytes": 186068,
+        "gitBlob": "71ccb476db81679fff3a8c2a7fa24032727887c0"
+      }
+    },
+    {
+      "path": "assets/js/profile-email-verification.js",
+      "operation": "add",
+      "upload": {
+        "sha256": "f9c225d8070334fe7ef7814ebebd1789199fbf4f81ae73d6f5bc8fdba9c2c25f",
+        "bytes": 3372,
+        "gitBlob": "d60d2a6687179623b6f689d2dacb6ebdabf67c87"
+      },
+      "rollback": null
+    },
+    {
+      "path": "assets/js/studentDashboard.js",
+      "operation": "replace",
+      "upload": {
+        "sha256": "35319fa58fc68d4a57e4a1db2f01d79b12177976c205c5c5f459cb90c68faa12",
+        "bytes": 407798,
+        "gitBlob": "08b17a03bdfacf324ee3841f32d6972806d3b30e"
+      },
+      "rollback": {
+        "sha256": "c3b664f37f04d940a80e892faa5d98a1dfbcfb9e1a343639cbee838a1fcf7108",
+        "bytes": 403943,
+        "gitBlob": "b14d0bdbc3508803ce779c51bf50efcfa274e4c0"
+      }
+    },
+    {
+      "path": "includes/igp.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "1c16fdb6639bffecae85d3725008402ef76ee4558156e0263298e574d2a68d7a",
+        "bytes": 93814,
+        "gitBlob": "6655408d7601efa99ce97d0491b024a6a2820e16"
+      },
+      "rollback": {
+        "sha256": "8804b80b9d443ad86eb976c776aa504b7a8d7169fbef26a62cbea3fcf844890c",
+        "bytes": 93533,
+        "gitBlob": "c93b0a83a51cf72f5fd184f52b37c462bfb859d6"
+      }
+    },
+    {
+      "path": "includes/mailer.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "2ecde326f2449b52e6e9b6eddeab947317473dbde1501afb94e05269e9ce7a6d",
+        "bytes": 4667,
+        "gitBlob": "ec037e90b410817e48d461f44720ef96c1e1c184"
+      },
+      "rollback": {
+        "sha256": "0c490710afe54c1e08b84ff349bf02cc46697159a042fddd765e29c2afd27381",
+        "bytes": 4540,
+        "gitBlob": "3c0d998ac0b952559f2e4c30be9d2a9b92bc1f08"
+      }
+    },
+    {
+      "path": "includes/otp.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "8bb1be773e214f07325afc3c3f09dbc328aeca24a2bca0b8bb18f61fbab6ed9f",
+        "bytes": 14860,
+        "gitBlob": "3363fb306988b084397c63695ab86f42002aee76"
+      },
+      "rollback": {
+        "sha256": "c88c333310d4c2d51bf461b45f2cfda39bd4b81016b4d3e282416c5e6907c9f4",
+        "bytes": 13741,
+        "gitBlob": "6da83c87307b85b53b90e86bf4a4f89517d03723"
+      }
+    },
+    {
+      "path": "includes/qr_attendance.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "148cab26411b3660250c730f063ec1b39de908513216f31762ab0747fa480f6e",
+        "bytes": 44381,
+        "gitBlob": "ae89243871f1b952eca17a9370e4c2c0d7df9dc6"
+      },
+      "rollback": {
+        "sha256": "e55e0f1fd077af5ade48d25f09fa03106bd70de9b22f889255fd1b5041d0ee90",
+        "bytes": 44304,
+        "gitBlob": "9d4a208f1a6cefd6e91eef360e42c0673e31ec6a"
+      }
+    },
+    {
+      "path": "includes/rental_adjustments.php",
+      "operation": "add",
+      "upload": {
+        "sha256": "043d5028aea51e5ec332ef92296e3a5f9be7ea974277fdd425e57249f5859098",
+        "bytes": 3396,
+        "gitBlob": "b714058dfce0b268fbe9cc1fb8bc9ca2c7a6f129"
+      },
+      "rollback": null
+    },
+    {
+      "path": "includes/rental_charges.php",
+      "operation": "add",
+      "upload": {
+        "sha256": "2d10ae2dda7fca11d9b5c26979c8f4ecd7bed2ab30cb0b5ef1aedb7614e7ed05",
+        "bytes": 4253,
+        "gitBlob": "cc9829d06a013e840d43b4a582e4c3245a1740e4"
+      },
+      "rollback": null
+    },
+    {
+      "path": "includes/student_notifications.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "947741d8b5b3440e9898bb5f9c0d092e009015a1d338f45c25bd327274a6fd9b",
+        "bytes": 25561,
+        "gitBlob": "b1b4046119022761339193abf507588ebbfbc6a4"
+      },
+      "rollback": {
+        "sha256": "49c62d6c54b14f7f1f59a69d80cdfeabbc6a3e1a456dc109af780b4e2615e0ab",
+        "bytes": 25365,
+        "gitBlob": "788b4ae039c226150c6b57c869b797f428500fef"
+      }
+    },
+    {
+      "path": "pages/igp/index.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "371c77279bdb57830e9ced2d519f93ed749209b78527f210a95e6ad5634d7c1f",
+        "bytes": 20144,
+        "gitBlob": "f9438e446fff588c7a4fa51d1e874bbd3c046641"
+      },
+      "rollback": {
+        "sha256": "6427a0701e26aebbacbf8c503d8947d05341ca81a0517055ebe0cbaf23bcc073",
+        "bytes": 20001,
+        "gitBlob": "b91fda1bc3203f734a7a4aa6095f8d4296e42be6"
+      }
+    },
+    {
+      "path": "pages/officerDashboard.html",
+      "operation": "replace",
+      "upload": {
+        "sha256": "e51e2d043f25822b43d3870593d32f8b121607aa3014bfd272fafa8c73c5cae1",
+        "bytes": 143364,
+        "gitBlob": "3462ea87437478ae997d7cc7e13f21322cc72a60"
+      },
+      "rollback": {
+        "sha256": "e2369a3dbc3dd6acf16be32b5f91fececc6a99d4074cce2d2406b648a8cff23e",
+        "bytes": 143285,
+        "gitBlob": "1c76cb3dceae9ebacdda25996d06b00b9ccaaaa6"
+      }
+    },
+    {
+      "path": "pages/osaDashboard.html",
+      "operation": "replace",
+      "upload": {
+        "sha256": "16daccd2fd6a3a6cb4a796dd883f73f87b2784cfa46f50b0589d8b2dcf87e740",
+        "bytes": 59664,
+        "gitBlob": "f380a7569e015130072a6bf78162bfaed466da49"
+      },
+      "rollback": {
+        "sha256": "6e9356c34534828e7f18a72ec9236bcbc95c2efd1b5a19e85b7d6107892765b9",
+        "bytes": 59456,
+        "gitBlob": "18b0207ea1da3956e532bed5cb913c39516cb604"
+      }
+    },
+    {
+      "path": "pages/qr-attendance/index.php",
+      "operation": "replace",
+      "upload": {
+        "sha256": "1d3ddd2f68deb32f0155ba07b32ef0a84cc6e0e036e3702e5e0d962bd5b5763d",
+        "bytes": 15747,
+        "gitBlob": "8f39c4d17fe25e5e744b2839b1d10b97fb950666"
+      },
+      "rollback": {
+        "sha256": "180ee14099453581410641a0999e23095b407849490e8f7f03f68c4c4fcf2d15",
+        "bytes": 17326,
+        "gitBlob": "2a26069d5f62b141bc00ccc3c6f4918a5712dc67"
+      }
+    },
+    {
+      "path": "pages/studentDashboard.html",
+      "operation": "replace",
+      "upload": {
+        "sha256": "399a4d7146b08d45c6eb1fb5a0229f7459cbedb4e84a1f2cc1700ea891a26d65",
+        "bytes": 69376,
+        "gitBlob": "5b04bf351e4ee28bd9b57d1ecf0f0b4a586297b8"
+      },
+      "rollback": {
+        "sha256": "e6ee032a858c46c0131b37df4df4c5fec6fbd40f5bf5f48fcaae1b5990ad4c54",
+        "bytes": 70198,
+        "gitBlob": "e4dce9c50a321dacf6d5007c663afcb70795539c"
+      }
+    },
+    {
+      "path": "sw.js",
+      "operation": "replace",
+      "upload": {
+        "sha256": "4bec762eec56bf87dc003c95d0024537d99ac1204d85ce73cc24027a838fda43",
+        "bytes": 9989,
+        "gitBlob": "bc6fd47cc32bc1a7a30896245c5422997696040b"
+      },
+      "rollback": {
+        "sha256": "4c4276566a21e7c38a91992091858152c169f88c9a055b47b7e9fadbf612e885",
+        "bytes": 8575,
+        "gitBlob": "0ef45d7ba8b04949254e5343771772980bdf80f9"
+      }
+    },
+    {
+      "path": "systems/QR-Attendance/lib/script.js",
+      "operation": "replace",
+      "upload": {
+        "sha256": "252cec727cba7882390cd7bf66095d4e5a90dae4db73c1e1a13d2b8b8ffd8a24",
+        "bytes": 44022,
+        "gitBlob": "98a0436355ffbc5bf464c41f0b8a225a46c04416"
+      },
+      "rollback": {
+        "sha256": "33b9896c72b10f89caf847dd2e01c7876ffb08f33c53bab67138d57424036c32",
+        "bytes": 42627,
+        "gitBlob": "74ff975a7a7ad9e2d603d39484dd650c8019a672"
+      }
+    }
+  ]
+}

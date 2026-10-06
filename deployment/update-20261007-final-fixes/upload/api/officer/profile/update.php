@@ -1,0 +1,131 @@
+<?php
+require_once __DIR__ . '/../../../includes/auth.php';
+require_once __DIR__ . '/../../../includes/functions.php';
+require_once __DIR__ . '/../../../includes/otp.php';
+
+header('Content-Type: application/json');
+
+apiGuard(true); // This request writes session data after authentication.
+requirePost();
+
+$session = getPhpSession();
+$userId = (int)($_SESSION['user_id'] ?? 0);
+if ($userId <= 0) {
+    jsonError('Not authenticated.', 401);
+}
+
+$body = getRequestBody();
+$fullName = trim((string)($body['full_name'] ?? ''));
+$email = trim((string)($body['email'] ?? ''));
+$phone = trim((string)($body['phone'] ?? ''));
+
+if ($fullName === '' || $email === '') {
+    jsonError('Full name and email are required.', 422);
+}
+
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    jsonError('Invalid email address.', 422);
+}
+
+$currentUser = getUserById($userId);
+if (!$currentUser) jsonError('User not found.', 404);
+$emailChanged = strcasecmp($email, (string)($currentUser['email'] ?? '')) !== 0;
+if ($emailChanged) {
+    apiRequireRecentReauthentication();
+}
+
+if ($phone !== '' && !preg_match('/^\+63\s\d{10}$/', $phone)) {
+    jsonError('Phone number must be +63 followed by a space and 10 digits.', 422);
+}
+
+$firstName = (string)$currentUser['first_name'];
+$lastName = (string)$currentUser['last_name'];
+
+$pdo = getPdo();
+
+try {
+    $dupStmt = $pdo->prepare("
+        SELECT user_id
+        FROM users
+        WHERE email = :email
+          AND user_id <> :user_id
+        LIMIT 1
+    ");
+    $dupStmt->execute([
+        ':email' => $email,
+        ':user_id' => $userId,
+    ]);
+    if ($dupStmt->fetch()) {
+        jsonError('An account with that email already exists.', 409);
+    }
+
+    $pdo->beginTransaction();
+    if ($emailChanged) {
+        consumeOtpVerification($pdo, (string)($body['email_verification_token'] ?? ''),
+            'profile_email_change', $email, (string)$userId);
+    }
+
+    $updateStmt = $pdo->prepare("
+        UPDATE users
+        SET first_name = :first_name,
+            last_name = :last_name,
+            email = :email,
+            phone = :phone,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = :user_id
+          AND is_active = 1
+        LIMIT 1
+    ");
+    $updateStmt->execute([
+        ':first_name' => $firstName,
+        ':last_name' => $lastName,
+        ':email' => $email,
+        ':phone' => ($phone !== '' ? $phone : null),
+        ':user_id' => $userId,
+    ]);
+
+    $pdo->commit();
+    $user = getUserById($userId);
+    if (!$user) {
+        jsonError('Updated account could not be reloaded.', 500);
+    }
+
+    $memberships = getOfficerMemberships($userId);
+    $activeOrgId = isset($session['active_org_id']) ? (int)$session['active_org_id'] : null;
+    $mappedOrg = !empty($user['program_id']) ? getMappedOrgByProgram((int)$user['program_id']) : null;
+
+    $loginRole = (string)($session['login_role'] ?? '');
+    if ($loginRole === '') {
+        $loginRole = $user['account_type'] === 'osa_staff' ? 'osa' : 'org';
+    }
+
+    $newSession = buildSessionPayload(
+        $user,
+        $memberships,
+        $loginRole,
+        $activeOrgId,
+        $mappedOrg['org_name'] ?? null,
+        isset($mappedOrg['org_id']) ? (int)$mappedOrg['org_id'] : null
+    );
+    startUserSession($newSession);
+
+    jsonOk([
+        'session' => $newSession,
+        'user' => [
+            'user_id' => (int)$user['user_id'],
+            'full_name' => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
+            'email' => $user['email'] ?? '',
+            'phone' => $user['phone'] ?? '',
+            'student_number' => $user['student_number'] ?? null,
+            'program_code' => $user['program_code'] ?? null,
+            'section' => $user['year_section'] ?? null,
+        ],
+    ]);
+} catch (InvalidArgumentException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    jsonError($e->getMessage(), 422);
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log('[api/officer/profile/update] ' . $e->getMessage());
+    jsonError('Could not update profile right now.', 500);
+}

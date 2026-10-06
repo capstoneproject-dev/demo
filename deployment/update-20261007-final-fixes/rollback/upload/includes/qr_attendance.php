@@ -736,8 +736,7 @@ function qrCheckIn(PDO $pdo, int $orgId, int $userId, array $data): array
     $studentName = trim((string)($data['student_name'] ?? $data['studentName'] ?? ''));
     $section = trim((string)($data['section'] ?? ''));
     if ($studentNumber === '') {
-        if ($studentName === '') throw new QrAttendanceValidationException('Name is required.');
-        $studentNumber = 'GUEST-' . bin2hex(random_bytes(9));
+        throw new QrAttendanceValidationException('student_number is required.');
     }
 
     $times = qrAttendanceCaptureTimes($pdo, $data);
@@ -1001,7 +1000,7 @@ function qrListStudents(PDO $pdo, int $orgId, array $filters = []): array
                     FROM attendance_records ar
                     JOIN events e ON e.event_id = ar.event_id
                     WHERE e.org_id = :attendance_org
-                      AND ar.student_number COLLATE utf8mb4_unicode_ci = u.student_number COLLATE utf8mb4_unicode_ci
+                      AND ar.student_number = u.student_number
                 )
           )
         ORDER BY u.student_number ASC, u.user_id ASC";

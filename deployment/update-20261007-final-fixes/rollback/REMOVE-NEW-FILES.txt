@@ -1,0 +1,5 @@
+api/osa/rentals/adjust.php
+assets/js/osa-rental-adjustment.js
+assets/js/profile-email-verification.js
+includes/rental_adjustments.php
+includes/rental_charges.php

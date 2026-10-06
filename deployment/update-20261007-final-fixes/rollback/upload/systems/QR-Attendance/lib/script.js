@@ -1,0 +1,1043 @@
+// Local-only storage mode
+let attendanceRecords = [];
+let students = [];
+const QR_ATTENDANCE_API_BASE = '../../api/qr-attendance';
+
+async function qrAttendanceApiRequest(path, options = {}) {
+    const response = await fetch(QR_ATTENDANCE_API_BASE + path, {
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || `Request failed (${response.status})`);
+    }
+    return payload;
+}
+
+function formatDateForUi(value) {
+    if (!value) return '';
+    const d = new Date(String(value).includes('T') ? value : String(value).replace(' ', 'T'));
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString();
+}
+
+function formatTimeForUi(value) {
+    if (!value) return '';
+    const d = new Date(String(value).includes('T') ? value : String(value).replace(' ', 'T'));
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString();
+}
+
+function normalizeAttendanceFromApi(rows) {
+    return (rows || []).map((row) => {
+        const timeInRaw = row.time_in || '';
+        const timeOutRaw = row.time_out || '';
+        const status = String(row.attendance_status || '').trim();
+        const isRegistered = status === 'registered' || (!timeInRaw && !timeOutRaw);
+        const displayDateRaw = timeInRaw || row.attendance_date || row.created_at || '';
+        return {
+            recordId: Number(row.record_id || 0),
+            eventId: Number(row.event_id || 0),
+            studentId: String(row.student_number || '').trim(),
+            studentName: String(row.student_name || '').trim(),
+            section: String(row.section || '').trim(),
+            event: String(row.event_name || '').trim(),
+            date: formatDateForUi(displayDateRaw),
+            timeIn: formatTimeForUi(timeInRaw),
+            timeOut: formatTimeForUi(timeOutRaw),
+            status,
+            isRegistered,
+            checkInMs: timeInRaw ? new Date(String(timeInRaw).replace(' ', 'T')).getTime() : 0,
+            lastUpdateMs: timeOutRaw ? new Date(String(timeOutRaw).replace(' ', 'T')).getTime() : 0,
+            createdAt: row.created_at || null,
+            updatedAt: row.updated_at || null
+        };
+    });
+}
+
+async function loadAttendanceFromApi() {
+    const eventId = getCurrentEventId();
+    const eventName = getCurrentEvent();
+    const query = eventId > 0
+        ? `?event_id=${encodeURIComponent(eventId)}&limit=10000`
+        : (eventName ? `?event_name=${encodeURIComponent(eventName)}&limit=10000` : '');
+    const payload = await qrAttendanceApiRequest(`/attendance/list.php${query}`, { method: 'GET' });
+    const normalized = normalizeAttendanceFromApi(payload.items || []);
+    attendanceRecords = normalized;
+    await mergeQueuedAttendanceRecords();
+    return normalized;
+}
+
+async function mergeQueuedAttendanceRecords() {
+    attendanceRecords = attendanceRecords.filter(record => !record.pendingSync);
+    if (!window.NAAPOffline?.listQueuedOperations) return;
+    const queued = await window.NAAPOffline.listQueuedOperations(['attendance.checkin', 'attendance.checkout']);
+    const selectedEvent = getCurrentEvent().toLocaleLowerCase();
+    const selectedEventId = getCurrentEventId();
+    queued.forEach(operation => {
+        const payload = operation.payload || {};
+        const queuedEvent = String(payload.event_name || '').trim().toLocaleLowerCase();
+        const queuedEventId = Number(payload.event_id || 0);
+        if (selectedEventId > 0 && queuedEventId > 0 && queuedEventId !== selectedEventId) return;
+        if (selectedEvent && queuedEvent && queuedEvent !== selectedEvent) return;
+        const captured = new Date(payload.captured_at || operation.createdAt);
+        const date = Number.isNaN(captured.getTime()) ? '' : captured.toLocaleDateString();
+        const time = Number.isNaN(captured.getTime()) ? '' : captured.toLocaleTimeString();
+        const studentId = String(payload.student_number || payload.student_id || '').trim();
+        const event = String(payload.event_name || getCurrentEvent() || '').trim();
+        const existing = attendanceRecords.find(record =>
+            (Number(payload.record_id || 0) > 0 && Number(record.recordId || 0) === Number(payload.record_id))
+            || (studentId && record.studentId === studentId && (!event || record.event === event))
+        );
+        if (operation.type === 'attendance.checkout' && existing) {
+            existing.timeOut = time;
+            existing.lastUpdateMs = captured.getTime() || Date.now();
+            existing.pendingSync = true;
+            existing.offlineStatus = operation.status;
+            existing.offlineOperationId = operation.operationId;
+            existing.offlineAction = 'Check-out queued';
+            return;
+        }
+        if (operation.type !== 'attendance.checkin') return;
+        const record = existing || {
+            recordId: 0,
+            eventId: Number(payload.event_id || 0),
+            studentId,
+            studentName: String(payload.student_name || '').trim(),
+            section: String(payload.section || '').trim(),
+            event,
+            date,
+            timeIn: time,
+            timeOut: '',
+            status: 'present',
+            isRegistered: false,
+            checkInMs: captured.getTime() || Date.now(),
+            createdAt: operation.createdAt
+        };
+        record.pendingSync = true;
+        record.offlineStatus = operation.status;
+        record.offlineOperationId = operation.operationId;
+        record.offlineAction = 'Check-in queued';
+        if (!existing) attendanceRecords.push(record);
+    });
+}
+
+async function loadStudentsFromApi() {
+    // Prefer the existing users-backed endpoint used by shared student database.
+    const endpoints = [
+        '../../api/igp/students/list.php',
+        '../../api/qr-attendance/students/list.php'
+    ];
+
+    for (const endpoint of endpoints) {
+        try {
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                credentials: 'same-origin'
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok || !Array.isArray(payload.items)) {
+                continue;
+            }
+
+            const normalized = payload.items
+                .map((row) => ({
+                    studentId: String(row.studentId || row.student_number || '').trim(),
+                    studentName: String(row.studentName || row.student_name || '').trim(),
+                    section: String(row.section || '').trim()
+                }))
+                .filter((row) => row.studentId !== '');
+
+            if (normalized.length > 0) {
+                return normalized;
+            }
+        } catch (error) {
+            // Try next endpoint; fallback to localStorage if all fail.
+        }
+    }
+
+    return null;
+}
+
+// Initialize QR code scanner
+let html5QrcodeScanner = null;
+let html5Qrcode = null;
+
+// Add a variable to track last beep time
+let lastBeepTime = 0;
+
+// Global variable to track the most recently timed-out student
+let recentTimedOutKey = null;
+let recentTimedOutTimeout = null;
+
+function getCurrentEvent() {
+    const params = new URLSearchParams(window.location.search);
+    const eventName = params.get('event');
+    return eventName ? String(eventName).trim() : '';
+}
+
+function getCurrentEventId() {
+    const params = new URLSearchParams(window.location.search);
+    const eventId = Number(params.get('event_id') || 0);
+    return Number.isFinite(eventId) && eventId > 0 ? eventId : 0;
+}
+
+async function initializeLocalData() {
+    try {
+        await loadAttendanceFromApi();
+    } catch (_error) {
+        attendanceRecords = [];
+        await mergeQueuedAttendanceRecords();
+    }
+    const apiStudents = await loadStudentsFromApi();
+    if (Array.isArray(apiStudents)) {
+        students = apiStudents;
+    } else {
+        students = [];
+    }
+    if (Array.isArray(students)) {
+        console.info('[QR] students loaded:', students.length);
+    }
+}
+
+async function updateQueuedCurrentEventDisplay() {
+    const display = document.getElementById('currentEventDisplay');
+    if (!display) return;
+    display.classList.remove('naap-optimistic-record');
+    display.removeAttribute('data-offline-status');
+    display.querySelector('.naap-current-event-queued-badge')?.remove();
+    const currentEvent = getCurrentEvent();
+    if (!currentEvent || !window.NAAPOffline?.listQueuedOperations) return;
+    const queuedEvents = await window.NAAPOffline.listQueuedOperations('event.create');
+    const normalizedCurrent = currentEvent.trim().toLocaleLowerCase();
+    const queuedEvent = queuedEvents.find((operation) =>
+        String(operation.payload?.event_name || '').trim().toLocaleLowerCase() === normalizedCurrent
+    );
+    if (!queuedEvent) return;
+    const offlineStatus = queuedEvent.status === 'attention' ? 'attention' : 'queued';
+    display.classList.add('naap-optimistic-record');
+    display.dataset.offlineStatus = offlineStatus;
+    const badge = document.createElement('span');
+    badge.className = 'naap-optimistic-badge naap-current-event-queued-badge';
+    badge.dataset.offlineStatus = offlineStatus;
+    badge.textContent = offlineStatus === 'attention' ? 'Needs attention' : 'Queued offline';
+    display.appendChild(badge);
+}
+
+window.addEventListener('naap:offline-queue-changed', async () => {
+    await mergeQueuedAttendanceRecords().catch(() => {});
+    await updateQueuedCurrentEventDisplay().catch(() => {});
+    updateAttendanceTable();
+});
+
+function findStudentByScanValue(scannedValue) {
+    const normalizedScan = String(scannedValue || '').trim().toLowerCase();
+    if (!normalizedScan) return null;
+
+    for (const s of students || []) {
+        const studentId = String(s.studentId || '').trim();
+        if (!studentId) continue;
+        const encodedRef = String(encodeStudentData(studentId) || '').trim();
+        const idMatch = studentId.toLowerCase() === normalizedScan;
+        const encodedMatch = encodedRef.toLowerCase() === normalizedScan;
+        if (idMatch || encodedMatch) return s;
+    }
+    return null;
+}
+
+// Update offline status indicator (make it globally accessible)
+window.updateOfflineStatus = function () {
+    const offlineStatusEl = document.getElementById('offlineStatus');
+    const pendingSyncCountEl = document.getElementById('pendingSyncCount');
+
+    if (!offlineStatusEl || !window.offlineSync) return;
+
+    const isOnline = window.offlineSync.isOnline;
+    const pendingCount = window.offlineSync.getPendingSyncCount();
+
+    if (!isOnline) {
+        offlineStatusEl.textContent = '\u25CF Offline';
+        offlineStatusEl.className = 'ms-3 badge bg-danger';
+        offlineStatusEl.style.display = 'inline-block';
+    } else {
+        offlineStatusEl.textContent = '\u25CF Online';
+        offlineStatusEl.className = 'ms-3 badge bg-success';
+        offlineStatusEl.style.display = 'inline-block';
+    }
+
+    if (pendingCount > 0) {
+        pendingSyncCountEl.textContent = `${pendingCount} pending`;
+        pendingSyncCountEl.style.display = 'inline-block';
+    } else {
+        pendingSyncCountEl.style.display = 'none';
+    }
+};
+
+// Listen for offline status changes
+window.addEventListener('offlineStatusChanged', function (event) {
+    if (typeof updateOfflineStatus === 'function') {
+        updateOfflineStatus();
+    }
+});
+
+// Initialize current event display
+document.addEventListener('DOMContentLoaded', async function () {
+    await initializeLocalData();
+
+    localStorage.removeItem('currentEvent');
+    const currentEvent = getCurrentEvent();
+    if (currentEvent) {
+        document.getElementById('eventNameDisplay').textContent = currentEvent;
+    } else {
+        document.getElementById('eventNameDisplay').textContent = 'No Event Selected';
+    }
+    await updateQueuedCurrentEventDisplay().catch(() => {});
+
+    // Update offline status indicator
+    updateOfflineStatus();
+    // Update every 5 seconds
+    setInterval(updateOfflineStatus, 5000);
+
+    updateEventFilter();
+    const barcodeInput = document.getElementById('barcodeInput');
+    const scanResult = document.getElementById('scanResult');
+    const activateScanBtn = document.getElementById('activateScan');
+    const deactivateScanBtn = document.getElementById('deactivateScan');
+    if (barcodeInput) {
+        barcodeInput.focus();
+        barcodeInput.disabled = false;
+
+        let scannerTimer = null;
+
+        async function processBarcode(scannedValue) {
+            if (!scannedValue) return;
+            // Play beep sound once per scan
+            const beep = document.getElementById('beepSound');
+            if (beep) { beep.currentTime = 0; beep.play(); }
+            const today = new Date().toLocaleDateString();
+            const currentEvent = getCurrentEvent();
+
+            // Lookup student by encoded barcode OR direct student number
+            let foundStudent = findStudentByScanValue(scannedValue);
+            // If not found, refresh from API once and retry immediately.
+            if (!foundStudent) {
+                const latestStudents = await loadStudentsFromApi();
+                if (Array.isArray(latestStudents) && latestStudents.length > 0) {
+                    students = latestStudents;
+                    foundStudent = findStudentByScanValue(scannedValue);
+                }
+            }
+
+            if (foundStudent) {
+                    scanResult.innerHTML = `<span class='success'>\u2713 Found: ${foundStudent.studentName} (${foundStudent.studentId}) - ${foundStudent.section}</span>`;
+                    try {
+                        const allRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+                        const existingRec = allRecords.find(r =>
+                            r.studentId === foundStudent.studentId &&
+                            r.section === foundStudent.section &&
+                            r.date === today &&
+                            r.event === currentEvent
+                        );
+                        if (existingRec && !existingRec.timeOut) {
+                            const nowMs = Date.now();
+                            const checkInMs = existingRec.checkInMs || 0;
+                            if (nowMs - checkInMs < 5000) {
+                                // too soon to time-out
+                            }
+                        }
+                    } catch (e) { }
+                    markAttendance(foundStudent);
+            } else {
+                scanResult.innerHTML = `<span class='error'>\u2717 Student not found for barcode: ${scannedValue}</span>`;
+                showToast('Student Not Found', `Barcode: ${scannedValue}`, 'error');
+            }
+        }
+
+        // Debounced input: wait for short inactivity before processing
+        barcodeInput.addEventListener('input', function () {
+            if (scannerTimer) clearTimeout(scannerTimer);
+            scannerTimer = setTimeout(() => {
+                const value = barcodeInput.value.trim();
+                if (!value) return;
+                processBarcode(value);
+                barcodeInput.value = '';
+                if (!barcodeInput.disabled) barcodeInput.focus();
+            }, 100);
+        });
+
+        // Enter/Tab completes the scan immediately
+        barcodeInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                if (scannerTimer) clearTimeout(scannerTimer);
+                const value = barcodeInput.value.trim();
+                if (!value) return;
+                processBarcode(value);
+                barcodeInput.value = '';
+                if (!barcodeInput.disabled) barcodeInput.focus();
+            }
+        });
+
+        // Keep focus on input
+        document.addEventListener('click', function () {
+            if (!barcodeInput.disabled) barcodeInput.focus();
+        });
+    }
+    // Manual check-in modal wiring
+    const manualBtn = document.getElementById('manualCheckInBtn');
+    if (manualBtn) {
+        const manualModalEl = document.getElementById('manualCheckInModal');
+        let manualModal = null;
+        if (manualModalEl && typeof bootstrap !== 'undefined') {
+            manualModal = new bootstrap.Modal(manualModalEl);
+        }
+        // Track previous scanning state so we can restore it after closing
+        let previousBarcodeDisabled = false;
+        if (manualModalEl) {
+            manualModalEl.addEventListener('show.bs.modal', function () {
+                if (barcodeInput) {
+                    previousBarcodeDisabled = barcodeInput.disabled;
+                    barcodeInput.disabled = true;
+                    barcodeInput.blur();
+                }
+                const idInput = document.getElementById('manualStudentId');
+                if (idInput) setTimeout(() => idInput.focus(), 50);
+            });
+            manualModalEl.addEventListener('hidden.bs.modal', function () {
+                if (barcodeInput) {
+                    barcodeInput.disabled = previousBarcodeDisabled;
+                    if (!barcodeInput.disabled) {
+                        setTimeout(() => barcodeInput.focus(), 50);
+                    }
+                }
+            });
+        }
+        manualBtn.addEventListener('click', function () {
+            if (manualModal) manualModal.show();
+            const idInput = document.getElementById('manualStudentId');
+            if (idInput) setTimeout(() => idInput.focus(), 150);
+        });
+        const manualForm = document.getElementById('manualCheckInForm');
+        if (manualForm) {
+            manualForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                const studentId = (document.getElementById('manualStudentId')?.value || '').trim();
+                const studentName = (document.getElementById('manualStudentName')?.value || '').trim();
+                const course = (document.querySelector('input[name="manualCourse"]:checked')?.value || '').trim();
+                const yearSection = (document.getElementById('manualYearSection')?.value || '').trim();
+                if (!studentId || !studentName || !course || !yearSection) return;
+                const section = `${course} ${yearSection}`;
+                const student = { studentId, studentName, section };
+
+                // Add/update student in local student database
+                let localStudents = JSON.parse(localStorage.getItem('barcodeStudents')) || [];
+                let found = false;
+                localStudents = localStudents.map(s => {
+                    if (s.studentId === studentId) {
+                        found = true;
+                        return { ...s, studentName, section, uniqueId: studentId };
+                    }
+                    return s;
+                });
+                if (!found) {
+                    localStudents.push({ uniqueId: studentId, studentId, studentName, section });
+                }
+                localStorage.setItem('barcodeStudents', JSON.stringify(localStudents));
+                students = localStudents;
+
+                await markAttendance(student);
+                showToast('Manual Check-in', `${studentName} (${studentId})`, 'success');
+                // Clear and close modal
+                manualForm.reset();
+                if (manualModal) manualModal.hide();
+            });
+        }
+    }
+
+    if (activateScanBtn) {
+        activateScanBtn.addEventListener('click', function () {
+            barcodeInput.disabled = false;
+            barcodeInput.focus();
+        });
+    }
+    if (deactivateScanBtn) {
+        deactivateScanBtn.addEventListener('click', function () {
+            barcodeInput.blur();
+            barcodeInput.disabled = true;
+        });
+    }
+    // Set event filter to current event on page load
+    const eventFilter = document.getElementById('eventFilter');
+    if (eventFilter && currentEvent) {
+        eventFilter.value = currentEvent;
+        eventFilter.dispatchEvent(new Event('change'));
+    }
+});
+
+// Toast helper
+function showToast(title, message, type) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    toast.innerHTML = `
+        <span class="toast-title">${title}</span>
+        <span>${message || ''}</span>
+        <button class="toast-close" aria-label="Close"></button>
+    `;
+    // Use a Unicode escape so the close symbol remains correct regardless of
+    // the server or editor's source-file encoding.
+    const renderedCloseButton = toast.querySelector('.toast-close');
+    if (renderedCloseButton) renderedCloseButton.textContent = '\u00D7';
+    container.appendChild(toast);
+    // Trigger animation
+    requestAnimationFrame(() => toast.classList.add('show'));
+    // Auto dismiss
+    const remove = () => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 180);
+    };
+    const closeBtn = toast.querySelector('.toast-close');
+    if (closeBtn) closeBtn.addEventListener('click', remove);
+    setTimeout(remove, 2500);
+}
+
+// Update event filter dropdown
+function updateEventFilter() {
+    const eventFilter = document.getElementById('eventFilter');
+    const events = new Set(attendanceRecords.map(record => record.event));
+    const currentEvent = getCurrentEvent();
+    if (currentEvent) events.add(currentEvent);
+    eventFilter.innerHTML = '<option value="all">All Events</option>';
+    events.forEach(event => {
+        if (event) {
+            const option = document.createElement('option');
+            option.value = event;
+            option.textContent = event;
+            eventFilter.appendChild(option);
+        }
+    });
+    // Set current event as selected
+    if (currentEvent) {
+        eventFilter.value = currentEvent;
+    }
+}
+
+// Helper: Get unique sections from barcodeStudents
+function getUniqueSectionsFromStudents(students) {
+    const sections = new Set();
+    students.forEach(s => {
+        if (s.section && s.section !== 'undefined') sections.add(s.section);
+    });
+    return Array.from(sections);
+}
+
+// Helper: Get students by section from barcodeStudents
+function getStudentsBySectionFromStudents(students, section) {
+    return students.filter(s => s.section === section);
+}
+
+// Populate section dropdown and student list from attendance records for current event
+function updateSectionDropdownAndStudentList() {
+    const dropdown = document.getElementById('sectionDropdown');
+    if (!dropdown) return;
+
+    // Get the current event (not the event filter)
+    const currentEvent = getCurrentEvent();
+    if (!currentEvent) {
+        dropdown.innerHTML = '';
+        document.getElementById('studentListBySection').innerHTML = '';
+        return;
+    }
+
+    // Only get sections from attendance records for the current event
+    const sections = new Set();
+
+    // Filter attendance records by current event only
+    const filteredRecords = attendanceRecords.filter(r => r.event === currentEvent);
+
+    filteredRecords.forEach(record => {
+        if (record.section && record.section !== 'undefined') {
+            sections.add(record.section);
+        }
+    });
+
+    // Sort sections alphabetically
+    const sortedSections = Array.from(sections).sort((a, b) => a.localeCompare(b));
+
+    // Update dropdown
+    dropdown.innerHTML = '';
+    sortedSections.forEach(section => {
+        const option = document.createElement('option');
+        option.value = section;
+        option.textContent = section;
+        dropdown.appendChild(option);
+    });
+
+    // Show students for the first section by default
+    if (sortedSections.length > 0) {
+        updateStudentListBySection(sortedSections[0]);
+        dropdown.value = sortedSections[0];
+    } else {
+        document.getElementById('studentListBySection').innerHTML = '';
+    }
+}
+
+function updateStudentListBySection(section) {
+    const tbody = document.getElementById('studentListBySection');
+    if (!tbody) return;
+
+    // Get the current event (not the event filter)
+    const currentEvent = getCurrentEvent();
+    if (!currentEvent) {
+        tbody.innerHTML = '';
+        return;
+    }
+
+    // Only show students who have attendance records for the current event and selected section
+    const filteredRecords = attendanceRecords.filter(r =>
+        r.section === section &&
+        r.event === currentEvent
+    );
+
+    // Get unique students from attendance records only
+    const uniqueStudents = new Map();
+
+    filteredRecords.forEach(r => {
+        if (r.studentId) {
+            // Use the most recent record for each student (in case of duplicates)
+            const key = r.studentId;
+            if (!uniqueStudents.has(key)) {
+                uniqueStudents.set(key, {
+                    studentId: r.studentId,
+                    studentName: r.studentName || '',
+                    section: r.section
+                });
+            }
+        }
+    });
+
+    // Sort by student ID
+    const sortedStudents = Array.from(uniqueStudents.values()).sort((a, b) =>
+        a.studentId.localeCompare(b.studentId)
+    );
+
+    tbody.innerHTML = '';
+    sortedStudents.forEach((student, idx) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${idx + 1}</td>
+            <td>${student.studentId}</td>
+            <td>${student.studentName}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Function to update time-in for a specific student
+async function updateStudentTimeIn(studentId, section, event, date) {
+    const localAttendanceRecords = attendanceRecords || [];
+    const record = localAttendanceRecords.find(r =>
+        r.studentId === studentId &&
+        r.section === section &&
+        r.event === event &&
+        r.date === date
+    );
+    if (!record || !record.recordId) return false;
+
+    try {
+        await qrAttendanceApiRequest('/attendance/update-time.php', {
+            method: 'POST',
+            body: JSON.stringify({
+                record_id: record.recordId,
+                field: 'time_in'
+            })
+        });
+        await loadAttendanceFromApi();
+        updateAttendanceTable();
+        return true;
+    } catch (_error) {
+        return false;
+    }
+}
+
+// Function to update time-out for a specific student
+async function updateStudentTimeOut(studentId, section, event, date, source = 'auto') {
+    try {
+        const existing = (attendanceRecords || []).find(r =>
+            r.studentId === studentId &&
+            r.section === section &&
+            r.event === event &&
+            r.date === date
+        );
+        const payload = existing && existing.recordId
+            ? { record_id: existing.recordId }
+            : {
+                event_name: event,
+                student_number: studentId,
+                date: date
+            };
+        await qrAttendanceApiRequest('/attendance/checkout.php', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        await loadAttendanceFromApi();
+        try {
+            const r = (attendanceRecords || []).find(x =>
+                x.studentId === studentId && x.event === event && x.date === date
+            ) || existing || { studentName: '', studentId };
+            const title = source === 'manual' ? 'Updated time-out' : 'Time-out';
+            showToast(title, `${r.studentName} (${r.studentId})`, 'error');
+        } catch (e) { }
+        recentTimedOutKey = `${studentId}-${section}-${event}-${date}`;
+        if (recentTimedOutTimeout) clearTimeout(recentTimedOutTimeout);
+        recentTimedOutTimeout = setTimeout(() => {
+            recentTimedOutKey = null;
+            updateAttendanceTable();
+        }, 2000);
+        updateAttendanceTable();
+        return true;
+    } catch (_error) {
+        return false;
+    }
+}
+
+// Update the updateAttendanceTable function
+function updateAttendanceTable() {
+    const tbody = document.getElementById('attendanceRecords');
+    const eventFilter = document.getElementById('eventFilter').value;
+
+    // Use the global localStorage-backed attendance records array
+    let filteredRecords = attendanceRecords;
+    if (eventFilter !== 'all') {
+        filteredRecords = attendanceRecords.filter(record => record.event === eventFilter);
+    }
+    // Get unique records (one per student per event per day)
+    const uniqueRecords = new Map();
+    filteredRecords.forEach(record => {
+        const key = `${record.studentId}-${record.section}-${record.event}-${record.date}`;
+        if (!uniqueRecords.has(key)) {
+            uniqueRecords.set(key, record);
+        }
+    });
+    tbody.innerHTML = '';
+    // Sort records so that those without timeOut are at the top, then by lastUpdateMs/checkInMs
+    let sortedRecords = Array.from(uniqueRecords.values()).sort((a, b) => {
+        const aHasTimeOut = !!a.timeOut;
+        const bHasTimeOut = !!b.timeOut;
+        if (aHasTimeOut !== bHasTimeOut) {
+            // a with no timeOut comes before b with timeOut
+            return aHasTimeOut ? 1 : -1;
+        }
+        // Both have or both don't have timeOut: sort by lastUpdateMs/checkInMs descending
+        const timeA = a.lastUpdateMs || a.checkInMs || 0;
+        const timeB = b.lastUpdateMs || b.checkInMs || 0;
+        return timeB - timeA;
+    });
+    // If there is a recent timed-out key, move that record to the top and highlight it
+    if (recentTimedOutKey) {
+        const idx = sortedRecords.findIndex(r => `${r.studentId}-${r.section}-${r.event}-${r.date}` === recentTimedOutKey);
+        if (idx !== -1) {
+            const [recent] = sortedRecords.splice(idx, 1);
+            sortedRecords.unshift(recent);
+        }
+    }
+    sortedRecords.forEach((record, idx) => {
+        const key = `${record.studentId}-${record.section}-${record.event}-${record.date}`;
+        const row = document.createElement('tr');
+        if (record.pendingSync) {
+            row.classList.add('naap-optimistic-record');
+            row.dataset.offlineStatus = record.offlineStatus === 'attention' ? 'attention' : 'queued';
+            row.dataset.offlineOperationId = record.offlineOperationId || '';
+        }
+        if (record.isRegistered) {
+            row.classList.add('table-primary');
+        } else if (recentTimedOutKey && key === recentTimedOutKey) {
+            row.style.backgroundColor = '#fff3cd'; // Bootstrap warning highlight
+        }
+        const disableCheckout = !!record.timeOut || record.isRegistered;
+        const actionMarkup = record.pendingSync
+            ? `<span class="naap-optimistic-badge" data-offline-status="${record.offlineStatus === 'attention' ? 'attention' : 'queued'}">${record.offlineStatus === 'attention' ? 'Needs attention' : (record.offlineAction || 'Queued offline')}</span>`
+            : record.isRegistered
+            ? '<span class="badge bg-primary">Registered</span>'
+            : `<button type="button" class="btn btn-danger btn-sm py-0 px-2 text-nowrap attendance-checkout-btn"
+                    data-student-id="${record.studentId}"
+                    data-section="${record.section}"
+                    data-event="${record.event || ''}"
+                    data-date="${record.date}"
+                    ${disableCheckout ? 'disabled' : ''}>
+                    Check-Out
+                </button>`;
+        row.innerHTML = `
+            <td>${actionMarkup}</td>
+            <td>${idx + 1}</td>
+            <td>${record.studentId}</td>
+            <td>${record.studentName}</td>
+            <td>${record.section}</td>
+            <td>${record.event || ''}</td>
+            <td>${record.date}</td>
+            <td>${record.timeIn || ''}</td>
+            <td>${record.timeOut || ''}</td>
+        `;
+        tbody.appendChild(row);
+    });
+    tbody.querySelectorAll('.attendance-checkout-btn').forEach(button => {
+        button.addEventListener('click', async function () {
+            const studentId = this.getAttribute('data-student-id');
+            const section = this.getAttribute('data-section');
+            const event = this.getAttribute('data-event');
+            const date = this.getAttribute('data-date');
+            await updateStudentTimeOut(studentId, section, event, date, 'manual');
+        });
+    });
+    // Update section dropdown and student list to reflect latest students
+    updateSectionDropdownAndStudentList();
+}
+
+// Section dropdown change event
+const sectionDropdown = document.getElementById('sectionDropdown');
+if (sectionDropdown) {
+    sectionDropdown.addEventListener('change', function () {
+        updateStudentListBySection(this.value);
+    });
+}
+
+// Add event listener for event filter
+document.getElementById('eventFilter').addEventListener('change', function () {
+    updateAttendanceTable();
+    updateSectionDropdownAndStudentList();
+});
+
+// Initial table update
+updateAttendanceTable();
+
+// Add event listener for clear button
+const clearBtn = document.getElementById('clearRecords');
+if (clearBtn) {
+    clearBtn.addEventListener('click', async function () {
+        if (confirm('Are you sure you want to clear all attendance records?')) {
+            attendanceRecords = [];
+            localStorage.removeItem('attendanceRecords');
+            updateAttendanceTable();
+        }
+    });
+}
+
+// Add event listener for export button
+const exportBtn = document.getElementById('exportRecords');
+if (exportBtn) {
+    exportBtn.addEventListener('click', function () {
+        if (attendanceRecords.length === 0) {
+            alert('No attendance records to export.');
+            return;
+        }
+        // Get selected event for filename
+        const eventFilter = document.getElementById('eventFilter');
+        let selectedEvent = eventFilter ? eventFilter.value : 'all';
+        if (!selectedEvent || selectedEvent === 'all') {
+            selectedEvent = 'All_Events';
+        }
+        // Prepare data for export (Attendance Records)
+        let exportData = attendanceRecords;
+        if (selectedEvent !== 'All_Events') {
+            exportData = attendanceRecords.filter(record => record.event === selectedEvent);
+        }
+        exportData = exportData.map((record, idx) => ({
+            '#': idx + 1,
+            'Student#': record.studentId,
+            'Name': record.studentName,
+            'Section': record.section,
+            'Date': record.date,
+            'Time-in': record.timeIn || '',
+            'Time-out': record.timeOut || ''
+        }));
+        // Create worksheet and workbook
+        const ws1 = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws1, 'Attendance Records');
+
+        // Prepare data for second sheet: Students by Section
+        // Get unique students per section
+        const studentsBySection = {};
+        exportData.forEach(record => {
+            if (!record['Section']) return;
+            if (!studentsBySection[record['Section']]) studentsBySection[record['Section']] = {};
+            const key = record['Student#'] + '|' + record['Name'];
+            if (!studentsBySection[record['Section']][key]) {
+                studentsBySection[record['Section']][key] = {
+                    'Student#': record['Student#'],
+                    'Name': record['Name']
+                };
+            }
+        });
+        // Build export array: one table per section, with headers and blank row between
+        let exportStudents = [];
+        Object.keys(studentsBySection).sort().forEach(section => {
+            // Section title row
+            exportStudents.push({ 'Section': section });
+            // Section data rows
+            Object.values(studentsBySection[section]).forEach(student => {
+                exportStudents.push(student);
+            });
+            // Blank row between sections
+            exportStudents.push({});
+        });
+        // Create worksheet and workbook for students by section
+        const ws2 = XLSX.utils.json_to_sheet(exportStudents);
+        XLSX.utils.book_append_sheet(wb, ws2, 'Students by Section');
+
+        // Save workbook to file
+        const fileName = (selectedEvent.replace(/[^a-z0-9]/gi, '_')) + '_' + new Date().toISOString().split('T')[0] + '.xlsx';
+        const blob = new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/octet-stream' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    });
+}
+
+async function markAttendance(student) {
+    const currentEvent = getCurrentEvent();
+    const currentEventId = getCurrentEventId();
+    if (!currentEvent) return;
+
+    const showDuplicateNotice = () => {
+        const message = 'This student has already checked out of this event. Duplicate attendance is not allowed.';
+        showToast('Attendance already recorded', message, 'warning');
+        const result = document.getElementById('scanResult');
+        if (result) {
+            const notice = document.createElement('span');
+            notice.className = 'error';
+            notice.textContent = message;
+            result.replaceChildren(notice);
+        }
+    };
+    if (!navigator.onLine && attendanceRecords.some(record =>
+        record.studentId === student.studentId && record.event === currentEvent && record.timeOut
+    )) {
+        showDuplicateNotice();
+        return;
+    }
+
+    // Check if there are any records for the current event before adding
+    let eventRecordsBefore = attendanceRecords.filter(r => r.event === currentEvent);
+    const wasEventEmpty = eventRecordsBefore.length === 0;
+
+    // First scan: check-in, second scan: check-out
+    try {
+        const pendingCheckIn = attendanceRecords.find(record =>
+            record.pendingSync
+            && !record.timeOut
+            && record.studentId === student.studentId
+            && record.section === student.section
+            && record.event === currentEvent
+        );
+        if (!navigator.onLine && pendingCheckIn) {
+            await qrAttendanceApiRequest('/attendance/checkout.php', {
+                method: 'POST',
+                body: JSON.stringify({
+                    event_id: currentEventId,
+                    event_name: currentEvent,
+                    student_number: student.studentId || '',
+                    date: new Date().toISOString().slice(0, 10)
+                })
+            });
+            await mergeQueuedAttendanceRecords();
+        } else {
+            const checkinResult = await qrAttendanceApiRequest('/attendance/checkin.php', {
+                method: 'POST',
+                body: JSON.stringify({
+                    event_id: currentEventId,
+                    event_name: currentEvent,
+                    student_number: student.studentId || '',
+                    student_name: student.studentName || '',
+                    section: student.section || ''
+                })
+            });
+
+            if (checkinResult.already_checked_out) {
+                showDuplicateNotice();
+                try {
+                    await loadAttendanceFromApi();
+                    updateAttendanceTable();
+                    updateSectionDropdownAndStudentList();
+                } catch (_refreshError) {
+                    showToast('Attendance list could not refresh', 'Attendance is already recorded. Refresh the page to see the latest records.', 'warning');
+                }
+                return;
+            }
+            if (!checkinResult.already_checked_in) {
+                showToast('Student Found', `${student.studentName} (${student.studentId})`, 'success');
+            }
+
+            if (checkinResult.already_checked_in && !checkinResult.already_checked_out) {
+                await qrAttendanceApiRequest('/attendance/checkout.php', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        record_id: Number(checkinResult.record_id || 0),
+                        event_id: currentEventId,
+                        event_name: currentEvent,
+                        student_number: student.studentId || ''
+                    })
+                });
+            }
+            if (checkinResult.queued) await mergeQueuedAttendanceRecords();
+            else await loadAttendanceFromApi();
+        }
+    } catch (_error) {
+        // Fallback behavior (cache-only) if API unavailable
+        const today = new Date().toLocaleDateString();
+        const currentTime = new Date().toLocaleTimeString();
+        const nowMs = Date.now();
+        let existing = attendanceRecords.find(
+            r => r.studentId === student.studentId &&
+                r.section === student.section &&
+                r.date === today &&
+                r.event === currentEvent
+        );
+        if (!existing) {
+            const record = {
+                studentId: student.studentId || '',
+                studentName: student.studentName || '',
+                section: student.section || '',
+                event: currentEvent || '',
+                date: today,
+                timeIn: currentTime,
+                timeOut: '',
+                checkInMs: nowMs,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+            attendanceRecords.push(record);
+        } else if (!existing.timeOut && nowMs - (existing.checkInMs || 0) >= 5000) {
+            await updateStudentTimeOut(student.studentId, student.section, currentEvent, today, 'auto');
+        }
+    }
+
+    // Set event filter to current event and update table
+    const eventFilter = document.getElementById('eventFilter');
+    if (eventFilter && currentEvent) {
+        eventFilter.value = currentEvent;
+        eventFilter.dispatchEvent(new Event('change'));
+    }
+    updateAttendanceTable();
+
+    // Automatically select the student's section in the section dropdown and update the left table
+    const sectionDropdown = document.getElementById('sectionDropdown');
+    if (sectionDropdown && student.section) {
+        sectionDropdown.value = student.section;
+        updateStudentListBySection(student.section);
+    } else {
+        updateSectionDropdownAndStudentList();
+    }
+
+    // Refresh page if this was the very first scan for the current event
+    if (wasEventEmpty) {
+        setTimeout(() => { location.reload(); }, 300);
+    }
+}
+

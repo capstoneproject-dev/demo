@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <base href="../pages/">
+    <script>
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('a[href="#"]')) event.preventDefault();
+        });
+    </script>
+    <link rel="manifest" href="../manifest.webmanifest">
+    <script src="../assets/js/app-dialog.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/offline-store.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/offline-client.js?v=20260927-complete-ui-1"></script>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="../assets/favicon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSA Management System</title>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="../assets/vendor/fontawesome/css/all.min.css?v=20260927-complete-ui-1">
+
+    <!-- CSS Reference -->
+    <link rel="stylesheet" href="../assets/css/osaDashboard.css?v=20260927-complete-ui-1">
+    <link rel="stylesheet" href="../assets/css/responsive-tables.css?v=20260927-complete-ui-1">
+
+    <!-- PDF.js Library -->
+    <script src="../assets/vendor/pdf.min.js?v=20260927-complete-ui-1"></script>
+    <link rel="stylesheet" href="../assets/vendor/pdf_viewer.min.css?v=20260927-complete-ui-1">
+
+    <!-- PDF Viewer Styles -->
+    <link rel="stylesheet" href="../assets/css/pdfViewer.css?v=20260927-complete-ui-1">
+</head>
+
+<body>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo-area">
+            <img class="logo-image"
+                src="../assets/photos/osaDashboard/798216880_1599449585301229_1061032991696592018_n.jpg"
+                alt="OSA logo">
+            <span class="logo-text">OSA Dashboard</span>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="#" class="nav-link active" onclick="navigate('dashboard', this)">
+                    <i class="fa-solid fa-chart-pie nav-icon"></i>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('organizations', this)">
+                    <i class="fa-solid fa-users nav-icon"></i>
+                    <span class="nav-label">Organizations</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('documents', this)">
+                    <i class="fa-solid fa-folder-open nav-icon"></i>
+                    <span class="nav-label">Documents</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('account', this)">
+                    <i class="fa-solid fa-id-card nav-icon"></i>
+                    <span class="nav-label">Account</span>
+                </a>
+            </li>
+
+            <li class="nav-item" id="osa-audit-nav-item" hidden>
+                <a href="#" class="nav-link" onclick="navigate('audit', this)">
+                    <i class="fa-solid fa-shield-halved nav-icon"></i>
+                    <span class="nav-label">Audit Log</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="navigate('profile', this)">
+                    <i class="fa-solid fa-user-gear nav-icon"></i>
+                    <span class="nav-label">Profile</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <button class="theme-toggle" id="themeBtn">
+                <i class="fa-solid fa-moon nav-icon"></i>
+                <span class="nav-label">Dark Mode</span>
+            </button>
+            <div class="nav-item">
+                <a href="#" class="logout-btn" onclick="handleLogout(event)">
+                    <i class="fa-solid fa-arrow-right-from-bracket nav-icon"></i>
+                    <span class="nav-label">Logout</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Top Header (Integrated with Prompt Code) -->
+        <header>
+            <!-- Left: Page Title -->
+            <div class="header-title">
+                <h1 id="page-title">OSA Dashboard</h1>
+                <p id="current-date">Fetching date...</p>
+            </div>
+
+            <!-- Right: Controls (From Prompt) -->
+            <div class="header-controls">
+                <!-- Mobile Theme Toggle -->
+                <button class="icon-btn mobile-only" onclick="switchThemeLogic()">
+                    <i class="fa-solid fa-moon" id="mobile-theme-icon"></i>
+                </button>
+
+                <!-- Mobile Logout -->
+                <a href="#" class="icon-btn mobile-only logout-icon" onclick="handleLogout(event)">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </a>
+
+                <!-- OSA Alerts -->
+                <div class="notif-wrapper" id="osa-alerts">
+                    <button class="notif-btn" id="osa-notif-trigger" type="button"
+                        aria-label="Open alerts" aria-haspopup="dialog" aria-expanded="false"
+                        onclick="toggleOsaAlerts(event)">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notif-badge" id="osa-notif-count" hidden>0</span>
+                    </button>
+                    <div class="notif-backdrop" id="osa-notif-backdrop"
+                        onclick="closeOsaAlerts()" hidden></div>
+                    <aside class="notif-dropdown" id="osa-notif-dropdown" role="dialog"
+                        aria-modal="true" aria-labelledby="osa-notif-drawer-title" aria-hidden="true">
+                        <div class="notif-drawer-header">
+                            <h2 id="osa-notif-drawer-title">Alerts</h2>
+                            <button class="notif-close-btn" type="button" onclick="closeOsaAlerts()"
+                                aria-label="Close alerts">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="notif-drawer-body" id="osa-notif-drawer-body">
+                            <div class="notif-state">
+                                <i class="fa-solid fa-spinner fa-spin"></i>
+                                <span>Loading alerts...</span>
+                            </div>
+                        </div>
+                        <div class="notif-drawer-footer">
+                            <span id="osa-notif-last-updated">Waiting for updates</span>
+                            <button type="button" class="notif-refresh-btn" onclick="loadOsaAlerts(true)">
+                                <i class="fa-solid fa-rotate"></i> Refresh
+                            </button>
+                        </div>
+                    </aside>
+                </div>
+
+                <!-- User Profile -->
+                <a href="#" class="user-profile" onclick="navigate('profile'); return false;"
+                    aria-label="Open my profile">
+                    <div class="user-profile-box">
+                        <img id="osaHeaderAvatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' rx='75' fill='%23eef2f7'/%3E%3Ccircle cx='75' cy='58' r='27' fill='%23002147' opacity='0.9'/%3E%3Cpath d='M31 130c5.8-25.9 22.8-41 44-41s38.2 15.1 44 41' fill='%23002147' opacity='0.9'/%3E%3C/svg%3E" alt="OSA staff" class="avatar">
+                        <div class="user-info">
+                            <span>OSA Staff</span>
+                            <small>Loading account...</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <script>
+                (() => {
+                    try {
+                        const session = JSON.parse(localStorage.getItem('naapAuthSession') || '{}');
+                        if (!session.user_id || (session.login_role !== 'osa' && session.account_type !== 'osa_staff')) return;
+                        const name = document.querySelector('.user-info span');
+                        const role = document.querySelector('.user-info small');
+                        const avatar = document.getElementById('osaHeaderAvatar');
+                        if (name) name.textContent = session.display_name || 'OSA Staff';
+                        if (role) role.textContent = String(session.active_role_name || 'osa_staff').replace(/_/g, ' ').toUpperCase();
+                        if (avatar && session.profile_photo) avatar.src = session.profile_photo;
+                    } catch (_error) {
+                    }
+                })();
+            </script>
+        </header>
+
+        <!-- DASHBOARD VIEW -->
+        <div id="dashboard" class="section-view active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <h3 id="dashboard-active-officers">&mdash;</h3>
+                            <span style="color: #059669; font-size: 0.8rem; font-weight: 600;">
+                                <i class="fa-solid fa-circle"></i> Online
+                            </span>
+                        </div>
+                        <p>Officers Online</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-user-tie"></i></div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <h3 id="dashboard-active-students">&mdash;</h3>
+                            <span style="color: #059669; font-size: 0.8rem; font-weight: 600;">
+                                <i class="fa-solid fa-circle"></i> Online
+                            </span>
+                        </div>
+                        <p>Students Online</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-user-check"></i></div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                            <h3 id="dashboard-request-queue">&mdash;</h3>
+                            <span style="color: #d97706; font-size: 0.8rem; font-weight: 600;">
+                                <i class="fa-regular fa-clock"></i> Pending
+                            </span>
+                        </div>
+                        <p>Request Queue</p>
+                    </div>
+                    <div class="stat-icon"><i class="fa-solid fa-file-signature"></i></div>
+                </div>
+
+                <div class="stat-card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                    <div
+                        style="width: 100%; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+                        <div>
+                            <span style="font-weight: 600; color: var(--text); display: block;">Document Status</span>
+                            <small id="dashboard-document-month" style="color: var(--muted); font-size: 0.75rem;">(Current month)</small>
+                        </div>
+                        <i class="fa-solid fa-file-contract" style="color: var(--muted);"></i>
+                    </div>
+
+                    <div
+                        style="width: 100%; display: flex; justify-content: space-between; text-align: center; padding-top: 5px;">
+                        <div style="flex: 1;">
+                            <h3 id="dashboard-documents-pending" style="color: #d97706; font-size: 1.2rem; margin-bottom: 0;">&mdash;</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Pending</p>
+                        </div>
+                        <div
+                            style="flex: 1; border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+                            <h3 id="dashboard-documents-accepted" style="color: #059669; font-size: 1.2rem; margin-bottom: 0;">&mdash;</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Accepted</p>
+                        </div>
+                        <div style="flex: 1;">
+                            <h3 id="dashboard-documents-rejected" style="color: #dc2626; font-size: 1.2rem; margin-bottom: 0;">&mdash;</h3>
+                            <p style="font-size: 0.7rem; color: var(--muted);">Rejected</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="academic-term-summary" id="dashboard-academic-term-card">
+                <div class="academic-term-summary-icon">
+                    <i class="fa-solid fa-calendar-check"></i>
+                </div>
+                <div>
+                    <span>Current Academic Term</span>
+                    <strong id="dashboard-active-term-label">Loading term...</strong>
+                </div>
+            </div>
+
+            <div class="content-row">
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">Organization Activity</div>
+                            <p style="color: var(--muted); font-size: 0.85rem; margin-top: 2px;">
+                                All organization updates and student interactions
+                            </p>
+                        </div>
+                        <div class="dashboard-activity-header-actions">
+                            <button class="date-range-btn" type="button" onclick="openDatePicker('activity')">
+                                <i class="fa-solid fa-calendar-days"></i>
+                                <span id="activity-date-range-label">Select Date Range</span>
+                            </button>
+                            <button class="btn btn-outline btn-sm" type="button" onclick="clearActivityDateFilter()">
+                                <i class="fa-solid fa-filter-circle-xmark"></i> Clear
+                            </button>
+                            <button class="btn btn-outline btn-sm" onclick="navigate('organizations')">Monitor Orgs</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="mobile-card-table activity-table">
+                            <thead>
+                                <tr>
+                                    <th>Organization</th>
+                                    <th>Activity</th>
+                                    <th>Details</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                    <th class="text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-requests-preview">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="activity-range-controls">
+                        <div id="activity-range-summary" class="activity-range-summary">Showing 0 of 0</div>
+                        <div class="activity-range-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="moveActivityRange(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <label>
+                                From
+                                <input id="activity-range-start" type="number" min="1" value="1">
+                            </label>
+                            <label>
+                                To
+                                <input id="activity-range-end" type="number" min="1" value="10">
+                            </label>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="applyActivityRange()">Apply</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="moveActivityRange(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="organizations" class="section-view">
+            <div class="split-view-grid">
+                <!-- LEFT HALF: Organization List (Now Full Width) -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Accredited Student Organizations</div>
+                        <input id="org-search-input" type="text" placeholder="Search by org name or code..." style="margin-bottom: 0; width: 250px;">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Organization Name</th>
+                                    <th class="text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="org-list-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MONITORING PANEL (Sub-view of Orgs) -->
+        <div id="monitoring" class="section-view">
+            <button class="btn btn-outline btn-sm" onclick="navigate('organizations')" style="margin-bottom: 20px;">
+                <i class="fa-solid fa-arrow-left"></i> Back to List
+            </button>
+
+            <div class="card" style="margin-bottom: 24px; border-left: 5px solid var(--primary);">
+                <div class="card-header" style="align-items: flex-start;">
+                    <div>
+                        <h2 id="monitoring-org-name" style="font-size: 1.5rem; margin-bottom: 5px;">Organization Name
+                        </h2>
+                        <p id="monitoring-org-details" style="color: var(--muted);">Details here</p>
+                        <div class="recency-indicator">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <span id="monitoring-recency">Last recorded activity: Oct 24, 2023</span>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
+
+                <div class="monitoring-details-grid">
+
+                    <div class="monitoring-section">
+                        <div class="compliance-header">
+                            <h4 class="section-title">Compliance Overview</h4>
+                            <div class="compliance-term-controls" aria-label="Compliance term filters">
+                                <label class="term-select-wrap term-year-wrap">
+                                    <span>School Year</span>
+                                    <select id="compliance-academic-year-select" class="term-select" aria-label="Academic year" onchange="setComplianceAcademicYear(this.value)"></select>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="compliance-list" id="monitoring-compliance-list">
+                        </div>
+                    </div>
+
+                    <div class="monitoring-section">
+                        <h4 class="section-title">Service Authorization</h4>
+                        <div id="monitoring-service-toggles" class="service-toggle-list">
+                            <div style="color: var(--muted); font-size: 0.9rem;">Loading organization service settings...</div>
+                        </div>
+                        <div style="margin-top: 14px;">
+                            <button class="btn btn-primary btn-sm" type="button" onclick="saveMonitoringServiceAuthorizations()">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Service Access
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="monitoring-section" style="flex: 2;">
+                        <h4 class="section-title">Officers & Adviser</h4>
+                        <div class="officers-grid-container" id="monitoring-officers-grid">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-row">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Recent Activities</div>
+                        <div class="dashboard-activity-header-actions">
+                            <button class="date-range-btn" type="button" onclick="openDatePicker('monitoringActivity')">
+                                <i class="fa-solid fa-calendar-days"></i>
+                                <span id="monitoring-activity-date-range-label">Select Date Range</span>
+                            </button>
+                            <button class="btn btn-outline btn-sm" type="button" onclick="clearMonitoringActivityDateFilter()">
+                                <i class="fa-solid fa-filter-circle-xmark"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Activity</th>
+                                    <th>Type</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monitoring-events-table">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="activity-range-controls">
+                        <div id="monitoring-activity-range-summary" class="activity-range-summary">Showing 0 of 0</div>
+                        <div class="activity-range-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="moveMonitoringActivityRange(-1)">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <label>
+                                From
+                                <input id="monitoring-activity-range-start" type="number" min="1" value="1">
+                            </label>
+                            <label>
+                                To
+                                <input id="monitoring-activity-range-end" type="number" min="1" value="10">
+                            </label>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="applyMonitoringActivityRange()">Apply</button>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="moveMonitoringActivityRange(1)">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DOCUMENTS VIEW -->
+        <div id="documents" class="section-view">
+            <div class="sub-view-nav">
+                <button class="sub-nav-btn active" onclick="switchDocsSubView('status', this)">
+                    <i class="fa-solid fa-list-check"></i> Track Status
+                </button>
+                <button class="sub-nav-btn" onclick="switchDocsSubView('repository', this)">
+                    <i class="fa-solid fa-folder-tree"></i> Repository
+                </button>
+            </div>
+
+            <div id="docs-status-view" class="docs-layout">
+                <div class="repo-main card">
+                    <div class="repo-filters">
+                        <div class="filter-tabs-group">
+                            <button class="filter-tab active" onclick="filterDocs('All', this)">All Files</button>
+                            <button class="filter-tab" onclick="filterDocs('Approved', this)">Approved</button>
+                            <button class="filter-tab" onclick="filterDocs('Rejected', this)">Rejected</button>
+                            <button class="filter-tab" onclick="filterDocs('Pending', this)">Pending</button>
+                        </div>
+                    </div>
+
+                    <div class="date-filters-bar">
+                        <div class="date-input-group">
+                            <label for="filter-by-org">Organization:</label>
+                            <select id="filter-by-org" onchange="renderDocs(currentDocFilter)">
+                                <option value="all">All Organizations</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-sem">Semester:</label>
+                            <select id="docs-filter-sem" onchange="renderDocs(currentDocFilter)">
+                                <option value="1st">1st Semester</option>
+                                <option value="2nd">2nd Semester</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-period">Term:</label>
+                            <select id="docs-filter-period" onchange="renderDocs(currentDocFilter)">
+                                <option value="prelim">Prelim</option>
+                                <option value="midterm">Midterm</option>
+                                <option value="finals">Finals</option>
+                            </select>
+                        </div>
+
+                        <div class="date-input-group">
+                            <label for="docs-filter-year">School Year:</label>
+                            <select id="docs-filter-year" onchange="renderDocs(currentDocFilter)"></select>
+                        </div>
+
+                        <button class="date-range-btn" onclick="openDatePicker('docs')">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span id="docs-date-range-label">Select Date Range</span>
+                        </button>
+
+                        <button class="btn btn-outline btn-sm" onclick="resetDateFilters()">
+                            <i class="fa-solid fa-calendar-check"></i> Show All Dates
+                        </button>
+                    </div>
+
+                    <div class="list-header-row mobile-hide">
+                        <div class="col-name">Name & Type</div>
+                        <div class="col-sent">Sent By</div>
+                        <div class="col-adviser">Adviser Review</div>
+                        <div class="col-ssc">SSC Review</div>
+                        <div class="col-osa">OSA Approval</div>
+                        <div class="col-status">Status</div>
+                    </div>
+
+                    <div id="docs-list">
+                    </div>
+                </div>
+
+                <div class="repo-sidebar">
+                    <div class="card" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
+                        <div class="repo-filters">
+                            <span class="header-text-label">Recent Activities</span>
+                        </div>
+                        <div id="recent-docs-list">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="docs-repository-view" class="repository-container" style="display: none;">
+
+                <div class="repo-search-area">
+                    <div class="search-input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="repo-search-input" placeholder="Search by filename, org, or tag..."
+                            onkeyup="renderRepoTable()">
+                    </div>
+                    <button class="btn btn-primary" onclick="renderRepoTable()">Search</button>
+                </div>
+
+                <div class="card repo-files-card">
+                    <div class="card-header">
+                        <div class="card-title" id="repo-current-view-label">All Documents</div>
+                    </div>
+
+                    <div class="repo-filter-bar">
+                        <div class="repo-filter-group">
+                            <label>File Type:</label>
+                            <select id="repo-filter-type" onchange="renderRepoTable()">
+                                <option value="All">All Types</option>
+                                <option value="Resolution">Resolution</option>
+                                <option value="Memo">Memorandum</option>
+                                <option value="Letter">Letter</option>
+                                <option value="Proposal">Project Proposal</option>
+                                <option value="Report">Accomplishment Report</option>
+                                <option value="Financial">Financial Statement</option>
+                                <option value="Constitution">Constitution & By-Laws</option>
+                                <option value="Operational Plan">Operational Plan</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>Organization:</label>
+                            <select id="repo-filter-org" onchange="renderRepoTable()">
+                                <option value="all">All Organizations</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>Semester:</label>
+                            <select id="repo-filter-sem" onchange="renderRepoTable()">
+                                <option value="1st">1st Semester</option>
+                                <option value="2nd">2nd Semester</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>Term:</label>
+                            <select id="repo-filter-period" onchange="renderRepoTable()">
+                                <option value="prelim">Prelim</option>
+                                <option value="midterm">Midterm</option>
+                                <option value="finals">Finals</option>
+                            </select>
+                        </div>
+
+                        <div class="repo-filter-group">
+                            <label>School Year:</label>
+                            <select id="repo-filter-year" onchange="renderRepoTable()"></select>
+                        </div>
+
+                        <button class="date-range-btn" onclick="openDatePicker('repo')">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span id="repo-date-range-label">Select Date Range</span>
+                        </button>
+
+                        <button class="btn btn-sm btn-outline" onclick="resetRepoFilters()">
+                            <i class="fa-solid fa-rotate-left"></i> Reset Filters
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="repo-table">
+                            <thead>
+                                <tr>
+                                    <th>Document Name</th>
+                                    <th>Category</th>
+                                    <th>Organization</th>
+                                    <th>Date Archived</th>
+                                    <th class="text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="repository-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="account" class="section-view">
+            <div class="card iframe-card">
+                <iframe src="../systems/Accounts/index.html?v=20260927-users" title="Account Management" loading="lazy"></iframe>
+            </div>
+        </div>
+
+
+
+        <div id="profile" class="section-view">
+            <div class="split-view-grid profile-layout">
+
+                <div class="card profile-card">
+                    <div class="profile-header-center">
+                        <div class="profile-avatar-wrapper">
+                            <img id="osaProfileAvatar" src="../assets/favicon.png" alt="Profile"
+                                class="profile-avatar-lg">
+                            <input id="osaProfilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                            <button id="osaProfilePhotoBtn" class="btn-icon-only edit-avatar-btn" title="Change Photo" type="button">
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
+                        </div>
+                        <h3 class="profile-name">OSA Staff</h3>
+                        <span class="profile-role">Loading account...</span>
+                        <span class="status-badge status-completed" style="margin-top: 12px;">Active Status</span>
+                    </div>
+
+                    <hr style="border:0; border-top:1px solid var(--border); width:100%; margin: 24px 0;">
+                </div>
+
+                <div class="profile-details-stack">
+
+                    <div class="card academic-term-control-card">
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">Academic Term Control</div>
+                                <p class="academic-term-card-note">Used by document submissions, compliance, repository views, and event audits.</p>
+                            </div>
+                        </div>
+                        <div class="academic-term-editor">
+                            <label class="term-select-wrap">
+                                <span>School Year</span>
+                                <select id="profile-academic-year-select" class="term-select" aria-label="Profile academic year"></select>
+                            </label>
+                            <label class="term-select-wrap">
+                                <span>Semester</span>
+                                <select id="profile-semester-select" class="term-select" aria-label="Profile semester">
+                                    <option value="1st">1st Semester</option>
+                                    <option value="2nd">2nd Semester</option>
+                                </select>
+                            </label>
+                            <label class="term-select-wrap">
+                                <span>Term</span>
+                                <select id="profile-period-select" class="term-select" aria-label="Profile grading period">
+                                    <option value="prelim">Prelim</option>
+                                    <option value="midterm">Midterm</option>
+                                    <option value="finals">Finals</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="academic-term-actions">
+                            <span id="profile-active-term-note">Current term applies to new submissions.</span>
+                            <button id="saveAcademicTermBtn" class="btn btn-primary btn-sm" type="button" onclick="saveActiveAcademicTerm()">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Term
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Personal Information</div>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <button id="osaProfileCancelBtn" class="btn btn-sm btn-outline" type="button" hidden>
+                                    Cancel
+                                </button>
+                                <button id="osaProfileEditBtn" class="btn btn-sm btn-outline" type="button">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                                </button>
+                            </div>
+                        </div>
+                        <div class="profile-form-grid">
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input id="osaProfileFullNameInput" type="text" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Employee ID</label>
+                                <input id="osaProfileEmployeeNumberInput" type="text" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Email Address</label>
+                                <input id="osaProfileEmailInput" type="email" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Department</label>
+                                <input id="osaProfileDepartmentInput" type="text" value="Office of Student Affairs" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input id="osaProfilePhoneInput" type="text" readonly data-editable="true">
+                            </div>
+                            <div class="form-group">
+                                <label>Date Joined</label>
+                                <input id="osaProfileDateJoinedInput" type="text" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Security & Preferences</div>
+                        </div>
+                        <form id="osaPasswordForm">
+                            <div class="form-group">
+                                <label>Change Password</label>
+                                <input id="osaCurrentPasswordInput" type="password" placeholder="Current Password" required>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                    <input id="osaNewPasswordInput" type="password" placeholder="New Password" required>
+                                    <input id="osaConfirmPasswordInput" type="password" placeholder="Confirm New Password" required>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 15px;">
+                                <button id="osaPasswordSubmitBtn" type="submit" class="btn btn-primary">Update Password</button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div id="audit" class="section-view" hidden>
+            <div class="card audit-log-card">
+                <div class="card-header audit-log-heading">
+                    <div>
+                        <div class="card-title">Protected Audit Log</div>
+                        <p>Permanent security and system-change records. Entries cannot be edited or deleted.</p>
+                    </div>
+                    <button class="btn btn-outline btn-sm" type="button" onclick="refreshOsaAuditLogs()">
+                        <i class="fa-solid fa-rotate"></i> Refresh
+                    </button>
+                </div>
+
+                <form id="osa-audit-filter-form" class="audit-filter-grid">
+                    <label>
+                        <span>Search</span>
+                        <input id="osa-audit-search" type="search" placeholder="Actor, action, target, email, or ID">
+                    </label>
+                    <label>
+                        <span>Action</span>
+                        <select id="osa-audit-action"><option value="">All Actions</option></select>
+                    </label>
+                    <label>
+                        <span>From</span>
+                        <input id="osa-audit-date-from" type="date">
+                    </label>
+                    <label>
+                        <span>To</span>
+                        <input id="osa-audit-date-to" type="date">
+                    </label>
+                    <div class="audit-filter-actions">
+                        <button class="btn btn-primary btn-sm" type="submit"><i class="fa-solid fa-filter"></i> Apply</button>
+                        <button class="btn btn-outline btn-sm" type="button" onclick="clearOsaAuditFilters()">Clear</button>
+                    </div>
+                </form>
+
+                <div id="osa-audit-error" class="audit-message audit-error" hidden></div>
+                <div class="table-container audit-table-wrap">
+                    <table class="audit-table">
+                        <thead><tr>
+                            <th>Date &amp; Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Result</th><th class="text-right">Details</th>
+                        </tr></thead>
+                        <tbody id="osa-audit-records">
+                            <tr><td colspan="6" class="audit-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading audit records...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="audit-pagination">
+                    <span id="osa-audit-page-summary">0 records</span>
+                    <div>
+                        <button id="osa-audit-previous" class="btn btn-outline btn-sm" type="button">Previous</button>
+                        <button id="osa-audit-next" class="btn btn-outline btn-sm" type="button">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+
+    <!-- Organization Activity Detail Modal -->
+    <div id="activity-detail-modal" class="request-action-modal">
+        <div class="request-action-modal-content activity-detail-modal-content">
+            <div class="request-action-modal-header">
+                <div>
+                    <h3 id="activity-detail-title">Activity Details</h3>
+                    <p id="activity-detail-subtitle" class="activity-detail-subtitle"></p>
+                </div>
+                <button class="modal-close-btn" onclick="closeActivityDetailModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="request-action-modal-body">
+                <div id="activity-detail-body" class="activity-detail-body"></div>
+            </div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-outline" onclick="closeActivityDetailModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Approve with Optional Comment Modal -->
+    <div id="approve-comment-modal" class="request-action-modal">
+        <div class="request-action-modal-content">
+            <div class="request-action-modal-header">
+                <h3>Approve Document</h3>
+                <button class="modal-close-btn" onclick="closeApproveCommentModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="request-action-modal-body">
+                <p>You can add an optional reviewer note before approving.</p>
+                <textarea id="approve-comment-text" rows="4" placeholder="Optional comments..."
+                    style="margin-top: 10px; width: 100%;"></textarea>
+            </div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-outline" onclick="closeApproveCommentModal()">Cancel</button>
+                <button class="btn btn-success" onclick="confirmApproveWithComment()">
+                    <i class="fa-solid fa-check"></i> Approve
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Reject with Optional Comment Modal -->
+    <div id="reject-comment-modal" class="request-action-modal">
+        <div class="request-action-modal-content">
+            <div class="request-action-modal-header">
+                <h3>Reject Document</h3>
+                <button class="modal-close-btn" onclick="closeRejectCommentModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="request-action-modal-body">
+                <p>You can add an optional reviewer note before rejecting.</p>
+                <textarea id="reject-comment-text" rows="4" placeholder="Optional comments..."
+                    style="margin-top: 10px; width: 100%;"></textarea>
+            </div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-outline" onclick="closeRejectCommentModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmRejectWithComment()">
+                    <i class="fa-solid fa-xmark"></i> Reject
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Request Action Confirmation Modal -->
+    <div id="request-action-modal" class="request-action-modal">
+        <div class="request-action-modal-content">
+            <div class="request-action-modal-header">
+                <h3 id="request-action-title">Confirm Action</h3>
+                <button class="modal-close-btn" onclick="closeRequestActionModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="request-action-modal-body">
+                <p id="request-action-message">Are you sure you want to perform this action? This cannot be undone.</p>
+                <p id="request-action-instruction" style="margin-top: 12px; font-size: 0.9rem;">
+                    Type <strong id="request-action-keyword">"Approve"</strong> to confirm:
+                </p>
+                <input type="text" id="request-action-input" placeholder="Type here to confirm"
+                    style="margin-top: 8px;" />
+            </div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-outline" onclick="closeRequestActionModal()">Cancel</button>
+                <button class="btn btn-primary" id="request-action-confirm-btn" onclick="confirmRequestAction()">
+                    Confirm Action
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="osa-audit-detail-modal" class="request-action-modal">
+        <div class="request-action-modal-content audit-detail-modal-content">
+            <div class="request-action-modal-header">
+                <div>
+                    <h3>Audit Entry Details</h3>
+                    <p id="osa-audit-detail-subtitle" class="activity-detail-subtitle"></p>
+                </div>
+                <button class="modal-close-btn" type="button" onclick="closeOsaAuditDetail()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="osa-audit-detail-body" class="request-action-modal-body audit-detail-body"></div>
+            <div class="request-action-modal-footer">
+                <button class="btn btn-primary" type="button" onclick="closeOsaAuditDetail()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Range Calendar Modal -->
+    <div id="date-picker-modal" class="date-picker-modal">
+        <div class="date-picker-content">
+            <div class="date-picker-header">
+                <h3>Select Date Range</h3>
+                <button class="modal-close-btn" onclick="closeDatePicker()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="date-picker-body">
+                <!-- Calendar Navigation -->
+                <div class="calendar-nav">
+                    <button onclick="changeCalendarMonth(-1)">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <div class="calendar-month-year">
+                        <span id="calendar-month-label">January 2024</span>
+                    </div>
+                    <button onclick="changeCalendarMonth(1)">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <!-- Calendar Grid -->
+                <div class="calendar-grid">
+                    <div class="calendar-weekdays">
+                        <div>Sun</div>
+                        <div>Mon</div>
+                        <div>Tue</div>
+                        <div>Wed</div>
+                        <div>Thu</div>
+                        <div>Fri</div>
+                        <div>Sat</div>
+                    </div>
+                    <div id="calendar-dates" class="calendar-dates">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Selected Range Display -->
+                <div class="date-range-display">
+                    <div class="date-range-item">
+                        <label>From:</label>
+                        <span id="selected-from-date">Not selected</span>
+                    </div>
+                    <div class="date-range-item">
+                        <label>To:</label>
+                        <span id="selected-to-date">Not selected</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="date-picker-footer">
+                <button class="btn btn-outline" onclick="clearDateRange()">Clear</button>
+                <button class="btn btn-primary" onclick="applyDateRange()">Apply</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- PDF Viewer Modal (Google Drive Style) -->
+    <div id="pdf-modal" class="pdf-modal">
+        <div class="pdf-modal-content">
+            <!-- Modal Header -->
+            <div class="pdf-modal-header">
+                <div class="pdf-modal-title">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span id="pdf-doc-name">Document</span>
+                </div>
+                <div class="pdf-toolbar">
+                    <!-- Navigation -->
+                    <button class="btn btn-sm btn-outline nav-btn" onclick="pdfPrevPage()" title="Previous Page">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <span id="pdf-page-info" class="pdf-toolbar-info pdf-page-selector">
+                        <input id="pdf-page-input" type="number" min="1" value="1" aria-label="Current page">
+                        <span id="pdf-total-pages" class="pdf-page-total">0</span>
+                    </span>
+                    <button class="btn btn-sm btn-outline nav-btn" onclick="pdfNextPage()" title="Next Page">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Zoom -->
+                    <button class="btn btn-sm btn-outline zoom-btn" onclick="pdfZoomOut()" title="Zoom Out">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <span id="pdf-zoom-info" class="pdf-toolbar-info">100%</span>
+                    <button class="btn btn-sm btn-outline zoom-btn" onclick="pdfZoomIn()" title="Zoom In">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Annotation Tools -->
+                    <button id="pdf-highlight-btn" class="btn btn-sm btn-outline" onclick="togglePdfHighlightMode()"
+                        title="Highlight Text">
+                        <i class="fa-solid fa-highlighter"></i>
+                    </button>
+                    <div id="pdf-highlight-color-picker" class="pdf-highlight-color-picker" aria-label="Highlight color">
+                        <button type="button" class="pdf-highlight-color active" data-color="#ffeb3b"
+                            style="--highlight-color: #ffeb3b;" title="Yellow highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#34d399"
+                            style="--highlight-color: #34d399;" title="Green highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#60a5fa"
+                            style="--highlight-color: #60a5fa;" title="Blue highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#f472b6"
+                            style="--highlight-color: #f472b6;" title="Pink highlight"></button>
+                        <button type="button" class="pdf-highlight-color" data-color="#fb923c"
+                            style="--highlight-color: #fb923c;" title="Orange highlight"></button>
+                    </div>
+                    <button id="pdf-comment-btn" class="btn btn-sm btn-outline" onclick="togglePdfCommentMode()"
+                        title="Add Comment">
+                        <i class="fa-solid fa-comment"></i>
+                    </button>
+                    <div class="pdf-toolbar-divider"></div>
+                    <!-- Sidebar Toggle -->
+                    <button class="btn btn-sm btn-outline" onclick="togglePdfSidebar()" title="Toggle Sidebar">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                </div>
+                <button class="pdf-close-btn" onclick="closePdfViewer()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="pdf-modal-body">
+                <!-- PDF Viewer Container (pages render here) -->
+                <div id="pdf-viewer-container" class="pdf-viewer-container">
+                    <div class="pdf-loading">
+                        <i class="fa-solid fa-spinner"></i>
+                        <p>Select a document to view</p>
+                    </div>
+                </div>
+
+                <!-- Floating Sidebar Toggle (Visible when sidebar is collapsed) -->
+                <button id="pdf-sidebar-toggle" class="pdf-sidebar-toggle" onclick="togglePdfSidebar()"
+                    title="Show Annotations">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
+
+                <!-- Annotations Sidebar -->
+                <div id="pdf-sidebar" class="pdf-sidebar">
+                    <div class="pdf-sidebar-header">
+                        <h4>Annotations</h4>
+                        <button class="btn btn-sm btn-outline" onclick="togglePdfSidebar()">
+                            <i class="fa-solid fa-angles-right"></i>
+                        </button>
+                    </div>
+                    <div id="pdf-annotation-filter" class="pdf-annotation-filter" role="radiogroup"
+                        aria-label="Annotation filter">
+                        <label>
+                            <input type="radio" name="pdf-annotation-filter" value="all" checked>
+                            <span>All</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="pdf-annotation-filter" value="highlights">
+                            <span>Highlights</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="pdf-annotation-filter" value="comments">
+                            <span>Comments</span>
+                        </label>
+                    </div>
+                    <div id="pdf-annotations-list" class="pdf-sidebar-content">
+                        <div class="pdf-no-annotations">
+                            <i class="fa-solid fa-note-sticky"></i>
+                            <p>No annotations yet<br><small>Select text to add highlights or comments</small></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comment Input Modal -->
+    <div id="pdf-comment-modal" class="pdf-comment-modal">
+        <div class="pdf-comment-modal-content">
+            <h4>Add Comment</h4>
+            <div id="pdf-selected-text-preview" class="selected-text-preview"></div>
+            <textarea id="pdf-comment-textarea" placeholder="Enter your comment..."></textarea>
+            <div class="pdf-comment-modal-actions">
+                <button class="btn btn-sm btn-outline" onclick="cancelPdfComment()">Cancel</button>
+                <button class="btn btn-sm btn-primary" onclick="savePdfComment()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS References -->
+    <script src="../data/orgData.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/responsive-tables.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/osaDashboard.app.js?v=20260927-complete-ui-1"></script>
+    <script src="../assets/js/pdfViewer.js?v=20261004-defense-page-count-1"></script>
+</body>
+
+</html>
+
+
+
