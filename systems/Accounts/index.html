@@ -151,37 +151,17 @@
         </div>
 
         <div class="tab-pane fade primary-osa-only" id="osaStaffPanel" role="tabpanel" hidden>
-            <form id="osaInviteForm" class="row g-2 align-items-end mb-4">
-                <div class="col-md-5">
-                    <label for="osaInviteEmail" class="form-label">Official email</label>
-                    <input id="osaInviteEmail" type="email" class="form-control form-control-sm" required>
-                </div>
-                <div class="col-md-4">
-                    <label for="osaInviteEmployeeNumber" class="form-label">Employee number</label>
-                    <input id="osaInviteEmployeeNumber" type="text" maxlength="20" class="form-control form-control-sm" required>
-                </div>
-                <div class="col-md-3">
-                    <button class="btn btn-primary btn-sm w-100" type="submit">Send 72-hour Invitation</button>
-                </div>
-            </form>
-
-            <h3 class="h6">Staff accounts</h3>
+            <p class="text-muted">Only one OSA administrator can be active. New administrators register and verify their email before approval under Account Verification. Use Transfer Authority to select a former administrator below. Either transfer makes your account inactive and signs you out.</p>
+            <div class="btn-group mb-3" role="group" aria-label="OSA account lists">
+                <button type="button" class="btn btn-sm btn-outline-secondary active" data-osa-archive-view="current" aria-pressed="true">Current</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-osa-archive-view="archived" aria-pressed="false">Archived <span id="osaArchivedCount" class="badge bg-secondary">0</span></button>
+            </div>
             <div class="table-responsive mb-4">
                 <table class="table table-sm align-middle">
                     <thead class="table-dark"><tr>
                         <th>Name</th><th>Employee #</th><th>Email</th><th>Status</th><th>Authority</th><th>Actions</th>
                     </tr></thead>
-                    <tbody id="osaStaffRecords"><tr><td colspan="6" class="text-center text-muted">Loading OSA staff…</td></tr></tbody>
-                </table>
-            </div>
-
-            <h3 class="h6">Invitations</h3>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle">
-                    <thead class="table-dark"><tr>
-                        <th>Employee #</th><th>Email</th><th>Status</th><th>Delivery</th><th>Expires</th><th>Actions</th>
-                    </tr></thead>
-                    <tbody id="osaInvitationRecords"><tr><td colspan="6" class="text-center text-muted">No invitations</td></tr></tbody>
+                    <tbody id="osaStaffRecords"><tr><td colspan="6" class="text-center text-muted">Loading OSA accounts...</td></tr></tbody>
                 </table>
             </div>
         </div>
@@ -529,10 +509,10 @@
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/bootstrap.bundle.min.js"></script>
 <script src="../../assets/js/responsive-tables.js?v=20260901-2"></script>
-<script src="accounts-api.js?v=20260929-account-split-1"></script>
+<script src="accounts-api.js?v=20261015-osa-transfer-1"></script>
 <script src="advisers.js?v=20260929-adviser-export-1"></script>
 <script src="api.js"></script>
-<script src="script.js?v=20260929-account-split-1"></script>
+<script src="script.js?v=20261015-osa-authority-transfer-2"></script>
 </body>
 </html>
 

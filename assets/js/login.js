@@ -13,8 +13,6 @@ const AUTH_SESSION_KEY = 'naapAuthSession';
 const LEGACY_STUDENT_PROFILE_KEY = 'naapStudentProfile';
 const ACCOUNTS_APPROVED_KEY = 'AccountsSystem_studentAccounts';
 const PENDING_REQUESTS_KEY = 'AccountsSystem_pendingRequests';
-const OSA_INVITATION_SESSION_KEY = 'naapOsaInvitationToken';
-let activeOsaInvitationToken = '';
 
 const COURSE_INSTITUTE_MAP = {
   BSAIT: 'Institute of Computer Studies',
@@ -2180,8 +2178,41 @@ async function registerOrganizationAdviser() {
   });
 }
 
+function setupOsaRegistrationEmployeeNumberInput() {
+    const input = document.getElementById('osa-employee-number-input');
+    if (!input) return;
+
+    // Each value must be a valid prefix of NN-NNN-XXXX while editing.
+    const allowed = /^(?:[0-9]{0,2}|[0-9]{2}-[0-9]{0,3}|[0-9]{2}-[0-9]{3}-[^\s\x2D]{0,4})$/;
+    let previousValue = input.value;
+    let previousStart = 0;
+    let previousEnd = 0;
+    const remember = () => {
+        previousValue = input.value;
+        previousStart = input.selectionStart;
+        previousEnd = input.selectionEnd;
+    };
+    input.addEventListener('focus', remember);
+    input.addEventListener('beforeinput', remember);
+    input.addEventListener('input', () => {
+        const normalized = input.value.toUpperCase();
+        if (allowed.test(normalized)) {
+            if (input.value !== normalized) {
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                input.value = normalized;
+                input.setSelectionRange(start, end);
+            }
+            remember();
+        } else {
+            input.value = previousValue;
+            input.setSelectionRange(previousStart, previousEnd);
+        }
+    });
+}
+
 async function registerOsa() {
-  const employeeNumber = (document.getElementById('osa-employee-number-input') || {}).value?.trim() || '';
+  const employeeNumber = (document.getElementById('osa-employee-number-input') || {}).value?.trim().toUpperCase() || '';
   const fullName = (document.getElementById('osa-name-input') || {}).value?.trim() || '';
   const email = (document.getElementById('osa-email-input') || {}).value?.trim() || '';
   const phone = normalizePhoneInput((document.getElementById('osa-phone-input') || {}).value?.trim() || '');
@@ -2208,8 +2239,9 @@ async function registerOsa() {
   if (!validatePasswordPair('osa', true)) return;
   if (!hasPrivacyConsent('osa-privacy-consent')) return;
 
-  if (!activeOsaInvitationToken) {
-    alert('A valid OSA staff invitation is required.');
+  if (!/^[0-9]{2}-[0-9]{3}-[^\s\x2D]{4}$/.test(employeeNumber)) {
+    setRegistrationFieldInvalid('osa-employee-number-input', true);
+    alert('Employee ID must use the format 12-123-ABCD.');
     return;
   }
 
@@ -2231,91 +2263,24 @@ async function registerOsa() {
           password,
           confirm_password: confirmPassword,
           verification_token: verificationToken,
-          invitation_token: activeOsaInvitationToken,
           privacy_consent: true
         })
       });
       const data = await resp.json();
-      if (!data.ok) {
-        alert(data.error || 'Registration failed.');
-        throw new Error(data.error || 'Registration failed.');
-      }
+      if (!resp.ok || !data.ok) throw new Error(data.error || 'Registration failed.');
 
-      const { user, memberships } = data;
-      const session = {
-        user_id: user.user_id,
-        account_type: 'osa_staff',
-        is_primary_osa: false,
-        display_name: `${user.first_name} ${user.last_name}`.trim(),
-        email: user.email,
-        student_number: null,
-        employee_number: user.employee_number,
-        phone: user.phone || null,
-        profile_photo: user.profile_photo || null,
-        authenticated_at: new Date().toISOString(),
-        officer_memberships: memberships || [],
-        login_role: 'osa',
-        active_org_id: null,
-        active_org_name: 'Office of Student Affairs',
-        active_role_name: 'osa_staff'
-      };
-      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-      sessionStorage.removeItem(OSA_INVITATION_SESSION_KEY);
-      window.location.href = '../osa/';
+      document.getElementById('form-osa')?.reset();
+      alert('Email verified. Registration submitted for administrator approval.');
+      if (container?.classList.contains('right-panel-active')) toggleSlide();
+
     } catch (err) {
       console.error('[registerOsa] error:', err);
-      alert('Could not connect to the server. Please try again.');
+      alert(err.message || 'Could not submit registration. Please try again.');
       throw err;
     } finally {
       if (btn) btn.disabled = false;
     }
-  }, activeOsaInvitationToken);
-}
-
-async function initializeOsaInvitation() {
-  const hashMatch = String(window.location.hash || '').match(/(?:^#|&)osa-invite=([a-f0-9]{64})(?:&|$)/i);
-  if (hashMatch) {
-    activeOsaInvitationToken = hashMatch[1].toLowerCase();
-    sessionStorage.setItem(OSA_INVITATION_SESSION_KEY, activeOsaInvitationToken);
-    history.replaceState(null, document.title, window.location.pathname + window.location.search);
-  } else {
-    activeOsaInvitationToken = sessionStorage.getItem(OSA_INVITATION_SESSION_KEY) || '';
-  }
-  if (!activeOsaInvitationToken) return;
-
-  const status = document.getElementById('osa-invitation-status');
-  try {
-    const response = await fetch('../api/auth/osa-invitations/inspect.php', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invitation_token: activeOsaInvitationToken })
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok || !data.invitation) {
-      throw new Error(data.error || 'This OSA invitation is invalid or no longer available.');
-    }
-    const osaTab = document.getElementById('osaRegistrationTab');
-    const employeeInput = document.getElementById('osa-employee-number-input');
-    const emailInput = document.getElementById('osa-email-input');
-    if (osaTab) osaTab.hidden = false;
-    if (employeeInput) employeeInput.value = data.invitation.employee_number;
-    if (emailInput) emailInput.value = data.invitation.email;
-    if (status) {
-      status.textContent = `Invitation verified for ${data.invitation.email}. Complete the locked OSA registration form.`;
-      status.classList.add('success');
-    }
-    switchTab('osa');
-    if (container && !container.classList.contains('right-panel-active')) toggleSlide();
-  } catch (error) {
-    activeOsaInvitationToken = '';
-    sessionStorage.removeItem(OSA_INVITATION_SESSION_KEY);
-    setLoginStatusMessage(error.message || 'This OSA invitation is invalid or no longer available.', false);
-    if (status) {
-      status.textContent = error.message;
-      status.classList.add('error');
-    }
-  }
+  });
 }
 
 /* =====================
@@ -2665,7 +2630,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupForgotPasswordFlow();
   setupRegistrationOtpFlow();
   setupOsaLoginOtpInputs();
-  initializeOsaInvitation();
+  setupOsaRegistrationEmployeeNumberInput();
 
   const studentRegisterBtn = document.getElementById('studentRegisterBtn');
   const orgRegisterBtn = document.getElementById('orgRegisterBtn');

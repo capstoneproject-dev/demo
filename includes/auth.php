@@ -499,6 +499,7 @@ function apiGuard(bool $keepSessionOpen = false): void
             !$current
             || ($current['account_type'] ?? '') !== 'osa_staff'
             || (int)($current['is_active'] ?? 0) !== 1
+            || (int)($current['is_primary_osa'] ?? 0) !== 1
         ) {
             destroySession();
             jsonError('Not authenticated.', 401, ['error_code' => 'AUTHENTICATION_REQUIRED']);

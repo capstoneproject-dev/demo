@@ -10,6 +10,7 @@ $body = getRequestBody();
 $purpose = trim((string)($body['purpose'] ?? ''));
 $email = trim((string)($body['email'] ?? ''));
 $identifier = trim((string)($body['identifier'] ?? ''));
+if ($purpose === 'osa_registration') $identifier = strtoupper($identifier);
 $invitationToken = trim((string)($body['invitation_token'] ?? ''));
 $studentName = trim((string)($body['student_name'] ?? ''));
 $currentPassword = (string)($body['current_password'] ?? '');

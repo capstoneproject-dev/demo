@@ -24,6 +24,8 @@ composer-setup.php
 !/uploads/documents/web.config
 /tests/*
 !/tests/concurrency/
+!/tests/osa-registration-transfer.php
+!/tests/osa-registration-ui.test.cjs
 /docs/defense-demo
 /cli
 /docs
