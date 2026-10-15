@@ -2651,6 +2651,10 @@ document.addEventListener('DOMContentLoaded', () => {
   getAuthDb();
   setupPasswordVisibilityToggles();
   setupStudentSectionInput();
+  const studentConfirmPasswordInput = document.getElementById('student-confirm-password-input');
+  ['copy', 'cut', 'paste', 'drop'].forEach((eventName) => {
+    studentConfirmPasswordInput?.addEventListener(eventName, (event) => event.preventDefault());
+  });
   setupPhoneInput('student-phone-input');
   setupPhoneInput('org-phone-input');
   setupPhoneInput('org-adviser-phone-input');
