@@ -50,6 +50,9 @@ if (!$user) {
 if (!$user['is_active']) {
     jsonError('Your account is inactive. Please contact administration.');
 }
+if (($user['account_type'] ?? '') === 'osa_staff' && (int)($user['is_primary_osa'] ?? 0) !== 1) {
+    jsonError('This OSA account no longer has administrator access.', 403);
+}
 
 $loginAccountSubject = 'user:' . (int)$user['user_id'];
 rateLimitEnsureNotBlocked('login_failed_account', $loginAccountSubject, 8, 900);

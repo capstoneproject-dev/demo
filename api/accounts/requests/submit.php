@@ -29,8 +29,8 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 if (!in_array($reqRole, ['student', 'org_officer', 'organization_adviser'], true)) {
     jsonError('Invalid registration role.', 422);
 }
-if ($reqRole === 'student' && !preg_match('/^[1-9]-[1-9]$/D', $yearSection)) {
-    jsonError('Section must use the format 4-2: one digit from 1 to 9, a hyphen, and one digit from 1 to 9.', 422);
+if ($reqRole === 'student' && !preg_match('/^[1-9]-([1-9]|1[0-9]|20)$/D', $yearSection)) {
+    jsonError('Section must use the format 4-20: a year from 1 to 9, a hyphen, and a section from 1 to 20.', 422);
 }
 $reqPositionLength = function_exists('mb_strlen') ? mb_strlen($reqPosition) : strlen($reqPosition);
 if ($reqPositionLength > 120 || preg_match('/[\x00-\x1F\x7F]/u', $reqPosition)) {

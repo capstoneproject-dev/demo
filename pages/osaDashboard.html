@@ -727,7 +727,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Employee ID</label>
-                                <input id="osaProfileEmployeeNumberInput" type="text" readonly>
+                                <input id="osaProfileEmployeeNumberInput" type="text" maxlength="15" pattern="[0-9]{2}-[0-9]{3}-[^\s\x2D\p{C}]{4}" placeholder="12-123-ABCD" title="Use two digits, a hyphen, three digits, a hyphen, and four visible characters (e.g. 12-123-ABCD)." required readonly data-editable="true">
                             </div>
                             <div class="form-group">
                                 <label>Email Address</label>
@@ -1132,7 +1132,7 @@
     <script src="../data/orgData.js?v=20260927-complete-ui-1"></script>
     <script src="../assets/js/responsive-tables.js?v=20260927-complete-ui-1"></script>
     <script src="../assets/js/profile-email-verification.js?v=20261005-email-loading-2"></script>
-    <script src="../assets/js/osaDashboard.app.js?v=20261006-rental-review-1"></script>
+    <script src="../assets/js/osaDashboard.app.js?v=20261015-reviewed-profile-1"></script>
     <script src="../assets/js/osa-rental-adjustment.js?v=20261006-rental-waiver-open-1"></script>
     <script src="../assets/js/pdfViewer.js?v=20261004-defense-page-count-1"></script>
 </body>

@@ -1,15 +1,17 @@
 <?php
 require_once '../../../config/db.php';
 require_once '../../../includes/auth.php';
+require_once '../../../includes/osa_registration.php';
 
 header('Content-Type: application/json');
+apiGuard(true); // Transfers must keep the session writable from the first guard call.
 apiRequireOsaSystemAdministrator();
 requirePost();
 apiRequireRecentReauthentication();
 
 $body      = getRequestBody();
-$requestId = (int)($body['requestId'] ?? 0);
-$action    = trim($body['action'] ?? ''); // approve | reject | reopen
+$requestId = osaRequestUserId($body['requestId'] ?? null);
+$action    = is_string($body['action'] ?? null) ? trim($body['action']) : ''; // approve | reject | reopen
 
 if (!$requestId || !in_array($action, ['approve', 'reject', 'reopen'], true)) {
     jsonError('requestId and action (approve|reject|reopen) are required.', 422);
@@ -37,6 +39,17 @@ try {
     $req = $getStmt->fetch();
     if (!$req) {
         jsonError('Registration request not found.', 404);
+    }
+
+    if ($req['requested_role'] === 'osa_staff') {
+        apiRequirePrimaryOsaAdministrator();
+        try {
+            $result = reviewOsaRegistration($pdo, (int)$actorId, $requestId, $action, (int)($session['osa_authority_version'] ?? 0));
+        } catch (InvalidArgumentException $e) {
+            jsonError($e->getMessage(), 409);
+        }
+        if ($result['transfer_completed']) destroySession();
+        jsonOk($result);
     }
 
     if ($action === 'approve') {

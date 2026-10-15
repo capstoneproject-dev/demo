@@ -58,6 +58,8 @@ if (($session['account_type'] ?? '') === 'student') {
         !$user
         || ($user['account_type'] ?? '') !== 'osa_staff'
         || (int)($user['is_active'] ?? 0) !== 1
+        || (int)($user['is_primary_osa'] ?? 0) !== 1
+        || (int)($user['osa_authority_version'] ?? 0) !== (int)($session['osa_authority_version'] ?? 0)
     ) {
         destroySession();
         echo json_encode(['authenticated' => false]);
