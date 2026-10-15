@@ -10,8 +10,8 @@ requirePost();
 apiRequireRecentReauthentication();
 
 $body      = getRequestBody();
-$requestId = (int)($body['requestId'] ?? 0);
-$action    = trim($body['action'] ?? ''); // approve | reject | reopen
+$requestId = osaRequestUserId($body['requestId'] ?? null);
+$action    = is_string($body['action'] ?? null) ? trim($body['action']) : ''; // approve | reject | reopen
 
 if (!$requestId || !in_array($action, ['approve', 'reject', 'reopen'], true)) {
     jsonError('requestId and action (approve|reject|reopen) are required.', 422);
@@ -44,7 +44,7 @@ try {
     if ($req['requested_role'] === 'osa_staff') {
         apiRequirePrimaryOsaAdministrator();
         try {
-            $result = reviewOsaRegistration($pdo, (int)$actorId, $requestId, $action);
+            $result = reviewOsaRegistration($pdo, (int)$actorId, $requestId, $action, (int)($session['osa_authority_version'] ?? 0));
         } catch (InvalidArgumentException $e) {
             jsonError($e->getMessage(), 409);
         }

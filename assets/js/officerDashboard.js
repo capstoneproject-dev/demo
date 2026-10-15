@@ -2195,7 +2195,7 @@ function populateOfficerFinancialItemFilter(items) {
     select.innerHTML = '<option value="">All Items</option>' + labels
         .map((label) => `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`)
         .join('');
-    select.value = labels.includes(current) ? current : '';
+    select.value = labels.find((label) => label.toLowerCase() === current.toLowerCase()) || '';
 }
 
 function getFilteredOfficerFinancialSummaryItems() {

@@ -485,7 +485,7 @@ function apiGuard(bool $keepSessionOpen = false): void
         $userId = (int)($session['user_id'] ?? $_SESSION['user_id'] ?? 0);
         try {
             $stmt = getPdo()->prepare(
-                "SELECT account_type, is_active, is_primary_osa
+                "SELECT account_type, is_active, is_primary_osa, osa_authority_version
                  FROM users WHERE user_id = :user_id LIMIT 1"
             );
             $stmt->execute([':user_id' => $userId]);
@@ -500,6 +500,7 @@ function apiGuard(bool $keepSessionOpen = false): void
             || ($current['account_type'] ?? '') !== 'osa_staff'
             || (int)($current['is_active'] ?? 0) !== 1
             || (int)($current['is_primary_osa'] ?? 0) !== 1
+            || (int)($current['osa_authority_version'] ?? 0) !== (int)($session['osa_authority_version'] ?? 0)
         ) {
             destroySession();
             jsonError('Not authenticated.', 401, ['error_code' => 'AUTHENTICATION_REQUIRED']);

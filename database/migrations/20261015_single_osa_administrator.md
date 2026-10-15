@@ -20,11 +20,14 @@ The OSA Staff **Current** tab also offers **Transfer Authority** for inactive, u
 
 ## Verification
 
+Before deploying the reviewed authorization guards, also run `C:\xampp\php\php.exe database/migrations/20261015_osa_authority_version.php`. It adds the authority version used to invalidate prior administrator sessions permanently on transfer, including when authority is later transferred back to that same account. The migration preserves the current account and defaults existing sessions to version zero. Apply this schema change before the updated PHP files.
+
 For the former-administrator archive UI, also run `C:\xampp\php\php.exe database/migrations/20261015_osa_administrator_archive.php` before serving the updated staff list. Archive moves an inactive OSA account to the separate Archived view; Restore returns it to the inactive list. Both actions require the current primary administrator and recent reauthentication, are audited, and preserve account history. Restoring an archived account never reactivates it. The active administrator cannot be archived.
 
 ```powershell
 C:\xampp\php\php.exe tests/osa-registration-transfer.php
 node --test tests/osa-registration-ui.test.cjs
+node --test tests/officer-financial-filters.test.cjs
 ```
 
 The PHP suite creates and removes an empty disposable database, exercising OTP expiration and attempt/resend limits, token binding and consumption rollback, registration/review entrypoints, rejection, duplicates, reauthentication, disabled endpoints, migration preconditions/reruns, concurrent approvals, audit rollback, and outgoing session revocation. No application account records are used as fixtures. The JavaScript suite checks registration sequencing, employee-ID editing, transfer confirmation/redirect behavior, and the API response contract. These tests do not send live email; SMTP delivery should be verified with an authorized registration in the deployed environment.

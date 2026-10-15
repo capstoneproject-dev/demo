@@ -20,8 +20,14 @@ function migrateSingleOsaAdministrator(PDO $pdo): void
     $columns = $pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
     if (!in_array('active_osa_singleton', $columns, true)) {
         $pdo->exec("ALTER TABLE users ADD COLUMN active_osa_singleton TINYINT
-            GENERATED ALWAYS AS (CASE WHEN account_type = 'osa_staff' AND is_active = 1 THEN 1 ELSE NULL END) STORED,
-            ADD UNIQUE KEY uq_users_single_active_osa (active_osa_singleton)");
+            GENERATED ALWAYS AS (CASE WHEN account_type = 'osa_staff' AND is_active = 1 THEN 1 ELSE NULL END) STORED");
+    }
+    $index = $pdo->query("SELECT COLUMN_NAME, NON_UNIQUE FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND INDEX_NAME='uq_users_single_active_osa'")->fetchAll(PDO::FETCH_ASSOC);
+    if (!$index) {
+        $pdo->exec('ALTER TABLE users ADD UNIQUE KEY uq_users_single_active_osa (active_osa_singleton)');
+    } elseif (count($index) !== 1 || $index[0]['COLUMN_NAME'] !== 'active_osa_singleton' || (int)$index[0]['NON_UNIQUE'] !== 0) {
+        throw new RuntimeException('The OSA singleton index has an unexpected definition. Operator attention is required.');
     }
     $stmt = $pdo->query("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
         WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND CONSTRAINT_NAME = 'chk_active_osa_primary'");

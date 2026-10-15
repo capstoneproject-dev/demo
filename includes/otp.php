@@ -3,6 +3,7 @@
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/mailer.php';
 require_once __DIR__ . '/osa_staff.php';
+require_once __DIR__ . '/osa_identity.php';
 
 const OTP_EXPIRES_SECONDS = 600;
 const OTP_RESEND_SECONDS = 60;
@@ -157,7 +158,7 @@ function otpRecipientIsEligible(
     }
 
     if ($purpose === 'osa_registration') {
-        if (!preg_match('/^[0-9]{2}-[0-9]{3}-[^\s\x2D]{4}$/D', $identifier)) return false;
+        if (!isValidOsaEmployeeNumber($identifier)) return false;
         $stmt = $pdo->prepare(
             "SELECT NOT EXISTS (SELECT 1 FROM users WHERE LOWER(email) = :email OR employee_number = :identifier)
                 AND NOT EXISTS (SELECT 1 FROM pending_registrations WHERE status = 'pending'

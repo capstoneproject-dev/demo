@@ -1,11 +1,11 @@
 <?php
 require_once __DIR__ . '/osa_registration.php';
 
-function transferOsaAdministrator(PDO $pdo, int $actorId, int $targetId): array
+function transferOsaAdministrator(PDO $pdo, int $actorId, int $targetId, ?int $authorityVersion = null): array
 {
     $pdo->beginTransaction();
     try {
-        $actor = lockCurrentOsaAdministrator($pdo, $actorId);
+        $actor = lockCurrentOsaAdministrator($pdo, $actorId, $authorityVersion);
         $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id=? AND account_type='osa_staff' FOR UPDATE");
         $stmt->execute([$targetId]);
         $target = $stmt->fetch();
@@ -13,8 +13,8 @@ function transferOsaAdministrator(PDO $pdo, int $actorId, int $targetId): array
             || (int)$target['is_primary_osa'] !== 0 || $target['osa_archived_at'] !== null) {
             throw new InvalidArgumentException('Select an inactive former administrator from the Current list. Archived accounts must be restored first.');
         }
-        $pdo->prepare('UPDATE users SET is_active=0, is_primary_osa=0 WHERE user_id=?')->execute([$actorId]);
-        $pdo->prepare('UPDATE users SET is_active=1, is_primary_osa=1 WHERE user_id=?')->execute([$targetId]);
+        $pdo->prepare('UPDATE users SET is_active=0, is_primary_osa=0, osa_authority_version=osa_authority_version+1 WHERE user_id=?')->execute([$actorId]);
+        $pdo->prepare('UPDATE users SET is_active=1, is_primary_osa=1, osa_authority_version=osa_authority_version+1 WHERE user_id=?')->execute([$targetId]);
         appendAuditLog('osa_administrator_transferred', 'osa_staff', (string)$targetId, $actor, $target,
             ['administrator_user_id' => $actorId], ['administrator_user_id' => $targetId], 'success', $pdo);
         $pdo->commit();
@@ -25,11 +25,11 @@ function transferOsaAdministrator(PDO $pdo, int $actorId, int $targetId): array
     }
 }
 
-function archiveOsaAdministrator(PDO $pdo, int $actorId, int $targetId, bool $archive): void
+function archiveOsaAdministrator(PDO $pdo, int $actorId, int $targetId, bool $archive, ?int $authorityVersion = null): void
 {
     $pdo->beginTransaction();
     try {
-        $actor = lockCurrentOsaAdministrator($pdo, $actorId);
+        $actor = lockCurrentOsaAdministrator($pdo, $actorId, $authorityVersion);
         $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id=? AND account_type='osa_staff' FOR UPDATE");
         $stmt->execute([$targetId]);
         $target = $stmt->fetch();

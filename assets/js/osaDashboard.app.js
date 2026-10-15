@@ -369,7 +369,8 @@ async function saveOsaProfileDetails() {
         showToast('Employee ID, full name and email are required.', 'error');
         return;
     }
-    if (!/^[0-9]{2}-[0-9]{3}-[^\s\x2D]{4}$/.test(employeeNumber)) {
+    const originalEmployeeNumber = (osaProfileSnapshot?.employee_number || '').trim().toUpperCase();
+    if (employeeNumber !== originalEmployeeNumber && !/^[0-9]{2}-[0-9]{3}-[^\s\x2D\p{C}]{4}$/u.test(employeeNumber)) {
         showToast('Employee ID must contain two digits, a hyphen, three digits, a hyphen, and four characters (e.g. 12-123-ABCD).', 'error');
         document.getElementById('osaProfileEmployeeNumberInput')?.focus();
         return;
@@ -413,7 +414,7 @@ function setupOsaEmployeeNumberInput() {
     if (!input) return;
 
     // Each value must be a valid prefix of NN-NNN-XXXX while editing.
-    const allowed = /^(?:[0-9]{0,2}|[0-9]{2}-[0-9]{0,3}|[0-9]{2}-[0-9]{3}-[^\s\x2D]{0,4})$/;
+    const allowed = /^[0-9]{0,2}(?:-[0-9]{0,3}(?:-[^\s\x2D\p{C}]{0,4})?)?$/u;
     let previousValue = input.value;
     let previousStart = 0;
     let previousEnd = 0;

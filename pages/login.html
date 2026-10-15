@@ -171,7 +171,7 @@
         <!-- OSA Fields -->
         <form id="form-osa" class="reg-fields">
           <p class="org-lookup-message">Verify your email to submit a registration for approval by the current OSA administrator.</p>
-          <input type="text" id="osa-employee-number-input" placeholder="Employee Number" maxlength="11" pattern="[0-9]{2}-[0-9]{3}-[^\s\x2D]{4}" title="Use two digits, three digits, and four characters separated by hyphens." required />
+          <input type="text" id="osa-employee-number-input" placeholder="Employee Number" maxlength="15" pattern="[0-9]{2}-[0-9]{3}-[^\s\x2D\p{C}]{4}" title="Use two digits, three digits, and four visible characters separated by hyphens." required />
           <input type="text" id="osa-name-input" placeholder="Name" required />
           <input type="email" id="osa-email-input" placeholder="Email" required />
           <input type="tel" id="osa-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " required />
@@ -532,7 +532,7 @@
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20261015-osa-registration-approval-1"></script>
+  <script src="../assets/js/login.js?v=20261015-reviewed-inputs-1"></script>
   <script>
     (() => {
       const localHosts = new Set(['localhost', '127.0.0.1', '::1']);

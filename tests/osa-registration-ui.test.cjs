@@ -147,3 +147,55 @@ test('OSA registration is visible; staff management has no invitation or mutatio
     assert.doesNotMatch(accountsHtml, /osaInviteForm|osaInvitationRecords|data-transfer-primary|data-osa-status/);
     assert.match(accounts, /Approve &amp; Transfer/);
 });
+
+test('Student section mask supports year edits, separator deletion, and form resets without restoring stale values', () => {
+    const listeners = {};
+    const input = { value: '-', selectionStart: 0, selectionEnd: 0,
+        addEventListener: (name, callback) => { listeners[name] = callback; },
+        setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; } };
+    const context = vm.createContext({ document: { getElementById: () => input } });
+    vm.runInContext(login.slice(login.indexOf('function setupStudentSectionInput()'), login.indexOf('function normalizeOrgName(')), context);
+    context.setupStudentSectionInput();
+    const edit = value => { listeners.beforeinput(); input.value = value; listeners.input(); };
+    input.setSelectionRange(1, 1); listeners.click(); assert.equal(input.selectionStart, 0);
+    edit('4-'); assert.equal(input.selectionStart, 2);
+    edit('4-20'); assert.equal(input.value, '4-20');
+    edit('-20'); edit('3-20'); assert.equal(input.value, '3-20');
+    input.setSelectionRange(2, 2);
+    let prevented = false; listeners.keydown({ key: 'Backspace', preventDefault() { prevented = true; } });
+    assert.equal(prevented, true); assert.equal(input.selectionStart, 1);
+    listeners.keydown({ key: 'Delete', preventDefault() {} }); assert.equal(input.selectionStart, 2);
+    input.value = '-'; // Native form reset does not fire input.
+    input.setSelectionRange(0, 0); edit('123-4'); assert.equal(input.value, '-');
+    assert.equal(input.selectionStart, 0);
+    for (let section = 1; section <= 20; section++) { edit('4-' + section); assert.equal(input.value, '4-' + section); }
+    edit('4-21'); assert.equal(input.value, '4-20');
+});
+
+test('Both employee ID editors allow partial segment edits and reject invisible characters', () => {
+    const profile = fs.readFileSync(require.resolve('../assets/js/osaDashboard.app.js'), 'utf8');
+    for (const [source, fn, end] of [
+        [login, 'setupOsaRegistrationEmployeeNumberInput', 'async function registerOsa()'],
+        [profile, 'setupOsaEmployeeNumberInput', 'function setupOsaProfileEditor()'],
+    ]) {
+        const listeners = {};
+        const input = { value: '12-123-ABCD', selectionStart: 0, selectionEnd: 0,
+            addEventListener: (name, callback) => { listeners[name] = callback; },
+            setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; } };
+        const context = vm.createContext({ document: { getElementById: () => input } });
+        vm.runInContext(source.slice(source.indexOf('function ' + fn + '()'), source.indexOf(end)), context);
+        context[fn]();
+        for (const [value, expected] of [['2-123-ABCD','2-123-ABCD'],['12-12-ABCD','12-12-ABCD'],['12-123-éäöü','12-123-ÉÄÖÜ'],['12-123-😀😃😄😁','12-123-😀😃😄😁'],['12-123-AB\u0001D','12-123-😀😃😄😁'],['123-123-ABCD','12-123-😀😃😄😁']]) {
+            listeners.beforeinput(); input.value = value; listeners.input(); assert.equal(input.value, expected, fn);
+        }
+    }
+});
+
+test('Student confirmation field blocks clipboard and drop actions', () => {
+    const handlers = {};
+    const context = vm.createContext({ document: { getElementById: () => ({ addEventListener: (name, fn) => { handlers[name] = fn; } }) } });
+    vm.runInContext(login.slice(login.indexOf("  const studentConfirmPasswordInput = document.getElementById('student-confirm-password-input');"), login.indexOf("  setupPhoneInput('student-phone-input');")), context);
+    for (const name of ['copy','cut','paste','drop']) {
+        let blocked = false; handlers[name]({ preventDefault() { blocked = true; } }); assert.equal(blocked, true);
+    }
+});

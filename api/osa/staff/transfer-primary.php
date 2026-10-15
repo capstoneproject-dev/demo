@@ -5,10 +5,10 @@ requirePost();
 apiGuard(true); // Transfer destroys the outgoing session after committing.
 $session = apiRequirePrimaryOsaAdministrator();
 apiRequireRecentReauthentication();
-$id = (int)(getRequestBody()['user_id'] ?? 0);
+$id = osaRequestUserId(getRequestBody()['user_id'] ?? null);
 if ($id <= 0) jsonError('Select a former administrator.', 422);
 try {
-    $result = transferOsaAdministrator(getPdo(), (int)$session['user_id'], $id);
+    $result = transferOsaAdministrator(getPdo(), (int)$session['user_id'], $id, (int)($session['osa_authority_version'] ?? 0));
     destroySession();
     jsonOk($result);
 } catch (InvalidArgumentException $e) {

@@ -128,7 +128,7 @@ function auditTargetFromBody(array $body, string $route): array
         'org_id', 'record_id', 'invitation_id', 'annotation_id', 'request_id'
     ];
     foreach ($idKeys as $key) {
-        if (isset($body[$key]) && $body[$key] !== '') {
+        if (isset($body[$key]) && is_scalar($body[$key]) && $body[$key] !== '') {
             return [str_replace('_id', '', $key), (string)$body[$key]];
         }
     }
@@ -138,10 +138,12 @@ function auditTargetFromBody(array $body, string $route): array
 
 function auditTargetSnapshotFromBody(array $body): ?array
 {
-    $email = trim((string)($body['email'] ?? $body['target_email'] ?? ''));
-    $employeeNumber = trim((string)($body['employee_number'] ?? ''));
-    $firstName = trim((string)($body['first_name'] ?? $body['name'] ?? ''));
-    $lastName = trim((string)($body['last_name'] ?? ''));
+    // Invalid field types must not corrupt the JSON validation response while auditing it.
+    $text = static fn(mixed $value): string => is_scalar($value) ? trim((string)$value) : '';
+    $email = $text($body['email'] ?? $body['target_email'] ?? '');
+    $employeeNumber = $text($body['employee_number'] ?? '');
+    $firstName = $text($body['first_name'] ?? $body['name'] ?? '');
+    $lastName = $text($body['last_name'] ?? '');
     if ($email === '' && $employeeNumber === '' && $firstName === '' && $lastName === '') return null;
     return [
         'first_name' => $firstName !== '' ? $firstName : null,

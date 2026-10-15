@@ -118,11 +118,11 @@ function setupPrimaryOsaManagement() {
         var archive = button.dataset.archiveAction === 'archive';
         var account = osaStaff.find(function(staff) { return Number(staff.user_id) === Number(button.dataset.osaArchiveAccount); });
         if (!account) return;
-        if (!await appConfirm((archive ? 'Archive ' : 'Restore ') + ((account.first_name || '') + ' ' + (account.last_name || '')).trim() + '? The account stays inactive and its history is preserved.', {
-            title: archive ? 'Archive former administrator' : 'Restore former administrator', confirmText: archive ? 'Archive' : 'Restore', type: 'info'
-        })) return;
         button.disabled = true;
         try {
+            if (!await appConfirm((archive ? 'Archive ' : 'Restore ') + ((account.first_name || '') + ' ' + (account.last_name || '')).trim() + '? The account stays inactive and its history is preserved.', {
+                title: archive ? 'Archive former administrator' : 'Restore former administrator', confirmText: archive ? 'Archive' : 'Restore', type: 'info'
+            })) return;
             var result = await primaryApi('staff/archive.php', { method: 'POST', body: JSON.stringify({ user_id: Number(account.user_id), action: archive ? 'archive' : 'restore' }) });
             await loadOsaStaffManagement();
             showToast(result.message, 'success');

@@ -8,6 +8,7 @@ ini_set('session.save_path', sys_get_temp_dir());
 require_once __DIR__ . '/../includes/osa_registration.php';
 require_once __DIR__ . '/../includes/osa_archive.php';
 require_once __DIR__ . '/../database/migrations/20261015_osa_administrator_archive.php';
+require_once __DIR__ . '/../database/migrations/20261015_osa_authority_version.php';
 require_once __DIR__ . '/../database/migrations/20261015_single_osa_administrator.php';
 
 function check(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
@@ -31,20 +32,22 @@ if (($argv[1] ?? '') === 'worker') {
 if (($argv[1] ?? '') === 'guard') {
     $pdo = getPdo(); selectTestDatabase($pdo, $argv[2]);
     $user = $pdo->query('SELECT * FROM users WHERE user_id = ' . (int)$argv[3])->fetch();
-    startUserSession(['user_id' => (int)$user['user_id'], 'account_type' => 'osa_staff', 'login_role' => 'osa', 'is_primary_osa' => true]);
+    startUserSession(['user_id' => (int)$user['user_id'], 'account_type' => 'osa_staff', 'login_role' => 'osa', 'is_primary_osa' => true,
+        'osa_authority_version' => isset($argv[4]) ? (int)$argv[4] : (int)$user['osa_authority_version']]);
     apiGuard();
     echo 'authorized'; exit;
 }
 if (($argv[1] ?? '') === 'endpoint') {
     $pdo = getPdo(); selectTestDatabase($pdo, $argv[2]);
     $route = $argv[3];
-    $allowed = ['api/osa/staff/archive.php','api/auth/login.php','api/auth/register-osa.php','api/accounts/requests/action.php','api/auth/osa-invitations/inspect.php',
+    $allowed = ['api/auth/otp/send.php','api/auth/session.php','api/osa/profile/update.php','api/osa/staff/archive.php','api/auth/login.php','api/auth/register-osa.php','api/accounts/requests/action.php','api/auth/osa-invitations/inspect.php',
         'api/osa/staff/invite.php','api/osa/staff/status.php','api/osa/staff/delete.php','api/osa/staff/transfer-primary.php',
         'api/osa/staff/invitations/resend.php','api/osa/staff/invitations/revoke.php'];
     if (!in_array($route,$allowed,true)) throw new RuntimeException('Invalid test endpoint.');
     if ((int)$argv[5]>0) {
         $user=$pdo->query('SELECT * FROM users WHERE user_id='.(int)$argv[5])->fetch();
-        startUserSession(['user_id'=>(int)$user['user_id'],'account_type'=>$user['account_type'],'login_role'=>'osa','is_primary_osa'=>(bool)$user['is_primary_osa']]);
+        startUserSession(['user_id'=>(int)$user['user_id'],'account_type'=>$user['account_type'],'login_role'=>$user['account_type']==='osa_staff'?'osa':'student','is_primary_osa'=>(bool)$user['is_primary_osa'],
+            'osa_authority_version'=>($argv[6]??'')==='old-authority'?0:(int)$user['osa_authority_version']]);
         $_SESSION['capstone_security']['reauthenticated_at']=($argv[6]??'recent')==='stale' ? 0 : time();
     }
     $_POST=json_decode(base64_decode($argv[4]),true,512,JSON_THROW_ON_ERROR);
@@ -76,6 +79,8 @@ try {
         $pdo->exec('CREATE TABLE `' . $database . '`.`' . $table . '` LIKE `' . str_replace('`', '``', $source) . '`.`' . $table . '`');
     }
     selectTestDatabase($pdo, $database);
+    migrateOsaAuthorityVersion($pdo);
+    migrateOsaAuthorityVersion($pdo);
     // Allow the same legacy fixtures even when the source has already been migrated.
     $constraints = $pdo->query("SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'users'")->fetchAll(PDO::FETCH_COLUMN);
     if (in_array('chk_active_osa_primary', $constraints, true)) $pdo->exec('ALTER TABLE users DROP CONSTRAINT chk_active_osa_primary');
@@ -95,6 +100,9 @@ try {
         ->execute([hash('sha256', 'invitation'), $admin]);
     migrateSingleOsaAdministrator($pdo);
     migrateSingleOsaAdministrator($pdo);
+    $pdo->exec('ALTER TABLE users DROP INDEX uq_users_single_active_osa');
+    migrateSingleOsaAdministrator($pdo);
+    check((int)$pdo->query("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND INDEX_NAME='uq_users_single_active_osa'")->fetchColumn()===1,'Migration failed to restore a missing singleton index.');
     migrateOsaAdministratorArchive($pdo);
     migrateOsaAdministratorArchive($pdo);
     check((int)$pdo->query("SELECT COUNT(*) FROM users WHERE account_type='osa_staff' AND is_active=1")->fetchColumn() === 1, 'Migration must preserve one active admin.');
@@ -128,6 +136,16 @@ try {
 
     $body = ['employee_number'=>'12-123-abcd','first_name'=>'Incoming','last_name'=>'Admin','email'=>'incoming@example.invalid',
         'phone'=>'+63 9000000000','password'=>'TestPassword123!','confirm_password'=>'TestPassword123!','privacy_consent'=>true];
+    check(normalizeOsaEmployeeNumber('12-123-éäöü')==='12-123-ÉÄÖÜ' && isValidOsaEmployeeNumber('12-123-ÉÄÖÜ'),'Unicode employee ID normalization or validation differs from browser.');
+    check(isValidOsaEmployeeNumber('12-123-😀😃😄😁'),'Four Unicode characters must count as four characters.');
+    foreach (["12-123-AB\x01D", "12-123-AB\x00D", "12-123-AB\x7FD", '12-123-AB​D'] as $invalid) {
+        check(!isValidOsaEmployeeNumber($invalid),'Invisible employee ID character accepted.');
+    }
+    rejects(fn()=>submitOsaRegistration($pdo,array_merge($body,['first_name'=>str_repeat('A',100),'last_name'=>str_repeat('B',97).' C'])),'Submitted name would overflow the user first-name column on approval.');
+    check(osaTextLength(splitOsaRegistrationName(str_repeat('É',99).' Admin')[0])===99,'Valid multibyte name rejected or counted as bytes.');
+    foreach ([[1], true, 1.5, '1e2', '-1', '9999999999999999999999999'] as $invalidId) {
+        check(osaRequestUserId($invalidId)===0,'Malformed account ID coerced into a transfer target.');
+    }
     function challenge(PDO $pdo, array $body): array {
         $token = generateOpaqueToken();
         $pdo->prepare("INSERT INTO email_otp_challenges (challenge_token_hash,purpose,email,identifier,otp_hash,expires_at,resend_available_at)
@@ -147,6 +165,33 @@ try {
     rejects(fn() => submitOsaRegistration($pdo, array_merge($body,['employee_number'=>'12-124-ABCD'])), 'Changed employee ID accepted.');
     rejects(fn() => submitOsaRegistration($pdo, array_merge($body,['employee_number'=>'123-123-ABCD'])), 'Invalid format accepted.');
     $request = submitOsaRegistration($pdo, $body);
+    foreach (['student','organization_adviser'] as $type) {
+        $pdo->prepare("INSERT INTO users (email,password_hash,first_name,last_name,account_type) VALUES (?,?,'Role','Test',?)")->execute([$type.'@example.invalid',$hash,$type]);
+        $nonOsa=(int)$pdo->lastInsertId();
+        $forbidden=endpoint($database,'api/osa/profile/update.php',['full_name'=>'Changed User','email'=>$type.'@example.invalid','phone'=>'+63 9000000000','employee_number'=>'19-123-ABCD'],$nonOsa);
+        check(($forbidden['ok']??true)===false && str_contains($forbidden['error']??'','authorized'),'Non-OSA user can update OSA employee ID.');
+        check($pdo->query("SELECT employee_number FROM users WHERE user_id=$nonOsa")->fetchColumn()===null,'Forbidden profile update modified a non-OSA account.');
+        $pdo->exec("DELETE FROM users WHERE user_id=$nonOsa");
+    }
+    $profile=['full_name'=>'Test Admin','email'=>'primary@example.invalid','phone'=>'+63 9000000000','employee_number'=>'19-123-ABCD'];
+    $staleId=endpoint($database,'api/osa/profile/update.php',$profile,$admin,'stale');
+    check(($staleId['error_code']??'')==='REAUTHENTICATION_REQUIRED','Employee ID change skipped reauthentication.');
+    $reservedId=endpoint($database,'api/osa/profile/update.php',array_merge($profile,['employee_number'=>'12-123-ABCD']),$admin);
+    check(($reservedId['ok']??true)===false && str_contains($reservedId['error']??'','pending'),'Employee ID overwrote a pending registration identity.');
+    $badType=endpoint($database,'api/osa/profile/update.php',array_merge($profile,['employee_number'=>['19-123-ABCD']]),$admin);
+    check(($badType['ok']??true)===false,'Array employee ID accepted.');
+    $profileSaved=endpoint($database,'api/osa/profile/update.php',$profile,$admin);
+    check(($profileSaved['ok']??false) && $profileSaved['user']['employee_number']==='19-123-ABCD','Valid employee ID update failed.');
+    $pdo->prepare('UPDATE users SET employee_number=? WHERE user_id=?')->execute(['osa-legacy',$admin]);
+    $legacy=endpoint($database,'api/osa/profile/update.php',array_merge($profile,['employee_number'=>'OSA-LEGACY']),$admin,'stale');
+    check(($legacy['ok']??false) && $legacy['user']['employee_number']==='osa-legacy','Unchanged legacy employee ID blocks unrelated profile edits.');
+    $pdo->prepare('UPDATE users SET employee_number=? WHERE user_id=?')->execute(['19-123-ABCD',$admin]);
+    $malformed=endpoint($database,'api/auth/register-osa.php',array_merge($body,['first_name'=>['Incoming']]));
+    check(($malformed['ok']??true)===false && str_contains($malformed['error']??'','text'),'Malformed registration type did not return clean validation JSON.');
+    $malformedOtp=endpoint($database,'api/auth/otp/send.php',['purpose'=>'osa_registration','email'=>$body['email'],'identifier'=>['12-123-ABCD']]);
+    check(($malformedOtp['ok']??true)===false && str_contains($malformedOtp['error']??'','text'),'Malformed OTP request did not return clean validation JSON.');
+    $malformedTransfer=endpoint($database,'api/osa/staff/transfer-primary.php',['user_id'=>[$former]],$admin);
+    check(($malformedTransfer['ok']??true)===false && str_contains($malformedTransfer['error']??'','Select'),'Malformed transfer target did not return clean validation JSON.');
     $pendingLogin=endpoint($database,'api/auth/login.php',['identifier'=>$body['email'],'password'=>$body['password']]);
     check(($pendingLogin['ok']??true)===false && str_contains($pendingLogin['error']??'','Account not found'),'Pending applicant can sign in.');
     $noOtp=endpoint($database,'api/auth/register-osa.php',array_merge($body,['employee_number'=>'16-123-ABCD','email'=>'nootp@example.invalid','verification_token'=>'']));
@@ -162,6 +207,7 @@ try {
     check(($submitted['ok']??false) && ($submitted['status']??'')==='pending' && !isset($submitted['user'],$submitted['session']),'Public submission did not return pending-only response.');
     $publicReject=endpoint($database,'api/accounts/requests/action.php',['requestId'=>$submitted['reg_id'],'action'=>'reject'],$admin);
     check(($publicReject['ok']??false) && $publicReject['transfer_completed']===false,'Request rejection endpoint failed.');
+    check((int)$pdo->query('SELECT ABS(TIMESTAMPDIFF(SECOND,reviewed_at,CURRENT_TIMESTAMP)) FROM pending_registrations WHERE reg_id='.(int)$submitted['reg_id'])->fetchColumn()<5,'Review timestamp is not using the database clock.');
     foreach (['api/auth/osa-invitations/inspect.php','api/osa/staff/invite.php','api/osa/staff/status.php','api/osa/staff/delete.php',
         'api/osa/staff/invitations/resend.php','api/osa/staff/invitations/revoke.php'] as $route) {
         $disabled=endpoint($database,$route,[],$admin);
@@ -260,6 +306,11 @@ try {
     check(password_verify($body['password'],$pdo->query("SELECT password_hash FROM users WHERE user_id=$admin")->fetchColumn()),'Direct transfer changed target credentials.');
     $oldActor=endpoint($database,'api/osa/staff/transfer-primary.php',['user_id'=>$winner],$now);
     check(($oldActor['error_code']??'')==='AUTHENTICATION_REQUIRED','Outgoing direct-transfer actor retained access.');
+    $staleAuthority=endpoint($database,'api/osa/staff/transfer-primary.php',['user_id'=>$winner],$admin,'old-authority');
+    check(($staleAuthority['error_code']??'')==='AUTHENTICATION_REQUIRED','Old session revived after authority transferred back.');
+    $staleSession=endpoint($database,'api/auth/session.php',[],$admin,'old-authority');
+    check(($staleSession['authenticated']??true)===false,'Session refresh revived old administrator authority.');
+    rejects(fn()=>transferOsaAdministrator($pdo,$admin,$winner,0),'Locked mutation accepted a stale authority version.');
     echo "PASS: direct authority transfer, archive exclusion, reauthentication, audit rollback, and former account reactivation.\n";
     echo "PASS: expiration, attempt limit, concurrent approvals, repeated approval, audit, outgoing session revocation.\n";
 } finally {

@@ -8,9 +8,14 @@ rateLimitEnsureAllowed('otp_send_ip', 'ip:' . rateLimitClientIp(), 10, 600);
 
 $body = getRequestBody();
 $purpose = trim((string)($body['purpose'] ?? ''));
+if ($purpose === 'osa_registration') {
+    foreach (['email', 'identifier'] as $field) {
+        if (!is_string($body[$field] ?? null)) jsonError('Email and employee ID must contain text.', 422);
+    }
+}
 $email = trim((string)($body['email'] ?? ''));
 $identifier = trim((string)($body['identifier'] ?? ''));
-if ($purpose === 'osa_registration') $identifier = strtoupper($identifier);
+if ($purpose === 'osa_registration') $identifier = normalizeOsaEmployeeNumber($identifier);
 $invitationToken = trim((string)($body['invitation_token'] ?? ''));
 $studentName = trim((string)($body['student_name'] ?? ''));
 $currentPassword = (string)($body['current_password'] ?? '');

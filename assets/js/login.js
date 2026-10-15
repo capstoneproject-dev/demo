@@ -55,7 +55,16 @@ function setupStudentSectionInput() {
   const allowed = /^[1-9]?-(?:[1-9]|1[0-9]|20)?$/;
   let previousValue = allowed.test(input.value) ? input.value : '-';
   input.value = previousValue;
+  let previousStart = 0;
+  let previousEnd = 0;
+  const remember = () => {
+    previousValue = allowed.test(input.value) ? input.value : '-';
+    previousStart = input.selectionStart;
+    previousEnd = input.selectionEnd;
+  };
+  input.addEventListener('beforeinput', remember);
   input.addEventListener('focus', () => {
+    remember();
     if (input.value === '-') input.setSelectionRange(0, 0);
   });
   input.addEventListener('click', () => {
@@ -70,6 +79,10 @@ function setupStudentSectionInput() {
       event.preventDefault();
       input.setSelectionRange(caret - 1, caret - 1);
     }
+    if (event.key === 'Delete' && caret === input.selectionEnd && input.value[caret] === '-') {
+      event.preventDefault();
+      input.setSelectionRange(caret + 1, caret + 1);
+    }
   });
   input.addEventListener('input', () => {
     if (input.value === '') input.value = '-';
@@ -80,6 +93,7 @@ function setupStudentSectionInput() {
       if (input.value === '-') input.setSelectionRange(0, 0);
     } else {
       input.value = previousValue;
+      input.setSelectionRange(previousStart, previousEnd);
     }
   });
 }
@@ -2183,7 +2197,7 @@ function setupOsaRegistrationEmployeeNumberInput() {
     if (!input) return;
 
     // Each value must be a valid prefix of NN-NNN-XXXX while editing.
-    const allowed = /^(?:[0-9]{0,2}|[0-9]{2}-[0-9]{0,3}|[0-9]{2}-[0-9]{3}-[^\s\x2D]{0,4})$/;
+    const allowed = /^[0-9]{0,2}(?:-[0-9]{0,3}(?:-[^\s\x2D\p{C}]{0,4})?)?$/u;
     let previousValue = input.value;
     let previousStart = 0;
     let previousEnd = 0;
@@ -2239,14 +2253,20 @@ async function registerOsa() {
   if (!validatePasswordPair('osa', true)) return;
   if (!hasPrivacyConsent('osa-privacy-consent')) return;
 
-  if (!/^[0-9]{2}-[0-9]{3}-[^\s\x2D]{4}$/.test(employeeNumber)) {
+  if (!/^[0-9]{2}-[0-9]{3}-[^\s\x2D\p{C}]{4}$/u.test(employeeNumber)) {
     setRegistrationFieldInvalid('osa-employee-number-input', true);
     alert('Employee ID must use the format 12-123-ABCD.');
     return;
   }
 
+  const parsedName = splitName(fullName);
+  if (Array.from(fullName.replace(/\s+/g, ' ')).length > 200
+    || Array.from(parsedName.first_name).length > 100 || Array.from(parsedName.last_name).length > 100) {
+    setRegistrationFieldInvalid('osa-name-input', true);
+    alert('Full name must be 200 characters or fewer, with first and last names each 100 characters or fewer.');
+    return;
+  }
   startRegistrationOtpFlow('OSA', email, employeeNumber, 'osa_registration', async (verificationToken) => {
-    const parsedName = splitName(fullName);
     const btn = document.getElementById('osaRegisterBtn');
     if (btn) btn.disabled = true;
 
