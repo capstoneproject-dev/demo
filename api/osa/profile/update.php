@@ -28,6 +28,10 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 $currentUser = getUserById($userId);
 if (!$currentUser) jsonError('User not found.', 404);
+$employeeNumber = strtoupper(trim((string)($body['employee_number'] ?? $currentUser['employee_number'] ?? '')));
+if (!preg_match('/^[0-9]{2}-[0-9]{3}-[^\s\x2D]{4}$/D', $employeeNumber)) {
+    jsonError('Employee ID must contain two digits, a hyphen, three digits, a hyphen, and four characters (e.g. 12-123-ABCD).', 422);
+}
 $emailChanged = strcasecmp($email, (string)($currentUser['email'] ?? '')) !== 0;
 if ($emailChanged) {
     apiRequireRecentReauthentication();
@@ -55,6 +59,19 @@ function splitOsaProfileName(string $fullName): array
 $pdo = getPdo();
 
 try {
+    $employeeDupStmt = $pdo->prepare('
+        SELECT user_id FROM users
+        WHERE employee_number = :employee_number AND user_id <> :user_id
+        LIMIT 1
+    ');
+    $employeeDupStmt->execute([
+        ':employee_number' => $employeeNumber,
+        ':user_id' => $userId,
+    ]);
+    if ($employeeDupStmt->fetch()) {
+        jsonError('An account with that employee ID already exists.', 409);
+    }
+
     $dupStmt = $pdo->prepare('
         SELECT user_id
         FROM users
@@ -79,6 +96,7 @@ try {
     $updateStmt = $pdo->prepare('
         UPDATE users
         SET first_name = :first_name,
+            employee_number = :employee_number,
             last_name = :last_name,
             email = :email,
             phone = :phone,
@@ -89,6 +107,7 @@ try {
     ');
     $updateStmt->execute([
         ':first_name' => $firstName,
+        ':employee_number' => $employeeNumber,
         ':last_name' => $lastName,
         ':email' => $email,
         ':phone' => ($phone !== '' ? $phone : null),
