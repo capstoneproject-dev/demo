@@ -49,6 +49,43 @@ function setupPasswordVisibilityToggles() {
   });
 }
 
+function setupStudentSectionInput() {
+  const input = document.getElementById('student-section-input');
+  if (!input) return;
+
+  // Keep the separator visible and allow incomplete values while typing.
+  const allowed = /^[1-9]?-(?:[1-9]|1[0-9]|20)?$/;
+  let previousValue = allowed.test(input.value) ? input.value : '-';
+  input.value = previousValue;
+  input.addEventListener('focus', () => {
+    if (input.value === '-') input.setSelectionRange(0, 0);
+  });
+  input.addEventListener('click', () => {
+    if (input.value.startsWith('-')) input.setSelectionRange(0, 0);
+  });
+  input.addEventListener('keydown', (event) => {
+    const caret = input.selectionStart;
+    if (event.key === 'Backspace'
+      && caret === input.selectionEnd
+      && caret > 0
+      && input.value[caret - 1] === '-') {
+      event.preventDefault();
+      input.setSelectionRange(caret - 1, caret - 1);
+    }
+  });
+  input.addEventListener('input', () => {
+    if (input.value === '') input.value = '-';
+    if (/^[1-9]$/.test(input.value)) input.value += '-';
+    if (allowed.test(input.value)) {
+      previousValue = input.value;
+      if (/^[1-9]-$/.test(input.value)) input.setSelectionRange(2, 2);
+      if (input.value === '-') input.setSelectionRange(0, 0);
+    } else {
+      input.value = previousValue;
+    }
+  });
+}
+
 function normalizeOrgName(name) {
   const raw = String(name || '').trim();
   const upper = raw.toUpperCase();
@@ -1960,10 +1997,10 @@ async function registerStudent() {
   const password = (document.getElementById('student-password-input') || {}).value || '';
   const confirmPassword = (document.getElementById('student-confirm-password-input') || {}).value || '';
 
-  if (!/^[1-9]-[1-9]$/.test(section)) {
+  if (!/^[1-9]-([1-9]|1[0-9]|20)$/.test(section)) {
     setRegistrationFieldInvalid('student-section-input', true);
     document.getElementById('student-section-input')?.focus();
-    alert('Section must use the format 4-2: one digit from 1 to 9, a hyphen, and one digit from 1 to 9.');
+    alert('Section must use the format 4-20: a year from 1 to 9, a hyphen, and a section from 1 to 20.');
     return;
   }
 
@@ -2613,6 +2650,7 @@ async function handleLogin(testingBypassOtp = false) {
 document.addEventListener('DOMContentLoaded', () => {
   getAuthDb();
   setupPasswordVisibilityToggles();
+  setupStudentSectionInput();
   setupPhoneInput('student-phone-input');
   setupPhoneInput('org-phone-input');
   setupPhoneInput('org-adviser-phone-input');

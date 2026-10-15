@@ -136,8 +136,8 @@
           <input type="text" id="student-name-input" placeholder="Name" required />
           <input type="text" id="student-course-input" placeholder="Select Course" class="org-select-trigger" readonly
             onclick="openCourseModal('student-course-input')" required />
-          <input type="text" id="student-section-input" placeholder="Section (e.g. 4-2)" pattern="[1-9]-[1-9]"
-            maxlength="3" title="Enter one digit from 1 to 9, a hyphen, and one digit from 1 to 9 (e.g. 4-2)." required />
+          <input type="text" id="student-section-input" value="-" aria-label="Year and section (e.g. 4-20)" pattern="[1-9]-([1-9]|1[0-9]|20)"
+            maxlength="4" title="Enter a year from 1 to 9 and a section from 1 to 20 (e.g. 4-20). The hyphen is provided." required />
           <input type="email" id="student-email-input" placeholder="Email" required />
           <input type="tel" id="student-phone-input" placeholder="Phone Number (+63 XXXXXXXXXX)" value="+63 " required />
               <div class="password-field"><input type="password" id="student-password-input" minlength="12" aria-describedby="student-password-input-requirements"
@@ -532,7 +532,7 @@
   </div>
 
   <!-- Link to your JS file -->
-  <script src="../assets/js/login.js?v=20261004-section-format-1"></script>
+  <script src="../assets/js/login.js?v=20261015-section-format-20-5"></script>
   <script>
     (() => {
       const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
