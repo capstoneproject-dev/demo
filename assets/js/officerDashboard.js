@@ -2122,7 +2122,7 @@ function getOfficerFinancialItemDisplayLabel(item) {
 
 function getOfficerFinancialItemFilterLabels(item) {
     const serviceType = String(item?.service_type || '').toLowerCase();
-    if (serviceType === 'printing') return [];
+    if (serviceType === 'printing') return [getOfficerFinancialItemDisplayLabel(item)];
     if (serviceType === 'locker') return ['Locker'];
 
     const rawLabel = String(item?.item_label || '').trim();
@@ -2185,8 +2185,6 @@ function populateOfficerFinancialItemFilter(items) {
     const uniqueLabels = new Map();
     (items || [])
         .filter((item) => !filters.service || String(item.service_type || '').toLowerCase() === filters.service)
-        .filter((item) => !filters.payment || getOfficerFinancialPaymentStatus(item) === filters.payment)
-        .filter((item) => matchesOfficerFinancialDateFilter(item, filters.startDate, filters.endDate))
         .flatMap((item) => getOfficerFinancialItemFilterLabels(item))
         .forEach((label) => {
             const key = label.toLowerCase();
@@ -2523,7 +2521,7 @@ function clearOfficerFinancialSummaryFilters() {
     officerFinancialSummaryFilters = { startDate: null, endDate: null };
     officerFinancialCalendarSelectedStart = null;
     officerFinancialCalendarSelectedEnd = null;
-    initializeOfficerFinancialSummaryDefaultDate();
+    setOfficerFinancialSummaryText('financialSummaryDateFilterLabel', 'All Dates');
     renderOfficerFinancialSummary();
 }
 
