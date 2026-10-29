@@ -9,7 +9,7 @@ let pendingRequests = [];
 let studentNumbers = [];
 let currentAccountsSession = null;
 let osaStaff = [];
-let osaInvitations = [];
+let osaStaffArchiveView = 'current';
 
 var lastFingerprint = null;  // realtime poll baseline (null = not yet set)
 var pollTimer       = null;
@@ -73,135 +73,87 @@ async function loadOsaStaffManagement() {
     if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
     var data = await primaryApi('staff/list.php');
     osaStaff = data.staff || [];
-    osaInvitations = data.invitations || [];
     renderOsaStaffManagement();
 }
 
 function renderOsaStaffManagement() {
-    var staffBody = document.getElementById('osaStaffRecords');
-    var inviteBody = document.getElementById('osaInvitationRecords');
-    if (staffBody) {
-        staffBody.innerHTML = osaStaff.length ? osaStaff.map(function(staff) {
-            var name = ((staff.first_name || '') + ' ' + (staff.last_name || '')).trim();
-            var isPrimary = Number(staff.is_primary_osa) === 1;
-            var isActive = Number(staff.is_active) === 1;
-            var actions = isPrimary
-                ? '<span class="text-muted small">Transfer authority first</span>'
-                : '<button class="btn btn-outline-' + (isActive ? 'danger' : 'success') + ' btn-sm me-1" data-osa-status="' + staff.user_id + '" data-active="' + (isActive ? '0' : '1') + '">' + (isActive ? 'Deactivate' : 'Activate') + '</button>'
-                  + (isActive
-                      ? '<button class="btn btn-warning btn-sm" data-transfer-primary="' + staff.user_id + '">Make Primary</button>'
-                      : '<button class="btn btn-outline-danger btn-sm" data-remove-osa-staff="' + staff.user_id + '">Remove</button>');
-            return '<tr><td>' + escHtml(name) + '</td><td>' + escHtml(staff.employee_number) + '</td>'
-                + '<td>' + escHtml(staff.email) + '</td><td><span class="badge bg-' + (isActive ? 'success' : 'secondary') + '">' + (isActive ? 'Active' : 'Inactive') + '</span></td>'
-                + '<td>' + (isPrimary ? '<span class="badge bg-primary">Primary</span>' : 'OSA Staff') + '</td><td>' + actions + '</td></tr>';
-        }).join('') : '<tr><td colspan="6" class="text-center text-muted">No OSA staff accounts</td></tr>';
-    }
-    if (inviteBody) {
-        inviteBody.innerHTML = osaInvitations.length ? osaInvitations.map(function(invite) {
-            var pending = invite.status === 'pending';
-            var actions = pending
-                ? '<button class="btn btn-outline-primary btn-sm me-1" data-resend-invite="' + invite.invitation_id + '">Resend</button>'
-                  + '<button class="btn btn-outline-danger btn-sm" data-revoke-invite="' + invite.invitation_id + '">Revoke</button>'
-                : '<span class="text-muted">—</span>';
-            var deliveryClass = invite.delivery_status === 'sent' ? 'success' : invite.delivery_status === 'failed' ? 'danger' : 'secondary';
-            return '<tr><td>' + escHtml(invite.employee_number) + '</td><td>' + escHtml(invite.email) + '</td>'
-                + '<td>' + escHtml(invite.status) + '</td><td><span class="badge bg-' + deliveryClass + '" title="' + escHtml(invite.delivery_error || '') + '">' + escHtml(invite.delivery_status) + '</span></td>'
-                + '<td>' + escHtml(formatDate(invite.expires_at)) + '</td><td>' + actions + '</td></tr>';
-        }).join('') : '<tr><td colspan="6" class="text-center text-muted">No invitations</td></tr>';
-    }
+    var body = document.getElementById('osaStaffRecords');
+    if (!body) return;
+    var archivedView = osaStaffArchiveView === 'archived';
+    var rows = osaStaff.filter(function(staff) { return Boolean(staff.osa_archived_at) === archivedView; });
+    var count = document.getElementById('osaArchivedCount');
+    if (count) count.textContent = osaStaff.filter(function(staff) { return Boolean(staff.osa_archived_at); }).length;
+    document.querySelectorAll('[data-osa-archive-view]').forEach(function(button) {
+        var selected = button.dataset.osaArchiveView === osaStaffArchiveView;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+    });
+    body.innerHTML = rows.length ? rows.map(function(staff) {
+        var name = ((staff.first_name || '') + ' ' + (staff.last_name || '')).trim();
+        var active = Number(staff.is_active) === 1 && Number(staff.is_primary_osa) === 1;
+        var transferButton = !active && !archivedView ? '<button type="button" class="btn btn-sm btn-outline-warning text-dark me-1" data-osa-transfer-account="' + Number(staff.user_id) + '">Transfer Authority</button>' : '';
+        return '<tr><td>' + escHtml(name) + '</td><td>' + escHtml(staff.employee_number || '') + '</td><td>' + escHtml(staff.email || '') + '</td>' +
+            '<td>' + (archivedView ? 'Archived' : active ? 'Active' : 'Inactive') + '</td><td>' + (active ? 'Current Administrator' : 'Former Administrator') + '</td>' +
+            '<td>' + transferButton + (active ? '<span class="text-muted small">Current administrator</span>' : '<button type="button" class="btn btn-sm btn-outline-secondary" data-osa-archive-account="' + Number(staff.user_id) + '" data-archive-action="' + (archivedView ? 'restore' : 'archive') + '">' + (archivedView ? 'Restore' : 'Archive') + '</button>') + '</td></tr>';
+    }).join('') : '<tr><td colspan="6" class="text-center text-muted">' + (archivedView ? 'No archived administrators' : 'No OSA accounts') + '</td></tr>';
 }
 
 function setupPrimaryOsaManagement() {
     if (!currentAccountsSession || !currentAccountsSession.is_primary_osa) return;
     revealPrimaryOsaFeatures();
-
-    var inviteForm = document.getElementById('osaInviteForm');
-    if (inviteForm) inviteForm.addEventListener('submit', async function(event) {
-        event.preventDefault();
-        try {
-            await primaryApi('staff/invite.php', {
-                method: 'POST',
-                body: JSON.stringify({
-                    email: document.getElementById('osaInviteEmail').value.trim(),
-                    employee_number: document.getElementById('osaInviteEmployeeNumber').value.trim()
-                })
-            });
-            inviteForm.reset();
-            await showPrimaryOsaNotice('OSA invitation sent.', 'success');
-        } catch (error) {
-            await showPrimaryOsaNotice(error.message, 'error');
+    document.getElementById('osaStaffPanel')?.addEventListener('click', async function(event) {
+        var view = event.target.closest('[data-osa-archive-view]');
+        if (view) {
+            osaStaffArchiveView = view.dataset.osaArchiveView;
+            renderOsaStaffManagement();
+            return;
         }
-        await loadOsaStaffManagement().catch(function(error) {
-            return showPrimaryOsaNotice(error.message, 'error');
-        });
-    });
-
-    document.getElementById('osaStaffPanel').addEventListener('click', async function(event) {
-        var resend = event.target.closest('[data-resend-invite]');
-        var revoke = event.target.closest('[data-revoke-invite]');
-        var status = event.target.closest('[data-osa-status]');
-        var transfer = event.target.closest('[data-transfer-primary]');
-        var removeStaff = event.target.closest('[data-remove-osa-staff]');
+        var transfer = event.target.closest('[data-osa-transfer-account]');
+        if (transfer) {
+            await transferOsaStaffAuthority(transfer);
+            return;
+        }
+        var button = event.target.closest('[data-osa-archive-account]');
+        if (!button || button.disabled) return;
+        var archive = button.dataset.archiveAction === 'archive';
+        var account = osaStaff.find(function(staff) { return Number(staff.user_id) === Number(button.dataset.osaArchiveAccount); });
+        if (!account) return;
+        button.disabled = true;
         try {
-            if (resend) {
-                var resendResult = await primaryApi('staff/invitations/resend.php', { method: 'POST', body: JSON.stringify({ invitation_id: resend.dataset.resendInvite }) });
-                await showPrimaryOsaNotice(resendResult.message || 'Invitation resent.', 'success');
-            }
-            if (revoke) {
-                if (!await appConfirm('Revoke this invitation?', {
-                    title: 'Revoke OSA invitation',
-                    confirmText: 'Revoke',
-                    type: 'warning',
-                    danger: true
-                })) return;
-                var revokeResult = await primaryApi('staff/invitations/revoke.php', { method: 'POST', body: JSON.stringify({ invitation_id: revoke.dataset.revokeInvite }) });
-                await showPrimaryOsaNotice(revokeResult.message || 'Invitation revoked.', 'success');
-            }
-            if (status) {
-                var activating = status.dataset.active === '1';
-                if (!await appConfirm((activating ? 'Activate' : 'Deactivate') + ' this OSA account?', {
-                    title: (activating ? 'Activate' : 'Deactivate') + ' OSA account',
-                    confirmText: activating ? 'Activate' : 'Deactivate',
-                    type: activating ? 'info' : 'warning',
-                    danger: !activating
-                })) return;
-                var statusResult = await primaryApi('staff/status.php', { method: 'POST', body: JSON.stringify({ user_id: status.dataset.osaStatus, is_active: activating }) });
-                await showPrimaryOsaNotice(statusResult.message || 'OSA account updated.', 'success');
-            }
-            if (transfer) {
-                if (!await appConfirm('Transfer Primary OSA authority? You will immediately lose staff-management and audit access.', {
-                    title: 'Transfer Primary authority',
-                    confirmText: 'Transfer authority',
-                    type: 'warning',
-                    danger: true
-                })) return;
-                var transferResult = await primaryApi('staff/transfer-primary.php', { method: 'POST', body: JSON.stringify({ user_id: transfer.dataset.transferPrimary }) });
-                await showPrimaryOsaNotice(transferResult.message || 'Primary OSA authority transferred.', 'success');
-                window.top.location.reload();
-                return;
-            }
-            if (removeStaff) {
-                if (!await appConfirm('Permanently remove this inactive OSA staff account? This cannot be undone.', {
-                    title: 'Remove inactive OSA staff',
-                    confirmText: 'Remove account',
-                    type: 'warning',
-                    danger: true
-                })) return;
-                var removeResult = await primaryApi('staff/delete.php', {
-                    method: 'POST',
-                    body: JSON.stringify({ user_id: removeStaff.dataset.removeOsaStaff })
-                });
-                await showPrimaryOsaNotice(removeResult.message || 'Inactive OSA staff account removed.', 'success');
-            }
+            if (!await appConfirm((archive ? 'Archive ' : 'Restore ') + ((account.first_name || '') + ' ' + (account.last_name || '')).trim() + '? The account stays inactive and its history is preserved.', {
+                title: archive ? 'Archive former administrator' : 'Restore former administrator', confirmText: archive ? 'Archive' : 'Restore', type: 'info'
+            })) return;
+            var result = await primaryApi('staff/archive.php', { method: 'POST', body: JSON.stringify({ user_id: Number(account.user_id), action: archive ? 'archive' : 'restore' }) });
             await loadOsaStaffManagement();
+            showToast(result.message, 'success');
         } catch (error) {
             await showPrimaryOsaNotice(error.message, 'error');
-        }
+        } finally { button.disabled = false; }
     });
-
-    document.getElementById('osa-staff-tab').addEventListener('shown.bs.tab', function() {
+    document.getElementById('osa-staff-tab')?.addEventListener('shown.bs.tab', function() {
         loadOsaStaffManagement().catch(function(error) { return showPrimaryOsaNotice(error.message, 'error'); });
     });
+}
+
+async function transferOsaStaffAuthority(button) {
+    if (button.disabled) return;
+    var account = osaStaff.find(function(staff) { return Number(staff.user_id) === Number(button.dataset.osaTransferAccount); });
+    if (!account) return;
+    button.disabled = true;
+    try {
+        var identity = ((account.first_name || '') + ' ' + (account.last_name || '')).trim() + ' (' + account.employee_number + ', ' + account.email + ')';
+        if (!await appConfirm('Transfer OSA authority to ' + identity + '? Their account will become active, your account will become inactive, and you will be signed out.', {
+            title: 'Transfer Administrator Authority', confirmText: 'Transfer Authority', type: 'warning', danger: true
+        })) return;
+        var result = await primaryApi('staff/transfer-primary.php', { method: 'POST', body: JSON.stringify({ user_id: Number(account.user_id) }) });
+        if (!result.transfer_completed) throw new Error('The transfer could not be completed.');
+        if (pollTimer) clearInterval(pollTimer);
+        localStorage.removeItem('naapAuthSession');
+        await appAlert(result.message, { type: 'success' });
+        redirectFromAccounts(new URL('../../pages/login.html', window.location.href).href);
+    } catch (error) {
+        await showPrimaryOsaNotice(error.message, 'error');
+    } finally { button.disabled = false; }
 }
 
 function formatDate(v) {
@@ -404,6 +356,7 @@ function requestIdentifier(request) {
 }
 
 function requestAccountSummary(request) {
+    if (request.requestedRole === 'osa_staff') return 'OSA Administrator - ' + (request.email || 'No email');
     if (request.requestedRole === 'organization_adviser') {
         return 'Organization Adviser · ' + (request.requestedOrg || 'No organization') +
             ' · ' + (request.email || 'No email');
@@ -435,7 +388,7 @@ function renderRequestTables() {
                 '<td>' + escHtml(requestAccountSummary(r)) + '</td>' +
                 '<td>' + formatDate(r.requestedAt || r.requestTime || r.timestamp) + '</td>' +
                 '<td>' +
-                    '<button class="btn btn-sm btn-success py-0 px-1"  onclick="approveRequest(\'' + escHtml(r.id) + '\')">Approve</button> ' +
+                    '<button class="btn btn-sm btn-success py-0 px-1"  onclick="approveRequest(\'' + escHtml(r.id) + '\')">' + (r.requestedRole === 'osa_staff' ? 'Approve &amp; Transfer' : 'Approve') + '</button> ' +
                     '<button class="btn btn-sm btn-danger py-0 px-1"   onclick="rejectRequest(\'' + escHtml(r.id) + '\')">Reject</button>' +
                 '</td>' +
             '</tr>';
@@ -720,7 +673,20 @@ async function approveRequest(requestId) {
     var request = pendingRequests.find(function(r) { return String(r.id) === requestId; });
     if (!request) return;
     try {
-        await getService().updatePendingRequest(requestId, { status: 'approved' });
+        if (request.requestedRole === 'osa_staff') {
+            var identity = (request.studentName || request.name || '') + ' (' + requestIdentifier(request) + ', ' + request.email + ')';
+            if (!await appConfirm('Approve ' + identity + ' as the sole OSA administrator? This transfers all OSA access and signs you out. Your account will become inactive.', {
+                title: 'Approve & Transfer Administrator', confirmText: 'Approve & Transfer', type: 'warning', danger: true
+            })) return;
+        }
+        var result = await getService().updatePendingRequest(requestId, { status: 'approved' });
+        if (result && result.transfer_completed) {
+            if (pollTimer) clearInterval(pollTimer);
+            localStorage.removeItem('naapAuthSession');
+            await appAlert(result.msg || 'Administrator access transferred. Please sign in with the new account.', { type: 'success' });
+            redirectFromAccounts(new URL('../../pages/login.html', window.location.href).href);
+            return;
+        }
         lastFingerprint = null;
         await loadData();
         showToast('Approved: ' + (request.studentName || request.name || request.studentId));

@@ -157,11 +157,7 @@ const ORG_ROLES = ['officer', 'auditor', 'member'];
             const actionMap = { approved: 'approve', rejected: 'reject', pending: 'reopen' };
             const action = actionMap[updateData.status];
             if (!action) throw new Error('Unknown request status: ' + updateData.status);
-            await post('/requests/action.php', {
-                requestId,
-                action
-            });
-            return true;
+            return post('/requests/action.php', { requestId, action });
         }
 
         async deletePendingRequest(requestId) {

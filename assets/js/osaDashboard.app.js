@@ -20,7 +20,6 @@ let osaAlertsRefreshTimer = null;
 function updateOsaProfileView(session = readAuthSession()) {
     const fullName = session.display_name || 'OSA Staff';
     const roleLabel = session.active_role_name || 'osa_staff';
-    const employeeNumber = session.employee_number || 'N/A';
     const email = session.email || '';
     const phone = session.phone || 'N/A';
     const joined = session.authenticated_at ? new Date(session.authenticated_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
@@ -47,7 +46,7 @@ function updateOsaProfileView(session = readAuthSession()) {
     const phoneInput = document.getElementById('osaProfilePhoneInput');
     const dateJoinedInput = document.getElementById('osaProfileDateJoinedInput');
     if (fullNameInput) fullNameInput.value = fullName;
-    if (employeeNumberInput) employeeNumberInput.value = employeeNumber;
+    if (employeeNumberInput) employeeNumberInput.value = session.employee_number || '';
     if (emailInput) emailInput.value = email;
     if (departmentInput) departmentInput.value = 'Office of Student Affairs';
     if (phoneInput) phoneInput.value = phone;
@@ -341,6 +340,7 @@ function setOsaProfileEditMode(isEditing) {
 
 function snapshotOsaProfileValues() {
     osaProfileSnapshot = {
+        employee_number: (document.getElementById('osaProfileEmployeeNumberInput') || {}).value || '',
         full_name: (document.getElementById('osaProfileFullNameInput') || {}).value || '',
         email: (document.getElementById('osaProfileEmailInput') || {}).value || '',
         phone: (document.getElementById('osaProfilePhoneInput') || {}).value || '',
@@ -349,6 +349,8 @@ function snapshotOsaProfileValues() {
 
 function restoreOsaProfileSnapshot() {
     if (!osaProfileSnapshot) return;
+    const employeeNumberInput = document.getElementById('osaProfileEmployeeNumberInput');
+    if (employeeNumberInput) employeeNumberInput.value = osaProfileSnapshot.employee_number;
     const nameInput = document.getElementById('osaProfileFullNameInput');
     const emailInput = document.getElementById('osaProfileEmailInput');
     const phoneInput = document.getElementById('osaProfilePhoneInput');
@@ -358,12 +360,19 @@ function restoreOsaProfileSnapshot() {
 }
 
 async function saveOsaProfileDetails() {
+    const employeeNumber = (document.getElementById('osaProfileEmployeeNumberInput') || {}).value?.trim().toUpperCase() || '';
     const fullName = (document.getElementById('osaProfileFullNameInput') || {}).value?.trim() || '';
     const email = (document.getElementById('osaProfileEmailInput') || {}).value?.trim() || '';
     const phone = (document.getElementById('osaProfilePhoneInput') || {}).value?.trim() || '';
 
-    if (!fullName || !email) {
-        showToast('Full name and email are required.', 'error');
+    if (!employeeNumber || !fullName || !email) {
+        showToast('Employee ID, full name and email are required.', 'error');
+        return;
+    }
+    const originalEmployeeNumber = (osaProfileSnapshot?.employee_number || '').trim().toUpperCase();
+    if (employeeNumber !== originalEmployeeNumber && !/^[0-9]{2}-[0-9]{3}-[^\s\x2D\p{C}]{4}$/u.test(employeeNumber)) {
+        showToast('Employee ID must contain two digits, a hyphen, three digits, a hyphen, and four characters (e.g. 12-123-ABCD).', 'error');
+        document.getElementById('osaProfileEmployeeNumberInput')?.focus();
         return;
     }
 
@@ -377,7 +386,7 @@ async function saveOsaProfileDetails() {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ full_name: fullName, email, phone, email_verification_token: emailVerificationToken }),
+            body: JSON.stringify({ employee_number: employeeNumber, full_name: fullName, email, phone, email_verification_token: emailVerificationToken }),
         });
         const data = await resp.json();
         if (!data.ok) {
@@ -400,7 +409,41 @@ async function saveOsaProfileDetails() {
     }
 }
 
+function setupOsaEmployeeNumberInput() {
+    const input = document.getElementById('osaProfileEmployeeNumberInput');
+    if (!input) return;
+
+    // Each value must be a valid prefix of NN-NNN-XXXX while editing.
+    const allowed = /^[0-9]{0,2}(?:-[0-9]{0,3}(?:-[^\s\x2D\p{C}]{0,4})?)?$/u;
+    let previousValue = input.value;
+    let previousStart = 0;
+    let previousEnd = 0;
+    const remember = () => {
+        previousValue = input.value;
+        previousStart = input.selectionStart;
+        previousEnd = input.selectionEnd;
+    };
+    input.addEventListener('focus', remember);
+    input.addEventListener('beforeinput', remember);
+    input.addEventListener('input', () => {
+        const normalized = input.value.toUpperCase();
+        if (allowed.test(normalized)) {
+            if (input.value !== normalized) {
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                input.value = normalized;
+                input.setSelectionRange(start, end);
+            }
+            remember();
+        } else {
+            input.value = previousValue;
+            input.setSelectionRange(previousStart, previousEnd);
+        }
+    });
+}
+
 function setupOsaProfileEditor() {
+    setupOsaEmployeeNumberInput();
     const editBtn = document.getElementById('osaProfileEditBtn');
     const cancelBtn = document.getElementById('osaProfileCancelBtn');
 

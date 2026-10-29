@@ -136,6 +136,7 @@ function buildSessionPayload(
         'account_type'        => $user['account_type'],
         'is_primary_osa'      => ($user['account_type'] ?? '') === 'osa_staff'
                                     && (int)($user['is_primary_osa'] ?? 0) === 1,
+        'osa_authority_version' => (int)($user['osa_authority_version'] ?? 0),
         'display_name'        => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
         'email'               => $user['email'],
         'phone'               => $user['phone'] ?? null,

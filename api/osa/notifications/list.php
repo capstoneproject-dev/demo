@@ -129,6 +129,7 @@ try {
         return match ($role) {
             'organization_adviser' => 'Organization Adviser',
             'org_officer' => 'Organization Officer',
+            'osa_staff' => 'OSA Administrator',
             default => 'Student',
         };
     };
